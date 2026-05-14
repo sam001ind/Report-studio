@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report Studio</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f5;
+      --ink: #18211f;
+      --muted: #697470;
+      --line: #d8dfdc;
+      --panel: #ffffff;
+      --accent: #176b87;
+      --accent-soft: #dff1f5;
+      --danger: #b42318;
+      --shadow: 0 8px 30px rgba(27, 38, 35, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      overflow: hidden;
+    }
+
+    /* App Shell Layout */
+    .app-shell {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      z-index: 10;
+    }
+
+    .workspace {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .brand-mark {
+      background: var(--accent);
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+    }
+
+    .brand h1 { margin: 0; font-size: 18px; }
+    .brand p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+
+    .nav-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 40px;
+    }
+
+    .nav-btn {
+      background: transparent;
+      border: none;
+      text-align: left;
+      padding: 12px 16px;
+      border-radius: 8px;
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .nav-btn:hover { background: var(--bg); }
+    .nav-btn.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+    .panel {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: auto;
+    }
+
+    .panel-title { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 12px; text-transform: uppercase;}
+    .mini-stats { display: flex; gap: 16px; }
+    .mini-stats div { display: flex; flex-direction: column; }
+    .mini-stats strong { font-size: 24px; color: var(--accent); }
+    .mini-stats span { font-size: 12px; color: var(--muted); }
+
+    /* Pages */
+    .page-section {
+      display: none;
+      padding: 40px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .page-section.active { display: block; }
+
+    h2 { font-size: 28px; margin-top: 0; margin-bottom: 8px; }
+    .subtitle { color: var(--muted); margin-bottom: 32px; }
+
+    /* UI Controls */
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { filter: brightness(0.9); }
+    button.secondary { background: white; color: var(--ink); border: 1px solid var(--line); }
+    button.danger { background: white; color: var(--danger); border: 1px solid var(--danger); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-width: 100px;
+    }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    input, select {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-family: inherit;
+    }
+
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .tag {
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tag button {
+      background: none; border: none; padding: 0; color: inherit; font-size: 16px; cursor: pointer; min-height: auto;
+    }
+
+    .file-drop {
+      border: 2px dashed var(--line);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      background: #fafafa;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .file-drop:hover { border-color: var(--accent); }
+    input[type="file"] { display: none; }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    table.data-table th, table.data-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+    table.data-table th { background: #f3f6f5; font-weight: 600; text-transform: uppercase; font-size: 11px; }
+
+    /* Template Builder */
+    .builder-layout {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .builder-tools {
+      width: 340px;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .canvas-container {
+      flex: 1;
+      overflow: auto;
+      background: #e5e7eb;
+      padding: 40px;
+      border-radius: 12px;
+      min-height: 70vh;
+      text-align: center;
+    }
+
+    /* Outer Wrapper to handle scaling and Rulers cleanly */
+    .paper-wrapper {
+      position: relative;
+      margin: 0 auto;
+      display: inline-block;
+      text-align: left;
+      transition: width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .paper {
+      background: white;
+      position: relative;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+
+    .paper.show-grid {
+      background-image: 
+        linear-gradient(rgba(23, 107, 135, 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23, 107, 135, 0.3) 1px, transparent 1px),
+        linear-gradient(rgba(23, 107, 135, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23, 107, 135, 0.1) 1px, transparent 1px);
+      background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+      background-position: 0 0, 0 0, 0 0, 0 0;
+    }
+
+    /* Form Background Image */
+    .page-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Ruler Measurement Marks */
+    .ruler-x, .ruler-y, .ruler-corner {
+      position: absolute;
+      background: #fdfdfd;
+      box-sizing: border-box;
+      pointer-events: none;
+      display: none;
+      z-index: 10;
+    }
+    
+    .paper-wrapper.show-grid .ruler-x,
+    .paper-wrapper.show-grid .ruler-y,
+    .paper-wrapper.show-grid .ruler-corner {
+      display: block;
+    }
+
+    .ruler-x {
+      top: -20px; left: 0; right: 0; height: 20px;
+      border: 1px solid var(--line);
+      border-bottom: 1px solid var(--accent);
+      background-image: 
+        repeating-linear-gradient(90deg, var(--accent) 0, var(--accent) 1px, transparent 1px, transparent 50px),
+        repeating-linear-gradient(90deg, var(--muted) 0, var(--muted) 1px, transparent 1px, transparent 10px);
+      background-size: 100% 12px, 100% 6px;
+      background-position: 0 bottom, 0 bottom;
+      background-repeat: no-repeat;
+    }
+
+    .ruler-y {
+      top: 0; left: -20px; bottom: 0; width: 20px;
+      border: 1px solid var(--line);
+      border-right: 1px solid var(--accent);
+      background-image: 
+        repeating-linear-gradient(180deg, var(--accent) 0, var(--accent) 1px, transparent 1px, transparent 50px),
+        repeating-linear-gradient(180deg, var(--muted) 0, var(--muted) 1px, transparent 1px, transparent 10px);
+      background-size: 12px 100%, 6px 100%;
+      background-position: right 0, right 0;
+      background-repeat: no-repeat;
+    }
+    
+    .ruler-corner {
+      top: -20px; left: -20px; width: 20px; height: 20px;
+      border: 1px solid var(--line);
+    }
+
+    /* Draggable Elements - Added Hardware Acceleration */
+    .drag-element {
+      position: absolute;
+      cursor: grab;
+      user-select: none;
+      padding: 4px;
+      border: 1px solid transparent;
+      line-height: 1.2;
+      box-sizing: border-box;
+      z-index: 10;
+      will-change: left, top, width, height; /* GPU Optimization for smooth dragging */
+    }
+    .drag-element:active { cursor: grabbing; }
+    .drag-element.selected { border-color: var(--accent); background: rgba(23, 107, 135, 0.05); }
+    .drag-element.field-type { color: var(--accent); font-weight: bold; }
+    
+    .content-wrap {
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* Resize Handles - Made slightly larger for easier grabbing */
+    .resize-handle {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: var(--panel);
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      z-index: 100;
+      display: none;
+      pointer-events: auto; /* Ensures they always catch clicks */
+    }
+    .drag-element.selected .resize-handle {
+      display: block;
+    }
+    .resize-handle.se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+    .resize-handle.e { top: calc(50% - 7px); right: -7px; cursor: ew-resize; }
+    .resize-handle.s { bottom: -7px; left: calc(50% - 7px); cursor: ns-resize; }
+
+    .column-checkbox-list {
+      max-height: 150px; 
+      overflow-y: auto; 
+      border: 1px solid var(--line); 
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .column-checkbox-list label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    /* Style Toggles */
+    .style-toggle-btn {
+       min-width: 32px;
+       padding: 6px;
+       font-size: 14px;
+    }
+    .style-toggle-btn.active {
+       background: var(--accent);
+       color: white;
+       border-color: var(--accent);
+    }
+
+    /* Generator Output */
+    .controls-row { display: flex; gap: 12px; margin-bottom: 24px; align-items: flex-end; background: white; padding: 20px; border-radius: 12px; border: 1px solid var(--line); }
+
+    .output-preview {
+      background: #e5e7eb;
+      padding: 40px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      overflow-y: auto;
+      max-height: 60vh;
+    }
+
+    .preview-page {
+      background: white;
+      position: relative;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    /* Print Styles */
+    @media print {
+      body * { visibility: hidden; }
+      .app-shell { display: block; height: auto; }
+      #generatedOutput, #generatedOutput * { visibility: visible; }
+      #generatedOutput { 
+        position: absolute; left: 0; top: 0; width: 100%; padding: 0; background: white; overflow: visible; max-height: none;
+      }
+      .preview-page { box-shadow: none; margin: 0; border: 0; page-break-after: always; }
+      @page { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">RS</div>
+        <div>
+          <h1>Report Studio</h1>
+          <p>Client-side generator</p>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-btn active" onclick="navTo('configPage')">1. Report Config</button>
+        <button class="nav-btn" onclick="navTo('templatePage')">2. Template Creator</button>
+        <button class="nav-btn" onclick="navTo('generatePage')">3. Generate & Export</button>
+      </nav>
+
+      <section class="panel">
+        <div class="panel-title">Active Dataset</div>
+        <div class="mini-stats">
+          <div><strong id="statRows">0</strong><span>Rows</span></div>
+          <div><strong id="statCols">0</strong><span>Columns</span></div>
+        </div>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      
+      <!-- PAGE 1: REPORT CONFIG (DATA MANAGEMENT) -->
+      <section id="configPage" class="page-section active">
+        <h2>Report Configuration</h2>
+        <p class="subtitle">Upload data, combine fields, apply filters, and save your data configuration.</p>
+
+        <!-- Step 1: Upload Data -->
+        <div class="card">
+          <h3 style="margin-top:0">Step 1: Upload Dataset</h3>
+          <div class="file-drop" onclick="document.getElementById('fileInput').click()">
+            <h3 id="uploadStatus">Click or Drag to Upload CSV / Excel / JSON</h3>
+            <p style="color: var(--muted); font-size: 14px;">Data is processed entirely in your browser.</p>
+            <input type="file" id="fileInput" accept=".csv, .xlsx, .xls, .json">
+          </div>
+        </div>
+
+        <!-- Step 2: Data Management -->
+        <div id="dataMgmtSection" style="display: none;">
+          
+          <div class="card">
+            <h3 style="margin-top:0">Step 2: Data Management</h3>
+            
+            <div style="margin-bottom: 24px;">
+              <label style="font-weight: 600; display: block; margin-bottom: 8px;">Combine Columns</label>
+              <div class="form-row" style="margin-bottom: 0;">
+                <select id="combineCol1"></select>
+                <span style="padding-bottom: 10px;">+</span>
+                <select id="combineCol2"></select>
+                <div class="form-group">
+                  <input type="text" id="combineNewName" placeholder="New Column Name">
+                </div>
+                <button onclick="combineColumns()" class="secondary">Combine</button>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-weight: 600; display: block; margin-bottom: 8px;">Add Filters</label>
+              <div class="form-row" style="margin-bottom: 0;">
+                <select id="filterCol"></select>
+                <select id="filterOp">
+                  <option value="equals">Equals</option>
+                  <option value="contains">Contains</option>
+                  <option value="greater">Greater Than</option>
+                  <option value="less">Less Than</option>
+                  <option value="not_blank">Is Not Blank</option>
+                </select>
+                <div class="form-group">
+                  <input type="text" id="filterVal" placeholder="Value">
+                </div>
+                <button onclick="addFilter()" class="secondary">Add Filter</button>
+              </div>
+              <div class="tag-list" id="activeFilters"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-top:0">Step 3: Save Configuration</h3>
+            <div class="form-row">
+              <div class="form-group" style="flex: 2;">
+                <label>Configuration Name</label>
+                <input type="text" id="configName" placeholder="e.g., Monthly Sales Filtered">
+              </div>
+              <button onclick="saveReportConfig()">Save Config</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-top:0">Data Preview (Filtered)</h3>
+            <div style="overflow-x: auto; max-height: 300px;">
+              <table class="data-table" id="dataTable">
+                <thead><tr id="dtHead"></tr></thead>
+                <tbody id="dtBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 2: TEMPLATE CREATOR -->
+      <section id="templatePage" class="page-section">
+        <h2>Template Creator</h2>
+        <p class="subtitle">Set page size, design layout, format text, and place data fields exactly where you want.</p>
+
+        <div class="builder-layout">
+          <div class="builder-tools">
+            
+            <div class="form-row" style="margin-bottom:0">
+               <div class="form-group">
+                 <label>Page Size</label>
+                 <select id="pageSize" oninput="updateCanvasSettings()">
+                   <option value="A4">A4</option>
+                   <option value="A3">A3</option>
+                   <option value="Letter">US Letter</option>
+                 </select>
+               </div>
+               
+               <div class="form-group">
+                 <label>Orientation</label>
+                 <select id="orientation" oninput="updateCanvasSettings()">
+                   <option value="portrait">Portrait</option>
+                   <option value="landscape">Landscape</option>
+                 </select>
+               </div>
+
+               <div class="form-group">
+                 <label>Zoom</label>
+                 <select id="zoomLevel" oninput="updateCanvasSettings()">
+                   <option value="1">100%</option>
+                   <option value="0.75" selected>75%</option>
+                   <option value="0.5">50%</option>
+                 </select>
+               </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; font-weight: 500;">
+               <input type="checkbox" id="toggleGrid" onchange="toggleGridBackground()">
+               <label for="toggleGrid" style="cursor: pointer; color: var(--ink);">Show Ruler Grid & Snap</label>
+            </div>
+
+            <div class="form-group" style="background: var(--bg); padding: 12px; border-radius: 8px; border: 1px solid var(--line); margin-top: 16px;">
+               <label>Live Data Preview (From Step 1)</label>
+               <select id="previewDataRow" onchange="updatePreviewRow()">
+                 <option value="-1">Show Placeholders</option>
+               </select>
+               <p style="font-size:11px; color:var(--muted); margin: 4px 0 0;">Select a row to fetch real data into fields.</p>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--line); margin: 8px 0;">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+               <button onclick="addTextElement()" class="secondary" style="padding: 8px; font-size: 12px;">+ Text</button>
+               <button onclick="addFieldElement()" class="secondary" style="padding: 8px; font-size: 12px; border-color: var(--accent); color: var(--accent);">+ Field</button>
+               <button onclick="addTableElement()" class="secondary" style="padding: 8px; font-size: 12px; border-color: var(--accent); color: var(--accent);">+ Table</button>
+               
+               <button onclick="addBoxElement()" class="secondary" style="padding: 8px; font-size: 12px;">+ Box</button>
+               <button onclick="addLineElement()" class="secondary" style="padding: 8px; font-size: 12px;">+ Line</button>
+               <button onclick="document.getElementById('logoInput').click()" class="secondary" style="padding: 8px; font-size: 12px;">+ Logo</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px;">
+               <button onclick="document.getElementById('bgInput').click()" class="secondary" style="padding: 8px; font-size: 12px;">+ Form Background Image</button>
+               <button onclick="document.getElementById('docxInput').click()" class="secondary" style="padding: 8px; font-size: 12px; border-color: var(--accent); color: var(--accent);">+ Import Word Doc (.docx)</button>
+               <button id="clearBgBtn" onclick="clearBackground()" class="danger" style="padding: 8px; font-size: 12px; display: none;">Clear Background</button>
+            </div>
+
+            <input type="file" id="logoInput" accept="image/*" onchange="addLogoElement(event)" style="display:none;">
+            <input type="file" id="bgInput" accept="image/*" onchange="addBackgroundElement(event)" style="display:none;">
+            <input type="file" id="docxInput" accept=".docx" onchange="importWordDoc(event)" style="display:none;">
+
+            <hr style="border: 0; border-top: 1px solid var(--line); margin: 8px 0;">
+
+            <!-- Element Properties -->
+            <div id="elementProperties" style="display: none; background: #fafafa; padding: 12px; border-radius: 8px; border: 1px solid var(--line);">
+              <h4 style="margin: 0 0 12px; color: var(--accent);">Element Properties</h4>
+              
+              <div id="propTextWrap" class="form-group">
+                <label>Text Content</label>
+                <input type="text" id="propText" oninput="updateSelectedElement()">
+              </div>
+
+              <div id="propFieldWrap" class="form-group" style="display: none;">
+                <label>Data Column</label>
+                <select id="propField" onchange="updateSelectedElement()"></select>
+              </div>
+
+              <div id="propTableWrap" class="form-group" style="display: none;">
+                <label>Table Columns</label>
+                <div class="column-checkbox-list" id="propTableColumns" style="background: white;"></div>
+              </div>
+
+              <div class="form-row" id="propTableSettingsWrap" style="display: none; margin-top: 12px; margin-bottom: 0;">
+                <div class="form-group">
+                  <label>Table Format</label>
+                  <select id="propTableType" onchange="updateSelectedElement()">
+                    <option value="data">Data List (Rows)</option>
+                    <option value="vertical">Form (Key-Value)</option>
+                    <option value="blank">Blank Grid</option>
+                  </select>
+                </div>
+                <div class="form-group" id="propEmptyRowsWrap">
+                  <label>Empty Rows</label>
+                  <input type="number" id="propEmptyRows" oninput="updateSelectedElement()" value="5">
+                </div>
+              </div>
+
+              <!-- Typography & Formatting -->
+              <div id="propTypoWrap" style="display: none; margin-top: 12px;">
+                <div style="display: flex; gap: 4px;">
+                  <button id="btnBold" onclick="toggleTextStyle('bold')" class="secondary style-toggle-btn"><b>B</b></button>
+                  <button id="btnItalic" onclick="toggleTextStyle('italic')" class="secondary style-toggle-btn"><i>I</i></button>
+                  <button id="btnUnderline" onclick="toggleTextStyle('underline')" class="secondary style-toggle-btn"><u>U</u></button>
+                  
+                  <select id="propAlign" onchange="updateSelectedElement()" style="flex: 1; padding: 4px 8px;">
+                    <option value="left">Left Align</option>
+                    <option value="center">Center Align</option>
+                    <option value="right">Right Align</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Dimensions Box -->
+              <div class="form-row" style="margin-top: 12px; margin-bottom:0;" id="propDimensionsWrap">
+                <div class="form-group" id="propWidthWrap">
+                  <label>Width (px)</label>
+                  <input type="number" id="propWidth" oninput="updateSelectedElement()" placeholder="Auto">
+                </div>
+                <div class="form-group" id="propHeightWrap">
+                  <label>Height (px)</label>
+                  <input type="number" id="propHeight" oninput="updateSelectedElement()" placeholder="Auto">
+                </div>
+                <div class="form-group" id="propCellHeightWrap">
+                  <label>Cell Pad (px)</label>
+                  <input type="number" id="propCellHeight" oninput="updateSelectedElement()">
+                </div>
+              </div>
+
+              <!-- Styling / Border Box -->
+              <div class="form-row" style="margin-top: 12px; margin-bottom:0;" id="propStylingWrap">
+                <div class="form-group" id="propSizeWrap">
+                  <label>Font Size</label>
+                  <input type="number" id="propSize" oninput="updateSelectedElement()">
+                </div>
+                
+                <div class="form-group" id="propBorderWidthWrap">
+                  <label>Border (px)</label>
+                  <input type="number" id="propBorderWidth" oninput="updateSelectedElement()">
+                </div>
+                
+                <div class="form-group" id="propBorderStyleWrap">
+                  <label>Border Style</label>
+                  <select id="propBorderStyle" onchange="updateSelectedElement()">
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+              </div>
+
+              <button class="danger" onclick="deleteSelectedElement()" style="width: 100%; margin-top: 16px;">Delete Element</button>
+            </div>
+            
+            <div id="noSelectionMsg" style="font-size: 13px; color: var(--muted); text-align: center; padding: 20px 0;">
+              Select an element to edit properties.
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--line); margin: 8px 0;">
+
+            <div class="form-group">
+              <label>Template Name</label>
+              <input type="text" id="templateName" placeholder="e.g., Corporate Invoice">
+            </div>
+            <div style="display: flex; gap: 8px;">
+               <button onclick="saveTemplate()" style="flex: 1;">Save</button>
+               <button onclick="document.getElementById('importTemplateInput').click()" class="secondary" title="Import JSON Template">Import</button>
+               <input type="file" id="importTemplateInput" accept=".json" onchange="importTemplate(event)" style="display:none;">
+            </div>
+
+          </div>
+
+          <div class="canvas-container">
+            <div class="paper-wrapper" id="paperWrapper">
+               <div class="ruler-corner"></div>
+               <div class="ruler-x"></div>
+               <div class="ruler-y"></div>
+               <div class="paper" id="templateCanvas"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 3: GENERATE & EXPORT -->
+      <section id="generatePage" class="page-section">
+        <h2>Generate Report</h2>
+        <p class="subtitle">Combine a saved Data Config with a saved Template to generate your output.</p>
+
+        <div class="controls-row">
+          <div class="form-group">
+            <label>1. Data Configuration</label>
+            <select id="selGenConfig"></select>
+          </div>
+          <div class="form-group">
+            <label>2. Visual Template</label>
+            <select id="selGenTemplate"></select>
+          </div>
+          <div class="form-group">
+            <label>3. Mode</label>
+            <select id="selGenMode">
+              <option value="summary">Summary Report (All rows in table)</option>
+              <option value="all">Mail Merge (One page per row)</option>
+            </select>
+          </div>
+          <button onclick="generateReport()">Generate</button>
+          <button onclick="window.print()" class="secondary" id="printBtn" style="display:none;">Export PDF</button>
+        </div>
+
+        <div class="output-preview" id="generatedOutput">
+          <div style="color: var(--muted); padding: 40px;">Select your configs and click Generate.</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    const PAGE_SIZES = {
+      A4: { width: 794, height: 1123 },
+      A3: { width: 1123, height: 1588 },
+      Letter: { width: 816, height: 1056 }
+    };
+
+    const state = {
+      rawRows: [],
+      columns: [],
+      processedRows: [],
+      activeFilters: [],
+      activeCombines: [],
+      activeTemplate: { elements: [], pageSize: 'A4', orientation: 'portrait', bgImage: null },
+      selectedElementId: null,
+      previewRowIndex: -1,
+      snapToGrid: false,
+      zoomScale: 0.75,
+      savedConfigs: JSON.parse(localStorage.getItem('rs_configs') || '[]'),
+      savedTemplates: JSON.parse(localStorage.getItem('rs_templates') || '[]')
+    };
+
+    function navTo(pageId) {
+      document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+      event.currentTarget.classList.add('active');
+
+      if(pageId === 'templatePage') {
+        populateFieldDropdowns();
+        populatePreviewDropdown();
+        updateCanvasSettings();
+        renderCanvas();
+      }
+      if(pageId === 'generatePage') populateGenerateDropdowns();
+    }
+
+    // --- PHASE 1: REPORT CONFIG (DATA MANAGEMENT) ---
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      document.getElementById('uploadStatus').innerText = `Loaded: ${file.name}`;
+      
+      const reader = new FileReader();
+
+      // Handle raw JSON data uploads
+      if (file.name.toLowerCase().endsWith('.json')) {
+        reader.onload = function(evt) {
+          try {
+            let parsedData = JSON.parse(evt.target.result);
+            if (!Array.isArray(parsedData)) parsedData = [parsedData];
+
+            const flattenObj = (ob) => {
+              let result = {};
+              for (const i in ob) {
+                if ((typeof ob[i]) === 'object' && ob[i] !== null && !Array.isArray(ob[i])) {
+                  const temp = flattenObj(ob[i]);
+                  for (const j in temp) result[i + '_' + j] = temp[j];
+                } else {
+                  result[i] = Array.isArray(ob[i]) ? ob[i].join(', ') : ob[i];
+                }
+              }
+              return result;
+            };
+
+            const flattenedData = parsedData.map(row => flattenObj(row));
+
+            if (flattenedData.length > 0) {
+              state.rawRows = flattenedData;
+              state.columns = Object.keys(flattenedData[0]);
+              state.activeFilters = [];
+              state.activeCombines = [];
+              
+              document.getElementById('dataMgmtSection').style.display = 'block';
+              populateFieldDropdowns();
+              applyDataTransformations();
+            }
+          } catch (err) {
+            alert("Error parsing Data JSON: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+        return;
+      }
+      
+      // Handle CSV and Excel uploads
+      reader.onload = function(evt) {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+        
+        if (jsonData.length > 0) {
+          state.rawRows = jsonData;
+          state.columns = Object.keys(jsonData[0]);
+          state.activeFilters = [];
+          state.activeCombines = [];
+          
+          document.getElementById('dataMgmtSection').style.display = 'block';
+          populateFieldDropdowns();
+          applyDataTransformations();
+        }
+      };
+      reader.readAsBinaryString(file);
+    });
+
+    function populateFieldDropdowns() {
+      const options = state.columns.map(col => `<option value="${col}">${col}</option>`).join('');
+      ['combineCol1', 'combineCol2', 'filterCol', 'propField'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.innerHTML = options;
+      });
+      
+      const tableCheckboxes = document.getElementById('propTableColumns');
+      if (tableCheckboxes) {
+        tableCheckboxes.innerHTML = state.columns.map(col => `
+          <label><input type="checkbox" value="${col}" onchange="updateSelectedElement()"> ${col}</label>
+        `).join('');
+      }
+    }
+
+    function populatePreviewDropdown() {
+       const select = document.getElementById('previewDataRow');
+       let html = `<option value="-1">Show Placeholders</option>`;
+       state.processedRows.slice(0, 20).forEach((row, i) => {
+          html += `<option value="${i}">Row ${i + 1}</option>`;
+       });
+       select.innerHTML = html;
+       state.previewRowIndex = -1;
+    }
+
+    function updatePreviewRow() {
+       state.previewRowIndex = parseInt(document.getElementById('previewDataRow').value, 10);
+       renderCanvas();
+    }
+
+    function combineColumns() {
+      const col1 = document.getElementById('combineCol1').value;
+      const col2 = document.getElementById('combineCol2').value;
+      const newName = document.getElementById('combineNewName').value.trim();
+      
+      if(!newName || state.columns.includes(newName)) return alert("Provide a valid, unique column name.");
+      state.activeCombines.push({ col1, col2, newName });
+      state.columns.push(newName);
+      document.getElementById('combineNewName').value = '';
+      populateFieldDropdowns();
+      applyDataTransformations();
+    }
+
+    function addFilter() {
+      const col = document.getElementById('filterCol').value;
+      const op = document.getElementById('filterOp').value;
+      const val = document.getElementById('filterVal').value;
+      
+      state.activeFilters.push({ col, op, val });
+      document.getElementById('filterVal').value = '';
+      applyDataTransformations();
+    }
+
+    function removeFilter(index) {
+      state.activeFilters.splice(index, 1);
+      applyDataTransformations();
+    }
+
+    function applyDataTransformations() {
+      let tempRows = JSON.parse(JSON.stringify(state.rawRows));
+      tempRows.forEach(row => {
+        state.activeCombines.forEach(c => { row[c.newName] = `${row[c.col1]} ${row[c.col2]}`.trim(); });
+      });
+
+      state.processedRows = tempRows.filter(row => {
+        return state.activeFilters.every(f => {
+          const rowVal = String(row[f.col]).toLowerCase();
+          const targetVal = String(f.val).toLowerCase();
+          if(f.op === 'equals') return rowVal === targetVal;
+          if(f.op === 'contains') return rowVal.includes(targetVal);
+          if(f.op === 'greater') return Number(row[f.col]) > Number(f.val);
+          if(f.op === 'less') return Number(row[f.col]) < Number(f.val);
+          if(f.op === 'not_blank') return rowVal.trim() !== '';
+          return true;
+        });
+      });
+
+      document.getElementById('statRows').innerText = state.processedRows.length;
+      document.getElementById('statCols').innerText = state.columns.length;
+      document.getElementById('activeFilters').innerHTML = state.activeFilters.map((f, i) => 
+        `<div class="tag">${f.col} ${f.op.replace('_',' ')} '${f.val}' <button onclick="removeFilter(${i})">×</button></div>`
+      ).join('');
+
+      const thead = document.getElementById('dtHead');
+      const tbody = document.getElementById('dtBody');
+      thead.innerHTML = state.columns.map(col => `<th>${col}</th>`).join('');
+      tbody.innerHTML = state.processedRows.slice(0, 10).map(row => 
+        `<tr>${state.columns.map(col => `<td>${row[col] !== undefined ? row[col] : ''}</td>`).join('')}</tr>`
+      ).join('');
+    }
+
+    function saveReportConfig() {
+      const name = document.getElementById('configName').value.trim();
+      if (!name) return alert("Enter a configuration name.");
+      
+      const config = { id: 'cfg_' + Date.now(), name: name, filters: state.activeFilters, combines: state.activeCombines };
+      state.savedConfigs.push(config);
+      localStorage.setItem('rs_configs', JSON.stringify(state.savedConfigs));
+      alert("Report Configuration Saved!");
+      document.getElementById('configName').value = '';
+    }
+
+    // --- PHASE 2: TEMPLATE CREATOR ---
+    const canvas = document.getElementById('templateCanvas');
+
+    function updateCanvasSettings() {
+      const size = document.getElementById('pageSize').value;
+      const ori = document.getElementById('orientation').value;
+      const zoomSelect = document.getElementById('zoomLevel');
+      const zoom = zoomSelect ? parseFloat(zoomSelect.value) : 1;
+      
+      state.activeTemplate.pageSize = size;
+      state.activeTemplate.orientation = ori;
+      state.zoomScale = zoom;
+      
+      let width = PAGE_SIZES[size].width;
+      let height = PAGE_SIZES[size].height;
+      if (ori === 'landscape') [width, height] = [height, width];
+      
+      const wrapper = document.getElementById('paperWrapper');
+      if (wrapper) {
+         wrapper.style.width = width + 'px';
+         wrapper.style.height = height + 'px';
+         wrapper.style.transform = `scale(${zoom})`;
+         wrapper.style.transformOrigin = "top center";
+         wrapper.style.marginBottom = `-${height * (1 - zoom)}px`;
+      }
+    }
+
+    function toggleGridBackground() {
+       state.snapToGrid = document.getElementById('toggleGrid').checked;
+       const wrapper = document.getElementById('paperWrapper');
+       if (state.snapToGrid) {
+          canvas.classList.add('show-grid');
+          if (wrapper) wrapper.classList.add('show-grid');
+       } else {
+          canvas.classList.remove('show-grid');
+          if (wrapper) wrapper.classList.remove('show-grid');
+       }
+    }
+
+    function generateId() { return 'el_' + Math.random().toString(36).substr(2, 9); }
+
+    function addTextElement() {
+      state.activeTemplate.elements.push({ id: generateId(), type: 'text', content: 'Double click to edit', x: 50, y: 50, size: 16, align: 'left', bold: false, italic: false, underline: false });
+      renderCanvas();
+    }
+
+    function addFieldElement() {
+      if (state.columns.length === 0) return alert("Upload data first to see available fields.");
+      state.activeTemplate.elements.push({ id: generateId(), type: 'field', content: state.columns[0], x: 50, y: 100, size: 16, align: 'left', bold: true, italic: false, underline: false });
+      renderCanvas();
+    }
+
+    function addTableElement() {
+       if (state.columns.length === 0) return alert("Upload data first.");
+       const defaultCols = state.columns.slice(0, Math.min(3, state.columns.length));
+       state.activeTemplate.elements.push({ id: generateId(), type: 'table', columns: defaultCols, x: 50, y: 150, size: 12, align: 'left', width: 600, cellHeight: 12, borderWidth: 1, borderStyle: 'solid', tableType: 'data', emptyRows: 5 });
+       renderCanvas();
+    }
+
+    function addLineElement() {
+       state.activeTemplate.elements.push({ id: generateId(), type: 'line', x: 50, y: 200, width: 400, height: 10, borderWidth: 2, borderStyle: 'solid' });
+       renderCanvas();
+    }
+
+    function addBoxElement() {
+       state.activeTemplate.elements.push({ id: generateId(), type: 'box', x: 50, y: 250, width: 300, height: 150, borderWidth: 1, borderStyle: 'solid' });
+       renderCanvas();
+    }
+
+    function addLogoElement(event) {
+      const file = event.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        state.activeTemplate.elements.push({ id: generateId(), type: 'image', content: e.target.result, x: 50, y: 50, width: 150 });
+        renderCanvas();
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    function addBackgroundElement(event) {
+      const file = event.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        state.activeTemplate.bgImage = e.target.result;
+        renderCanvas();
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    function clearBackground() {
+      state.activeTemplate.bgImage = null;
+      renderCanvas();
+    }
+
+    function importWordDoc(event) {
+       const file = event.target.files[0];
+       if(!file) return;
+       
+       const reader = new FileReader();
+       reader.onload = function(e) {
+          const arrayBuffer = e.target.result;
+          
+          mammoth.extractRawText({arrayBuffer: arrayBuffer})
+             .then(function(result) {
+                const text = result.value;
+                const paragraphs = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
+                
+                if (paragraphs.length === 0) return alert("No readable text found in this Word Document.");
+
+                let currentY = 50;
+                paragraphs.forEach((p, index) => {
+                   state.activeTemplate.elements.push({ 
+                      id: generateId(), type: 'text', content: p, x: 50, y: currentY, size: 14, align: 'left', width: 600, bold: false, italic: false, underline: false
+                   });
+                   currentY += 40; 
+                });
+                
+                renderCanvas();
+                alert(`Successfully imported ${paragraphs.length} text blocks from Word Document!`);
+                event.target.value = ''; 
+             })
+             .catch(function(err) {
+                alert("Error reading Word Document: " + err.message);
+             });
+       };
+       reader.readAsArrayBuffer(file);
+    }
+
+    function importTemplate(event) {
+       const file = event.target.files[0];
+       if(!file) return;
+       const reader = new FileReader();
+       reader.onload = (e) => {
+          try {
+             const imported = JSON.parse(e.target.result);
+             if(!imported.elements) throw new Error("Invalid format");
+             
+             state.activeTemplate = imported;
+             document.getElementById('pageSize').value = imported.pageSize || 'A4';
+             document.getElementById('orientation').value = imported.orientation || 'portrait';
+             document.getElementById('templateName').value = imported.name || '';
+             
+             updateCanvasSettings();
+             renderCanvas();
+             alert("Template Imported successfully! You can edit and save it now.");
+          } catch (err) {
+             alert("Error parsing template JSON.");
+          }
+       };
+       reader.readAsText(file);
+    }
+
+    function buildTableHTML(el, isPreviewing, rowDataArray) {
+       if (!el.columns || el.columns.length === 0) {
+          return `<div style="padding: 10px; border: 2px dashed var(--accent); color: var(--accent); background: var(--accent-soft);">Select columns in properties to build table.</div>`;
+       }
+       
+       const cellPad = el.cellHeight || 12;
+       const bWidth = el.borderWidth !== undefined ? el.borderWidth : 1;
+       const bStyle = bWidth > 0 ? `border: ${bWidth}px ${el.borderStyle || 'solid'} var(--ink);` : `border: none;`;
+       
+       let html = `<table class="data-table" style="width: 100%; height: 100%; font-size: ${el.size}px; text-align: ${el.align}; background: white; border-collapse: collapse; box-shadow: 0 0 0 ${bWidth}px var(--ink);">`;
+       
+       const displayRows = isPreviewing && rowDataArray && rowDataArray.length > 0 ? rowDataArray.slice(0, 5) : [{}];
+
+       if (el.tableType === 'vertical') {
+          const r = displayRows[0];
+          html += `<tbody>`;
+          el.columns.forEach(c => {
+             html += `<tr><th style="${bStyle} padding: ${cellPad}px; background: #f3f6f5; width: 40%; text-align: left;">${c}</th><td style="${bStyle} padding: ${cellPad}px;">${r[c] !== undefined ? r[c] : '[ Data ]'}</td></tr>`;
+          });
+          html += `</tbody>`;
+       } else if (el.tableType === 'blank') {
+          html += `<thead><tr>${el.columns.map(c => `<th style="${bStyle} padding: ${cellPad}px; background: #f3f6f5;">${c}</th>`).join('')}</tr></thead><tbody>`;
+          const emptyCount = el.emptyRows || 5;
+          for (let i = 0; i < emptyCount; i++) {
+             html += `<tr>${el.columns.map(c => `<td style="${bStyle} padding: ${cellPad}px;">&nbsp;</td>`).join('')}</tr>`;
+          }
+          html += `</tbody>`;
+       } else {
+          html += `<thead><tr>${el.columns.map(c => `<th style="${bStyle} padding: ${cellPad}px; background: #f3f6f5;">${c}</th>`).join('')}</tr></thead><tbody>`;
+          displayRows.forEach(r => {
+             html += `<tr>${el.columns.map(c => `<td style="${bStyle} padding: ${cellPad}px;">${r[c] !== undefined ? r[c] : '[ Data ]'}</td>`).join('')}</tr>`;
+          });
+          html += `</tbody>`;
+       }
+       
+       html += `</table>`;
+       return html;
+    }
+
+    function renderCanvas() {
+      canvas.innerHTML = '';
+      
+      const clearBgBtn = document.getElementById('clearBgBtn');
+      if (clearBgBtn) clearBgBtn.style.display = state.activeTemplate.bgImage ? 'block' : 'none';
+
+      if (state.activeTemplate.bgImage) {
+         const bgImg = document.createElement('img');
+         bgImg.className = 'page-bg';
+         bgImg.src = state.activeTemplate.bgImage;
+         canvas.appendChild(bgImg);
+      }
+
+      const previewRow = state.previewRowIndex >= 0 ? state.processedRows[state.previewRowIndex] : null;
+
+      state.activeTemplate.elements.forEach(el => {
+        const div = document.createElement('div');
+        div.className = `drag-element ${el.type === 'field' ? 'field-type' : ''} ${state.selectedElementId === el.id ? 'selected' : ''}`;
+        div.id = el.id;
+        div.style.left = el.x + 'px';
+        div.style.top = el.y + 'px';
+        div.style.textAlign = el.align || 'left';
+        
+        // Wrapper sizing
+        if (el.type === 'image') {
+          const w = el.width || el.size || 150;
+          div.style.width = w + 'px';
+          if (el.height) div.style.height = el.height + 'px';
+        } else if (el.type === 'table' || el.type === 'box') {
+          div.style.width = (el.width || 200) + 'px';
+          if (el.height) div.style.height = el.height + 'px';
+        } else if (el.type === 'line') {
+          div.style.width = (el.width || 300) + 'px';
+          div.style.height = (el.height || 10) + 'px';
+        } else {
+          div.style.fontSize = el.size + 'px';
+          if (el.width) {
+            div.style.width = el.width + 'px';
+            div.style.whiteSpace = 'normal'; 
+          } else {
+            div.style.whiteSpace = 'nowrap';
+          }
+          if (el.height) div.style.height = el.height + 'px';
+        }
+
+        // Inner content
+        const wrap = document.createElement('div');
+        wrap.className = 'content-wrap';
+        
+        // Font Formatting
+        if (el.bold) wrap.style.fontWeight = 'bold';
+        if (el.italic) wrap.style.fontStyle = 'italic';
+        if (el.underline) wrap.style.textDecoration = 'underline';
+        
+        if (el.type === 'image') {
+            wrap.innerHTML = `<img src="${el.content}" style="width:100%; height:100%; object-fit:contain;">`;
+        } else if (el.type === 'table') {
+            wrap.innerHTML = buildTableHTML(el, previewRow !== null, state.processedRows);
+        } else if (el.type === 'box') {
+            wrap.style.border = `${el.borderWidth || 1}px ${el.borderStyle || 'solid'} var(--ink)`;
+        } else if (el.type === 'line') {
+            wrap.style.borderTop = `${el.borderWidth || 2}px ${el.borderStyle || 'solid'} var(--ink)`;
+        } else {
+            if (el.type === 'text') wrap.innerText = el.content;
+            else if (el.type === 'field') wrap.innerText = previewRow ? (previewRow[el.content] || '') : `[ ${el.content} ]`;
+        }
+        div.appendChild(wrap);
+
+        // Handles
+        const hSE = document.createElement('div'); hSE.className = 'resize-handle se'; hSE.dataset.dir = 'se'; div.appendChild(hSE);
+        const hE = document.createElement('div'); hE.className = 'resize-handle e'; hE.dataset.dir = 'e'; div.appendChild(hE);
+        const hS = document.createElement('div'); hS.className = 'resize-handle s'; hS.dataset.dir = 's'; div.appendChild(hS);
+
+        div.addEventListener('mousedown', startDrag);
+        div.addEventListener('touchstart', startDrag, { passive: false });
+        canvas.appendChild(div);
+      });
+    }
+
+    let isDragging = false;
+    let isResizing = false;
+    let resizeDir = '';
+    let dragTarget = null;
+    let startX, startY, initialX, initialY, startWidth, startHeight;
+    let dragRAF = null;
+
+    function startDrag(e) {
+      if (e.type !== 'touchstart' && e.button !== 0) return; // only left click
+      if (e.type !== 'touchstart') e.preventDefault(); // prevent native ghost drag
+      
+      dragTarget = e.currentTarget;
+      selectElement(dragTarget.id);
+      
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      
+      startX = clientX;
+      startY = clientY;
+
+      if (e.target.classList.contains('resize-handle')) {
+          isResizing = true;
+          isDragging = false;
+          resizeDir = e.target.dataset.dir;
+          startWidth = dragTarget.offsetWidth;
+          startHeight = dragTarget.offsetHeight;
+      } else {
+          isDragging = true;
+          isResizing = false;
+          initialX = parseInt(dragTarget.style.left, 10) || 0;
+          initialY = parseInt(dragTarget.style.top, 10) || 0;
+      }
+      
+      if (e.type === 'touchstart') {
+          document.addEventListener('touchmove', drag, { passive: false });
+          document.addEventListener('touchend', stopDrag);
+      } else {
+          document.addEventListener('mousemove', drag);
+          document.addEventListener('mouseup', stopDrag);
+      }
+    }
+
+    function drag(e) {
+      if (!isDragging && !isResizing) return;
+      if (e.type === 'touchmove') e.preventDefault(); // crucial to prevent page scrolling!
+      
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      if (dragRAF) cancelAnimationFrame(dragRAF);
+      
+      dragRAF = requestAnimationFrame(() => {
+          const zoom = state.zoomScale || 1;
+          const dx = (clientX - startX) / zoom;
+          const dy = (clientY - startY) / zoom;
+          
+          const elState = state.activeTemplate.elements.find(el => el.id === dragTarget.id);
+
+          if (isResizing) {
+             let newWidth = startWidth;
+             let newHeight = startHeight;
+
+             if (resizeDir.includes('e')) newWidth = startWidth + dx;
+             if (resizeDir.includes('s')) newHeight = startHeight + dy;
+
+             if (state.snapToGrid) {
+                newWidth = Math.round(newWidth / 10) * 10;
+                newHeight = Math.round(newHeight / 10) * 10;
+             }
+
+             newWidth = Math.max(10, newWidth);
+             newHeight = Math.max(10, newHeight);
+
+             if (resizeDir.includes('e')) {
+                 dragTarget.style.width = newWidth + 'px';
+                 if(elState) elState.width = newWidth;
+                 const wInput = document.getElementById('propWidth');
+                 if(wInput && state.selectedElementId === elState.id) wInput.value = newWidth;
+                 
+                 if (elState && (elState.type === 'text' || elState.type === 'field')) {
+                     dragTarget.style.whiteSpace = 'normal'; 
+                 }
+             }
+             if (resizeDir.includes('s')) {
+                 dragTarget.style.height = newHeight + 'px';
+                 if(elState) elState.height = newHeight;
+                 const hInput = document.getElementById('propHeight');
+                 if(hInput && state.selectedElementId === elState.id) hInput.value = newHeight;
+             }
+          } else if (isDragging) {
+              let newX = initialX + dx;
+              let newY = initialY + dy;
+
+              if (state.snapToGrid) {
+                 newX = Math.round(newX / 10) * 10;
+                 newY = Math.round(newY / 10) * 10;
+              }
+              
+              dragTarget.style.left = newX + 'px';
+              dragTarget.style.top = newY + 'px';
+
+              if (elState) {
+                elState.x = newX;
+                elState.y = newY;
+              }
+          }
+      });
+    }
+
+    function stopDrag() {
+      isDragging = false;
+      isResizing = false;
+      if (dragRAF) cancelAnimationFrame(dragRAF);
+      
+      document.removeEventListener('mousemove', drag);
+      document.removeEventListener('mouseup', stopDrag);
+      document.removeEventListener('touchmove', drag);
+      document.removeEventListener('touchend', stopDrag);
+    }
+
+    function toggleTextStyle(styleType) {
+       if (!state.selectedElementId) return;
+       const el = state.activeTemplate.elements.find(e => e.id === state.selectedElementId);
+       if (styleType === 'bold') el.bold = !el.bold;
+       if (styleType === 'italic') el.italic = !el.italic;
+       if (styleType === 'underline') el.underline = !el.underline;
+       
+       updateSelectedElement();
+       
+       // Update Button Active States
+       document.getElementById('btnBold').classList.toggle('active', el.bold);
+       document.getElementById('btnItalic').classList.toggle('active', el.italic);
+       document.getElementById('btnUnderline').classList.toggle('active', el.underline);
+    }
+
+    // Properties Panel
+    function selectElement(id) {
+      if (state.selectedElementId === id) return; // Super-smooth optimization!
+      
+      state.selectedElementId = id;
+      
+      document.querySelectorAll('#templateCanvas .drag-element').forEach(el => {
+          if (el.id === id) el.classList.add('selected');
+          else el.classList.remove('selected');
+      });
+      
+      const el = state.activeTemplate.elements.find(e => e.id === id);
+      if (!el) return;
+
+      document.getElementById('noSelectionMsg').style.display = 'none';
+      document.getElementById('elementProperties').style.display = 'block';
+
+      // Reset visibilities
+      ['propTextWrap', 'propFieldWrap', 'propTableWrap', 'propStylingWrap', 'propDimensionsWrap', 'propTypoWrap', 'propBorderWidthWrap', 'propBorderStyleWrap', 'propSizeWrap', 'propTableSettingsWrap'].forEach(id => {
+         const wrapper = document.getElementById(id);
+         if(wrapper) wrapper.style.display = 'none';
+      });
+      ['propAlignWrap', 'propWidthWrap', 'propHeightWrap', 'propCellHeightWrap'].forEach(id => {
+         const wrapper = document.getElementById(id);
+         if(wrapper) wrapper.style.display = 'none';
+      });
+
+      document.getElementById('propSize').value = el.size;
+
+      if(el.type === 'image') {
+         document.getElementById('propDimensionsWrap').style.display = 'flex';
+         document.getElementById('propWidthWrap').style.display = 'block';
+         document.getElementById('propHeightWrap').style.display = 'block';
+         
+         document.getElementById('propWidth').value = el.width || el.size || 150;
+         document.getElementById('propHeight').value = el.height || '';
+      } else if (el.type === 'table') {
+         document.getElementById('propTableWrap').style.display = 'block';
+         document.getElementById('propTableSettingsWrap').style.display = 'flex';
+         document.getElementById('propStylingWrap').style.display = 'flex';
+         document.getElementById('propSizeWrap').style.display = 'block';
+         
+         document.getElementById('propTableType').value = el.tableType || 'data';
+         document.getElementById('propEmptyRows').value = el.emptyRows || 5;
+         document.getElementById('propEmptyRowsWrap').style.display = (el.tableType === 'blank') ? 'flex' : 'none';
+
+         document.getElementById('propBorderWidthWrap').style.display = 'block';
+         document.getElementById('propBorderWidth').value = el.borderWidth || 1;
+         
+         document.getElementById('propDimensionsWrap').style.display = 'flex';
+         document.getElementById('propWidthWrap').style.display = 'block';
+         document.getElementById('propCellHeightWrap').style.display = 'block';
+         document.getElementById('propWidth').value = el.width || 600;
+         document.getElementById('propCellHeight').value = el.cellHeight || 12;
+
+         const checkboxes = document.querySelectorAll('#propTableColumns input[type="checkbox"]');
+         checkboxes.forEach(cb => { cb.checked = (el.columns || []).includes(cb.value); });
+
+      } else if (el.type === 'box') {
+         document.getElementById('propDimensionsWrap').style.display = 'flex';
+         document.getElementById('propWidthWrap').style.display = 'block';
+         document.getElementById('propHeightWrap').style.display = 'block';
+         document.getElementById('propWidth').value = el.width || 200;
+         document.getElementById('propHeight').value = el.height || 100;
+         
+         document.getElementById('propStylingWrap').style.display = 'flex';
+         document.getElementById('propBorderWidthWrap').style.display = 'block';
+         document.getElementById('propBorderStyleWrap').style.display = 'block';
+         document.getElementById('propBorderWidth').value = el.borderWidth || 1;
+         document.getElementById('propBorderStyle').value = el.borderStyle || 'solid';
+      } else if (el.type === 'line') {
+         document.getElementById('propDimensionsWrap').style.display = 'flex';
+         document.getElementById('propWidthWrap').style.display = 'block';
+         document.getElementById('propWidth').value = el.width || 300;
+         
+         document.getElementById('propStylingWrap').style.display = 'flex';
+         document.getElementById('propBorderWidthWrap').style.display = 'block';
+         document.getElementById('propBorderStyleWrap').style.display = 'block';
+         document.getElementById('propBorderWidth').value = el.borderWidth || 2;
+         document.getElementById('propBorderStyle').value = el.borderStyle || 'solid';
+      } else {
+         document.getElementById('propStylingWrap').style.display = 'flex';
+         document.getElementById('propSizeWrap').style.display = 'block';
+         document.getElementById('propTypoWrap').style.display = 'block';
+         document.getElementById('propAlign').value = el.align || 'left';
+         
+         document.getElementById('btnBold').classList.toggle('active', el.bold);
+         document.getElementById('btnItalic').classList.toggle('active', el.italic);
+         document.getElementById('btnUnderline').classList.toggle('active', el.underline);
+         
+         document.getElementById('propDimensionsWrap').style.display = 'flex';
+         document.getElementById('propWidthWrap').style.display = 'block';
+         document.getElementById('propHeightWrap').style.display = 'block';
+         
+         document.getElementById('propWidth').value = el.width || '';
+         document.getElementById('propHeight').value = el.height || '';
+
+         if (el.type === 'text') {
+            document.getElementById('propTextWrap').style.display = 'block';
+            document.getElementById('propText').value = el.content;
+         } else {
+            document.getElementById('propFieldWrap').style.display = 'block';
+            document.getElementById('propField').value = el.content;
+         }
+      }
+    }
+
+    function updateSelectedElement() {
+      if (!state.selectedElementId) return;
+      const el = state.activeTemplate.elements.find(e => e.id === state.selectedElementId);
+      
+      el.size = parseInt(document.getElementById('propSize').value, 10) || 12;
+      
+      if (el.type === 'image') {
+         el.width = parseInt(document.getElementById('propWidth').value, 10) || 150;
+         el.height = parseInt(document.getElementById('propHeight').value, 10) || 0;
+      } else if (el.type === 'table') {
+         el.width = parseInt(document.getElementById('propWidth').value, 10) || 600;
+         el.cellHeight = parseInt(document.getElementById('propCellHeight').value, 10) || 12;
+         el.borderWidth = parseInt(document.getElementById('propBorderWidth').value, 10) || 0;
+         el.tableType = document.getElementById('propTableType').value || 'data';
+         el.emptyRows = parseInt(document.getElementById('propEmptyRows').value, 10) || 5;
+         
+         const checkboxes = document.querySelectorAll('#propTableColumns input[type="checkbox"]:checked');
+         el.columns = Array.from(checkboxes).map(cb => cb.value);
+         
+         document.getElementById('propEmptyRowsWrap').style.display = el.tableType === 'blank' ? 'flex' : 'none';
+      } else if (el.type === 'box') {
+         el.width = parseInt(document.getElementById('propWidth').value, 10) || 200;
+         el.height = parseInt(document.getElementById('propHeight').value, 10) || 100;
+         el.borderWidth = parseInt(document.getElementById('propBorderWidth').value, 10) || 0;
+         el.borderStyle = document.getElementById('propBorderStyle').value || 'solid';
+      } else if (el.type === 'line') {
+         el.width = parseInt(document.getElementById('propWidth').value, 10) || 300;
+         el.borderWidth = parseInt(document.getElementById('propBorderWidth').value, 10) || 0;
+         el.borderStyle = document.getElementById('propBorderStyle').value || 'solid';
+      } else {
+         el.align = document.getElementById('propAlign').value;
+         el.width = parseInt(document.getElementById('propWidth').value, 10) || 0;
+         el.height = parseInt(document.getElementById('propHeight').value, 10) || 0;
+         if (el.type === 'text') el.content = document.getElementById('propText').value;
+         else if (el.type === 'field') el.content = document.getElementById('propField').value;
+      }
+      
+      // OPTIMIZED DOM UPDATE
+      const domEl = document.getElementById(el.id);
+      if (domEl) {
+         if (el.type === 'image') {
+            domEl.style.width = el.width + 'px';
+            domEl.style.height = el.height ? el.height + 'px' : 'auto';
+         } else if (el.type === 'table' || el.type === 'box') {
+            domEl.style.width = el.width + 'px';
+            domEl.style.height = el.height ? el.height + 'px' : 'auto';
+         } else if (el.type === 'line') {
+            domEl.style.width = el.width + 'px';
+            domEl.style.height = (el.height || 10) + 'px';
+         } else {
+            domEl.style.fontSize = el.size + 'px';
+            domEl.style.textAlign = el.align || 'left';
+            
+            if (el.width) {
+               domEl.style.width = el.width + 'px';
+               domEl.style.whiteSpace = 'normal'; 
+            } else {
+               domEl.style.width = 'auto';
+               domEl.style.whiteSpace = 'nowrap';
+            }
+            
+            domEl.style.height = el.height ? el.height + 'px' : 'auto';
+         }
+
+         const wrap = domEl.querySelector('.content-wrap');
+         if (wrap) {
+             wrap.style.fontWeight = el.bold ? 'bold' : 'normal';
+             wrap.style.fontStyle = el.italic ? 'italic' : 'normal';
+             wrap.style.textDecoration = el.underline ? 'underline' : 'none';
+             
+             if (el.type === 'table') {
+                const previewRow = state.previewRowIndex >= 0 ? state.processedRows[state.previewRowIndex] : null;
+                wrap.innerHTML = buildTableHTML(el, previewRow !== null, state.processedRows);
+             } else if (el.type === 'box') {
+                wrap.style.border = `${el.borderWidth || 1}px ${el.borderStyle || 'solid'} var(--ink)`;
+             } else if (el.type === 'line') {
+                wrap.style.borderTop = `${el.borderWidth || 2}px ${el.borderStyle || 'solid'} var(--ink)`;
+             } else if (el.type === 'text') {
+                wrap.innerText = el.content;
+             } else if (el.type === 'field') {
+                const previewRow = state.previewRowIndex >= 0 ? state.processedRows[state.previewRowIndex] : null;
+                wrap.innerText = previewRow ? (previewRow[el.content] || '') : `[ ${el.content} ]`;
+             }
+         }
+      }
+    }
+
+    function deleteSelectedElement() {
+      state.activeTemplate.elements = state.activeTemplate.elements.filter(e => e.id !== state.selectedElementId);
+      state.selectedElementId = null;
+      document.getElementById('noSelectionMsg').style.display = 'block';
+      document.getElementById('elementProperties').style.display = 'none';
+      renderCanvas();
+    }
+
+    // Touch/Click outside to deselect
+    ['mousedown', 'touchstart'].forEach(evt => {
+       document.addEventListener(evt, function(e) {
+         if (e.target.id === 'templateCanvas' || e.target.classList.contains('page-bg')) {
+           if (state.selectedElementId === null) return;
+           state.selectedElementId = null;
+           document.getElementById('noSelectionMsg').style.display = 'block';
+           document.getElementById('elementProperties').style.display = 'none';
+           document.querySelectorAll('#templateCanvas .drag-element').forEach(el => el.classList.remove('selected'));
+         }
+       });
+    });
+
+    // Keyboard Delete Support
+    document.addEventListener('keydown', function(e) {
+       // Prevent deletion if user is typing in an input, textarea, or select field
+       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+       
+       if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedElementId) {
+          deleteSelectedElement();
+       }
+    });
+
+    function saveTemplate() {
+      const name = document.getElementById('templateName').value.trim();
+      if (!name) return alert("Enter a template name.");
+      
+      const template = {
+        id: 'tpl_' + Date.now(),
+        name: name,
+        pageSize: state.activeTemplate.pageSize,
+        orientation: state.activeTemplate.orientation,
+        bgImage: state.activeTemplate.bgImage,
+        elements: JSON.parse(JSON.stringify(state.activeTemplate.elements))
+      };
+      
+      state.savedTemplates.push(template);
+      localStorage.setItem('rs_templates', JSON.stringify(state.savedTemplates));
+      
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(template, null, 2));
+      const dlAnchorElem = document.createElement('a');
+      dlAnchorElem.setAttribute("href", dataStr);
+      dlAnchorElem.setAttribute("download", `${name.replace(/\s+/g, '_')}_template.json`);
+      dlAnchorElem.click();
+
+      alert("Template Saved & Downloaded!");
+      document.getElementById('templateName').value = '';
+    }
+
+    // --- PHASE 3: GENERATE REPORT ---
+    function populateGenerateDropdowns() {
+      const selConfig = document.getElementById('selGenConfig');
+      const selTemplate = document.getElementById('selGenTemplate');
+      
+      selConfig.innerHTML = state.savedConfigs.length === 0 
+        ? '<option disabled selected>No saved configs</option>' 
+        : state.savedConfigs.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        
+      selTemplate.innerHTML = state.savedTemplates.length === 0 
+        ? '<option disabled selected>No saved templates</option>' 
+        : state.savedTemplates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    }
+
+    function generateReport() {
+      if(state.rawRows.length === 0) return alert("Please upload data first (Step 1).");
+      
+      const configId = document.getElementById('selGenConfig').value;
+      const templateId = document.getElementById('selGenTemplate').value;
+      const mode = document.getElementById('selGenMode').value;
+      
+      if(!configId || !templateId) return alert("Please select a saved config and template.");
+
+      const config = state.savedConfigs.find(c => c.id === configId);
+      const template = state.savedTemplates.find(t => t.id === templateId);
+
+      state.activeFilters = config.filters || [];
+      state.activeCombines = config.combines || [];
+      applyDataTransformations(); 
+
+      if(state.processedRows.length === 0) return alert("Filters excluded all rows. Nothing to generate.");
+
+      const outputContainer = document.getElementById('generatedOutput');
+      outputContainer.innerHTML = '';
+      
+      let width = PAGE_SIZES[template.pageSize].width;
+      let height = PAGE_SIZES[template.pageSize].height;
+      if (template.orientation === 'landscape') [width, height] = [height, width];
+
+      const rowsToProcess = mode === 'summary' ? [state.processedRows[0]] : state.processedRows;
+
+      rowsToProcess.forEach(row => {
+        const page = document.createElement('div');
+        page.className = 'preview-page';
+        page.style.width = width + 'px';
+        page.style.height = height + 'px';
+
+        // Render Background if it exists
+        if (template.bgImage) {
+           const bgImg = document.createElement('img');
+           bgImg.className = 'page-bg';
+           bgImg.src = template.bgImage;
+           page.appendChild(bgImg);
+        }
+
+        template.elements.forEach(elState => {
+          const el = document.createElement('div');
+          el.style.position = 'absolute';
+          el.style.left = elState.x + 'px';
+          el.style.top = elState.y + 'px';
+          el.style.zIndex = '10'; // Keep above background
+          
+          if (elState.type === 'image') {
+            const w = elState.width || elState.size || 150;
+            el.style.width = w + 'px';
+            if (elState.height) el.style.height = elState.height + 'px';
+            el.innerHTML = `<img src="${elState.content}" style="width:100%; height:100%; object-fit:contain;">`;
+          } else if (elState.type === 'table') {
+             const tableRows = mode === 'summary' ? state.processedRows : [row];
+             el.style.width = (elState.width || 600) + 'px';
+             if (elState.height) el.style.height = elState.height + 'px';
+             el.innerHTML = buildTableHTML(elState, true, tableRows);
+          } else if (elState.type === 'box') {
+             el.style.width = (elState.width || 200) + 'px';
+             if (elState.height) el.style.height = elState.height + 'px';
+             el.innerHTML = `<div style="width:100%; height:100%; border: ${elState.borderWidth || 1}px ${elState.borderStyle || 'solid'} var(--ink);"></div>`;
+          } else if (elState.type === 'line') {
+             el.style.width = (elState.width || 300) + 'px';
+             el.style.height = (elState.height || 10) + 'px';
+             el.innerHTML = `<div style="width:100%; height:100%; border-top: ${elState.borderWidth || 2}px ${elState.borderStyle || 'solid'} var(--ink);"></div>`;
+          } else {
+            el.style.fontSize = elState.size + 'px';
+            el.style.textAlign = elState.align || 'left';
+            if (elState.bold) el.style.fontWeight = 'bold';
+            if (elState.italic) el.style.fontStyle = 'italic';
+            if (elState.underline) el.style.textDecoration = 'underline';
+            
+            if (elState.width) {
+               el.style.width = elState.width + 'px';
+               el.style.whiteSpace = 'normal';
+            } else {
+               el.style.whiteSpace = 'nowrap';
+            }
+            if (elState.height) el.style.height = elState.height + 'px';
+            
+            if (elState.type === 'text') {
+              el.innerText = elState.content;
+            } else if (elState.type === 'field') {
+              el.innerText = row[elState.content] !== undefined ? row[elState.content] : '';
+            }
+          }
+          page.appendChild(el);
+        });
+
+        outputContainer.appendChild(page);
+      });
+
+      document.getElementById('printBtn').style.display = 'block';
+    }
+  </script>
+</body>
+</html>
