@@ -429,7 +429,7 @@
       flex-shrink: 0;
     }
 
-    /* Print Styles */
+    /* Print Styles: Forced Orientation via @page dynamically injected */
     @media print {
       body * { visibility: hidden; }
       .app-shell { display: block; height: auto; }
@@ -437,8 +437,13 @@
       #generatedOutput { 
         position: absolute; left: 0; top: 0; width: 100%; padding: 0; background: white; overflow: visible; max-height: none;
       }
-      .preview-page { box-shadow: none; margin: 0; border: 0; page-break-after: always; }
-      @page { margin: 0; }
+      .preview-page { 
+        box-shadow: none !important; 
+        margin: 0 !important; 
+        border: 0 !important; 
+        page-break-after: always !important; 
+        transform: none !important; 
+      }
     }
   </style>
 </head>
@@ -765,6 +770,14 @@
             <select id="selGenMode">
               <option value="summary">Summary Report (All rows in table)</option>
               <option value="all">Mail Merge (One page per row)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Preview Zoom</label>
+            <select id="selGenZoom" onchange="generateReport()">
+              <option value="1">100%</option>
+              <option value="0.75">75%</option>
+              <option value="0.5" selected>50%</option>
             </select>
           </div>
           <button onclick="generateReport()">Generate</button>
@@ -1746,6 +1759,7 @@
       const configId = document.getElementById('selGenConfig').value;
       const templateId = document.getElementById('selGenTemplate').value;
       const mode = document.getElementById('selGenMode').value;
+      const zoom = parseFloat(document.getElementById('selGenZoom').value) || 0.5;
       
       if(!configId || !templateId) return alert("Please select a saved config and template.");
 
@@ -1772,6 +1786,11 @@
         page.className = 'preview-page';
         page.style.width = width + 'px';
         page.style.height = height + 'px';
+        
+        // Scale perfectly on screen
+        page.style.transform = `scale(${zoom})`;
+        page.style.transformOrigin = "top center";
+        page.style.marginBottom = `-${height * (1 - zoom)}px`;
 
         // Render Background if it exists
         if (template.bgImage) {
@@ -1833,6 +1852,16 @@
 
         outputContainer.appendChild(page);
       });
+
+      // Update Dynamic Print CSS for Orientation
+      let printStyle = document.getElementById('dynamic-print-style');
+      if (!printStyle) {
+          printStyle = document.createElement('style');
+          printStyle.id = 'dynamic-print-style';
+          document.head.appendChild(printStyle);
+      }
+      let cssPageSize = template.pageSize === 'Letter' ? 'letter' : template.pageSize.toLowerCase();
+      printStyle.innerHTML = `@media print { @page { size: ${cssPageSize} ${template.orientation}; margin: 0; } }`;
 
       document.getElementById('printBtn').style.display = 'block';
     }
