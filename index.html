@@ -332,7 +332,7 @@
       border: 1px solid var(--line);
     }
 
-    /* Draggable Elements - Added Hardware Acceleration */
+    /* Draggable Elements - Hardware Accelerated */
     .drag-element {
       position: absolute;
       cursor: grab;
@@ -342,7 +342,7 @@
       line-height: 1.2;
       box-sizing: border-box;
       z-index: 10;
-      will-change: left, top, width, height; /* GPU Optimization for smooth dragging */
+      will-change: left, top, width, height;
     }
     .drag-element:active { cursor: grabbing; }
     .drag-element.selected { border-color: var(--accent); background: rgba(23, 107, 135, 0.05); }
@@ -354,7 +354,7 @@
       pointer-events: none;
     }
 
-    /* Resize Handles - Made slightly larger for easier grabbing */
+    /* Resize Handles */
     .resize-handle {
       position: absolute;
       width: 14px;
@@ -364,7 +364,7 @@
       border-radius: 50%;
       z-index: 100;
       display: none;
-      pointer-events: auto; /* Ensures they always catch clicks */
+      pointer-events: auto;
     }
     .drag-element.selected .resize-handle {
       display: block;
@@ -471,12 +471,10 @@
 
     <main class="workspace">
       
-      <!-- PAGE 1: REPORT CONFIG (DATA MANAGEMENT) -->
       <section id="configPage" class="page-section active">
         <h2>Report Configuration</h2>
         <p class="subtitle">Upload data, combine fields, apply filters, and save your data configuration.</p>
 
-        <!-- Step 1: Upload Data -->
         <div class="card">
           <h3 style="margin-top:0">Step 1: Upload Dataset</h3>
           <div class="file-drop" onclick="document.getElementById('fileInput').click()">
@@ -486,7 +484,6 @@
           </div>
         </div>
 
-        <!-- Step 2: Data Management -->
         <div id="dataMgmtSection" style="display: none;">
           
           <div class="card">
@@ -548,7 +545,6 @@
         </div>
       </section>
 
-      <!-- PAGE 2: TEMPLATE CREATOR -->
       <section id="templatePage" class="page-section">
         <h2>Template Creator</h2>
         <p class="subtitle">Set page size, design layout, format text, and place data fields exactly where you want.</p>
@@ -612,6 +608,9 @@
             <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px;">
                <button onclick="document.getElementById('bgInput').click()" class="secondary" style="padding: 8px; font-size: 12px;">+ Form Background Image</button>
                <button onclick="document.getElementById('docxInput').click()" class="secondary" style="padding: 8px; font-size: 12px; border-color: var(--accent); color: var(--accent);">+ Import Word Doc (.docx)</button>
+               
+               <button onclick="loadExampleTemplate()" class="secondary" style="padding: 8px; font-size: 12px; background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 700;">★ Load Univ. Cover Example</button>
+
                <button id="clearBgBtn" onclick="clearBackground()" class="danger" style="padding: 8px; font-size: 12px; display: none;">Clear Background</button>
             </div>
 
@@ -621,7 +620,6 @@
 
             <hr style="border: 0; border-top: 1px solid var(--line); margin: 8px 0;">
 
-            <!-- Element Properties -->
             <div id="elementProperties" style="display: none; background: #fafafa; padding: 12px; border-radius: 8px; border: 1px solid var(--line);">
               <h4 style="margin: 0 0 12px; color: var(--accent);">Element Properties</h4>
               
@@ -655,22 +653,28 @@
                 </div>
               </div>
 
-              <!-- Typography & Formatting -->
               <div id="propTypoWrap" style="display: none; margin-top: 12px;">
-                <div style="display: flex; gap: 4px;">
-                  <button id="btnBold" onclick="toggleTextStyle('bold')" class="secondary style-toggle-btn"><b>B</b></button>
-                  <button id="btnItalic" onclick="toggleTextStyle('italic')" class="secondary style-toggle-btn"><i>I</i></button>
-                  <button id="btnUnderline" onclick="toggleTextStyle('underline')" class="secondary style-toggle-btn"><u>U</u></button>
+                <div style="display: flex; gap: 4px; margin-bottom: 8px;">
+                  <button id="btnBold" onclick="toggleTextStyle('bold')" class="secondary style-toggle-btn" title="Bold"><b>B</b></button>
+                  <button id="btnItalic" onclick="toggleTextStyle('italic')" class="secondary style-toggle-btn" title="Italic"><i>I</i></button>
+                  <button id="btnUnderline" onclick="toggleTextStyle('underline')" class="secondary style-toggle-btn" title="Underline"><u>U</u></button>
                   
-                  <select id="propAlign" onchange="updateSelectedElement()" style="flex: 1; padding: 4px 8px;">
+                  <select id="propAlign" onchange="updateSelectedElement()" style="flex: 1; padding: 4px 8px;" title="Alignment">
                     <option value="left">Left Align</option>
                     <option value="center">Center Align</option>
                     <option value="right">Right Align</option>
                   </select>
                 </div>
+                <div style="display: flex; gap: 4px;">
+                  <select id="propFont" onchange="updateSelectedElement()" style="flex: 1; padding: 4px 8px;" title="Font Family">
+                    <option value="Inter, sans-serif">Default (Inter)</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Courier New', monospace">Courier</option>
+                  </select>
+                </div>
               </div>
 
-              <!-- Dimensions Box -->
               <div class="form-row" style="margin-top: 12px; margin-bottom:0;" id="propDimensionsWrap">
                 <div class="form-group" id="propWidthWrap">
                   <label>Width (px)</label>
@@ -686,7 +690,6 @@
                 </div>
               </div>
 
-              <!-- Styling / Border Box -->
               <div class="form-row" style="margin-top: 12px; margin-bottom:0;" id="propStylingWrap">
                 <div class="form-group" id="propSizeWrap">
                   <label>Font Size</label>
@@ -709,7 +712,10 @@
                 </div>
               </div>
 
-              <button class="danger" onclick="deleteSelectedElement()" style="width: 100%; margin-top: 16px;">Delete Element</button>
+              <div style="display: flex; gap: 8px; margin-top: 16px;">
+                 <button class="secondary" onclick="duplicateSelectedElement()" style="flex: 1;">Duplicate</button>
+                 <button class="danger" onclick="deleteSelectedElement()" style="flex: 1;">Delete</button>
+              </div>
             </div>
             
             <div id="noSelectionMsg" style="font-size: 13px; color: var(--muted); text-align: center; padding: 20px 0;">
@@ -741,7 +747,6 @@
         </div>
       </section>
 
-      <!-- PAGE 3: GENERATE & EXPORT -->
       <section id="generatePage" class="page-section">
         <h2>Generate Report</h2>
         <p class="subtitle">Combine a saved Data Config with a saved Template to generate your output.</p>
@@ -1026,20 +1031,20 @@
     function generateId() { return 'el_' + Math.random().toString(36).substr(2, 9); }
 
     function addTextElement() {
-      state.activeTemplate.elements.push({ id: generateId(), type: 'text', content: 'Double click to edit', x: 50, y: 50, size: 16, align: 'left', bold: false, italic: false, underline: false });
+      state.activeTemplate.elements.push({ id: generateId(), type: 'text', content: 'Double click to edit', x: 50, y: 50, size: 16, align: 'left', bold: false, italic: false, underline: false, fontFamily: "Inter, sans-serif" });
       renderCanvas();
     }
 
     function addFieldElement() {
       if (state.columns.length === 0) return alert("Upload data first to see available fields.");
-      state.activeTemplate.elements.push({ id: generateId(), type: 'field', content: state.columns[0], x: 50, y: 100, size: 16, align: 'left', bold: true, italic: false, underline: false });
+      state.activeTemplate.elements.push({ id: generateId(), type: 'field', content: state.columns[0], x: 50, y: 100, size: 16, align: 'left', bold: true, italic: false, underline: false, fontFamily: "Inter, sans-serif" });
       renderCanvas();
     }
 
     function addTableElement() {
        if (state.columns.length === 0) return alert("Upload data first.");
        const defaultCols = state.columns.slice(0, Math.min(3, state.columns.length));
-       state.activeTemplate.elements.push({ id: generateId(), type: 'table', columns: defaultCols, x: 50, y: 150, size: 12, align: 'left', width: 600, cellHeight: 12, borderWidth: 1, borderStyle: 'solid', tableType: 'data', emptyRows: 5 });
+       state.activeTemplate.elements.push({ id: generateId(), type: 'table', columns: defaultCols, x: 50, y: 150, size: 12, align: 'left', width: 600, cellHeight: 12, borderWidth: 1, borderStyle: 'solid', tableType: 'data', emptyRows: 5, fontFamily: "Inter, sans-serif" });
        renderCanvas();
     }
 
@@ -1080,6 +1085,81 @@
       renderCanvas();
     }
 
+    function duplicateSelectedElement() {
+        if (!state.selectedElementId) return;
+        const original = state.activeTemplate.elements.find(e => e.id === state.selectedElementId);
+        if (!original) return;
+
+        const copy = JSON.parse(JSON.stringify(original));
+        copy.id = generateId();
+        copy.x += 20; 
+        copy.y += 20;
+
+        state.activeTemplate.elements.push(copy);
+        renderCanvas();
+        selectElement(copy.id); 
+    }
+
+    function loadExampleTemplate() {
+        if(state.activeTemplate.elements.length > 0) {
+           if(!confirm("This will clear your current canvas. Continue?")) return;
+        }
+        
+        state.activeTemplate = {
+           pageSize: 'A4', 
+           orientation: 'portrait', 
+           bgImage: null, 
+           elements: [
+               { id: generateId(), type: 'text', content: 'KANNUR UNIVERSITY', x: 197, y: 60, size: 24, align: 'center', width: 400, bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'text', content: '(Examination Branch)', x: 197, y: 100, size: 16, align: 'center', width: 400, bold: false, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_title', x: 47, y: 140, size: 14, align: 'center', width: 700, bold: true, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'CENTRE CODE AND NAME :', x: 47, y: 200, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_center_code', x: 237, y: 200, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_center_name', x: 287, y: 200, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'DAY :', x: 47, y: 230, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_day', x: 107, y: 230, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'DATE :', x: 237, y: 230, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_date', x: 297, y: 230, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'TIME :', x: 487, y: 230, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_time', x: 547, y: 230, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'SUBJECT :', x: 47, y: 260, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_subject_code', x: 137, y: 260, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_subject_name', x: 247, y: 260, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'NO. OF COPIES :', x: 47, y: 290, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_no_of_copies', x: 167, y: 290, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'COVER NUMBER :', x: 287, y: 290, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'field', content: 'examination_details_cover_numbers', x: 417, y: 290, size: 12, align: 'left', bold: false, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'line', x: 47, y: 340, width: 700, height: 10, borderWidth: 1, borderStyle: 'solid' },
+               
+               { id: generateId(), type: 'text', content: 'CERTIFICATE', x: 197, y: 360, size: 16, align: 'center', width: 400, bold: true, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'We hereby certify that we have examined this cover and satisfied ourselves that the seals are intact and that it was opened at _______________________ A.M/P.M in our presence.', x: 47, y: 400, size: 12, align: 'justify', width: 700, bold: false, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'INVIGILATOR', x: 47, y: 470, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'text', content: 'ADDL.CHIEF SUPERINTENDENT', x: 527, y: 470, size: 12, align: 'right', bold: true, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'PLACE:', x: 47, y: 550, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               { id: generateId(), type: 'text', content: 'DATE:', x: 47, y: 580, size: 12, align: 'left', bold: true, fontFamily: "'Times New Roman', serif" },
+               
+               { id: generateId(), type: 'text', content: 'CHIEF SUPERINTENDENT', x: 527, y: 580, size: 12, align: 'right', bold: true, fontFamily: "'Times New Roman', serif" },
+           ]
+        };
+        
+        document.getElementById('pageSize').value = 'A4';
+        document.getElementById('orientation').value = 'portrait';
+        document.getElementById('templateName').value = 'Kannur Univ Form';
+        updateCanvasSettings();
+        renderCanvas();
+    }
+
     function importWordDoc(event) {
        const file = event.target.files[0];
        if(!file) return;
@@ -1098,7 +1178,7 @@
                 let currentY = 50;
                 paragraphs.forEach((p, index) => {
                    state.activeTemplate.elements.push({ 
-                      id: generateId(), type: 'text', content: p, x: 50, y: currentY, size: 14, align: 'left', width: 600, bold: false, italic: false, underline: false
+                      id: generateId(), type: 'text', content: p, x: 50, y: currentY, size: 14, align: 'left', width: 600, bold: false, italic: false, underline: false, fontFamily: "Inter, sans-serif"
                    });
                    currentY += 40; 
                 });
@@ -1147,7 +1227,7 @@
        const bWidth = el.borderWidth !== undefined ? el.borderWidth : 1;
        const bStyle = bWidth > 0 ? `border: ${bWidth}px ${el.borderStyle || 'solid'} var(--ink);` : `border: none;`;
        
-       let html = `<table class="data-table" style="width: 100%; height: 100%; font-size: ${el.size}px; text-align: ${el.align}; background: white; border-collapse: collapse; box-shadow: 0 0 0 ${bWidth}px var(--ink);">`;
+       let html = `<table class="data-table" style="width: 100%; height: 100%; font-size: ${el.size}px; font-family: ${el.fontFamily || 'inherit'}; text-align: ${el.align}; background: white; border-collapse: collapse; box-shadow: 0 0 0 ${bWidth}px var(--ink);">`;
        
        const displayRows = isPreviewing && rowDataArray && rowDataArray.length > 0 ? rowDataArray.slice(0, 5) : [{}];
 
@@ -1225,6 +1305,7 @@
         // Inner content
         const wrap = document.createElement('div');
         wrap.className = 'content-wrap';
+        wrap.style.fontFamily = el.fontFamily || 'inherit';
         
         // Font Formatting
         if (el.bold) wrap.style.fontWeight = 'bold';
@@ -1438,7 +1519,7 @@
          document.getElementById('propEmptyRowsWrap').style.display = (el.tableType === 'blank') ? 'flex' : 'none';
 
          document.getElementById('propBorderWidthWrap').style.display = 'block';
-         document.getElementById('propBorderWidth').value = el.borderWidth || 1;
+         document.getElementById('propBorderWidth').value = el.borderWidth !== undefined ? el.borderWidth : 1;
          
          document.getElementById('propDimensionsWrap').style.display = 'flex';
          document.getElementById('propWidthWrap').style.display = 'block';
@@ -1476,6 +1557,7 @@
          document.getElementById('propSizeWrap').style.display = 'block';
          document.getElementById('propTypoWrap').style.display = 'block';
          document.getElementById('propAlign').value = el.align || 'left';
+         document.getElementById('propFont').value = el.fontFamily || 'Inter, sans-serif';
          
          document.getElementById('btnBold').classList.toggle('active', el.bold);
          document.getElementById('btnItalic').classList.toggle('active', el.italic);
@@ -1529,6 +1611,7 @@
          el.borderStyle = document.getElementById('propBorderStyle').value || 'solid';
       } else {
          el.align = document.getElementById('propAlign').value;
+         el.fontFamily = document.getElementById('propFont').value;
          el.width = parseInt(document.getElementById('propWidth').value, 10) || 0;
          el.height = parseInt(document.getElementById('propHeight').value, 10) || 0;
          if (el.type === 'text') el.content = document.getElementById('propText').value;
@@ -1564,6 +1647,7 @@
 
          const wrap = domEl.querySelector('.content-wrap');
          if (wrap) {
+             wrap.style.fontFamily = el.fontFamily || 'inherit';
              wrap.style.fontWeight = el.bold ? 'bold' : 'normal';
              wrap.style.fontStyle = el.italic ? 'italic' : 'normal';
              wrap.style.textDecoration = el.underline ? 'underline' : 'none';
@@ -1724,6 +1808,7 @@
              el.innerHTML = `<div style="width:100%; height:100%; border-top: ${elState.borderWidth || 2}px ${elState.borderStyle || 'solid'} var(--ink);"></div>`;
           } else {
             el.style.fontSize = elState.size + 'px';
+            el.style.fontFamily = elState.fontFamily || 'inherit';
             el.style.textAlign = elState.align || 'left';
             if (elState.bold) el.style.fontWeight = 'bold';
             if (elState.italic) el.style.fontStyle = 'italic';
