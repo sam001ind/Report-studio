@@ -420,13 +420,22 @@
       max-height: 60vh;
     }
 
-    .preview-page {
-      background: white;
+    /* Strict Boundaries for Generated Pages */
+    .preview-page-wrapper {
       position: relative;
+      background: white;
       box-shadow: var(--shadow);
       border: 1px solid var(--line);
       overflow: hidden;
       flex-shrink: 0;
+    }
+
+    .preview-page {
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: transparent;
+      transform-origin: top left;
     }
 
     /* Print Styles: Forced Orientation via @page dynamically injected */
@@ -437,11 +446,17 @@
       #generatedOutput { 
         position: absolute; left: 0; top: 0; width: 100%; padding: 0; background: white; overflow: visible; max-height: none;
       }
+      .preview-page-wrapper {
+        width: 100% !important;
+        height: auto !important;
+        box-shadow: none !important;
+        border: 0 !important;
+        page-break-after: always !important;
+        overflow: visible !important;
+        position: relative !important;
+      }
       .preview-page { 
-        box-shadow: none !important; 
-        margin: 0 !important; 
-        border: 0 !important; 
-        page-break-after: always !important; 
+        position: relative !important;
         transform: none !important; 
       }
     }
@@ -1782,15 +1797,17 @@
       const rowsToProcess = mode === 'summary' ? [state.processedRows[0]] : state.processedRows;
 
       rowsToProcess.forEach(row => {
+        // Create a wrapper that is strictly the scaled size
+        const wrapper = document.createElement('div');
+        wrapper.className = 'preview-page-wrapper';
+        wrapper.style.width = (width * zoom) + 'px';
+        wrapper.style.height = (height * zoom) + 'px';
+
         const page = document.createElement('div');
         page.className = 'preview-page';
         page.style.width = width + 'px';
         page.style.height = height + 'px';
-        
-        // Scale perfectly on screen
         page.style.transform = `scale(${zoom})`;
-        page.style.transformOrigin = "top center";
-        page.style.marginBottom = `-${height * (1 - zoom)}px`;
 
         // Render Background if it exists
         if (template.bgImage) {
@@ -1850,7 +1867,8 @@
           page.appendChild(el);
         });
 
-        outputContainer.appendChild(page);
+        wrapper.appendChild(page);
+        outputContainer.appendChild(wrapper);
       });
 
       // Update Dynamic Print CSS for Orientation
