@@ -1,24 +1,28 @@
-import { useState, useEffect } from 'react'
-import './App.css'
+import { useState } from 'react';
+import Sidebar from './components/Sidebar';
+import ConfigPage from './pages/ConfigPage';
+import TemplatePage from './pages/TemplatePage';
+import GeneratePage from './pages/GeneratePage';
 
 function App() {
-  const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    fetch('http://localhost:8000/api/hello')
-      .then(response => response.json())
-      .then(data => setMessage(data.message))
-      .catch(error => console.error('Error fetching data:', error))
-  }, [])
+  const [activePage, setActivePage] = useState('config');
+  const [stats, setStats] = useState({ rows: 0, cols: 0 });
 
   return (
-    <div style={{ textAlign: 'center', padding: '50px' }}>
-      <h1>React + Python FastAPI</h1>
-      <div className="card" style={{ padding: '20px', borderRadius: '8px', border: '1px solid #ccc', marginTop: '20px' }}>
-        <p>Message from backend: <strong>{message || 'Loading...'}</strong></p>
-      </div>
+    <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
+      <Sidebar 
+        activePage={activePage} 
+        setActivePage={setActivePage} 
+        stats={stats} 
+      />
+      
+      <main style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+        {activePage === 'config' && <ConfigPage onDataLoaded={(data) => setStats({ rows: data.rows, cols: data.cols })} />}
+        {activePage === 'template' && <TemplatePage />}
+        {activePage === 'generate' && <GeneratePage />}
+      </main>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
