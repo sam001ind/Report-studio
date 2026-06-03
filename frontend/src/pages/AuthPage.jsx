@@ -86,11 +86,13 @@ const AuthPage = () => {
     setLoading(true);
 
     try {
+      const loginEmail = email.trim() === 'admin' ? 'admin@reportstudio.com' : email;
+
       if (isLogin) {
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(loginEmail, password);
         if (error) throw error;
       } else {
-        const { error } = await signUp(email, password);
+        const { error } = await signUp(loginEmail, password);
         if (error) throw error;
         setMessage("Account created! You can now log in.");
         setIsLogin(true);
@@ -115,8 +117,8 @@ const AuthPage = () => {
 
         <form onSubmit={handleSubmit}>
           <input 
-            type="email" 
-            placeholder="Email Address" 
+            type="text" 
+            placeholder="Email Address or Username" 
             style={styles.input}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
