@@ -19,7 +19,6 @@ body {
   height: 100vh;
   background: var(--bg);
   color: var(--ink);
-  overflow: hidden;
 }
 
 /* UI Controls */
@@ -73,3 +72,125 @@ input, select {
 
 h2 { font-size: 28px; margin-top: 0; margin-bottom: 8px; }
 .subtitle { color: var(--muted); margin-bottom: 32px; }
+
+/* Builder Grid & Rulers */
+.paper-wrapper {
+  position: relative;
+  margin: 0 auto;
+  display: inline-block;
+  text-align: left;
+  transition: width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.paper {
+  background: white;
+  position: relative;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.paper.show-grid {
+  background-image: 
+    linear-gradient(rgba(23, 107, 135, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 107, 135, 0.3) 1px, transparent 1px),
+    linear-gradient(rgba(23, 107, 135, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 107, 135, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+  background-position: 0 0, 0 0, 0 0, 0 0;
+}
+
+.ruler-x, .ruler-y, .ruler-corner {
+  position: absolute;
+  background: #fdfdfd;
+  box-sizing: border-box;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+}
+
+.paper-wrapper.show-grid .ruler-x,
+.paper-wrapper.show-grid .ruler-y,
+.paper-wrapper.show-grid .ruler-corner {
+  display: block;
+}
+
+.ruler-x {
+  top: -20px; left: 0; right: 0; height: 20px;
+  border: 1px solid var(--line);
+  border-bottom: 1px solid var(--accent);
+  background-image: 
+    repeating-linear-gradient(90deg, var(--accent) 0, var(--accent) 1px, transparent 1px, transparent 50px),
+    repeating-linear-gradient(90deg, var(--muted) 0, var(--muted) 1px, transparent 1px, transparent 10px);
+  background-size: 100% 12px, 100% 6px;
+  background-position: 0 bottom, 0 bottom;
+  background-repeat: no-repeat;
+}
+
+.ruler-y {
+  top: 0; left: -20px; bottom: 0; width: 20px;
+  border: 1px solid var(--line);
+  border-right: 1px solid var(--accent);
+  background-image: 
+    repeating-linear-gradient(180deg, var(--accent) 0, var(--accent) 1px, transparent 1px, transparent 50px),
+    repeating-linear-gradient(180deg, var(--muted) 0, var(--muted) 1px, transparent 1px, transparent 10px);
+  background-size: 12px 100%, 6px 100%;
+  background-position: right 0, right 0;
+  background-repeat: no-repeat;
+}
+
+.ruler-corner {
+  top: -20px; left: -20px; width: 20px; height: 20px;
+  border: 1px solid var(--line);
+}
+
+/* Draggable Elements */
+.drag-element {
+  position: absolute;
+  cursor: grab;
+  user-select: none;
+  padding: 4px;
+  border: 1px solid transparent;
+  line-height: 1.2;
+  box-sizing: border-box;
+  z-index: 10;
+  will-change: left, top, width, height;
+}
+.drag-element:active { cursor: grabbing; }
+.drag-element.selected { border-color: var(--accent); background: rgba(23, 107, 135, 0.05); }
+.drag-element.field-type { color: var(--accent); font-weight: bold; }
+
+.resize-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  z-index: 100;
+  display: none;
+  pointer-events: auto;
+}
+.drag-element.selected .resize-handle { display: block; }
+.resize-handle.se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+.resize-handle.e { top: calc(50% - 7px); right: -7px; cursor: ew-resize; }
+.resize-handle.s { bottom: -7px; left: calc(50% - 7px); cursor: ns-resize; }
+
+.style-toggle-btn { min-width: 32px; padding: 6px; font-size: 14px; }
+.style-toggle-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* Print Styles */
+@media print {
+  body * { visibility: hidden; }
+  .app-shell { display: block; height: auto; }
+  .no-print { display: none !important; }
+  
+  .print-container, .print-container * { visibility: visible; }
+  .print-container { 
+    position: absolute; left: 0; top: 0; width: 100%; padding: 0 !important; background: white !important; overflow: visible !important; max-height: none !important; display: block !important;
+  }
+  .preview-page { box-shadow: none !important; margin: 0; border: 0 !important; page-break-after: always; display: block; }
+  @page { margin: 0; }
+}

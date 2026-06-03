@@ -1,27 +1,17 @@
-import { useState } from 'react';
-import Sidebar from './components/Sidebar';
-import ConfigPage from './pages/ConfigPage';
-import TemplatePage from './pages/TemplatePage';
-import GeneratePage from './pages/GeneratePage';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import LandingPage from './pages/LandingPage';
+import StudioLayout from './pages/StudioLayout';
+import SchedulerPage from './pages/SchedulerPage';
 
 function App() {
-  const [activePage, setActivePage] = useState('config');
-  const [stats, setStats] = useState({ rows: 0, cols: 0 });
-
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
-      <Sidebar 
-        activePage={activePage} 
-        setActivePage={setActivePage} 
-        stats={stats} 
-      />
-      
-      <main style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
-        {activePage === 'config' && <ConfigPage onDataLoaded={(data) => setStats({ rows: data.rows, cols: data.cols })} />}
-        {activePage === 'template' && <TemplatePage />}
-        {activePage === 'generate' && <GeneratePage />}
-      </main>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/studio" element={<StudioLayout />} />
+        <Route path="/scheduler" element={<SchedulerPage />} />
+      </Routes>
+    </Router>
   );
 }
 

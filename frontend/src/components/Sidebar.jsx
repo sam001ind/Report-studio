@@ -1,49 +1,96 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const Sidebar = ({ activePage, setActivePage, stats }) => {
+  const [isOpen, setIsOpen] = useState(true);
+
   return (
-    <aside style={styles.sidebar}>
-      <div style={styles.brand}>
+    <aside style={{ ...styles.sidebar, width: isOpen ? '260px' : '80px', padding: isOpen ? '24px' : '24px 8px' }}>
+      <div style={{ display: 'flex', justifyContent: isOpen ? 'space-between' : 'center', alignItems: 'center', marginBottom: '24px' }}>
+        {isOpen && (
+          <Link to="/" style={{ textDecoration: 'none', color: 'var(--accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+            ← Back to Portal
+          </Link>
+        )}
+        <button 
+          onClick={() => setIsOpen(!isOpen)} 
+          style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '16px', padding: '4px' }}
+          title="Toggle Sidebar"
+        >
+          {isOpen ? '◀' : '▶'}
+        </button>
+      </div>
+
+      <div style={{ ...styles.brand, justifyContent: isOpen ? 'flex-start' : 'center' }}>
         <div style={styles.brandMark}>RS</div>
-        <div>
-          <h1 style={styles.brandTitle}>Report Studio</h1>
-          <p style={styles.brandSub}>React + Python Generator</p>
-        </div>
+        {isOpen && (
+          <div>
+            <h1 style={styles.brandTitle}>Report Studio</h1>
+            <p style={styles.brandSub}>React + Python Generator</p>
+          </div>
+        )}
       </div>
 
       <nav style={styles.navMenu}>
         <button 
-          style={activePage === 'config' ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
           onClick={() => setActivePage('config')}
+          style={{ 
+            ...styles.navBtnBase, 
+            ...(activePage === 'config' ? styles.navBtnActive : {}),
+            justifyContent: isOpen ? 'flex-start' : 'center', 
+            padding: isOpen ? '12px 16px' : '12px 0' 
+          }}
         >
-          1. Report Config
+          <span className="icon" style={{ marginRight: isOpen ? '12px' : 0 }}>📄</span> 
+          {isOpen && <span>Report Config</span>}
         </button>
         <button 
-          style={activePage === 'template' ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
           onClick={() => setActivePage('template')}
+          style={{ 
+            ...styles.navBtnBase, 
+            ...(activePage === 'template' ? styles.navBtnActive : {}),
+            justifyContent: isOpen ? 'flex-start' : 'center', 
+            padding: isOpen ? '12px 16px' : '12px 0' 
+          }}
         >
-          2. Template Creator
+          <span className="icon" style={{ marginRight: isOpen ? '12px' : 0 }}>🎨</span> 
+          {isOpen && <span>Template Creator</span>}
         </button>
         <button 
-          style={activePage === 'generate' ? { ...styles.navBtn, ...styles.navBtnActive } : styles.navBtn}
           onClick={() => setActivePage('generate')}
+          style={{ 
+            ...styles.navBtnBase, 
+            ...(activePage === 'generate' ? styles.navBtnActive : {}),
+            justifyContent: isOpen ? 'flex-start' : 'center', 
+            padding: isOpen ? '12px 16px' : '12px 0' 
+          }}
         >
-          3. Generate & Export
+          <span className="icon" style={{ marginRight: isOpen ? '12px' : 0 }}>⚙️</span> 
+          {isOpen && <span>Generate Output</span>}
         </button>
       </nav>
 
-      <section style={styles.panel}>
-        <div style={styles.panelTitle}>Active Dataset</div>
-        <div style={styles.miniStats}>
-          <div style={styles.statCol}>
-            <strong style={styles.statStr}>{stats.rows}</strong>
-            <span style={styles.statSpan}>Rows</span>
+      <section style={{ ...styles.panel, padding: isOpen ? '16px' : '16px 8px' }}>
+        {isOpen ? (
+          <>
+            <div style={styles.panelTitle}>Active Dataset</div>
+            <div style={styles.miniStats}>
+              <div style={styles.statCol}>
+                <strong style={styles.statStr}>{stats.rows}</strong>
+                <span style={styles.statSpan}>Rows</span>
+              </div>
+              <div style={styles.statCol}>
+                <strong style={styles.statStr}>{stats.cols}</strong>
+                <span style={styles.statSpan}>Columns</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <strong style={{ fontSize: '14px', color: 'var(--accent)' }}>{stats.rows}</strong>
+            <div style={{ fontSize: '10px', color: 'var(--muted)' }}>R</div>
           </div>
-          <div style={styles.statCol}>
-            <strong style={styles.statStr}>{stats.cols}</strong>
-            <span style={styles.statSpan}>Columns</span>
-          </div>
-        </div>
+        )}
       </section>
     </aside>
   );
@@ -51,13 +98,12 @@ const Sidebar = ({ activePage, setActivePage, stats }) => {
 
 const styles = {
   sidebar: {
-    width: '260px',
     backgroundColor: 'var(--panel)',
     borderRight: '1px solid var(--line)',
     display: 'flex',
     flexDirection: 'column',
-    padding: '24px',
     zIndex: 10,
+    transition: 'width 0.3s ease, padding 0.3s ease',
   },
   brand: {
     display: 'flex',
@@ -85,16 +131,16 @@ const styles = {
     gap: '8px',
     marginBottom: '40px',
   },
-  navBtn: {
+  navBtnBase: {
     backgroundColor: 'transparent',
     color: 'var(--ink)',
-    textAlign: 'left',
-    padding: '12px 16px',
     borderRadius: '8px',
     fontWeight: 500,
     border: 'none',
     cursor: 'pointer',
     transition: 'background 0.2s',
+    display: 'flex',
+    alignItems: 'center',
   },
   navBtnActive: {
     backgroundColor: 'var(--accent-soft)',
