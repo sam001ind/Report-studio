@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const styles = {
@@ -71,13 +72,21 @@ const styles = {
 };
 
 const AuthPage = () => {
-  const { signIn, signUp } = useAuth();
+  const { user, signIn, signUp } = useAuth();
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -91,6 +100,7 @@ const AuthPage = () => {
       if (isLogin) {
         const { error } = await signIn(loginEmail, password);
         if (error) throw error;
+        navigate('/'); // Immediate redirect
       } else {
         const { error } = await signUp(loginEmail, password);
         if (error) throw error;
