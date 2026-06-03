@@ -17,8 +17,17 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
   const [filterOp, setFilterOp] = useState('equals');
   const [filterVal, setFilterVal] = useState('');
   
-  const [activeFilters, setActiveFilters] = useState([]);
   const [configName, setConfigName] = useState('');
+
+  // Advanced Calculations State
+  const [advOp, setAdvOp] = useState('SUM_IF'); 
+  const [advTargetCol, setAdvTargetCol] = useState('');
+  const [advCondCol, setAdvCondCol] = useState('');
+  const [advCondOp, setAdvCondOp] = useState('equals');
+  const [advCondVal, setAdvCondVal] = useState('');
+  const [advOutputMode, setAdvOutputMode] = useState('ROW_BY_ROW');
+  const [advGroupCol, setAdvGroupCol] = useState('');
+  const [advNewColName, setAdvNewColName] = useState('');
 
   const [filteredRows, setFilteredRows] = useState(dataset.rows || []);
   const [columns, setColumns] = useState(dataset.columns || []);
@@ -53,6 +62,9 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
       if (columns.length > 0) {
         setCombineCols([columns[0], columns[0]]);
         setFilterCol(columns[0]);
+        setAdvTargetCol(columns[0]);
+        setAdvCondCol(columns[0]);
+        setAdvGroupCol(columns[0]);
       }
     };
     
@@ -136,6 +148,79 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
     applyFilters(activeFilters, newSource, newCols);
     
     setCombineNewName('');
+  };
+
+  const handleAdvancedCalc = () => {
+    if (!advNewColName) return alert("Please provide a name for the new column.");
+    if (advOp === 'SUM_IF' && !advTargetCol) return alert("Select a target column to sum.");
+    if (!advCondCol || (!advCondVal && advCondOp !== 'not_blank')) return alert("Please define a condition value.");
+    if (advOutputMode === 'PIVOT' && !advGroupCol) return alert("Please select a column to group by.");
+    if (columns.includes(advNewColName) && advOutputMode !== 'PIVOT') return alert("Column name already exists!");
+
+    let newSource = [...sourceRows];
+    let newColumns = [...columns];
+
+    const checkCondition = (row) => {
+      const cellVal = String(row[advCondCol] || '').toLowerCase();
+      const testVal = String(advCondVal).toLowerCase();
+      if (advCondOp === 'equals') return cellVal === testVal;
+      if (advCondOp === 'contains') return cellVal.includes(testVal);
+      if (advCondOp === 'greater') return parseFloat(cellVal) > parseFloat(testVal);
+      if (advCondOp === 'less') return parseFloat(cellVal) < parseFloat(testVal);
+      if (advCondOp === 'not_blank') return cellVal.trim() !== '';
+      return false;
+    };
+
+    if (advOutputMode === 'ROW_BY_ROW') {
+      newSource = newSource.map(row => {
+        let val = 0;
+        if (checkCondition(row)) {
+          if (advOp === 'SUM_IF') val = parseFloat(row[advTargetCol]) || 0;
+          if (advOp === 'COUNT_IF') val = 1;
+        }
+        return { ...row, [advNewColName]: val };
+      });
+      newColumns.push(advNewColName);
+    } 
+    else if (advOutputMode === 'GLOBAL_AGG') {
+      let total = 0;
+      newSource.forEach(row => {
+        if (checkCondition(row)) {
+          if (advOp === 'SUM_IF') total += (parseFloat(row[advTargetCol]) || 0);
+          if (advOp === 'COUNT_IF') total += 1;
+        }
+      });
+      newSource = newSource.map(row => ({ ...row, [advNewColName]: total }));
+      newColumns.push(advNewColName);
+    }
+    else if (advOutputMode === 'PIVOT') {
+      const groups = {};
+      newSource.forEach(row => {
+        const groupKey = row[advGroupCol] || 'Unknown';
+        if (!groups[groupKey]) {
+          groups[groupKey] = { [advGroupCol]: groupKey, [advNewColName]: 0 };
+        }
+        if (checkCondition(row)) {
+          if (advOp === 'SUM_IF') groups[groupKey][advNewColName] += (parseFloat(row[advTargetCol]) || 0);
+          if (advOp === 'COUNT_IF') groups[groupKey][advNewColName] += 1;
+        }
+      });
+      newSource = Object.values(groups);
+      newColumns = [advGroupCol, advNewColName];
+    }
+
+    setColumns(newColumns);
+    setSourceRows(newSource);
+    
+    // Clear filters if we pivoted, since columns changed drastically
+    if (advOutputMode === 'PIVOT') {
+      setActiveFilters([]);
+      applyFilters([], newSource, newColumns);
+    } else {
+      applyFilters(activeFilters, newSource, newColumns);
+    }
+    
+    setAdvNewColName('');
   };
 
   const applyFilters = (filters, sourceData, currentColumns = columns) => {
@@ -252,6 +337,65 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Step 2: Data Management</h3>
             
+            <div style={{ marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid var(--line)' }}>
+              <label style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Advanced Calculations (SUM IF / COUNT IF)</label>
+              <div className="form-row" style={{ flexWrap: 'wrap', marginBottom: '10px' }}>
+                <select value={advOp} onChange={e => setAdvOp(e.target.value)}>
+                  <option value="SUM_IF">SUM IF</option>
+                  <option value="COUNT_IF">COUNT IF</option>
+                </select>
+                
+                {advOp === 'SUM_IF' && (
+                  <select value={advTargetCol} onChange={e => setAdvTargetCol(e.target.value)}>
+                    <option value="" disabled>Target Column</option>
+                    {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+                
+                <span style={{ margin: '8px 4px', fontWeight: 'bold' }}>WHERE</span>
+                
+                <select value={advCondCol} onChange={e => setAdvCondCol(e.target.value)}>
+                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                
+                <select value={advCondOp} onChange={e => setAdvCondOp(e.target.value)}>
+                  <option value="equals">Equals</option>
+                  <option value="contains">Contains</option>
+                  <option value="greater">Greater Than</option>
+                  <option value="less">Less Than</option>
+                  <option value="not_blank">Not Blank</option>
+                </select>
+                
+                <div className="form-group" style={{ margin: 0 }}>
+                  <input type="text" value={advCondVal} onChange={e => setAdvCondVal(e.target.value)} placeholder="Condition Value" disabled={advCondOp === 'not_blank'} />
+                </div>
+              </div>
+              
+              <div className="form-row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+                <label style={{ marginRight: '10px', fontWeight: 600 }}>Output Mode:</label>
+                <select value={advOutputMode} onChange={e => setAdvOutputMode(e.target.value)}>
+                  <option value="ROW_BY_ROW">Row-by-Row Evaluation</option>
+                  <option value="GLOBAL_AGG">Global Aggregate Column</option>
+                  <option value="PIVOT">Group By (Pivot)</option>
+                </select>
+                
+                {advOutputMode === 'PIVOT' && (
+                  <>
+                    <span style={{ margin: '0 8px' }}>GROUP BY:</span>
+                    <select value={advGroupCol} onChange={e => setAdvGroupCol(e.target.value)}>
+                      {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </>
+                )}
+                
+                <span style={{ margin: '0 8px', fontWeight: 'bold' }}>=</span>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <input type="text" value={advNewColName} onChange={e => setAdvNewColName(e.target.value)} placeholder="New Column Name" />
+                </div>
+                <button onClick={handleAdvancedCalc} className="secondary">Calculate</button>
+              </div>
+            </div>
+
             <div style={{ marginBottom: '24px' }}>
               <label style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Combine Columns (2 or more)</label>
               <div className="form-row" style={{ marginBottom: 0, alignItems: 'center' }}>
