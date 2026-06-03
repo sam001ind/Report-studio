@@ -17,6 +17,7 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
   const [filterOp, setFilterOp] = useState('equals');
   const [filterVal, setFilterVal] = useState('');
   
+  const [activeFilters, setActiveFilters] = useState([]);
   const [configName, setConfigName] = useState('');
 
   // Advanced Calculations State
