@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 const ConfigPage = ({ dataset, setDataset, setStats }) => {
   const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload CSV / Excel / JSON');
@@ -18,36 +20,79 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
   const [columns, setColumns] = useState(dataset.columns || []);
   const [sourceRows, setSourceRows] = useState(dataset.rows || []);
 
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setUploadStatus(`Loaded: ${file.name}`);
+    const ext = file.name.split('.').pop().toLowerCase();
     
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('http://localhost:8000/api/upload', {
-        method: 'POST',
-        body: formData,
+    const processData = (data) => {
+      if (!data || data.length === 0) return alert("File is empty.");
+      
+      let columns = Object.keys(data[0] || {}).map(c => c.trim());
+      
+      const records = data.map(row => {
+         const newRow = {};
+         for (let col of columns) {
+            newRow[col] = (row[col] === null || row[col] === undefined) ? "" : row[col];
+         }
+         return newRow;
       });
-      const data = await response.json();
       
-      setColumns(data.columns);
-      setSourceRows(data.data);
-      setFilteredRows(data.data);
+      setColumns(columns);
+      setSourceRows(records);
+      setFilteredRows(records);
       
-      setDataset({ columns: data.columns, rows: data.data });
-      setStats({ rows: data.data.length, cols: data.columns.length });
+      setDataset({ columns, rows: records });
+      setStats({ rows: records.length, cols: columns.length });
       
-      if (data.columns.length > 0) {
-        setCombineCols([data.columns[0], data.columns[0]]);
-        setFilterCol(data.columns[0]);
+      if (columns.length > 0) {
+        setCombineCols([columns[0], columns[0]]);
+        setFilterCol(columns[0]);
       }
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Failed to upload and parse file. Is the Python backend running?');
+    };
+    
+    if (ext === 'csv') {
+       Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+             processData(results.data);
+          },
+          error: (err) => {
+             alert("Error parsing CSV: " + err.message);
+          }
+       });
+    } else if (ext === 'xlsx' || ext === 'xls') {
+       const reader = new FileReader();
+       reader.onload = (evt) => {
+          try {
+             const bstr = evt.target.result;
+             const workbook = XLSX.read(bstr, {type: 'binary'});
+             const sheetName = workbook.SheetNames[0];
+             const sheet = workbook.Sheets[sheetName];
+             const data = XLSX.utils.sheet_to_json(sheet, {defval: ""});
+             processData(data);
+          } catch(err) {
+             alert("Error parsing Excel: " + err.message);
+          }
+       };
+       reader.readAsBinaryString(file);
+    } else if (ext === 'json') {
+       const reader = new FileReader();
+       reader.onload = (evt) => {
+          try {
+             const data = JSON.parse(evt.target.result);
+             if (!Array.isArray(data)) return alert("JSON must be an array of objects.");
+             processData(data);
+          } catch(err) {
+             alert("Error parsing JSON: " + err.message);
+          }
+       };
+       reader.readAsText(file);
+    } else {
+       alert("Unsupported file format. Please upload CSV, Excel, or JSON.");
     }
   };
 
@@ -145,7 +190,7 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
         <div style={styles.fileDrop} onClick={() => document.getElementById('fileInput').click()}>
           <h3>{uploadStatus}</h3>
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-            Data is sent to FastAPI and processed using Pandas.
+            Data is parsed securely inside your browser. No data is uploaded to a server.
           </p>
           <input 
             type="file" 
