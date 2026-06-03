@@ -12,6 +12,28 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
+body.dark-theme {
+  color-scheme: dark;
+  --bg: #0b1110;
+  --ink: #e8eceb;
+  --muted: #889692;
+  --line: #2a3431;
+  --panel: #131b19;
+  --accent: #00f0ff; /* Neon Cyan */
+  --accent-soft: rgba(0, 240, 255, 0.15);
+  --shadow: 0 0 20px rgba(0, 240, 255, 0.15); /* Glowing shadow */
+}
+
+/* Luminous Glow Effects */
+body.dark-theme button {
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+}
+body.dark-theme .card,
+body.dark-theme .panel {
+  background-color: var(--panel);
+  border-color: var(--line);
+}
+
 * { box-sizing: border-box; }
 
 body {

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileDown, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield } from 'lucide-react';
+import { FileDown, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield, Moon, Sun } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const LandingPage = () => {
@@ -10,6 +10,28 @@ const LandingPage = () => {
   // Admins see everything. Normal users see what they have permission for.
   const canSeeStudio = profile?.is_admin || permissions?.can_access_studio;
   const canSeeScheduler = profile?.is_admin || permissions?.can_access_scheduler;
+
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    // Check initial theme
+    const theme = localStorage.getItem('theme');
+    if (theme === 'dark') {
+      setIsDark(true);
+      document.body.classList.add('dark-theme');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    if (isDark) {
+      document.body.classList.remove('dark-theme');
+      localStorage.setItem('theme', 'light');
+    } else {
+      document.body.classList.add('dark-theme');
+      localStorage.setItem('theme', 'dark');
+    }
+    setIsDark(!isDark);
+  };
 
   return (
     <div style={styles.container}>
@@ -23,6 +45,14 @@ const LandingPage = () => {
           <span style={styles.logoText}>Sorted Operational Suite</span>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <button 
+            onClick={toggleTheme}
+            style={{...styles.secondaryBtn, padding: '8px', borderRadius: '50%', border: 'none', background: 'transparent'}}
+            title="Toggle Luminous Theme"
+          >
+            {isDark ? <Sun size={20} color="var(--accent)" /> : <Moon size={20} color="var(--ink)" />}
+          </button>
+          
           {profile?.is_admin && (
             <button style={{...styles.secondaryBtn, padding: '8px 16px'}} onClick={() => navigate('/admin')}>
               <Shield size={18} style={{marginRight: '8px'}} /> Admin
@@ -221,16 +251,16 @@ const styles = {
     width: '100%'
   },
   featureCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     backdropFilter: 'blur(10px)',
-    border: '1px solid var(--line)',
+    border: '1px solid var(--accent)',
     borderRadius: '16px',
     padding: '32px',
-    transition: 'transform 0.3s, box-shadow 0.3s',
+    transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
     boxShadow: 'var(--shadow)',
     ':hover': {
       transform: 'translateY(-5px)',
-      boxShadow: '0 12px 40px rgba(27, 38, 35, 0.12)'
+      boxShadow: '0 0 30px rgba(0, 240, 255, 0.4)'
     }
   },
   featureIcon: {
