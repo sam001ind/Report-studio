@@ -9,13 +9,14 @@ const styles = {
     height: '100vh',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'var(--bg-primary)',
+    backgroundColor: 'var(--bg)',
     fontFamily: 'Inter, sans-serif'
   },
   card: {
-    backgroundColor: 'var(--bg-secondary)',
+    backgroundColor: 'var(--panel)',
     padding: '40px',
     borderRadius: '12px',
+    border: '1px solid var(--line)',
     boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
     width: '100%',
     maxWidth: '400px',
@@ -23,7 +24,7 @@ const styles = {
   },
   title: {
     margin: '0 0 10px 0',
-    color: 'white',
+    color: 'var(--ink)',
     fontSize: '24px'
   },
   subtitle: {
@@ -35,10 +36,10 @@ const styles = {
     width: '100%',
     padding: '12px 15px',
     marginBottom: '15px',
-    backgroundColor: 'var(--bg-primary)',
-    border: '1px solid var(--border)',
+    backgroundColor: 'var(--bg)',
+    border: '1px solid var(--line)',
     borderRadius: '8px',
-    color: 'white',
+    color: 'var(--ink)',
     fontSize: '14px',
     boxSizing: 'border-box'
   },
