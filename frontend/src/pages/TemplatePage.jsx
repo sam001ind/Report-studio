@@ -9,9 +9,9 @@ const PAGE_SIZES = {
   Letter: { width: 816, height: 1056 }
 };
 
-const TemplatePage = ({ dataset }) => {
+const TemplatePage = ({ dataset, initialTemplate }) => {
   const { user } = useAuth();
-  const [template, setTemplate] = useState({
+  const [template, setTemplate] = useState(initialTemplate?.layout_data || {
     pageSize: 'A4',
     orientation: 'portrait',
     zoomScale: 0.75,
@@ -32,6 +32,12 @@ const TemplatePage = ({ dataset }) => {
   useEffect(() => {
     // We could save to localStorage here if we wanted persistent drafts
   }, [template]);
+
+  useEffect(() => {
+    if (initialTemplate) {
+      setTemplate(initialTemplate.layout_data);
+    }
+  }, [initialTemplate]);
 
   const handleMouseDown = (e, id, type = 'drag') => {
     e.stopPropagation();

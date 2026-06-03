@@ -1,38 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
-const ConfigPage = ({ dataset, setDataset, setStats }) => {
+const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
   const { user } = useAuth();
   const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload Dataset (CSV, XLSX, JSON)');
   const [isDragging, setIsDragging] = useState(false);
   
-  // Data Management State
-  const [combineCols, setCombineCols] = useState([]);
-  const [combineNewName, setCombineNewName] = useState('');
-  
-  const [filterCol, setFilterCol] = useState('');
-  const [filterOp, setFilterOp] = useState('equals');
-  const [filterVal, setFilterVal] = useState('');
-  
-  const [activeFilters, setActiveFilters] = useState([]);
-  const [configName, setConfigName] = useState('');
-
-  // Advanced Calculations State
-  const [advOp, setAdvOp] = useState('SUM_IF'); 
-  const [advTargetCol, setAdvTargetCol] = useState('');
-  const [advCondCol, setAdvCondCol] = useState('');
-  const [advCondOp, setAdvCondOp] = useState('equals');
-  const [advCondVal, setAdvCondVal] = useState('');
-  const [advOutputMode, setAdvOutputMode] = useState('ROW_BY_ROW');
-  const [advGroupCol, setAdvGroupCol] = useState('');
-  const [advNewColName, setAdvNewColName] = useState('');
-
-  const [filteredRows, setFilteredRows] = useState(dataset.rows || []);
-  const [columns, setColumns] = useState(dataset.columns || []);
   const [sourceRows, setSourceRows] = useState(dataset.rows || []);
+  const [sourceCols, setSourceCols] = useState(dataset.columns || []);
+  
+  const [pipelineSteps, setPipelineSteps] = useState([]);
+  const [currentPipelineCols, setCurrentPipelineCols] = useState(dataset.columns || []);
+  const [filteredRows, setFilteredRows] = useState(dataset.rows || []);
+  
+  const [configName, setConfigName] = useState('');
+  const [showAddStep, setShowAddStep] = useState(false);
+
+  // Load from initialConfig
+  useEffect(() => {
+    if (initialConfig && initialConfig.config_data) {
+      setConfigName(initialConfig.name);
+      const loadedSteps = initialConfig.config_data.pipeline || [];
+      
+      // Migrate old format
+      if (initialConfig.config_data.filters && loadedSteps.length === 0) {
+        setPipelineSteps(initialConfig.config_data.filters.map(f => ({ ...f, type: 'filter' })));
+      } else {
+        setPipelineSteps(loadedSteps);
+      }
+    }
+  }, [initialConfig]);
+
+  // Rerun pipeline whenever steps or source data changes
+  useEffect(() => {
+    runPipeline(pipelineSteps, sourceRows, sourceCols);
+  }, [pipelineSteps, sourceRows, sourceCols]);
 
   const processFile = (file) => {
     if (!file) return;
@@ -48,7 +53,6 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
       const records = data.map(row => {
          const newRow = {};
          for (let col of columns) {
-            // Find the original key that matches the trimmed col
             const origKey = Object.keys(row).find(k => k.trim() === col) || col;
             let val = row[origKey];
             newRow[col] = (val === null || val === undefined) ? "" : String(val);
@@ -56,33 +60,14 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
          return newRow;
       });
       
-      setColumns(columns);
+      setSourceCols(columns);
       setSourceRows(records);
-      setFilteredRows(records);
       
-      setDataset({ columns, rows: records });
-      setStats({ rows: records.length, cols: columns.length });
-      
-      if (columns.length > 0) {
-        setCombineCols([columns[0], columns[0]]);
-        setFilterCol(columns[0]);
-        setAdvTargetCol(columns[0]);
-        setAdvCondCol(columns[0]);
-        setAdvGroupCol(columns[0]);
-      }
+      // The useEffect will automatically run the pipeline and update dataset/stats
     };
     
     if (ext === 'csv') {
-       Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-             processData(results.data);
-          },
-          error: (err) => {
-             alert("Error parsing CSV: " + err.message);
-          }
-       });
+       Papa.parse(file, { header: true, skipEmptyLines: true, complete: (results) => processData(results.data), error: (err) => alert("Error parsing CSV: " + err.message) });
     } else if (ext === 'xlsx' || ext === 'xls') {
        const reader = new FileReader();
        reader.onload = (evt) => {
@@ -111,165 +96,131 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
        };
        reader.readAsText(file);
     } else {
-       alert("Unsupported file format. Please upload CSV, Excel, or JSON.");
+       alert("Unsupported file format.");
     }
   };
 
-  const handleFileUpload = (e) => {
-    processFile(e.target.files[0]);
-  };
+  const handleFileUpload = (e) => processFile(e.target.files[0]);
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files?.length > 0) processFile(e.dataTransfer.files[0]); };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+  const runPipeline = (steps, initialRows, initialCols) => {
+    let currentData = [...initialRows];
+    let currentCols = [...initialCols];
 
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
+    steps.forEach(step => {
+      if (step.type === 'filter') {
+        currentData = currentData.filter(row => {
+          const cellVal = String(row[step.col] || '').toLowerCase();
+          const testVal = String(step.val).toLowerCase();
+          if (step.op === 'equals') return cellVal === testVal;
+          if (step.op === 'contains') return cellVal.includes(testVal);
+          if (step.op === 'greater') return parseFloat(cellVal) > parseFloat(testVal);
+          if (step.op === 'less') return parseFloat(cellVal) < parseFloat(testVal);
+          if (step.op === 'not_blank') return cellVal.trim() !== '';
+          return true;
+        });
+      } else if (step.type === 'combine') {
+        currentData = currentData.map(row => {
+          const combinedVal = step.cols.map(c => row[c] || '').join(' ').trim();
+          return { ...row, [step.newName]: combinedVal };
+        });
+        if (!currentCols.includes(step.newName)) currentCols.push(step.newName);
+      } else if (step.type === 'calc') {
+        const checkCondition = (row) => {
+          const cellVal = String(row[step.condCol] || '').toLowerCase();
+          const testVal = String(step.condVal).toLowerCase();
+          if (step.condOp === 'equals') return cellVal === testVal;
+          if (step.condOp === 'contains') return cellVal.includes(testVal);
+          if (step.condOp === 'greater') return parseFloat(cellVal) > parseFloat(testVal);
+          if (step.condOp === 'less') return parseFloat(cellVal) < parseFloat(testVal);
+          if (step.condOp === 'not_blank') return cellVal.trim() !== '';
+          return false;
+        };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleCombineColumns = () => {
-    if (combineCols.length < 2 || !combineNewName) return alert("Select columns and enter a new name.");
-    if (columns.includes(combineNewName)) return alert("Column name already exists!");
-
-    const newCols = [...columns, combineNewName];
-    const newSource = sourceRows.map(row => {
-      const combinedVal = combineCols.map(c => row[c] || '').join(' ').trim();
-      return { ...row, [combineNewName]: combinedVal };
+        if (step.outputMode === 'ROW_BY_ROW') {
+          currentData = currentData.map(row => {
+            let val = 0;
+            if (checkCondition(row)) {
+              if (step.op === 'SUM_IF') val = parseFloat(row[step.targetCol]) || 0;
+              if (step.op === 'COUNT_IF') val = 1;
+            }
+            return { ...row, [step.newColName]: val };
+          });
+          if (!currentCols.includes(step.newColName)) currentCols.push(step.newColName);
+        } 
+        else if (step.outputMode === 'GLOBAL_AGG') {
+          let total = 0;
+          currentData.forEach(row => {
+            if (checkCondition(row)) {
+              if (step.op === 'SUM_IF') total += (parseFloat(row[step.targetCol]) || 0);
+              if (step.op === 'COUNT_IF') total += 1;
+            }
+          });
+          currentData = currentData.map(row => ({ ...row, [step.newColName]: total }));
+          if (!currentCols.includes(step.newColName)) currentCols.push(step.newColName);
+        }
+        else if (step.outputMode === 'PIVOT') {
+          const groups = {};
+          currentData.forEach(row => {
+            const groupKey = row[step.groupCol] || 'Unknown';
+            if (!groups[groupKey]) {
+              groups[groupKey] = { [step.groupCol]: groupKey, [step.newColName]: 0 };
+            }
+            if (checkCondition(row)) {
+              if (step.op === 'SUM_IF') groups[groupKey][step.newColName] += (parseFloat(row[step.targetCol]) || 0);
+              if (step.op === 'COUNT_IF') groups[groupKey][step.newColName] += 1;
+            }
+          });
+          currentData = Object.values(groups);
+          currentCols = [step.groupCol, step.newColName];
+        }
+      }
     });
-    
-    setColumns(newCols);
-    setSourceRows(newSource);
-    applyFilters(activeFilters, newSource, newCols);
-    
-    setCombineNewName('');
+
+    setCurrentPipelineCols(currentCols);
+    setFilteredRows(currentData);
+    setDataset({ columns: currentCols, rows: currentData });
+    setStats({ rows: currentData.length, cols: currentCols.length });
   };
 
-  const handleAdvancedCalc = () => {
-    if (!advNewColName) return alert("Please provide a name for the new column.");
-    if (advOp === 'SUM_IF' && !advTargetCol) return alert("Select a target column to sum.");
-    if (!advCondCol || (!advCondVal && advCondOp !== 'not_blank')) return alert("Please define a condition value.");
-    if (advOutputMode === 'PIVOT' && !advGroupCol) return alert("Please select a column to group by.");
-    if (columns.includes(advNewColName) && advOutputMode !== 'PIVOT') return alert("Column name already exists!");
-
-    let newSource = [...sourceRows];
-    let newColumns = [...columns];
-
-    const checkCondition = (row) => {
-      const cellVal = String(row[advCondCol] || '').toLowerCase();
-      const testVal = String(advCondVal).toLowerCase();
-      if (advCondOp === 'equals') return cellVal === testVal;
-      if (advCondOp === 'contains') return cellVal.includes(testVal);
-      if (advCondOp === 'greater') return parseFloat(cellVal) > parseFloat(testVal);
-      if (advCondOp === 'less') return parseFloat(cellVal) < parseFloat(testVal);
-      if (advCondOp === 'not_blank') return cellVal.trim() !== '';
-      return false;
-    };
-
-    if (advOutputMode === 'ROW_BY_ROW') {
-      newSource = newSource.map(row => {
-        let val = 0;
-        if (checkCondition(row)) {
-          if (advOp === 'SUM_IF') val = parseFloat(row[advTargetCol]) || 0;
-          if (advOp === 'COUNT_IF') val = 1;
-        }
-        return { ...row, [advNewColName]: val };
-      });
-      newColumns.push(advNewColName);
-    } 
-    else if (advOutputMode === 'GLOBAL_AGG') {
-      let total = 0;
-      newSource.forEach(row => {
-        if (checkCondition(row)) {
-          if (advOp === 'SUM_IF') total += (parseFloat(row[advTargetCol]) || 0);
-          if (advOp === 'COUNT_IF') total += 1;
-        }
-      });
-      newSource = newSource.map(row => ({ ...row, [advNewColName]: total }));
-      newColumns.push(advNewColName);
+  const addStep = (type) => {
+    const newStep = { id: Date.now(), type };
+    if (type === 'filter') {
+      newStep.col = currentPipelineCols[0] || '';
+      newStep.op = 'equals';
+      newStep.val = '';
+    } else if (type === 'combine') {
+      newStep.cols = [currentPipelineCols[0] || '', currentPipelineCols[0] || ''];
+      newStep.newName = `Combined_${Date.now().toString().slice(-4)}`;
+    } else if (type === 'calc') {
+      newStep.op = 'SUM_IF';
+      newStep.targetCol = currentPipelineCols[0] || '';
+      newStep.condCol = currentPipelineCols[0] || '';
+      newStep.condOp = 'equals';
+      newStep.condVal = '';
+      newStep.outputMode = 'ROW_BY_ROW';
+      newStep.groupCol = currentPipelineCols[0] || '';
+      newStep.newColName = `Calc_${Date.now().toString().slice(-4)}`;
     }
-    else if (advOutputMode === 'PIVOT') {
-      const groups = {};
-      newSource.forEach(row => {
-        const groupKey = row[advGroupCol] || 'Unknown';
-        if (!groups[groupKey]) {
-          groups[groupKey] = { [advGroupCol]: groupKey, [advNewColName]: 0 };
-        }
-        if (checkCondition(row)) {
-          if (advOp === 'SUM_IF') groups[groupKey][advNewColName] += (parseFloat(row[advTargetCol]) || 0);
-          if (advOp === 'COUNT_IF') groups[groupKey][advNewColName] += 1;
-        }
-      });
-      newSource = Object.values(groups);
-      newColumns = [advGroupCol, advNewColName];
-    }
-
-    setColumns(newColumns);
-    setSourceRows(newSource);
-    
-    // Clear filters if we pivoted, since columns changed drastically
-    if (advOutputMode === 'PIVOT') {
-      setActiveFilters([]);
-      applyFilters([], newSource, newColumns);
-    } else {
-      applyFilters(activeFilters, newSource, newColumns);
-    }
-    
-    setAdvNewColName('');
+    setPipelineSteps([...pipelineSteps, newStep]);
+    setShowAddStep(false);
   };
 
-  const applyFilters = (filters, sourceData, currentColumns = columns) => {
-    let result = [...sourceData];
-    
-    filters.forEach(f => {
-      result = result.filter(row => {
-        const cellVal = String(row[f.col] || '').toLowerCase();
-        const testVal = String(f.val).toLowerCase();
-        
-        if (f.op === 'equals') return cellVal === testVal;
-        if (f.op === 'contains') return cellVal.includes(testVal);
-        if (f.op === 'greater') return parseFloat(cellVal) > parseFloat(testVal);
-        if (f.op === 'less') return parseFloat(cellVal) < parseFloat(testVal);
-        if (f.op === 'not_blank') return cellVal.trim() !== '';
-        return true;
-      });
-    });
-    
-    setFilteredRows(result);
-    setDataset({ columns: currentColumns, rows: result });
-    setStats({ rows: result.length, cols: currentColumns.length });
+  const updateStep = (id, key, val) => {
+    setPipelineSteps(pipelineSteps.map(s => s.id === id ? { ...s, [key]: val } : s));
   };
 
-  const handleAddFilter = () => {
-    if (!filterCol || (!filterVal && filterOp !== 'not_blank')) return alert("Enter a filter value.");
-    const newFilter = { id: Date.now(), col: filterCol, op: filterOp, val: filterVal };
-    const newFilters = [...activeFilters, newFilter];
-    setActiveFilters(newFilters);
-    applyFilters(newFilters, sourceRows);
-    setFilterVal('');
-  };
-
-  const removeFilter = (id) => {
-    const newFilters = activeFilters.filter(f => f.id !== id);
-    setActiveFilters(newFilters);
-    applyFilters(newFilters, sourceRows);
+  const removeStep = (id) => {
+    setPipelineSteps(pipelineSteps.filter(s => s.id !== id));
   };
 
   const saveReportConfig = async () => {
     if (!configName) return alert("Enter a configuration name.");
     
     const configData = {
-      columns,
-      filters: activeFilters
+      pipeline: pipelineSteps
     };
     
     const { data, error } = await supabase
@@ -288,9 +239,9 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
 
   const handleExportCsv = () => {
     if (filteredRows.length === 0) return alert("No data to export.");
-    const header = columns.join(",");
+    const header = currentPipelineCols.join(",");
     const csvContent = filteredRows.map(row => 
-      columns.map(col => `"${String(row[col] || '').replace(/"/g, '""')}"`).join(",")
+      currentPipelineCols.map(col => `"${String(row[col] || '').replace(/"/g, '""')}"`).join(",")
     ).join("\n");
     const fullCsv = header + "\n" + csvContent;
     
@@ -306,10 +257,18 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
   return (
     <div style={styles.page}>
       <h2>Report Configuration</h2>
-      <p className="subtitle">Upload data, combine fields, apply filters, and save your data configuration.</p>
+      <p className="subtitle">Build an interactive data pipeline to clean, filter, and transform your data.</p>
 
+      {/* STEP 1 */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Step 1: Upload Dataset</h3>
+        <h3 style={{ marginTop: 0 }}>Step 1: Data Source</h3>
+        
+        {initialConfig && sourceRows.length === 0 && (
+          <div style={{ padding: '16px', background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: '8px', marginBottom: '16px', fontWeight: 600 }}>
+            Editing saved configuration: "{initialConfig.name}". Please upload your dataset to apply these rules.
+          </div>
+        )}
+
         <div 
           style={{
             ...styles.fileDrop,
@@ -335,160 +294,162 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
         </div>
       </div>
       
-      {columns.length > 0 && (
+      {/* STEP 2 - PIPELINE */}
+      {sourceCols.length > 0 && (
         <div id="dataMgmtSection">
           
           <div className="card">
-            <h3 style={{ marginTop: 0 }}>Step 2: Data Management</h3>
-            
-            <div style={{ marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid var(--line)' }}>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Advanced Calculations (SUM IF / COUNT IF)</label>
-              <div className="form-row" style={{ flexWrap: 'wrap', marginBottom: '10px' }}>
-                <select value={advOp} onChange={e => setAdvOp(e.target.value)}>
-                  <option value="SUM_IF">SUM IF</option>
-                  <option value="COUNT_IF">COUNT IF</option>
-                </select>
-                
-                {advOp === 'SUM_IF' && (
-                  <select value={advTargetCol} onChange={e => setAdvTargetCol(e.target.value)}>
-                    <option value="" disabled>Target Column</option>
-                    {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                )}
-                
-                <span style={{ margin: '8px 4px', fontWeight: 'bold' }}>WHERE</span>
-                
-                <select value={advCondCol} onChange={e => setAdvCondCol(e.target.value)}>
-                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                
-                <select value={advCondOp} onChange={e => setAdvCondOp(e.target.value)}>
-                  <option value="equals">Equals</option>
-                  <option value="contains">Contains</option>
-                  <option value="greater">Greater Than</option>
-                  <option value="less">Less Than</option>
-                  <option value="not_blank">Not Blank</option>
-                </select>
-                
-                <div className="form-group" style={{ margin: 0 }}>
-                  <input type="text" value={advCondVal} onChange={e => setAdvCondVal(e.target.value)} placeholder="Condition Value" disabled={advCondOp === 'not_blank'} />
-                </div>
-              </div>
-              
-              <div className="form-row" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
-                <label style={{ marginRight: '10px', fontWeight: 600 }}>Output Mode:</label>
-                <select value={advOutputMode} onChange={e => setAdvOutputMode(e.target.value)}>
-                  <option value="ROW_BY_ROW">Row-by-Row Evaluation</option>
-                  <option value="GLOBAL_AGG">Global Aggregate Column</option>
-                  <option value="PIVOT">Group By (Pivot)</option>
-                </select>
-                
-                {advOutputMode === 'PIVOT' && (
-                  <>
-                    <span style={{ margin: '0 8px' }}>GROUP BY:</span>
-                    <select value={advGroupCol} onChange={e => setAdvGroupCol(e.target.value)}>
-                      {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </>
-                )}
-                
-                <span style={{ margin: '0 8px', fontWeight: 'bold' }}>=</span>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <input type="text" value={advNewColName} onChange={e => setAdvNewColName(e.target.value)} placeholder="New Column Name" />
-                </div>
-                <button onClick={handleAdvancedCalc} className="secondary">Calculate</button>
-              </div>
-            </div>
+            <h3 style={{ marginTop: 0 }}>Step 2: Data Pipeline</h3>
+            <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '24px' }}>
+              Add transformation steps. They run from top to bottom.
+            </p>
 
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Combine Columns (2 or more)</label>
-              <div className="form-row" style={{ marginBottom: 0, alignItems: 'center' }}>
-                {combineCols.map((c, i) => (
-                  <React.Fragment key={i}>
-                    <select value={c} onChange={e => {
-                      const newCols = [...combineCols];
-                      newCols[i] = e.target.value;
-                      setCombineCols(newCols);
-                    }}>
-                      {columns.map(col => <option key={col} value={col}>{col}</option>)}
-                    </select>
-                    {i < combineCols.length - 1 && <span style={{ fontWeight: 'bold' }}>+</span>}
-                  </React.Fragment>
-                ))}
-                
-                <button onClick={() => setCombineCols([...combineCols, columns[0]])} className="secondary" style={{ padding: '8px', fontSize: '12px' }}>+ Add</button>
-                {combineCols.length > 2 && (
-                  <button onClick={() => setCombineCols(combineCols.slice(0, -1))} className="danger" style={{ padding: '8px', fontSize: '12px', marginLeft: '-4px' }}>- Drop</button>
-                )}
-                
-                <span style={{ fontWeight: 'bold', margin: '0 8px' }}>=</span>
-                
-                <div className="form-group" style={{ margin: 0, minWidth: '150px' }}>
-                  <input type="text" value={combineNewName} onChange={e => setCombineNewName(e.target.value)} placeholder="New Column Name" />
-                </div>
-                <button onClick={handleCombineColumns} className="secondary">Combine</button>
-              </div>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Add Filters</label>
-              <div className="form-row" style={{ marginBottom: 0 }}>
-                <select value={filterCol} onChange={e => setFilterCol(e.target.value)}>
-                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select value={filterOp} onChange={e => setFilterOp(e.target.value)}>
-                  <option value="equals">Equals</option>
-                  <option value="contains">Contains</option>
-                  <option value="greater">Greater Than</option>
-                  <option value="less">Less Than</option>
-                  <option value="not_blank">Is Not Blank</option>
-                </select>
-                <div className="form-group">
-                  <input type="text" value={filterVal} onChange={e => setFilterVal(e.target.value)} placeholder="Value" disabled={filterOp === 'not_blank'} />
-                </div>
-                <button onClick={handleAddFilter} className="secondary">Add Filter</button>
-              </div>
-              
-              <div className="tag-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
-                {activeFilters.map(f => (
-                  <div key={f.id} style={{ background: 'var(--accent-soft)', color: 'var(--accent)', padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {f.col} {f.op} {f.val}
-                    <button onClick={() => removeFilter(f.id)} style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', fontSize: '16px', cursor: 'pointer' }}>×</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+              {pipelineSteps.map((step, idx) => (
+                <div key={step.id} style={{ border: '1px solid var(--line)', borderRadius: '8px', padding: '16px', background: 'var(--bg)', position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <strong style={{ color: 'var(--accent)', fontSize: '14px', textTransform: 'uppercase' }}>
+                      {idx + 1}. {step.type}
+                    </strong>
+                    <button onClick={() => removeStep(step.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0 }}>
+                      🗑️
+                    </button>
                   </div>
-                ))}
-              </div>
+
+                  {step.type === 'filter' && (
+                    <div className="form-row" style={{ marginBottom: 0 }}>
+                      <select value={step.col} onChange={e => updateStep(step.id, 'col', e.target.value)}>
+                        {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <select value={step.op} onChange={e => updateStep(step.id, 'op', e.target.value)}>
+                        <option value="equals">Equals</option>
+                        <option value="contains">Contains</option>
+                        <option value="greater">Greater Than</option>
+                        <option value="less">Less Than</option>
+                        <option value="not_blank">Is Not Blank</option>
+                      </select>
+                      <input type="text" value={step.val} onChange={e => updateStep(step.id, 'val', e.target.value)} placeholder="Value" disabled={step.op === 'not_blank'} />
+                    </div>
+                  )}
+
+                  {step.type === 'combine' && (
+                    <div className="form-row" style={{ marginBottom: 0, alignItems: 'center' }}>
+                      <select value={step.cols[0]} onChange={e => updateStep(step.id, 'cols', [e.target.value, step.cols[1]])}>
+                        {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <span style={{ fontWeight: 'bold' }}>+</span>
+                      <select value={step.cols[1]} onChange={e => updateStep(step.id, 'cols', [step.cols[0], e.target.value])}>
+                        {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <span style={{ fontWeight: 'bold', margin: '0 8px' }}>=</span>
+                      <input type="text" value={step.newName} onChange={e => updateStep(step.id, 'newName', e.target.value)} placeholder="New Column Name" />
+                    </div>
+                  )}
+
+                  {step.type === 'calc' && (
+                    <div>
+                      <div className="form-row" style={{ flexWrap: 'wrap', marginBottom: '10px' }}>
+                        <select value={step.op} onChange={e => updateStep(step.id, 'op', e.target.value)}>
+                          <option value="SUM_IF">SUM IF</option>
+                          <option value="COUNT_IF">COUNT IF</option>
+                        </select>
+                        
+                        {step.op === 'SUM_IF' && (
+                          <select value={step.targetCol} onChange={e => updateStep(step.id, 'targetCol', e.target.value)}>
+                            <option value="" disabled>Target Column</option>
+                            {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        )}
+                        
+                        <span style={{ margin: '8px 4px', fontWeight: 'bold' }}>WHERE</span>
+                        
+                        <select value={step.condCol} onChange={e => updateStep(step.id, 'condCol', e.target.value)}>
+                          {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        
+                        <select value={step.condOp} onChange={e => updateStep(step.id, 'condOp', e.target.value)}>
+                          <option value="equals">Equals</option>
+                          <option value="contains">Contains</option>
+                          <option value="greater">Greater Than</option>
+                          <option value="less">Less Than</option>
+                          <option value="not_blank">Not Blank</option>
+                        </select>
+                        
+                        <input type="text" value={step.condVal} onChange={e => updateStep(step.id, 'condVal', e.target.value)} placeholder="Condition Value" disabled={step.condOp === 'not_blank'} />
+                      </div>
+                      
+                      <div className="form-row" style={{ flexWrap: 'wrap', alignItems: 'center', marginBottom: 0 }}>
+                        <label style={{ marginRight: '10px', fontWeight: 600 }}>Output:</label>
+                        <select value={step.outputMode} onChange={e => updateStep(step.id, 'outputMode', e.target.value)}>
+                          <option value="ROW_BY_ROW">Row-by-Row</option>
+                          <option value="GLOBAL_AGG">Global Aggregate</option>
+                          <option value="PIVOT">Group By (Pivot)</option>
+                        </select>
+                        
+                        {step.outputMode === 'PIVOT' && (
+                          <>
+                            <span style={{ margin: '0 8px' }}>GROUP BY:</span>
+                            <select value={step.groupCol} onChange={e => updateStep(step.id, 'groupCol', e.target.value)}>
+                              {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </>
+                        )}
+                        
+                        <span style={{ margin: '0 8px', fontWeight: 'bold' }}>=</span>
+                        <input type="text" value={step.newColName} onChange={e => updateStep(step.id, 'newColName', e.target.value)} placeholder="Result Col Name" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <button className="secondary" onClick={() => setShowAddStep(!showAddStep)} style={{ width: '100%', borderStyle: 'dashed' }}>
+                + Add Pipeline Step
+              </button>
+              
+              {showAddStep && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, width: '100%', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '8px', padding: '8px', zIndex: 10, boxShadow: 'var(--shadow)', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <button className="secondary" onClick={() => addStep('filter')} style={{ textAlign: 'left', border: 'none' }}>🛡️ Filter Data</button>
+                  <button className="secondary" onClick={() => addStep('combine')} style={{ textAlign: 'left', border: 'none' }}>🔗 Combine Columns</button>
+                  <button className="secondary" onClick={() => addStep('calc')} style={{ textAlign: 'left', border: 'none' }}>🧮 Advanced Calculation</button>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* STEP 3 */}
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Step 3: Save Configuration</h3>
             <div className="form-row">
               <div className="form-group" style={{ flex: 2 }}>
                 <label>Configuration Name</label>
-                <input type="text" value={configName} onChange={e => setConfigName(e.target.value)} placeholder="e.g., Monthly Sales Filtered" />
+                <input type="text" value={configName} onChange={e => setConfigName(e.target.value)} placeholder="e.g., Monthly Sales Rules" />
               </div>
               <button onClick={saveReportConfig}>Save Config</button>
             </div>
           </div>
 
+          {/* LIVE PREVIEW */}
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0 }}>Data Preview (Filtered) - {filteredRows.length} Rows</h3>
+              <h3 style={{ margin: 0 }}>Pipeline Output Preview - {filteredRows.length} Rows</h3>
               <button onClick={handleExportCsv} className="secondary" style={{ borderColor: 'var(--accent)', color: 'var(--accent)', padding: '6px 12px' }}>
                 ⬇️ Export CSV
               </button>
             </div>
-            <div style={{ overflowX: 'auto', maxHeight: '300px' }}>
+            <div style={{ overflowX: 'auto', maxHeight: '400px' }}>
               <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr>
-                    {columns.map(c => <th key={c} style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--line)', background: '#f3f6f5', fontWeight: 600, textTransform: 'uppercase', fontSize: '11px' }}>{c}</th>)}
+                    {currentPipelineCols.map(c => <th key={c} style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--line)', background: '#f3f6f5', fontWeight: 600, textTransform: 'uppercase', fontSize: '11px', position: 'sticky', top: 0 }}>{c}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRows.slice(0, 50).map((row, idx) => (
                     <tr key={idx}>
-                      {columns.map(c => <td key={c} style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>{row[c]}</td>)}
+                      {currentPipelineCols.map(c => <td key={c} style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>{row[c]}</td>)}
                     </tr>
                   ))}
                 </tbody>

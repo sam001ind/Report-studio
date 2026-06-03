@@ -37,6 +37,18 @@ const Sidebar = ({ activePage, setActivePage, stats }) => {
 
       <nav style={styles.navMenu}>
         <button 
+          onClick={() => setActivePage('library')}
+          style={{ 
+            ...styles.navBtnBase, 
+            ...(activePage === 'library' ? styles.navBtnActive : {}),
+            justifyContent: isOpen ? 'flex-start' : 'center', 
+            padding: isOpen ? '12px 16px' : '12px 0' 
+          }}
+        >
+          <span className="icon" style={{ marginRight: isOpen ? '12px' : 0 }}>🗂️</span> 
+          {isOpen && <span>My Library</span>}
+        </button>
+        <button 
           onClick={() => setActivePage('config')}
           style={{ 
             ...styles.navBtnBase, 
