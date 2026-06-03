@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 const ConfigPage = ({ dataset, setDataset, setStats }) => {
+  const { user } = useAuth();
   const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload CSV / Excel / JSON');
   
   // Data Management State
@@ -162,7 +164,7 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
     const { data, error } = await supabase
       .from('configs')
       .insert([
-        { name: configName, config_data: configData }
+        { name: configName, config_data: configData, user_id: user.id }
       ]);
       
     if (error) {

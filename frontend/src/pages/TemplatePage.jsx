@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import mammoth from 'mammoth';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 const PAGE_SIZES = {
   A4: { width: 794, height: 1123 },
@@ -9,6 +10,7 @@ const PAGE_SIZES = {
 };
 
 const TemplatePage = ({ dataset }) => {
+  const { user } = useAuth();
   const [template, setTemplate] = useState({
     pageSize: 'A4',
     orientation: 'portrait',
@@ -262,7 +264,7 @@ const TemplatePage = ({ dataset }) => {
     const { data, error } = await supabase
       .from('templates')
       .insert([
-        { name: template.name, layout_data: template }
+        { name: template.name, layout_data: template, user_id: user.id }
       ]);
       
     if (error) {
