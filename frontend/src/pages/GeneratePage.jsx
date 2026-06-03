@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 const PAGE_SIZES = {
   A4: { width: 794, height: 1123 },
@@ -14,9 +15,22 @@ const GeneratePage = ({ dataset }) => {
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('rs_templates') || '[]');
-    setTemplates(saved);
-    if (saved.length > 0) setSelectedTemplateId(saved[saved.length - 1].id);
+    const fetchTemplates = async () => {
+      const { data, error } = await supabase
+        .from('templates')
+        .select('*');
+        
+      if (error) {
+         console.error("Error fetching templates:", error);
+      } else if (data) {
+         // Map layout_data to the template structure, retaining the db id
+         const mapped = data.map(row => ({ id: row.id, ...row.layout_data }));
+         setTemplates(mapped);
+         if (mapped.length > 0) setSelectedTemplateId(mapped[mapped.length - 1].id);
+      }
+    };
+    
+    fetchTemplates();
   }, []);
 
   const handleGenerate = () => {

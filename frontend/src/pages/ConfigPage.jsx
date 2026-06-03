@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { supabase } from '../supabaseClient';
 
 const ConfigPage = ({ dataset, setDataset, setStats }) => {
   const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload CSV / Excel / JSON');
@@ -150,17 +151,26 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
     applyFilters(newFilters, sourceRows);
   };
 
-  const saveReportConfig = () => {
+  const saveReportConfig = async () => {
     if (!configName) return alert("Enter a configuration name.");
-    const saved = JSON.parse(localStorage.getItem('rs_configs') || '[]');
-    saved.push({
-      id: `cfg_${Date.now()}`,
-      name: configName,
+    
+    const configData = {
       columns,
       filters: activeFilters
-    });
-    localStorage.setItem('rs_configs', JSON.stringify(saved));
-    alert("Configuration Saved!");
+    };
+    
+    const { data, error } = await supabase
+      .from('configs')
+      .insert([
+        { name: configName, config_data: configData }
+      ]);
+      
+    if (error) {
+      console.error(error);
+      alert("Error saving config to Supabase: " + error.message);
+    } else {
+      alert("Configuration Saved to Cloud!");
+    }
   };
 
   const handleExportCsv = () => {

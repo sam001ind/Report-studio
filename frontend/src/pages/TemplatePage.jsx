@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import mammoth from 'mammoth';
+import { supabase } from '../supabaseClient';
 
 const PAGE_SIZES = {
   A4: { width: 794, height: 1123 },
@@ -255,12 +256,21 @@ const TemplatePage = ({ dataset }) => {
     else alert("Unsupported format. Please upload .docx, .html, or .json");
   };
 
-  const saveTemplate = () => {
+  const saveTemplate = async () => {
     if (!template.name) return alert("Enter a template name.");
-    const saved = JSON.parse(localStorage.getItem('rs_templates') || '[]');
-    saved.push({ id: `tpl_${Date.now()}`, ...template });
-    localStorage.setItem('rs_templates', JSON.stringify(saved));
-    alert("Template Saved!");
+    
+    const { data, error } = await supabase
+      .from('templates')
+      .insert([
+        { name: template.name, layout_data: template }
+      ]);
+      
+    if (error) {
+      console.error(error);
+      alert("Error saving to Supabase: " + error.message);
+    } else {
+      alert("Template Saved to Cloud!");
+    }
   };
 
   const handleExportTemplate = () => {
