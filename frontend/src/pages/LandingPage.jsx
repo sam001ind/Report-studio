@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileDown, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield, Moon, Sun } from 'lucide-react';
+import { FileDown, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from '../components/ThemeToggle';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -10,28 +11,6 @@ const LandingPage = () => {
   // Admins see everything. Normal users see what they have permission for.
   const canSeeStudio = profile?.is_admin || permissions?.can_access_studio;
   const canSeeScheduler = profile?.is_admin || permissions?.can_access_scheduler;
-
-  const [isDark, setIsDark] = useState(false);
-
-  useEffect(() => {
-    // Check initial theme
-    const theme = localStorage.getItem('theme');
-    if (theme === 'dark') {
-      setIsDark(true);
-      document.body.classList.add('dark-theme');
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    if (isDark) {
-      document.body.classList.remove('dark-theme');
-      localStorage.setItem('theme', 'light');
-    } else {
-      document.body.classList.add('dark-theme');
-      localStorage.setItem('theme', 'dark');
-    }
-    setIsDark(!isDark);
-  };
 
   return (
     <div style={styles.container}>
@@ -45,13 +24,7 @@ const LandingPage = () => {
           <span style={styles.logoText}>Sorted Operational Suite</span>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <button 
-            onClick={toggleTheme}
-            style={{...styles.secondaryBtn, padding: '8px', borderRadius: '50%', border: 'none', background: 'transparent'}}
-            title="Toggle Luminous Theme"
-          >
-            {isDark ? <Sun size={20} color="var(--accent)" /> : <Moon size={20} color="var(--ink)" />}
-          </button>
+          <ThemeToggle />
           
           {profile?.is_admin && (
             <button style={{...styles.secondaryBtn, padding: '8px 16px'}} onClick={() => navigate('/admin')}>

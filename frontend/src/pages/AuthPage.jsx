@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from '../components/ThemeToggle';
 
 const styles = {
   container: {
@@ -116,6 +117,9 @@ const AuthPage = () => {
 
   return (
     <div style={styles.container}>
+      <div style={{ position: 'absolute', top: '24px', right: '24px' }}>
+        <ThemeToggle />
+      </div>
       <div style={styles.card}>
         <h2 style={styles.title}>Report Studio</h2>
         <p style={styles.subtitle}>

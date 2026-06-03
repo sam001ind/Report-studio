@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from './ThemeToggle';
 
 const Sidebar = ({ activePage, setActivePage, stats }) => {
   const [isOpen, setIsOpen] = useState(true);
@@ -97,6 +98,9 @@ const Sidebar = ({ activePage, setActivePage, stats }) => {
       </section>
 
       <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', justifyContent: isOpen ? 'flex-start' : 'center', marginBottom: '15px', padding: isOpen ? '0 16px' : '0' }}>
+          <ThemeToggle style={{ width: isOpen ? '100%' : 'auto', justifyContent: isOpen ? 'flex-start' : 'center', gap: isOpen ? '12px' : '0', padding: '10px' }} />
+        </div>
         <button 
           onClick={async () => {
             await signOut();
