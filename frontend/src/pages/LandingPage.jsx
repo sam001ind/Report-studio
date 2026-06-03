@@ -1,9 +1,15 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileDown, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays } from 'lucide-react';
+import { FileDown, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { user, profile, permissions, signOut } = useAuth();
+  
+  // Admins see everything. Normal users see what they have permission for.
+  const canSeeStudio = profile?.is_admin || permissions?.can_access_studio;
+  const canSeeScheduler = profile?.is_admin || permissions?.can_access_scheduler;
 
   return (
     <div style={styles.container}>
@@ -15,6 +21,22 @@ const LandingPage = () => {
         <div style={styles.logo}>
           <div style={styles.logoMark}>SOS</div>
           <span style={styles.logoText}>Sorted Operational Suite</span>
+        </div>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          {profile?.is_admin && (
+            <button style={{...styles.secondaryBtn, padding: '8px 16px'}} onClick={() => navigate('/admin')}>
+              <Shield size={18} style={{marginRight: '8px'}} /> Admin
+            </button>
+          )}
+          {user ? (
+            <button style={{...styles.secondaryBtn, padding: '8px 16px'}} onClick={() => signOut()}>
+              <LogOut size={18} style={{marginRight: '8px'}} /> Sign Out
+            </button>
+          ) : (
+            <button style={{...styles.primaryBtn, padding: '8px 16px'}} onClick={() => navigate('/auth')}>
+              <LogIn size={18} style={{marginRight: '8px'}} /> Sign In
+            </button>
+          )}
         </div>
       </nav>
 
@@ -31,23 +53,27 @@ const LandingPage = () => {
         </section>
 
         <section style={styles.features}>
-          <div 
-            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-            onClick={() => navigate('/studio')}
-          >
-            <div style={styles.featureIcon}><LayoutTemplate size={24} color="var(--accent)" /></div>
-            <h3 style={styles.featureTitle}>Report Studio</h3>
-            <p style={styles.featureText}>Build custom data-driven templates and generate hundreds of printable reports in seconds.</p>
-          </div>
+          {canSeeStudio && (
+            <div 
+              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+              onClick={() => navigate('/studio')}
+            >
+              <div style={styles.featureIcon}><LayoutTemplate size={24} color="var(--accent)" /></div>
+              <h3 style={styles.featureTitle}>Report Studio</h3>
+              <p style={styles.featureText}>Build custom data-driven templates and generate hundreds of printable reports in seconds.</p>
+            </div>
+          )}
           
-          <div 
-            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-            onClick={() => navigate('/scheduler')}
-          >
-            <div style={styles.featureIcon}><CalendarDays size={24} color="var(--accent)" /></div>
-            <h3 style={styles.featureTitle}>Timetable Scheduler</h3>
-            <p style={styles.featureText}>A dedicated tool to isolate structural blocks, map execution dates, and generate sorted venue logs.</p>
-          </div>
+          {canSeeScheduler && (
+            <div 
+              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+              onClick={() => navigate('/scheduler')}
+            >
+              <div style={styles.featureIcon}><CalendarDays size={24} color="var(--accent)" /></div>
+              <h3 style={styles.featureTitle}>Timetable Scheduler</h3>
+              <p style={styles.featureText}>A dedicated tool to isolate structural blocks, map execution dates, and generate sorted venue logs.</p>
+            </div>
+          )}
 
         </section>
       </main>

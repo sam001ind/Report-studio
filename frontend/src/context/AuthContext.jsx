@@ -9,18 +9,46 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [permissions, setPermissions] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchUserData = async (currentUser) => {
+      if (!currentUser) {
+        setProfile(null);
+        setPermissions(null);
+        return;
+      }
+      
+      const { data: profData } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+        
+      const { data: permData } = await supabase
+        .from('user_permissions')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .single();
+        
+      setProfile(profData);
+      setPermissions(permData);
+    };
+
     // Get current session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      fetchUserData(currentUser).finally(() => setLoading(false));
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      fetchUserData(currentUser);
     });
 
     return () => subscription.unsubscribe();
@@ -28,6 +56,8 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    profile,
+    permissions,
     signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
     signUp: (email, password) => supabase.auth.signUp({ email, password }),
     signOut: () => supabase.auth.signOut(),
