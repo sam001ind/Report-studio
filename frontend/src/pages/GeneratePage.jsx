@@ -13,6 +13,7 @@ const GeneratePage = ({ dataset }) => {
   const [mode, setMode] = useState('all'); // 'all' = Mail Merge, 'summary' = Table List
   const [generatedPages, setGeneratedPages] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [zoomScale, setZoomScale] = useState(0.5);
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -106,8 +107,11 @@ const GeneratePage = ({ dataset }) => {
           table { width: 100%; border-collapse: collapse; }
           @media print {
             body { background: white; padding: 0; }
-            .preview-page { box-shadow: none; border: none; margin: 0; }
-            @page { margin: 0; }
+            .preview-page { box-shadow: none; border: none; margin: 0; transform: none !important; }
+            @page { 
+              size: ${template.pageSize === 'Letter' ? 'letter' : template.pageSize.toLowerCase()} ${template.orientation}; 
+              margin: 0; 
+            }
           }
         </style>
       </head>
@@ -152,6 +156,15 @@ const GeneratePage = ({ dataset }) => {
               <option value="all">Mail Merge (One page per row)</option>
             </select>
           </div>
+          <div className="form-group">
+            <label>4. Zoom Preview</label>
+            <select value={zoomScale} onChange={e => setZoomScale(parseFloat(e.target.value))}>
+              <option value="1">100%</option>
+              <option value="0.75">75%</option>
+              <option value="0.5">50%</option>
+              <option value="0.25">25%</option>
+            </select>
+          </div>
           <button onClick={handleGenerate}>{isGenerating ? 'Generating...' : 'Generate Output'}</button>
           
           {generatedPages.length > 0 && (
@@ -169,6 +182,22 @@ const GeneratePage = ({ dataset }) => {
           )}
         </div>
       </div>
+
+      {generatedPages.length > 0 && (
+        <style>
+          {`
+            @media print {
+              @page { 
+                size: ${generatedPages[0].template.pageSize === 'Letter' ? 'letter' : generatedPages[0].template.pageSize.toLowerCase()} ${generatedPages[0].template.orientation}; 
+                margin: 0; 
+              }
+              .preview-page {
+                transform: none !important;
+              }
+            }
+          `}
+        </style>
+      )}
 
       {generatedPages.length === 0 ? (
         <div className="no-print" style={{ background: '#e5e7eb', padding: '40px', borderRadius: '12px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
@@ -189,7 +218,10 @@ const GeneratePage = ({ dataset }) => {
                 border: '1px solid var(--line)',
                 overflow: 'hidden',
                 flexShrink: 0,
-                pageBreakAfter: 'always'
+                pageBreakAfter: 'always',
+                transform: `scale(${zoomScale})`,
+                transformOrigin: 'top center',
+                marginBottom: `-${page.height * (1 - zoomScale) + 24}px`
               }}
             >
               {page.template.bgImage && (
