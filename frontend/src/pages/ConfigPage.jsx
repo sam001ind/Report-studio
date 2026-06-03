@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 const ConfigPage = ({ dataset, setDataset, setStats }) => {
   const { user } = useAuth();
   const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload Dataset (CSV, XLSX, JSON)');
+  const [isDragging, setIsDragging] = useState(false);
   
   // Data Management State
   const [combineCols, setCombineCols] = useState([]);
@@ -23,8 +24,7 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
   const [columns, setColumns] = useState(dataset.columns || []);
   const [sourceRows, setSourceRows] = useState(dataset.rows || []);
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+  const processFile = (file) => {
     if (!file) return;
 
     setUploadStatus(`Loaded: ${file.name}`);
@@ -96,6 +96,28 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
        reader.readAsText(file);
     } else {
        alert("Unsupported file format. Please upload CSV, Excel, or JSON.");
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    processFile(e.target.files[0]);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -199,7 +221,17 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Step 1: Upload Dataset</h3>
-        <div style={styles.fileDrop} onClick={() => document.getElementById('fileInput').click()}>
+        <div 
+          style={{
+            ...styles.fileDrop,
+            borderColor: isDragging ? 'var(--accent)' : 'var(--line)',
+            backgroundColor: isDragging ? 'rgba(0, 240, 255, 0.05)' : 'var(--panel)',
+          }} 
+          onClick={() => document.getElementById('fileInput').click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <h3>{uploadStatus}</h3>
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
             Data is parsed securely inside your browser. No data is uploaded to a server.
