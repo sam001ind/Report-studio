@@ -47,7 +47,10 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
       const records = data.map(row => {
          const newRow = {};
          for (let col of columns) {
-            newRow[col] = (row[col] === null || row[col] === undefined) ? "" : row[col];
+            // Find the original key that matches the trimmed col
+            const origKey = Object.keys(row).find(k => k.trim() === col) || col;
+            let val = row[origKey];
+            newRow[col] = (val === null || val === undefined) ? "" : String(val);
          }
          return newRow;
       });
@@ -83,8 +86,8 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
        const reader = new FileReader();
        reader.onload = (evt) => {
           try {
-             const bstr = evt.target.result;
-             const workbook = XLSX.read(bstr, {type: 'binary'});
+             const arrayBuffer = evt.target.result;
+             const workbook = XLSX.read(arrayBuffer, {type: 'array'});
              const sheetName = workbook.SheetNames[0];
              const sheet = workbook.Sheets[sheetName];
              const data = XLSX.utils.sheet_to_json(sheet, {defval: ""});
@@ -93,7 +96,7 @@ const ConfigPage = ({ dataset, setDataset, setStats }) => {
              alert("Error parsing Excel: " + err.message);
           }
        };
-       reader.readAsBinaryString(file);
+       reader.readAsArrayBuffer(file);
     } else if (ext === 'json') {
        const reader = new FileReader();
        reader.onload = (evt) => {

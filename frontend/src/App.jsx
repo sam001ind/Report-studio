@@ -4,6 +4,7 @@ import StudioLayout from './pages/StudioLayout';
 import SchedulerPage from './pages/SchedulerPage';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
+import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -31,7 +32,8 @@ const ProtectedRoute = ({ children, requiredPermission }) => {
 
 function App() {
   return (
-    <ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
       <AuthProvider>
         <Router>
         <Routes>
@@ -48,10 +50,11 @@ function App() {
               <SchedulerPage />
             </ProtectedRoute>
           } />
-        </Routes>
-      </Router>
-      </AuthProvider>
-    </ThemeProvider>
+          </Routes>
+        </Router>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
