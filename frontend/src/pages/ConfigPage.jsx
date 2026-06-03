@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 
 const ConfigPage = ({ dataset, setDataset, setStats }) => {
   const { user } = useAuth();
-  const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload CSV / Excel / JSON');
+  const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload Dataset (CSV, XLSX, JSON)');
   
   // Data Management State
   const [combineCols, setCombineCols] = useState([]);
@@ -334,7 +334,7 @@ const styles = {
     borderRadius: '12px',
     padding: '40px',
     textAlign: 'center',
-    backgroundColor: '#fafafa',
+    backgroundColor: 'var(--panel)',
     cursor: 'pointer',
     transition: 'border-color 0.2s',
   }
