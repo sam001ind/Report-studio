@@ -19,21 +19,27 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
     const { data: configsData, error: configsErr } = await supabase
       .from('configs')
       .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('user_id', user.id);
 
-    if (configsErr) console.error("Error fetching configs:", configsErr);
-    else setConfigs(configsData || []);
+    if (configsErr) {
+      console.error("Error fetching configs:", configsErr);
+      alert("Error fetching configs: " + configsErr.message);
+    } else {
+      setConfigs(configsData || []);
+    }
 
     // Fetch Templates
     const { data: templatesData, error: templatesErr } = await supabase
       .from('templates')
       .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('user_id', user.id);
 
-    if (templatesErr) console.error("Error fetching templates:", templatesErr);
-    else setTemplates(templatesData || []);
+    if (templatesErr) {
+      console.error("Error fetching templates:", templatesErr);
+      alert("Error fetching templates: " + templatesErr.message);
+    } else {
+      setTemplates(templatesData || []);
+    }
 
     setLoading(false);
   };
@@ -78,9 +84,6 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
                   <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
                     <div>
                       <strong style={{ display: 'block', marginBottom: '4px' }}>{c.name}</strong>
-                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </span>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button className="secondary" onClick={() => onLoadConfig(c)} style={{ padding: '6px 12px', fontSize: '12px', borderColor: 'var(--accent)', color: 'var(--accent)' }}>
@@ -116,7 +119,7 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
                     <div>
                       <strong style={{ display: 'block', marginBottom: '4px' }}>{t.name}</strong>
                       <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                        {t.layout_data?.pageSize || 'A4'} • {new Date(t.created_at).toLocaleDateString()}
+                        {t.layout_data?.pageSize || 'A4'}
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
