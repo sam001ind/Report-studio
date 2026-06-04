@@ -84,6 +84,9 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
                   <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
                     <div>
                       <strong style={{ display: 'block', marginBottom: '4px' }}>{c.name}</strong>
+                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                        {c.config_data?.createdAt ? new Date(c.config_data.createdAt).toLocaleString() : 'Date Unknown'}
+                      </span>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button className="secondary" onClick={() => onLoadConfig(c)} style={{ padding: '6px 12px', fontSize: '12px', borderColor: 'var(--accent)', color: 'var(--accent)' }}>
@@ -119,7 +122,7 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
                     <div>
                       <strong style={{ display: 'block', marginBottom: '4px' }}>{t.name}</strong>
                       <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                        {t.layout_data?.pageSize || 'A4'}
+                        {t.layout_data?.pageSize || 'A4'} • {t.layout_data?.createdAt ? new Date(t.layout_data.createdAt).toLocaleString() : 'Date Unknown'}
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>

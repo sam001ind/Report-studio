@@ -220,7 +220,8 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
     if (!configName) return alert("Enter a configuration name.");
     
     const configData = {
-      pipeline: pipelineSteps
+      pipeline: pipelineSteps,
+      createdAt: new Date().toISOString()
     };
     
     const { data, error } = await supabase

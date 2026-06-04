@@ -266,12 +266,13 @@ const TemplatePage = ({ dataset, initialTemplate }) => {
 
   const saveTemplate = async () => {
     if (!template.name) return alert("Enter a template name.");
-    
+    const layoutData = {
+      ...template,
+      createdAt: new Date().toISOString()
+    };
     const { data, error } = await supabase
       .from('templates')
-      .insert([
-        { name: template.name, layout_data: template, user_id: user.id }
-      ]);
+      .insert([{ name: template.name, layout_data: layoutData, user_id: user.id }]);
       
     if (error) {
       console.error(error);
