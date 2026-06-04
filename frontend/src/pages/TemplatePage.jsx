@@ -463,6 +463,25 @@ const TemplatePage = ({ dataset, initialTemplate }) => {
                       ))}
                     </div>
                   </div>
+                  {selectedElement.tableType === 'data' && (
+                      <div className="form-group" style={{ marginTop: '12px', padding: '12px', background: 'var(--panel)', border: '1px solid var(--accent-soft)', borderRadius: '8px' }}>
+                        <label style={{ color: 'var(--accent)', marginBottom: '8px', display: 'block' }}>Sub-Table Filter (For Mail Merge)</label>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px', lineHeight: 1.3 }}>
+                          Fetch list of rows where dataset column matches the current page's row.
+                        </div>
+                        <div className="form-row" style={{ marginBottom: 0, gap: '4px' }}>
+                          <select value={selectedElement.subTableFilterCol || ''} onChange={e => updateSelected({ subTableFilterCol: e.target.value })} style={{ flex: 1, fontSize: '12px' }}>
+                            <option value="">-- No Filter --</option>
+                            {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <span style={{ padding: '6px 4px', fontWeight: 'bold' }}>=</span>
+                          <select value={selectedElement.subTableMatchCol || ''} onChange={e => updateSelected({ subTableMatchCol: e.target.value })} style={{ flex: 1, fontSize: '12px' }}>
+                             <option value="">-- Match Column --</option>
+                             {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    )}
                 </>
               )}
 
@@ -498,6 +517,16 @@ const TemplatePage = ({ dataset, initialTemplate }) => {
                   <div className="form-group">
                     <label>Cell Pad (px)</label>
                     <input type="number" value={selectedElement.cellHeight || 12} onChange={e => updateSelected({ cellHeight: parseInt(e.target.value) || 12 })} />
+                  </div>
+                )}
+                {['image'].includes(selectedElement.type) && (
+                  <div className="form-group">
+                    <label>Image Scaling</label>
+                    <select value={selectedElement.objectFit || 'contain'} onChange={e => updateSelected({ objectFit: e.target.value })}>
+                      <option value="contain">Contain (Fit)</option>
+                      <option value="cover">Cover (Crop to fill)</option>
+                      <option value="fill">Fill (Stretch)</option>
+                    </select>
                   </div>
                 )}
               </div>
@@ -613,7 +642,7 @@ const TemplatePage = ({ dataset, initialTemplate }) => {
                        {el.type === 'text' || el.type === 'field' ? (
                          displayContent
                        ) : el.type === 'image' ? (
-                         <img src={el.content} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="Logo" />
+                         <img src={el.content} style={{ width: '100%', height: '100%', objectFit: el.objectFit || 'contain' }} alt="Logo" />
                        ) : el.type === 'box' || el.type === 'line' ? (
                          <div style={{ width: '100%', height: '100%' }} />
                        ) : el.type === 'table' ? (

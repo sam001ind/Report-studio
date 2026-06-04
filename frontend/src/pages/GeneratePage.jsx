@@ -260,7 +260,7 @@ const GeneratePage = ({ dataset }) => {
                        {el.type === 'text' || el.type === 'field' ? (
                          displayContent
                        ) : el.type === 'image' ? (
-                         <img src={el.content} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="Logo" />
+                         <img src={el.content} style={{ width: '100%', height: '100%', objectFit: el.objectFit || 'contain' }} alt="Logo" />
                        ) : el.type === 'box' || el.type === 'line' ? (
                          <div style={{ width: '100%', height: '100%' }} />
                        ) : el.type === 'table' ? (
@@ -290,9 +290,30 @@ const GeneratePage = ({ dataset }) => {
                                  </tr>
                                ))
                              ) : el.tableType === 'data' && !page.isSummary ? (
-                               <tr>
-                                 {(el.columns || []).map(c => <td key={c} style={{ border: `${el.borderWidth}px ${el.borderStyle} var(--ink)`, padding: `${el.cellHeight}px` }}>{page.rowData[c]}</td>)}
-                               </tr>
+                               (() => {
+                                 if (el.subTableFilterCol && el.subTableMatchCol) {
+                                    const matchVal = page.rowData[el.subTableMatchCol];
+                                    const filteredData = dataset.rows.filter(r => String(r[el.subTableFilterCol]) === String(matchVal));
+                                    if (filteredData.length === 0) {
+                                       return (
+                                         <tr>
+                                           <td colSpan={el.columns?.length || 1} style={{ border: `${el.borderWidth}px ${el.borderStyle} var(--ink)`, padding: `${el.cellHeight}px`, textAlign: 'center', fontStyle: 'italic', color: 'var(--muted)' }}>No records</td>
+                                         </tr>
+                                       );
+                                    }
+                                    return filteredData.map((r, rIdx) => (
+                                      <tr key={rIdx}>
+                                        {(el.columns || []).map(c => <td key={c} style={{ border: `${el.borderWidth}px ${el.borderStyle} var(--ink)`, padding: `${el.cellHeight}px` }}>{r[c]}</td>)}
+                                      </tr>
+                                    ));
+                                 } else {
+                                    return (
+                                      <tr>
+                                        {(el.columns || []).map(c => <td key={c} style={{ border: `${el.borderWidth}px ${el.borderStyle} var(--ink)`, padding: `${el.cellHeight}px` }}>{page.rowData[c]}</td>)}
+                                      </tr>
+                                    );
+                                 }
+                               })()
                              ) : (
                                // BLANK ROWS
                                Array.from({ length: el.emptyRows || 5 }).map((_, rIdx) => (
