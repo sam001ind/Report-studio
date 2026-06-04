@@ -176,6 +176,27 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
           currentData = Object.values(groups);
           currentCols = [step.groupCol, step.newColName];
         }
+      } else if (step.type === 'extract_date') {
+        currentData = currentData.map(row => {
+          const val = row[step.col] || '';
+          let extracted = '';
+          if (val) {
+             const d = new Date(val);
+             if (!isNaN(d)) {
+               if (step.part === 'day_of_week') {
+                 extracted = d.toLocaleDateString(undefined, { weekday: 'long' });
+               } else if (step.part === 'day_of_month') {
+                 extracted = d.getDate();
+               } else if (step.part === 'month') {
+                 extracted = d.toLocaleDateString(undefined, { month: 'long' });
+               } else if (step.part === 'year') {
+                 extracted = d.getFullYear();
+               }
+             }
+          }
+          return { ...row, [step.newName]: extracted };
+        });
+        if (!currentCols.includes(step.newName)) currentCols.push(step.newName);
       }
     });
 
@@ -203,6 +224,10 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
       newStep.outputMode = 'ROW_BY_ROW';
       newStep.groupCol = currentPipelineCols[0] || '';
       newStep.newColName = `Calc_${Date.now().toString().slice(-4)}`;
+    } else if (type === 'extract_date') {
+      newStep.col = currentPipelineCols[0] || '';
+      newStep.part = 'day_of_week';
+      newStep.newName = `DatePart_${Date.now().toString().slice(-4)}`;
     }
     setPipelineSteps([...pipelineSteps, newStep]);
     setShowAddStep(false);
@@ -401,6 +426,23 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
                       </div>
                     </div>
                   )}
+
+                  {step.type === 'extract_date' && (
+                    <div className="form-row" style={{ marginBottom: 0, alignItems: 'center' }}>
+                      <select value={step.col} onChange={e => updateStep(step.id, 'col', e.target.value)}>
+                        {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <span style={{ margin: '0 8px' }}>➡</span>
+                      <select value={step.part} onChange={e => updateStep(step.id, 'part', e.target.value)}>
+                        <option value="day_of_week">Day of Week (e.g. Monday)</option>
+                        <option value="day_of_month">Day of Month (e.g. 25)</option>
+                        <option value="month">Month (e.g. October)</option>
+                        <option value="year">Year (e.g. 2023)</option>
+                      </select>
+                      <span style={{ fontWeight: 'bold', margin: '0 8px' }}>=</span>
+                      <input type="text" value={step.newName} onChange={e => updateStep(step.id, 'newName', e.target.value)} placeholder="New Column Name" />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -414,6 +456,7 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
                 <div style={{ position: 'absolute', top: '100%', left: 0, width: '100%', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '8px', padding: '8px', zIndex: 10, boxShadow: 'var(--shadow)', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <button className="secondary" onClick={() => addStep('filter')} style={{ textAlign: 'left', border: 'none' }}>🛡️ Filter Data</button>
                   <button className="secondary" onClick={() => addStep('combine')} style={{ textAlign: 'left', border: 'none' }}>🔗 Combine Columns</button>
+                  <button className="secondary" onClick={() => addStep('extract_date')} style={{ textAlign: 'left', border: 'none' }}>📅 Extract Date Part</button>
                   <button className="secondary" onClick={() => addStep('calc')} style={{ textAlign: 'left', border: 'none' }}>🧮 Advanced Calculation</button>
                 </div>
               )}
