@@ -61,6 +61,18 @@ const Sidebar = ({ activePage, setActivePage, stats }) => {
           {isOpen && <span>Report Config</span>}
         </button>
         <button 
+          onClick={() => setActivePage('revaluation')}
+          style={{ 
+            ...styles.navBtnBase, 
+            ...(activePage === 'revaluation' ? styles.navBtnActive : {}),
+            justifyContent: isOpen ? 'flex-start' : 'center', 
+            padding: isOpen ? '12px 16px' : '12px 0' 
+          }}
+        >
+          <span className="icon" style={{ marginRight: isOpen ? '12px' : 0 }}>🔄</span> 
+          {isOpen && <span>Revaluation</span>}
+        </button>
+        <button 
           onClick={() => setActivePage('template')}
           style={{ 
             ...styles.navBtnBase, 

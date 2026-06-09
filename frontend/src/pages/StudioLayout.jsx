@@ -5,6 +5,7 @@ import ConfigPage from './ConfigPage';
 import TemplatePage from './TemplatePage';
 import GeneratePage from './GeneratePage';
 import LibraryPage from './LibraryPage';
+import RevaluationPage from './RevaluationPage';
 
 const StudioLayout = () => {
   const location = useLocation();
@@ -60,6 +61,13 @@ const StudioLayout = () => {
         )}
         {activePage === 'template' && <TemplatePage dataset={dataset} initialTemplate={loadedTemplate} />}
         {activePage === 'generate' && <GeneratePage dataset={dataset} />}
+        {activePage === 'revaluation' && (
+          <RevaluationPage
+            setDataset={setDataset}
+            setStats={setStats}
+            setActivePage={setActivePage}
+          />
+        )}
       </main>
     </div>
   );
