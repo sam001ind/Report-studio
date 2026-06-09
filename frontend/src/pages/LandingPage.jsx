@@ -66,6 +66,17 @@ const LandingPage = () => {
               <p style={styles.featureText}>Build custom data-driven templates and generate hundreds of printable reports in seconds.</p>
             </div>
           )}
+
+          {canSeeStudio && (
+            <div 
+              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+              onClick={() => navigate('/studio', { state: { activePage: 'revaluation' } })}
+            >
+              <div style={styles.featureIcon}><TableProperties size={24} color="var(--accent)" /></div>
+              <h3 style={styles.featureTitle}>Revaluation</h3>
+              <p style={styles.featureText}>Merge multiple application reports with result sheets to generate combined datasets and final PDFs.</p>
+            </div>
+          )}
           
           {canSeeScheduler && (
             <div 
