@@ -5,13 +5,12 @@ import ConfigPage from './ConfigPage';
 import TemplatePage from './TemplatePage';
 import GeneratePage from './GeneratePage';
 import LibraryPage from './LibraryPage';
-import RevaluationPage from './RevaluationPage';
 
 const StudioLayout = () => {
   const location = useLocation();
   const [activePage, setActivePage] = useState(location.state?.activePage || 'library');
-  const [stats, setStats] = useState({ rows: 0, cols: 0 });
-  const [dataset, setDataset] = useState({ columns: [], rows: [] });
+  const [stats, setStats] = useState(location.state?.stats || { rows: 0, cols: 0 });
+  const [dataset, setDataset] = useState(location.state?.dataset || { columns: [], rows: [] });
   
   const [loadedConfig, setLoadedConfig] = useState(null);
   const [loadedTemplate, setLoadedTemplate] = useState(null);
@@ -26,9 +25,21 @@ const StudioLayout = () => {
     setActivePage('template');
   };
 
+  const handleLoadDataset = (datasetObj) => {
+    setDataset({ columns: datasetObj.columns, rows: datasetObj.rows });
+    setStats({ rows: datasetObj.rows.length, cols: datasetObj.columns.length });
+    setActivePage('template');
+  };
+
   useEffect(() => {
     if (location.state?.activePage) {
       setActivePage(location.state.activePage);
+    }
+    if (location.state?.dataset) {
+      setDataset(location.state.dataset);
+    }
+    if (location.state?.stats) {
+      setStats(location.state.stats);
     }
   }, [location.state]);
 
@@ -45,13 +56,14 @@ const StudioLayout = () => {
           <LibraryPage 
             onLoadConfig={handleLoadConfig}
             onLoadTemplate={handleLoadTemplate}
+            onLoadDataset={handleLoadDataset}
           />
         )}
         {activePage === 'config' && (
           <ConfigPage 
             onDataLoaded={(data) => {
-              setStats({ rows: data.rows, cols: data.columns.length });
-              setDataset({ columns: data.columns, rows: data.data });
+               setStats({ rows: data.rows, cols: data.columns.length });
+               setDataset({ columns: data.columns, rows: data.data });
             }}
             dataset={dataset}
             setDataset={setDataset}
@@ -61,13 +73,6 @@ const StudioLayout = () => {
         )}
         {activePage === 'template' && <TemplatePage dataset={dataset} initialTemplate={loadedTemplate} />}
         {activePage === 'generate' && <GeneratePage dataset={dataset} />}
-        {activePage === 'revaluation' && (
-          <RevaluationPage
-            setDataset={setDataset}
-            setStats={setStats}
-            setActivePage={setActivePage}
-          />
-        )}
       </main>
     </div>
   );

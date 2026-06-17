@@ -70,7 +70,7 @@ const LandingPage = () => {
           {canSeeStudio && (
             <div 
               style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/studio', { state: { activePage: 'revaluation' } })}
+              onClick={() => navigate('/revaluation')}
             >
               <div style={styles.featureIcon}><TableProperties size={24} color="var(--accent)" /></div>
               <h3 style={styles.featureTitle}>Revaluation</h3>

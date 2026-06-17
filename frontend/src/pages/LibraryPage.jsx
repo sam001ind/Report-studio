@@ -25,7 +25,9 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
       console.error("Error fetching configs:", configsErr);
       alert("Error fetching configs: " + configsErr.message);
     } else {
-      setConfigs(configsData || []);
+      const allConfigs = configsData || [];
+      const normalConfigs = allConfigs.filter(c => !c.config_data?.isDataset);
+      setConfigs(normalConfigs);
     }
 
     // Fetch Templates
@@ -56,7 +58,7 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
   };
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
+    <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto', width: '100%', overflowY: 'auto' }}>
       <h2>My Library</h2>
       <p className="subtitle">Manage your saved configurations and templates.</p>
 
