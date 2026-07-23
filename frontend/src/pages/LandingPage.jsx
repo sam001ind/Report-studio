@@ -88,6 +88,17 @@ const LandingPage = () => {
               <p style={styles.featureText}>Split a large Excel worksheet into smaller lots/chunks and download them bundled in a ZIP archive.</p>
             </div>
           )}
+
+          {canSeeStudio && (
+            <div 
+              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+              onClick={() => navigate('/merger')}
+            >
+              <div style={styles.featureIcon}><FileStack size={24} color="var(--accent)" /></div>
+              <h3 style={styles.featureTitle}>Excel Sheet Merger</h3>
+              <p style={styles.featureText}>Combine multiple Excel sheets into a single document with file origin tracking and custom headers.</p>
+            </div>
+          )}
           
           {canSeeScheduler && (
             <div 

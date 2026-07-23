@@ -4,6 +4,7 @@ import StudioLayout from './pages/StudioLayout';
 import SchedulerPage from './pages/SchedulerPage';
 import RevaluationPage from './pages/RevaluationPage';
 import SplitterPage from './pages/SplitterPage';
+import MergerPage from './pages/MergerPage';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -55,6 +56,11 @@ function App() {
           <Route path="/splitter" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <SplitterPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/merger" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <MergerPage />
             </ProtectedRoute>
           } />
           <Route path="/scheduler" element={
