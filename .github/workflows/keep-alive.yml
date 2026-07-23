@@ -1,0 +1,13 @@
+name: Keep Supabase Alive
+on:
+  schedule:
+    - cron: '0 0 */3 * *' # Runs every 3 days
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Rest Endpoint
+        run: |
+          curl -I -s -o /dev/null -w "%{http_code}" https://pckwvybcvabjsvlygqtj.supabase.co/rest/v1/
