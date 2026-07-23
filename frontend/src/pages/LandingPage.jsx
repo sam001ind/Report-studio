@@ -77,6 +77,17 @@ const LandingPage = () => {
               <p style={styles.featureText}>Merge multiple application reports with result sheets to generate combined datasets and final PDFs.</p>
             </div>
           )}
+
+          {canSeeStudio && (
+            <div 
+              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+              onClick={() => navigate('/splitter')}
+            >
+              <div style={styles.featureIcon}><FileDown size={24} color="var(--accent)" /></div>
+              <h3 style={styles.featureTitle}>Excel Lot Splitter</h3>
+              <p style={styles.featureText}>Split a large Excel worksheet into smaller lots/chunks and download them bundled in a ZIP archive.</p>
+            </div>
+          )}
           
           {canSeeScheduler && (
             <div 

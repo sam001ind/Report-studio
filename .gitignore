@@ -7,3 +7,7 @@ backend/__pycache__/
 # Node
 node_modules/
 .DS_Store
+
+# Splitter Temporary Files
+Excel Lot Splitter Source Code.zip
+extracted_splitter/

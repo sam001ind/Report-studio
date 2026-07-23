@@ -3,6 +3,7 @@ import LandingPage from './pages/LandingPage';
 import StudioLayout from './pages/StudioLayout';
 import SchedulerPage from './pages/SchedulerPage';
 import RevaluationPage from './pages/RevaluationPage';
+import SplitterPage from './pages/SplitterPage';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -49,6 +50,11 @@ function App() {
           <Route path="/revaluation" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <RevaluationPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/splitter" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <SplitterPage />
             </ProtectedRoute>
           } />
           <Route path="/scheduler" element={
