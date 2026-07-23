@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileDown, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield } from 'lucide-react';
+import { FileDown, FileStack, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 
