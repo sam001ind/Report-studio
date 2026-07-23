@@ -10,6 +10,7 @@ const SchedulerPage = () => {
   const [rules, setRules] = useState([]);
   const [finalSlots, setFinalSlots] = useState([]);
   const [hierarchicalMap, setHierarchicalMap] = useState(new Map());
+  const [creatorMode, setCreatorMode] = useState('course'); // 'course' | 'group'
   
   // Ref for holding massive datasets without triggering endless re-renders
   const dataRef = React.useRef({
@@ -18,6 +19,20 @@ const SchedulerPage = () => {
     uniquePapers: new Map(),
     enrollmentMap: new Map()
   });
+
+  const findRowKey = (row, possibleNames) => {
+    if (!row) return null;
+    const keys = Object.keys(row);
+    for (const name of possibleNames) {
+      const found = keys.find(k => k.toLowerCase() === name.toLowerCase());
+      if (found) return found;
+    }
+    for (const name of possibleNames) {
+      const found = keys.find(k => k.toLowerCase().includes(name.toLowerCase()));
+      if (found) return found;
+    }
+    return null;
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -78,6 +93,7 @@ const SchedulerPage = () => {
     const filteringMap = new Set();
     const consolidated = [];
     const uniquePrns = new Set();
+    const uniqueGroups = new Set();
     const uniquePapers = new Map();
     const newHierarchicalMap = new Map();
     const enrollmentMap = new Map();
@@ -86,24 +102,39 @@ const SchedulerPage = () => {
 
     for (let i = 0; i < rawData.length; i++) {
       const r = rawData[i];
-      const prn = r["PRN"] ? String(r["PRN"]).trim() : "";
+      
+      let entity = "";
+      if (creatorMode === 'group') {
+        const groupKey = findRowKey(r, ['group', 'division', 'class', 'batch', 'section']);
+        entity = groupKey ? String(r[groupKey]).trim() : "";
+      } else {
+        const prnKey = findRowKey(r, ['prn', 'prn number', 'prnno', 'prn no']);
+        entity = prnKey ? String(r[prnKey]).trim() : (r["PRN"] ? String(r["PRN"]).trim() : "");
+      }
+      
       let code = r["PaperCode"] ? String(r["PaperCode"]).trim() : "";
       const name = r["PaperName"] ? String(r["PaperName"]).trim() : `Course Code ${code}`;
 
-      if (!prn || !code) continue;
+      if (!entity || !code) continue;
 
       // Strip trailing formatting artifacts/dots
       code = code.replace(/[.,\s_\-]+$/, ""); 
 
-      const trackingKey = `${prn}_${code}`;
+      const trackingKey = `${entity}_${code}`;
       if (!filteringMap.has(trackingKey)) {
         filteringMap.add(trackingKey);
-        uniquePrns.add(prn);
+        
+        if (creatorMode === 'group') {
+          uniqueGroups.add(entity);
+        } else {
+          uniquePrns.add(entity);
+        }
+        
         uniquePapers.set(code, name);
-        consolidated.push({ prn, code, name, raw: r });
+        consolidated.push({ prn: entity, code, name, raw: r });
         
         if (!enrollmentMap.has(code)) enrollmentMap.set(code, new Set());
-        enrollmentMap.get(code).add(prn);
+        enrollmentMap.get(code).add(entity);
 
         // Strict Two-Tier Regex Sorter Pass
         strictValidMainGroups.forEach(stemKey => {
@@ -124,14 +155,14 @@ const SchedulerPage = () => {
 
     dataRef.current = {
       masterDataset: consolidated,
-      uniquePrns,
+      uniquePrns: creatorMode === 'group' ? uniqueGroups : uniquePrns,
       uniquePapers,
       enrollmentMap
     };
 
     setStats({
       rawRows: consolidated.length,
-      students: uniquePrns.size,
+      students: creatorMode === 'group' ? uniqueGroups.size : uniquePrns.size,
       papers: uniquePapers.size
     });
 
@@ -249,6 +280,47 @@ const SchedulerPage = () => {
         ← Back to Portal
       </Link>
       <h2 style={{ marginTop: 0 }}>Timetable Scheduler</h2>
+      
+      {/* Mode Selector Toggle */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+        <button
+          onClick={() => {
+            setCreatorMode('course');
+            setStats({ rawRows: 0, students: 0, papers: 0 });
+            setFinalSlots([]);
+          }}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            fontWeight: 600,
+            border: '1px solid var(--line)',
+            background: creatorMode === 'course' ? 'var(--accent)' : 'var(--panel)',
+            color: creatorMode === 'course' ? 'white' : 'var(--ink)',
+            cursor: 'pointer'
+          }}
+        >
+          Course-Based Creator (PRN Conflicts)
+        </button>
+        <button
+          onClick={() => {
+            setCreatorMode('group');
+            setStats({ rawRows: 0, students: 0, papers: 0 });
+            setFinalSlots([]);
+          }}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            fontWeight: 600,
+            border: '1px solid var(--line)',
+            background: creatorMode === 'group' ? 'var(--accent)' : 'var(--panel)',
+            color: creatorMode === 'group' ? 'white' : 'var(--ink)',
+            cursor: 'pointer'
+          }}
+        >
+          Group-Based Creator (Class/Div Conflicts)
+        </button>
+      </div>
+
       <p className="subtitle">Isolate structural blocks, map calendar execution dates, and generate sorted venue logs.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px', marginBottom: '32px' }}>
@@ -256,10 +328,10 @@ const SchedulerPage = () => {
         {/* Step 1: Upload */}
         <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid var(--line)', boxShadow: 'var(--shadow)' }}>
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>📁</span> Step 1: Drop & Import ZIP or Student Excel Dataset
+            <span>📁</span> Step 1: Drop & Import ZIP or {creatorMode === 'group' ? 'Group' : 'Student'} Excel Dataset
           </h3>
           <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '16px' }}>
-            Import your master dataset compressed folder (.zip) or workbook (.xlsx) directly using the restored stable file reader engine.
+            Import your master dataset compressed folder (.zip) or workbook (.xlsx) directly containing {creatorMode === 'group' ? 'group and paper details' : 'student PRN and paper details'}.
           </p>
           
           <label style={{
@@ -296,7 +368,7 @@ const SchedulerPage = () => {
               <strong style={{ fontFamily: 'monospace' }}>{stats.rawRows || '-'}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--line)' }}>
-              <span style={{ color: 'var(--muted)' }}>Unique Active Students:</span>
+              <span style={{ color: 'var(--muted)' }}>{creatorMode === 'group' ? 'Unique Active Groups:' : 'Unique Active Students:'}</span>
               <strong style={{ fontFamily: 'monospace' }}>{stats.students || '-'}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0' }}>
