@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 
 const MergerPage = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -14,12 +15,64 @@ const MergerPage = () => {
     setStatusType(type);
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    setSelectedFiles((prev) => [...prev, ...files]);
-    setStatus(`${files.length} file(s) added`, 'success');
+    setStatus('Processing files...');
+    const newFiles = [];
+
+    for (const file of files) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      
+      if (ext === 'zip') {
+        try {
+          setStatus(`Extracting ${file.name}...`);
+          const zip = await JSZip.loadAsync(file);
+          const zipFileKeys = Object.keys(zip.files);
+          
+          for (const key of zipFileKeys) {
+            const zipEntry = zip.files[key];
+            if (zipEntry.dir) continue;
+            
+            const entryExt = key.split('.').pop().toLowerCase();
+            if (['xlsx', 'xls', 'xlsm', 'csv'].includes(entryExt)) {
+              const buffer = await zipEntry.async('arraybuffer');
+              newFiles.push({
+                name: key.split('/').pop(), // Get filename only
+                buffer: buffer,
+                size: zipEntry._data.uncompressedSize
+              });
+            }
+          }
+        } catch (err) {
+          setStatus(`Error reading ZIP: ${err.message}`, 'error');
+        }
+      } else if (['xlsx', 'xls', 'xlsm', 'csv'].includes(ext)) {
+        try {
+          const buffer = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (err) => reject(err);
+            reader.readAsArrayBuffer(file);
+          });
+          newFiles.push({
+            name: file.name,
+            buffer: buffer,
+            size: file.size
+          });
+        } catch (err) {
+          setStatus(`Error reading ${file.name}: ${err.message}`, 'error');
+        }
+      }
+    }
+
+    if (newFiles.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...newFiles]);
+      setStatus(`Added ${newFiles.length} file(s)`, 'success');
+    } else {
+      setStatus('No valid Excel or CSV files found.', 'error');
+    }
   };
 
   const removeFile = (index) => {
@@ -38,7 +91,7 @@ const MergerPage = () => {
 
   const executeMerge = async () => {
     if (selectedFiles.length === 0) {
-      setStatus('Please select at least one Excel file.', 'error');
+      setStatus('Please select at least one file.', 'error');
       return;
     }
 
@@ -49,7 +102,7 @@ const MergerPage = () => {
     }
 
     setIsProcessing(true);
-    setStatus('Reading and merging sheets...');
+    setStatus('Merging sheets...');
 
     try {
       const mergedRows = [];
@@ -57,14 +110,8 @@ const MergerPage = () => {
       let targetHeaderLength = 0;
 
       for (const file of selectedFiles) {
-        const fileData = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target.result);
-          reader.onerror = (err) => reject(err);
-          reader.readAsArrayBuffer(file);
-        });
-
-        const workbook = XLSX.read(fileData, { type: 'array', cellDates: true });
+        // Read file array buffer directly
+        const workbook = XLSX.read(file.buffer, { type: 'array', cellDates: true });
         
         for (const sheetName of workbook.SheetNames) {
           const sheet = workbook.Sheets[sheetName];
@@ -110,7 +157,6 @@ const MergerPage = () => {
       const outputWorkbook = XLSX.utils.book_new();
       const outputSheet = XLSX.utils.aoa_to_sheet(mergedRows, { cellDates: true });
 
-      // Apply autofilter to all columns
       outputSheet["!autofilter"] = {
         ref: XLSX.utils.encode_range({
           s: { r: 0, c: 0 },
@@ -144,6 +190,14 @@ const MergerPage = () => {
     }
   };
 
+  const formatSize = (bytes) => {
+    if (!bytes) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
   return (
     <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto', overflowY: 'auto', width: '100%', minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)' }}>
       {/* Navigation Header */}
@@ -167,7 +221,7 @@ const MergerPage = () => {
       </div>
 
       <h2>Excel Sheet Merger</h2>
-      <p className="subtitle">Choose multiple Excel workbooks to merge them into a single file with a prepended "Source File" column tracking origins.</p>
+      <p className="subtitle">Choose multiple Excel or CSV files (or a single .zip file containing them) to merge into a single workbook.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         {/* Configuration Panel */}
@@ -176,12 +230,12 @@ const MergerPage = () => {
           
           {/* File Upload Area */}
           <div style={{ border: '1px dashed var(--line)', padding: '32px', borderRadius: '8px', background: 'var(--bg)', textAlign: 'center', position: 'relative' }}>
-            <strong style={{ display: 'block', marginBottom: '8px' }}>Add Excel Files</strong>
-            <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Drag here or click to add multiple files</span>
+            <strong style={{ display: 'block', marginBottom: '8px' }}>Add Excel, CSV or ZIP Files</strong>
+            <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Drag here or click to browse</span>
             <input 
               type="file" 
               multiple
-              accept=".xlsx, .xls, .xlsm" 
+              accept=".xlsx, .xls, .xlsm, .csv, .zip" 
               onChange={handleFileChange} 
               style={{
                 position: 'absolute',
@@ -222,7 +276,7 @@ const MergerPage = () => {
         {/* Selected Files List Panel */}
         <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', margin: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>Selected Files ({selectedFiles.length})</h3>
+            <h3 style={{ margin: 0 }}>Files to Merge ({selectedFiles.length})</h3>
             {selectedFiles.length > 0 && (
               <button 
                 onClick={clearFiles} 
@@ -257,9 +311,10 @@ const MergerPage = () => {
                     fontSize: '13px'
                   }}
                 >
-                  <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>
-                    📄 {file.name}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>
+                    <span style={{ fontWeight: 500 }}>📄 {file.name}</span>
+                    <small style={{ color: 'var(--muted)', fontSize: '10px' }}>{formatSize(file.size)}</small>
+                  </div>
                   <button 
                     onClick={() => removeFile(idx)}
                     style={{
@@ -279,7 +334,7 @@ const MergerPage = () => {
             </div>
           ) : (
             <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--line)', borderRadius: '8px', padding: '40px', color: 'var(--muted)', fontSize: '14px' }}>
-              No files selected. Add some files to begin.
+              No files selected. Drag in Excel, CSV, or ZIP files to begin.
             </div>
           )}
         </div>
