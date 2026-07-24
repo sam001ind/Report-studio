@@ -15,7 +15,10 @@ const SplitterPage = () => {
   const [selectedSheet, setSelectedSheet] = useState('');
   
   // Configuration states
+  const [splitMethod, setSplitMethod] = useState('rows'); // 'rows' | 'column'
   const [rowsPerFile, setRowsPerFile] = useState(10);
+  const [headers, setHeaders] = useState([]);
+  const [selectedHeader, setSelectedHeader] = useState('');
   const [skipBlankRows, setSkipBlankRows] = useState(true);
   const [copyColumnWidths, setCopyColumnWidths] = useState(true);
 
@@ -31,6 +34,25 @@ const SplitterPage = () => {
     setStatusMsg(msg);
     setStatusType(type);
   };
+
+  // Populate headers when sheet changes
+  useEffect(() => {
+    if (workbook && selectedSheet) {
+      const sheet = workbook.Sheets[selectedSheet];
+      if (sheet) {
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+        if (rows.length > 0) {
+          const firstRow = rows[0];
+          const parsedHeaders = firstRow.map(h => String(h || '').trim()).filter(h => h !== '');
+          setHeaders(parsedHeaders);
+          setSelectedHeader(parsedHeaders[0] || '');
+        }
+      }
+    } else {
+      setHeaders([]);
+      setSelectedHeader('');
+    }
+  }, [workbook, selectedSheet]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -88,10 +110,17 @@ const SplitterPage = () => {
       return;
     }
 
-    const rowsLimit = Number.parseInt(rowsPerFile, 10);
-    if (isNaN(rowsLimit) || rowsLimit < 1) {
-      setStatus('Rows per file must be at least 1.', 'error');
-      return;
+    if (splitMethod === 'rows') {
+      const rowsLimit = Number.parseInt(rowsPerFile, 10);
+      if (isNaN(rowsLimit) || rowsLimit < 1) {
+        setStatus('Rows per file must be at least 1.', 'error');
+        return;
+      }
+    } else {
+      if (!selectedHeader) {
+        setStatus('Select a column header to split by.', 'error');
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -105,49 +134,90 @@ const SplitterPage = () => {
       if (header.length === 0) throw new Error("The selected sheet has no header row.");
       if (dataRows.length === 0) throw new Error("The selected sheet has no data rows below the header.");
 
-      const lotCount = Math.ceil(dataRows.length / rowsLimit);
       const generatedFiles = [];
       const zip = new JSZip();
-
-      // Clean base name for output files
       const baseName = selectedFile.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_");
 
-      for (let index = 0; index < lotCount; index += 1) {
-        const firstRowIndex = index * rowsLimit;
-        const lotRows = dataRows.slice(firstRowIndex, firstRowIndex + rowsLimit);
-        
-        const outputWorkbook = XLSX.utils.book_new();
-        const outputSheet = XLSX.utils.aoa_to_sheet([header, ...lotRows], { cellDates: true });
+      if (splitMethod === 'rows') {
+        // Mode 1: Split by Row count limit
+        const rowsLimit = Number.parseInt(rowsPerFile, 10);
+        const lotCount = Math.ceil(dataRows.length / rowsLimit);
 
-        // Copy column widths if checked
-        if (copyColumnWidths && sourceSheet["!cols"]) {
-          outputSheet["!cols"] = sourceSheet["!cols"].slice();
+        for (let index = 0; index < lotCount; index += 1) {
+          const firstRowIndex = index * rowsLimit;
+          const lotRows = dataRows.slice(firstRowIndex, firstRowIndex + rowsLimit);
+          
+          const outputWorkbook = XLSX.utils.book_new();
+          const outputSheet = XLSX.utils.aoa_to_sheet([header, ...lotRows], { cellDates: true });
+
+          if (copyColumnWidths && sourceSheet["!cols"]) {
+            outputSheet["!cols"] = sourceSheet["!cols"].slice();
+          }
+
+          outputSheet["!autofilter"] = {
+            ref: XLSX.utils.encode_range({
+              s: { r: 0, c: 0 },
+              e: { r: Math.max(lotRows.length, 1), c: Math.max(header.length - 1, 0) }
+            })
+          };
+
+          XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, selectedSheet.slice(0, 31) || "Sheet1");
+
+          const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: true });
+          const fileName = `${baseName}_lot_${String(index + 1).padStart(2, "0")}.xlsx`;
+          
+          zip.file(fileName, excelBuffer);
+
+          generatedFiles.push({
+            fileName,
+            buffer: excelBuffer,
+            dataRows: lotRows.length,
+            range: `${firstRowIndex + 1}-${firstRowIndex + lotRows.length}`
+          });
         }
+      } else {
+        // Mode 2: Split by unique values of selected Header column
+        const headerColIdx = header.findIndex(h => String(h || '').trim() === selectedHeader);
+        if (headerColIdx === -1) throw new Error(`Column not found in sheet: ${selectedHeader}`);
 
-        // Apply autofilter
-        outputSheet["!autofilter"] = {
-          ref: XLSX.utils.encode_range({
-            s: { r: 0, c: 0 },
-            e: { r: Math.max(lotRows.length, 1), c: Math.max(header.length - 1, 0) }
-          })
-        };
+        // Group rows
+        const groupedData = {};
+        dataRows.forEach(row => {
+          const val = String(row[headerColIdx] || 'Unassigned').trim();
+          if (!groupedData[val]) groupedData[val] = [];
+          groupedData[val].push(row);
+        });
 
-        XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, selectedSheet.slice(0, 31) || "Sheet1");
+        Object.keys(groupedData).forEach((colValue) => {
+          const groupRows = groupedData[colValue];
+          const outputWorkbook = XLSX.utils.book_new();
+          const outputSheet = XLSX.utils.aoa_to_sheet([header, ...groupRows], { cellDates: true });
 
-        // Write to array buffer in-memory
-        const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: true });
-        
-        const fileName = `${baseName}_lot_${String(index + 1).padStart(2, "0")}.xlsx`;
-        
-        // Add to ZIP archive
-        zip.file(fileName, excelBuffer);
+          if (copyColumnWidths && sourceSheet["!cols"]) {
+            outputSheet["!cols"] = sourceSheet["!cols"].slice();
+          }
 
-        // Track for summary table
-        generatedFiles.push({
-          fileName,
-          buffer: excelBuffer,
-          dataRows: lotRows.length,
-          range: `${firstRowIndex + 1}-${firstRowIndex + lotRows.length}`
+          outputSheet["!autofilter"] = {
+            ref: XLSX.utils.encode_range({
+              s: { r: 0, c: 0 },
+              e: { r: Math.max(groupRows.length, 1), c: Math.max(header.length - 1, 0) }
+            })
+          };
+
+          XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, selectedSheet.slice(0, 31) || "Sheet1");
+
+          const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: true });
+          const safeColVal = colValue.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+          const fileName = `${baseName}_${safeColVal}.xlsx`;
+
+          zip.file(fileName, excelBuffer);
+
+          generatedFiles.push({
+            fileName,
+            buffer: excelBuffer,
+            dataRows: groupRows.length,
+            range: `Matching: ${colValue}`
+          });
         });
       }
 
@@ -169,11 +239,11 @@ const SplitterPage = () => {
         sheetName: selectedSheet,
         sourceRows: dataRows.length,
         filesCreated: generatedFiles.length,
-        rowsPerFile: rowsLimit,
+        rowsPerFile: splitMethod === 'rows' ? rowsPerFile : 'Dynamic (grouped)',
         generatedFiles
       });
 
-      setStatus(`Successfully created and downloaded ${generatedFiles.length} lots!`, 'success');
+      setStatus(`Successfully created and downloaded ${generatedFiles.length} files!`, 'success');
     } catch (err) {
       setStatus(`Error: ${err.message}`, 'error');
     } finally {
@@ -216,7 +286,7 @@ const SplitterPage = () => {
       </div>
 
       <h2>Excel Lot Splitter</h2>
-      <p className="subtitle">Split a large Excel worksheet into smaller lots/chunks and download them bundled in a ZIP archive.</p>
+      <p className="subtitle">Split a large Excel worksheet into multiple files (either by row count or by unique values of a header) and download them in a ZIP.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         {/* Settings Panel */}
@@ -248,6 +318,45 @@ const SplitterPage = () => {
             />
           </div>
 
+          {/* Splitting Method Toggle */}
+          <div className="form-group">
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '6px', display: 'block' }}>Split Method</label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={() => setSplitMethod('rows')}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: splitMethod === 'rows' ? 'var(--accent)' : 'var(--panel)',
+                  color: splitMethod === 'rows' ? 'white' : 'var(--ink)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px'
+                }}
+              >
+                By Row Count
+              </button>
+              <button 
+                onClick={() => setSplitMethod('column')}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: splitMethod === 'column' ? 'var(--accent)' : 'var(--panel)',
+                  color: splitMethod === 'column' ? 'white' : 'var(--ink)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px'
+                }}
+              >
+                By Column Value
+              </button>
+            </div>
+          </div>
+
           {/* Form Options */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div className="form-group">
@@ -264,17 +373,37 @@ const SplitterPage = () => {
               </select>
             </div>
 
-            <div className="form-group">
-              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '4px' }}>Rows Per File (Lot Size)</label>
-              <input 
-                type="number" 
-                min="1" 
-                step="1" 
-                value={rowsPerFile} 
-                onChange={(e) => setRowsPerFile(Math.max(1, parseInt(e.target.value) || 1))} 
-                style={{ width: '100%' }}
-              />
-            </div>
+            {splitMethod === 'rows' ? (
+              <div className="form-group">
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '4px' }}>Rows Per File</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  step="1" 
+                  value={rowsPerFile} 
+                  onChange={(e) => setRowsPerFile(Math.max(1, parseInt(e.target.value) || 1))} 
+                  style={{ width: '100%' }}
+                />
+              </div>
+            ) : (
+              <div className="form-group">
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', marginBottom: '4px' }}>Split Column (Header)</label>
+                <select 
+                  value={selectedHeader} 
+                  onChange={(e) => setSelectedHeader(e.target.value)} 
+                  disabled={headers.length === 0}
+                  style={{ width: '100%' }}
+                >
+                  {headers.length === 0 ? (
+                    <option value="">-- No Columns --</option>
+                  ) : (
+                    headers.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -325,8 +454,10 @@ const SplitterPage = () => {
                   <strong style={{ fontSize: '20px', color: 'var(--accent)' }}>{runSummary.filesCreated}</strong>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase' }}>Rows each</span>
-                  <strong style={{ fontSize: '20px', color: 'var(--accent)' }}>{runSummary.rowsPerFile}</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase' }}>Rows each / Split By</span>
+                  <strong style={{ fontSize: '18px', color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {splitMethod === 'rows' ? runSummary.rowsPerFile : `Column: ${selectedHeader}`}
+                  </strong>
                 </div>
               </div>
 
@@ -337,7 +468,7 @@ const SplitterPage = () => {
                     <tr>
                       <th style={{ textAlign: 'left', padding: '6px', borderBottom: '1px solid var(--line)' }}>File</th>
                       <th style={{ textAlign: 'left', padding: '6px', borderBottom: '1px solid var(--line)' }}>Rows</th>
-                      <th style={{ textAlign: 'left', padding: '6px', borderBottom: '1px solid var(--line)' }}>Range</th>
+                      <th style={{ textAlign: 'left', padding: '6px', borderBottom: '1px solid var(--line)' }}>Source details</th>
                     </tr>
                   </thead>
                   <tbody>
