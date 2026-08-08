@@ -229,7 +229,7 @@ const SllNominalPage = () => {
 
     // 2. Metadata Info
     doc.setFontSize(11);
-    doc.text(`Programme: ${programmeName}`, 40, 110);
+    doc.text(`Programme: ${programmeName} - ${venueName}`, 40, 110);
     doc.text(`Venue: ${venueName}`, 40, 128);
 
     // 3. Prepare Table Data (Applying Row-Spanning / Merging)
