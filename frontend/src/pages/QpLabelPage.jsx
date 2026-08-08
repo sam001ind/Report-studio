@@ -492,13 +492,13 @@ const QpLabelPage = () => {
             <strong style={{ fontSize: '13px', display: 'block', marginBottom: '12px' }}>Excel Column Mappings</strong>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px' }}>
               <div className="form-group">
-                <label>Centre Code</label>
+                <label>Centre Code / Venue Code</label>
                 <select value={columnMapping.centreCode} onChange={(e) => setColumnMapping({ ...columnMapping, centreCode: parseInt(e.target.value) })} disabled={headers.length === 0}>
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label>Centre Name</label>
+                <label>Centre Name / Venue Name</label>
                 <select value={columnMapping.centreName} onChange={(e) => setColumnMapping({ ...columnMapping, centreName: parseInt(e.target.value) })} disabled={headers.length === 0}>
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
                 </select>
