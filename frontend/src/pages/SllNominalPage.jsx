@@ -60,9 +60,10 @@ const SllNominalPage = () => {
           const firstRow = rows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
           setHeaders(firstRow);
 
-          // Get default programme name from A2 (index 0, row 1)
-          if (rows.length > 1 && rows[1][0]) {
-            setProgrammeName(String(rows[1][0]).trim());
+          // Get default programme name from the mapped column of the first data row (default Col A / index 0)
+          const pCol = columnMapping.programme;
+          if (rows.length > 1 && rows[1][pCol] !== undefined && rows[1][pCol] !== null) {
+            setProgrammeName(String(rows[1][pCol]).trim());
           } else {
             setProgrammeName('Private Registration');
           }
@@ -86,6 +87,21 @@ const SllNominalPage = () => {
       setProgrammeName('');
     }
   }, [workbook, selectedSheet]);
+
+  // Sync programmeName dynamically if the user updates the Programme Column selection manually
+  useEffect(() => {
+    if (workbook && selectedSheet) {
+      const sheet = workbook.Sheets[selectedSheet];
+      if (sheet) {
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+        const pCol = columnMapping.programme;
+        if (rows.length > 1 && rows[1][pCol] !== undefined && rows[1][pCol] !== null) {
+          const val = String(rows[1][pCol]).trim();
+          if (val) setProgrammeName(val);
+        }
+      }
+    }
+  }, [columnMapping.programme, workbook, selectedSheet]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -415,6 +431,16 @@ const SllNominalPage = () => {
           <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)' }}>
             <strong style={{ fontSize: '13px', display: 'block', marginBottom: '12px' }}>Excel Column Mappings</strong>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px' }}>
+              <div className="form-group">
+                <label>Programme Column (A)</label>
+                <select 
+                  value={columnMapping.programme} 
+                  onChange={(e) => setColumnMapping({ ...columnMapping, programme: parseInt(e.target.value) })}
+                  disabled={headers.length === 0}
+                >
+                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
+                </select>
+              </div>
               <div className="form-group">
                 <label>Venue (F)</label>
                 <select 
