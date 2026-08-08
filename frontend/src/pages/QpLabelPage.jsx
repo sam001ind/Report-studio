@@ -476,7 +476,7 @@ const QpLabelPage = () => {
       }}>
         <HelpCircle size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: '2px' }} />
         <div>
-          <strong>📌 Instructions:</strong> Please upload the <strong>Course-wise Venue-wise Date-wise Nominal Roll / Report</strong> Excel sheet(s).
+          <strong>📌 Instructions:</strong> Please upload the <strong>Course-wise Venue-wise Date-wise Report</strong> Excel sheet(s).
           You can upload <strong>multiple reports at once</strong> (by holding Ctrl/Cmd during selection). The generator will automatically merge them into a single consolidated master list before compiling the labels.
         </div>
       </div>
