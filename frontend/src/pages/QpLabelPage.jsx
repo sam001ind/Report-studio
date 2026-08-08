@@ -17,10 +17,10 @@ const QpLabelPage = () => {
   // Column headers and mapping
   const [headers, setHeaders] = useState([]);
   const [columnMapping, setColumnMapping] = useState({
-    centreCode: 0,
-    centreName: 1,
-    courseCode: 2,
-    courseName: 3,
+    centreCode: 4,
+    centreName: 5,
+    courseCode: 6,
+    courseName: 7,
     date: -1,
     courseStartTime: -1,
     courseEndTime: -1
