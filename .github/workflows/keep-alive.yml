@@ -10,4 +10,4 @@ jobs:
     steps:
       - name: Ping Supabase Rest Endpoint
         run: |
-          curl -I -s -o /dev/null -w "%{http_code}" https://pckwvybcvabjsvlygqtj.supabase.co/rest/v1/
+          curl -I -s -o /dev/null -w "%{http_code}" https://dxnvsmlmocxuwclibphk.supabase.co/rest/v1/
