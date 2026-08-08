@@ -352,7 +352,7 @@ const SllNominalPage = () => {
         </div>
       </div>
 
-      <h2>SLL Nominal Roll Splitter</h2>
+      <h2>Venue-Wise Nominal Roll</h2>
       <p className="subtitle">Compile venue-wise nominal roll lists from a master register. Rows for the same seat/register number will be automatically merged, just like in Kannur University VBA logs.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>

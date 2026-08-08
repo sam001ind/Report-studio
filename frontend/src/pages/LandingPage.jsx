@@ -106,7 +106,7 @@ const LandingPage = () => {
               onClick={() => navigate('/sll-nominal')}
             >
               <div style={styles.featureIcon}><FileText size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>SLL Nominal Roll</h3>
+              <h3 style={styles.featureTitle}>Venue-Wise Nominal Roll</h3>
               <p style={styles.featureText}>Generate venue-wise nominal roll sheets and PDFs with merged student registration cells.</p>
             </div>
           )}
