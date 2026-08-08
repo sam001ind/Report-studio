@@ -23,9 +23,9 @@ const QpLabelPage = () => {
     centreName: 1,
     courseCode: 2,
     courseName: 3,
-    day: 4,
-    date: 5,
-    time: 6
+    day: -1,
+    date: -1,
+    time: -1
   });
 
   // Editor states for manual override defaults
@@ -140,17 +140,19 @@ const QpLabelPage = () => {
         const courseCode = String(row[columnMapping.courseCode] || '').trim();
         const courseName = String(row[columnMapping.courseName] || '').trim();
 
-        const rowDay = row[columnMapping.day] ? String(row[columnMapping.day]).trim() : defaultDay;
+        const rowDay = columnMapping.day !== -1 && row[columnMapping.day] ? String(row[columnMapping.day]).trim() : defaultDay;
         
         let rowDate = defaultDate;
-        const rawDate = row[columnMapping.date];
-        if (rawDate instanceof Date) {
-          rowDate = rawDate.toLocaleDateString('en-CA');
-        } else if (rawDate) {
-          rowDate = String(rawDate).trim();
+        if (columnMapping.date !== -1) {
+          const rawDate = row[columnMapping.date];
+          if (rawDate instanceof Date) {
+            rowDate = rawDate.toLocaleDateString('en-CA');
+          } else if (rawDate) {
+            rowDate = String(rawDate).trim();
+          }
         }
 
-        const rowTime = row[columnMapping.time] ? String(row[columnMapping.time]).trim() : defaultTime;
+        const rowTime = columnMapping.time !== -1 && row[columnMapping.time] ? String(row[columnMapping.time]).trim() : defaultTime;
 
         if (!cCode || !courseCode) return;
 
@@ -468,18 +470,21 @@ const QpLabelPage = () => {
               <div className="form-group">
                 <label>Day Column</label>
                 <select value={columnMapping.day} onChange={(e) => setColumnMapping({ ...columnMapping, day: parseInt(e.target.value) })} disabled={headers.length === 0}>
+                  <option value="-1">- Use Default Override -</option>
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label>Date Column</label>
                 <select value={columnMapping.date} onChange={(e) => setColumnMapping({ ...columnMapping, date: parseInt(e.target.value) })} disabled={headers.length === 0}>
+                  <option value="-1">- Use Default Override -</option>
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label>Time Column</label>
                 <select value={columnMapping.time} onChange={(e) => setColumnMapping({ ...columnMapping, time: parseInt(e.target.value) })} disabled={headers.length === 0}>
+                  <option value="-1">- Use Default Override -</option>
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
                 </select>
               </div>
