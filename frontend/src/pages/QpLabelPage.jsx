@@ -4,17 +4,15 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { useAuth } from '../context/AuthContext';
-import { Settings, Download, Eye, FileText, Plus, Trash2 } from 'lucide-react';
+import { Settings, Download, Eye, FileText, Plus, Trash2, HelpCircle } from 'lucide-react';
 import { logoBase64 } from '../assets/logoBase64';
 
 const QpLabelPage = () => {
   const { user } = useAuth();
   
-  // File and sheet states
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [workbook, setWorkbook] = useState(null);
-  const [sheetNames, setSheetNames] = useState([]);
-  const [selectedSheet, setSelectedSheet] = useState('');
+  // File states
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [consolidatedRows, setConsolidatedRows] = useState([]);
   
   // Column headers and mapping
   const [headers, setHeaders] = useState([]);
@@ -45,79 +43,96 @@ const QpLabelPage = () => {
     setStatusType(type);
   };
 
-  // Header auto-detection
-  useEffect(() => {
-    if (workbook && selectedSheet) {
-      const sheet = workbook.Sheets[selectedSheet];
-      if (sheet) {
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-        if (rows.length > 0) {
-          const firstRow = rows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
-          setHeaders(firstRow);
-
-          // Get default Event Name from first data row
-          if (rows.length > 1 && rows[1][0]) {
-            setExamName(String(rows[1][0]).trim());
+  // Helper function to read Excel rows as Promise
+  const readExcelFile = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target.result;
+          const wb = XLSX.read(data, { type: 'array', cellDates: true });
+          const firstSheet = wb.SheetNames[0];
+          const sheet = wb.Sheets[firstSheet];
+          if (!sheet) {
+            resolve([]);
+            return;
           }
-
-          const autoMap = { ...columnMapping };
-          firstRow.forEach((name, idx) => {
-            const lower = name.toLowerCase().replace(/[\s_-]/g, '');
-            if (lower.includes('centrecode') || lower.includes('centercode') || lower.includes('venuecode')) autoMap.centreCode = idx;
-            if (lower.includes('centrename') || lower.includes('venue') || lower.includes('collegename')) autoMap.centreName = idx;
-            if (lower.includes('coursecode') || (lower.includes('subject') && lower.includes('code'))) autoMap.courseCode = idx;
-            if (lower.includes('coursename') || lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('subjecttitle')) autoMap.courseName = idx;
-            if (lower.includes('date')) autoMap.date = idx;
-            if (lower.includes('starttime') || (lower.includes('start') && lower.includes('time'))) autoMap.courseStartTime = idx;
-            if (lower.includes('endtime') || (lower.includes('end') && lower.includes('time'))) autoMap.courseEndTime = idx;
-          });
-          setColumnMapping(autoMap);
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+          resolve(rows);
+        } catch (err) {
+          reject(err);
         }
-      }
-    } else {
-      setHeaders([]);
-    }
-  }, [workbook, selectedSheet]);
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsArrayBuffer(file);
+    });
+  };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
 
-    setSelectedFile(file);
-    setStatus('Reading workbook...');
+    setSelectedFiles(files);
+    setStatus(`Reading ${files.length} file(s)...`);
     setLabelGroups([]);
     setActiveLabelIndex(0);
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = evt.target.result;
-        const wb = XLSX.read(data, { type: 'array', cellDates: true });
-        setWorkbook(wb);
-        setSheetNames(wb.SheetNames);
-        setSelectedSheet(wb.SheetNames[0] || '');
-        setStatus('Workbook loaded successfully', 'success');
-      } catch (err) {
-        setStatus(`Error reading Excel: ${err.message}`, 'error');
-        setWorkbook(null);
-        setSheetNames([]);
-        setSelectedSheet('');
+    try {
+      const allFilesRows = await Promise.all(files.map(file => readExcelFile(file)));
+      
+      let masterRows = [];
+      let firstHeaders = [];
+
+      allFilesRows.forEach((rows, index) => {
+        if (rows.length > 0) {
+          if (masterRows.length === 0) {
+            firstHeaders = rows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
+            masterRows = [...rows];
+          } else {
+            // Append data rows excluding headers
+            masterRows = masterRows.concat(rows.slice(1));
+          }
+        }
+      });
+
+      if (masterRows.length > 0) {
+        setHeaders(firstHeaders);
+        setConsolidatedRows(masterRows);
+
+        // Auto-detect columns based on first file's headers
+        const autoMap = { ...columnMapping };
+        firstHeaders.forEach((name, idx) => {
+          const lower = name.toLowerCase().replace(/[\s_-]/g, '');
+          if (lower.includes('centrecode') || lower.includes('centercode') || lower.includes('venuecode')) autoMap.centreCode = idx;
+          if (lower.includes('centrename') || lower.includes('venue') || lower.includes('collegename')) autoMap.centreName = idx;
+          if (lower.includes('coursecode') || (lower.includes('subject') && lower.includes('code'))) autoMap.courseCode = idx;
+          if (lower.includes('coursename') || lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('subjecttitle')) autoMap.courseName = idx;
+          if (lower.includes('date')) autoMap.date = idx;
+          if (lower.includes('starttime') || (lower.includes('start') && lower.includes('time'))) autoMap.courseStartTime = idx;
+          if (lower.includes('endtime') || (lower.includes('end') && lower.includes('time'))) autoMap.courseEndTime = idx;
+        });
+        setColumnMapping(autoMap);
+
+        // Try auto-setting Exam Name from first column first row
+        if (masterRows.length > 1 && masterRows[1][0] && String(masterRows[1][0]).length > 10) {
+          setExamName(String(masterRows[1][0]).trim());
+        }
+
+        setStatus(`Loaded and merged ${files.length} file(s) with ${masterRows.length - 1} rows.`, 'success');
+      } else {
+        setStatus('No data rows found in uploaded files.', 'error');
       }
-    };
-    reader.readAsArrayBuffer(file);
+    } catch (err) {
+      setStatus(`Error reading/merging files: ${err.message}`, 'error');
+      setConsolidatedRows([]);
+      setHeaders([]);
+    }
   };
 
   // Compile QP Labels
   const processQpLabels = () => {
-    if (!workbook || !selectedSheet) {
-      setStatus('Please upload and select an Excel sheet first.', 'error');
-      return;
-    }
-
-    const sheet = workbook.Sheets[selectedSheet];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-    if (rows.length < 2) {
-      setStatus('Sheet does not contain sufficient data rows.', 'error');
+    if (consolidatedRows.length < 2) {
+      setStatus('No uploaded data to compile labels from.', 'error');
       return;
     }
 
@@ -125,7 +140,7 @@ const QpLabelPage = () => {
     setStatus('Compiling QP Labels...');
 
     try {
-      const dataRows = rows.slice(1);
+      const dataRows = consolidatedRows.slice(1);
       const groups = {};
 
       dataRows.forEach((row) => {
@@ -216,7 +231,7 @@ const QpLabelPage = () => {
     // A. Logo Header (Centered)
     const logoWidth = 320;
     const logoHeight = 90;
-    const logoX = (842 - logoWidth) / 2; // 261 pt
+    const logoX = (842 - logoWidth) / 2;
     doc.addImage(logoBase64, 'PNG', logoX, 25, logoWidth, logoHeight);
 
     // B. Examination Subheading
@@ -228,11 +243,10 @@ const QpLabelPage = () => {
     doc.text(examName, 421, 147, { align: 'center' });
 
     // C. Grid Layout Table (Landscape dimensions)
-    // Width: 600 pt (from X: 121 pt to X: 721 pt)
     const startX = 121;
     const startY = 165;
     const tableWidth = 600;
-    const rowHeight = 26; // Increased from 22 for visual breathing room
+    const rowHeight = 26;
 
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(1);
@@ -267,11 +281,11 @@ const QpLabelPage = () => {
     doc.text(data.time, startX + 418, row2Y + 17);
 
     // Grid Verticals for Row 2
-    doc.line(startX + 60, row2Y, startX + 60, row2Y + rowHeight); // DAY label end
-    doc.line(startX + 180, row2Y, startX + 180, row2Y + rowHeight); // DAY value end
-    doc.line(startX + 230, row2Y, startX + 230, row2Y + rowHeight); // DATE label start
-    doc.line(startX + 360, row2Y, startX + 360, row2Y + rowHeight); // DATE value start
-    doc.line(startX + 410, row2Y, startX + 410, row2Y + rowHeight); // TIME label start
+    doc.line(startX + 60, row2Y, startX + 60, row2Y + rowHeight);
+    doc.line(startX + 180, row2Y, startX + 180, row2Y + rowHeight);
+    doc.line(startX + 230, row2Y, startX + 230, row2Y + rowHeight);
+    doc.line(startX + 360, row2Y, startX + 360, row2Y + rowHeight);
+    doc.line(startX + 410, row2Y, startX + 410, row2Y + rowHeight);
 
     // Grid Row 3: SUBJECT
     const row3Y = row2Y + rowHeight;
@@ -420,7 +434,28 @@ const QpLabelPage = () => {
       </div>
 
       <h2>QP Label Generator (Landscape)</h2>
-      <p className="subtitle">Compile print-ready covers and packet labels in A4 Landscape format, grouped by center and subject combinations.</p>
+      <p className="subtitle">Compile print-ready envelope covers and packet labels grouped by unique center and subject combinations.</p>
+
+      {/* Instructional Banner */}
+      <div style={{
+        padding: '16px 20px',
+        borderRadius: '8px',
+        background: 'var(--accent-soft)',
+        border: '1px solid var(--accent)',
+        color: 'var(--ink)',
+        fontSize: '13.5px',
+        lineHeight: '1.6',
+        marginBottom: '28px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '12px'
+      }}>
+        <HelpCircle size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: '2px' }} />
+        <div>
+          <strong>📌 Instructions:</strong> Please upload the <strong>Course-wise Venue-wise Date-wise Nominal Roll / Report</strong> Excel sheet(s).
+          You can upload <strong>multiple reports at once</strong> (by holding Ctrl/Cmd during selection). The generator will automatically merge them into a single consolidated master list before compiling the labels.
+        </div>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         {/* Settings Panel */}
@@ -428,29 +463,26 @@ const QpLabelPage = () => {
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={20} /> Settings</h3>
           
           <div style={{ border: '1px dashed var(--line)', padding: '24px', borderRadius: '8px', background: 'var(--bg)', textAlign: 'center', position: 'relative' }}>
-            <strong style={{ display: 'block', marginBottom: '8px' }}>Select Nominal Roll Excel</strong>
-            {selectedFile ? (
-              <div style={{ color: 'var(--accent)', fontWeight: 600 }}>📄 {selectedFile.name}</div>
+            <strong style={{ display: 'block', marginBottom: '8px' }}>Upload Nominal Roll Reports (Supports Multiple)</strong>
+            {selectedFiles.length > 0 ? (
+              <div style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                {selectedFiles.length === 1 ? `📄 ${selectedFiles[0].name}` : `📂 ${selectedFiles.length} files selected`}
+              </div>
             ) : (
-              <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Drag here or click to browse</span>
+              <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Drag here or click to browse multiple reports</span>
             )}
             <input 
               type="file" 
+              multiple 
               accept=".xlsx, .xls, .xlsm, .csv" 
               onChange={handleFileChange} 
               style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, cursor: 'pointer', width: '100%' }} 
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
             <div className="form-group">
-              <label>Select Sheet</label>
-              <select value={selectedSheet} onChange={(e) => setSelectedSheet(e.target.value)} disabled={sheetNames.length === 0}>
-                {sheetNames.map((name) => <option key={name} value={name}>{name}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Examination Subtitle</label>
+              <label>Examination Title Subtitle</label>
               <input type="text" value={examName} onChange={(e) => setExamName(e.target.value)} placeholder="e.g. Second Semester Degree..." />
             </div>
           </div>
@@ -497,7 +529,7 @@ const QpLabelPage = () => {
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
                 </select>
               </div>
-              <div className="form-group">
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label>Course End Time</label>
                 <select value={columnMapping.courseEndTime} onChange={(e) => setColumnMapping({ ...columnMapping, courseEndTime: parseInt(e.target.value) })} disabled={headers.length === 0}>
                   <option value="-1">- Keep Blank -</option>
@@ -507,7 +539,7 @@ const QpLabelPage = () => {
             </div>
           </div>
 
-          <button onClick={processQpLabels} disabled={isProcessing || !workbook} style={{ width: '100%', padding: '14px', fontSize: '15px' }}>
+          <button onClick={processQpLabels} disabled={isProcessing || consolidatedRows.length === 0} style={{ width: '100%', padding: '14px', fontSize: '15px' }}>
             {isProcessing ? "Processing Data..." : "Generate QP Labels"}
           </button>
         </div>
@@ -617,7 +649,7 @@ const QpLabelPage = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '2px dashed #999', paddingTop: '12px' }}>
                   <h4 style={{ textAlign: 'center', margin: '0 0 6px 0', fontSize: '13px', letterSpacing: '0.5px' }}>CERTIFICATE</h4>
                   <p style={{ margin: 0, lineHeight: '1.5' }}>
-                    We hereby certify that we have examined this cover and satisfied ourselves that the seals are intact and that it was opened at ________________________________A.M/P.M in our presence.
+                    We hereby certify that we have examined this cover and satisfied ourselves that the seals are intact and that it was opened at ______________________________________ A.M/P.M in our presence.
                   </p>
                 </div>
 
@@ -645,7 +677,7 @@ const QpLabelPage = () => {
             </div>
           ) : (
             <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--line)', borderRadius: '8px', padding: '60px', color: 'var(--muted)', fontSize: '14px', textAlign: 'center' }}>
-              Upload your nominal roll Excel sheet, review your mappings, and click "Generate QP Labels" to render visual slips.
+              Upload your nominal roll Excel sheets, review your mappings, and click "Generate QP Labels" to render visual slips.
             </div>
           )}
         </div>
