@@ -5,7 +5,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
 import { useAuth } from '../context/AuthContext';
-import { FileStack, Download, Eye, Settings, FileText } from 'lucide-react';
+import { Settings, Download, Eye, FileText } from 'lucide-react';
 
 const SllNominalPage = () => {
   const { user } = useAuth();
@@ -40,16 +40,15 @@ const SllNominalPage = () => {
   const [statusType, setStatusType] = useState('normal'); // 'normal' | 'error' | 'success'
 
   // Generated Venue Data State
-  const [venueGroups, setVenueGroups] = useState({});
-  const [activeVenueTab, setActiveVenueTab] = useState('');
-  const [programmeName, setProgrammeName] = useState('');
+  const [comboGroups, setComboGroups] = useState({});
+  const [activeComboTab, setActiveComboTab] = useState('');
 
   const setStatus = (msg, type = 'normal') => {
     setStatusMsg(msg);
     setStatusType(type);
   };
 
-  // Extract headers and programme name on sheet change
+  // Extract headers on sheet change
   useEffect(() => {
     if (workbook && selectedSheet) {
       const sheet = workbook.Sheets[selectedSheet];
@@ -59,14 +58,6 @@ const SllNominalPage = () => {
           // Store raw headers for mapping dropdowns
           const firstRow = rows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
           setHeaders(firstRow);
-
-          // Get default programme name from the mapped column of the first data row (default Col A / index 0)
-          const pCol = columnMapping.programme;
-          if (rows.length > 1 && rows[1][pCol] !== undefined && rows[1][pCol] !== null) {
-            setProgrammeName(String(rows[1][pCol]).trim());
-          } else {
-            setProgrammeName('Private Registration');
-          }
 
           // Try to auto-detect columns
           const autoMap = { ...columnMapping };
@@ -84,24 +75,8 @@ const SllNominalPage = () => {
       }
     } else {
       setHeaders([]);
-      setProgrammeName('');
     }
   }, [workbook, selectedSheet]);
-
-  // Sync programmeName dynamically if the user updates the Programme Column selection manually
-  useEffect(() => {
-    if (workbook && selectedSheet) {
-      const sheet = workbook.Sheets[selectedSheet];
-      if (sheet) {
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-        const pCol = columnMapping.programme;
-        if (rows.length > 1 && rows[1][pCol] !== undefined && rows[1][pCol] !== null) {
-          const val = String(rows[1][pCol]).trim();
-          if (val) setProgrammeName(val);
-        }
-      }
-    }
-  }, [columnMapping.programme, workbook, selectedSheet]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -109,8 +84,8 @@ const SllNominalPage = () => {
 
     setSelectedFile(file);
     setStatus('Reading workbook...');
-    setVenueGroups({});
-    setActiveVenueTab('');
+    setComboGroups({});
+    setActiveComboTab('');
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -131,7 +106,7 @@ const SllNominalPage = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  // Group data by Venue and Student
+  // Group data by [Programme Name] + [VenueCode - VenueName]
   const processNominalRoll = () => {
     if (!workbook || !selectedSheet) {
       setStatus('Please upload and select an Excel sheet first.', 'error');
@@ -157,6 +132,7 @@ const SllNominalPage = () => {
         const isBlank = row.every(cell => cell === null || cell === undefined || cell === '');
         if (isBlank) return;
 
+        const programme = String(row[columnMapping.programme] || 'Unassigned Programme').trim();
         const venue = String(row[columnMapping.venue] || 'Unassigned Venue').trim();
         const seatNo = String(row[columnMapping.seatNo] || '').trim();
         const name = String(row[columnMapping.name] || '').trim();
@@ -165,21 +141,27 @@ const SllNominalPage = () => {
 
         if (!venue || !seatNo) return; // Skip if no venue or register number
 
-        if (!groups[venue]) {
-          groups[venue] = {};
+        const comboKey = `${programme} - ${venue}`;
+
+        if (!groups[comboKey]) {
+          groups[comboKey] = {
+            programme,
+            venue,
+            students: {}
+          };
         }
 
         // Group by seatNo (register number) to perform row spanning
         const studentKey = `${seatNo}_${name}`;
-        if (!groups[venue][studentKey]) {
-          groups[venue][studentKey] = {
+        if (!groups[comboKey].students[studentKey]) {
+          groups[comboKey].students[studentKey] = {
             seatNo,
             name,
             courses: []
           };
         }
 
-        groups[venue][studentKey].courses.push({
+        groups[comboKey].students[studentKey].courses.push({
           code: cCode,
           title: cTitle
         });
@@ -187,20 +169,25 @@ const SllNominalPage = () => {
 
       // Convert inner dictionary to sorted arrays of students
       const processedGroups = {};
-      Object.keys(groups).forEach(venue => {
-        const studentList = Object.values(groups[venue]);
+      Object.keys(groups).forEach(comboKey => {
+        const { programme, venue, students } = groups[comboKey];
+        const studentList = Object.values(students);
         // Sort students by Seat No
         studentList.sort((a, b) => a.seatNo.localeCompare(b.seatNo, undefined, { numeric: true, sensitivity: 'base' }));
-        processedGroups[venue] = studentList;
+        processedGroups[comboKey] = {
+          programme,
+          venue,
+          students: studentList
+        };
       });
 
-      setVenueGroups(processedGroups);
-      const venues = Object.keys(processedGroups);
-      if (venues.length > 0) {
-        setActiveVenueTab(venues[0]);
+      setComboGroups(processedGroups);
+      const comboKeys = Object.keys(processedGroups);
+      if (comboKeys.length > 0) {
+        setActiveComboTab(comboKeys[0]);
       }
       
-      setStatus(`Nominal rolls processed! Found ${venues.length} venues.`, 'success');
+      setStatus(`Nominal rolls processed! Found ${comboKeys.length} Programme-Venue combinations.`, 'success');
     } catch (err) {
       setStatus(`Error processing data: ${err.message}`, 'error');
     } finally {
@@ -208,8 +195,8 @@ const SllNominalPage = () => {
     }
   };
 
-  // Generate jsPDF instance for a single venue
-  const generateVenuePDF = (venueName, students) => {
+  // Generate jsPDF instance for a single combo group
+  const generateVenuePDF = (programmeName, venueName, students) => {
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'pt',
@@ -292,7 +279,6 @@ const SllNominalPage = () => {
         4: { cellWidth: 60 }   // Remark
       },
       didParseCell: (data) => {
-        // Match line spacing and styles
         if (data.section === 'body' && data.column.index === 3) {
           data.cell.styles.fontSize = 9.5;
         }
@@ -302,39 +288,41 @@ const SllNominalPage = () => {
     return doc;
   };
 
-  // Download single venue PDF
-  const downloadSinglePDF = (venueName) => {
-    const students = venueGroups[venueName];
-    if (!students) return;
-    const doc = generateVenuePDF(venueName, students);
-    const safeName = venueName.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
-    doc.save(`${programmeName}_${safeName}.pdf`);
+  // Download single combination PDF
+  const downloadSinglePDF = (comboKey) => {
+    const group = comboGroups[comboKey];
+    if (!group) return;
+    const doc = generateVenuePDF(group.programme, group.venue, group.students);
+    const safeProg = group.programme.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+    const safeVenue = group.venue.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+    doc.save(`${safeProg}_${safeVenue}.pdf`);
   };
 
-  // Batch download all venue PDFs in a single ZIP
+  // Batch download all PDFs in a single ZIP
   const downloadAllAsZip = async () => {
-    const venues = Object.keys(venueGroups);
-    if (venues.length === 0) return;
+    const comboKeys = Object.keys(comboGroups);
+    if (comboKeys.length === 0) return;
 
     setStatus('Creating ZIP archive...', 'normal');
     const zip = new JSZip();
 
     try {
-      venues.forEach((venueName) => {
-        const students = venueGroups[venueName];
-        const doc = generateVenuePDF(venueName, students);
+      comboKeys.forEach((comboKey) => {
+        const group = comboGroups[comboKey];
+        const doc = generateVenuePDF(group.programme, group.venue, group.students);
         
-        // Output PDF to ArrayBuffer
+        // Output PDF to Blob
         const pdfBlob = doc.output('blob');
-        const safeName = venueName.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
-        zip.file(`${programmeName}_${safeName}.pdf`, pdfBlob);
+        const safeProg = group.programme.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+        const safeVenue = group.venue.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+        zip.file(`${safeProg}_${safeVenue}.pdf`, pdfBlob);
       });
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const downloadUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `${programmeName}_Venue_Nominal_Rolls.zip`;
+      link.download = `Nominal_Rolls_by_Programme_Venue.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -369,7 +357,7 @@ const SllNominalPage = () => {
       </div>
 
       <h2>Venue-Wise Nominal Roll</h2>
-      <p className="subtitle">Compile venue-wise nominal roll lists from a master register. Rows for the same seat/register number will be automatically merged, just like in Kannur University VBA logs.</p>
+      <p className="subtitle">Compile nominal roll lists grouped by unique combinations of Programme + Venue. Seat numbers with multiple subjects are automatically merged.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         {/* Settings Panel */}
@@ -402,29 +390,17 @@ const SllNominalPage = () => {
           </div>
 
           {/* Configuration Form */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <label>Select Sheet</label>
-              <select 
-                value={selectedSheet} 
-                onChange={(e) => setSelectedSheet(e.target.value)} 
-                disabled={sheetNames.length === 0}
-              >
-                {sheetNames.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Programme Title</label>
-              <input 
-                type="text" 
-                value={programmeName} 
-                onChange={(e) => setProgrammeName(e.target.value)} 
-                placeholder="A2 Programme Value"
-                disabled={!workbook}
-              />
-            </div>
+          <div className="form-group">
+            <label>Select Sheet</label>
+            <select 
+              value={selectedSheet} 
+              onChange={(e) => setSelectedSheet(e.target.value)} 
+              disabled={sheetNames.length === 0}
+            >
+              {sheetNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Column Mappings */}
@@ -442,7 +418,7 @@ const SllNominalPage = () => {
                 </select>
               </div>
               <div className="form-group">
-                <label>Venue (F)</label>
+                <label>Venue Code - Name (F)</label>
                 <select 
                   value={columnMapping.venue} 
                   onChange={(e) => setColumnMapping({ ...columnMapping, venue: parseInt(e.target.value) })}
@@ -538,7 +514,7 @@ const SllNominalPage = () => {
         <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', margin: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Eye size={20} /> Live Preview</h3>
-            {Object.keys(venueGroups).length > 0 && (
+            {Object.keys(comboGroups).length > 0 && (
               <button 
                 onClick={downloadAllAsZip} 
                 className="secondary" 
@@ -549,27 +525,27 @@ const SllNominalPage = () => {
             )}
           </div>
 
-          {Object.keys(venueGroups).length > 0 ? (
+          {Object.keys(comboGroups).length > 0 ? (
             <>
               {/* Tab Selector */}
               <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '1px solid var(--line)' }}>
-                {Object.keys(venueGroups).map((venueName) => (
+                {Object.keys(comboGroups).map((comboKey) => (
                   <button
-                    key={venueName}
-                    onClick={() => setActiveVenueTab(venueName)}
+                    key={comboKey}
+                    onClick={() => setActiveComboTab(comboKey)}
                     style={{
                       padding: '6px 12px',
                       borderRadius: '6px',
                       border: '1px solid var(--line)',
-                      background: activeVenueTab === venueName ? 'var(--accent)' : 'var(--panel)',
-                      color: activeVenueTab === venueName ? 'white' : 'var(--ink)',
+                      background: activeComboTab === comboKey ? 'var(--accent)' : 'var(--panel)',
+                      color: activeComboTab === comboKey ? 'white' : 'var(--ink)',
                       whiteSpace: 'nowrap',
                       fontSize: '12px',
                       cursor: 'pointer',
-                      fontWeight: activeVenueTab === venueName ? 600 : 400
+                      fontWeight: activeComboTab === comboKey ? 600 : 400
                     }}
                   >
-                    {venueName} ({venueGroups[venueName].length} Studs)
+                    {comboKey} ({comboGroups[comboKey].students.length} Studs)
                   </button>
                 ))}
               </div>
@@ -578,11 +554,11 @@ const SllNominalPage = () => {
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h4 style={{ margin: 0, color: 'var(--accent)' }}>{activeVenueTab}</h4>
-                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Programme: {programmeName}</span>
+                    <h4 style={{ margin: 0, color: 'var(--accent)' }}>{comboGroups[activeComboTab].programme}</h4>
+                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Venue: {comboGroups[activeComboTab].venue}</span>
                   </div>
                   <button 
-                    onClick={() => downloadSinglePDF(activeVenueTab)} 
+                    onClick={() => downloadSinglePDF(activeComboTab)} 
                     style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
                   >
                     <FileText size={14} /> Download PDF
@@ -602,7 +578,7 @@ const SllNominalPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {venueGroups[activeVenueTab].map((student, sIdx) => {
+                      {comboGroups[activeComboTab].students.map((student, sIdx) => {
                         return student.courses.map((course, cIdx) => {
                           const isFirst = cIdx === 0;
                           return (
