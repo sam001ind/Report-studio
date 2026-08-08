@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
 import { useAuth } from '../context/AuthContext';
 import { FileStack, Download, Eye, Settings, FileText } from 'lucide-react';
@@ -248,7 +248,7 @@ const SllNominalPage = () => {
     });
 
     // 4. Generate Autotable
-    doc.autoTable({
+    autoTable(doc, {
       startY: 145,
       head: [['Sl No', 'Seat No', 'Name', 'Courses', 'Remark']],
       body: tableBody,
