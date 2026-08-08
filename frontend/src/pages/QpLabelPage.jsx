@@ -5,6 +5,7 @@ import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { useAuth } from '../context/AuthContext';
 import { Settings, Download, Eye, FileText, Plus, Trash2 } from 'lucide-react';
+import { logoBase64 } from '../assets/logoBase64';
 
 const QpLabelPage = () => {
   const { user } = useAuth();
@@ -188,27 +189,8 @@ const QpLabelPage = () => {
       doc.addPage();
     }
 
-    // A. Logo and University Headers
-    // Placeholders for emblem
-    doc.setDrawColor(200, 50, 50); // Red
-    doc.setLineWidth(1.5);
-    doc.ellipse(80, 70, 15, 20); // University Emblem outer ring
-    doc.ellipse(80, 70, 10, 15);
-    doc.line(75, 70, 85, 70);
-    
-    doc.setTextColor(200, 30, 30); // Red Title
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text('Kannur University', 110, 55);
-
-    doc.setTextColor(30, 30, 30); // Dark text
-    doc.setFontSize(11);
-    doc.text('കണ്ണൂർ സർവകലാശാല', 110, 70);
-
-    doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('Thavakkara, Civil Station P.O, Kannur', 110, 82);
-    doc.text('Reaccredited by NAAC with \'B++\' Grade', 110, 93);
+    // A. Logo and University Headers (Centered Base64 Logo Image)
+    doc.addImage(logoBase64, 'PNG', 147.5, 30, 300, 85);
 
     // B. Examination Subheading
     doc.setFont('Helvetica', 'bold');
@@ -585,15 +567,9 @@ const QpLabelPage = () => {
                 flexDirection: 'column',
                 gap: '24px'
               }}>
-                {/* Header */}
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '50px', border: '1.5px solid #d32f2f', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#d32f2f', fontWeight: 'bold' }}>KU</div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '18px', color: '#d32f2f', fontWeight: 'bold' }}>Kannur University</h3>
-                    <h4 style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#333' }}>കണ്ണൂർ സർവകലാശാല</h4>
-                    <span style={{ fontSize: '9px', color: '#666', display: 'block' }}>Thavakkara, Civil Station P.O, Kannur</span>
-                    <span style={{ fontSize: '9px', color: '#666', display: 'block' }}>Reaccredited by NAAC with 'B++' Grade</span>
-                  </div>
+                {/* Header Logo Centered */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                  <img src={logoBase64} alt="Kannur University Logo" style={{ maxWidth: '380px', height: 'auto' }} />
                 </div>
 
                 <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '4px' }}>
