@@ -22,7 +22,8 @@ const SllNominalPage = () => {
     programme: 0,
     name: 2,
     seatNo: 3,
-    venue: 5,
+    venueCode: 4,
+    venueName: 5,
     courseCode: 6,
     courseTitle: 7
   });
@@ -66,7 +67,8 @@ const SllNominalPage = () => {
             if (lower.includes('programme') || lower.includes('program')) autoMap.programme = idx;
             if (lower.includes('name')) autoMap.name = idx;
             if (lower.includes('seat') || lower.includes('reg') || lower.includes('register') || lower.includes('roll')) autoMap.seatNo = idx;
-            if (lower.includes('venue') || lower.includes('center') || lower.includes('college')) autoMap.venue = idx;
+            if (lower.includes('venuecode') || lower.includes('centercode') || lower.includes('collegecode')) autoMap.venueCode = idx;
+            if (lower.includes('venuename') || lower.includes('centername') || lower.includes('collegename') || (lower.includes('venue') && !lower.includes('code'))) autoMap.venueName = idx;
             if (lower.includes('coursecode') || lower.includes('subjectcode') || (lower.includes('course') && !lower.includes('title') && !lower.includes('name'))) autoMap.courseCode = idx;
             if (lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('coursename') || lower.includes('title')) autoMap.courseTitle = idx;
           });
@@ -133,7 +135,12 @@ const SllNominalPage = () => {
         if (isBlank) return;
 
         const programme = String(row[columnMapping.programme] || 'Unassigned Programme').trim();
-        const venue = String(row[columnMapping.venue] || 'Unassigned Venue').trim();
+        
+        // Merge Venue Code and Venue Name into a single "Code - Name" string
+        const vCode = String(row[columnMapping.venueCode] || '').trim();
+        const vName = String(row[columnMapping.venueName] || '').trim();
+        const venue = vCode && vName ? `${vCode} - ${vName}` : (vCode || vName || 'Unassigned Venue');
+
         const seatNo = String(row[columnMapping.seatNo] || '').trim();
         const name = String(row[columnMapping.name] || '').trim();
         const cCode = String(row[columnMapping.courseCode] || '').trim();
@@ -418,10 +425,20 @@ const SllNominalPage = () => {
                 </select>
               </div>
               <div className="form-group">
-                <label>Venue Code - Name (F)</label>
+                <label>Venue Code Column</label>
                 <select 
-                  value={columnMapping.venue} 
-                  onChange={(e) => setColumnMapping({ ...columnMapping, venue: parseInt(e.target.value) })}
+                  value={columnMapping.venueCode} 
+                  onChange={(e) => setColumnMapping({ ...columnMapping, venueCode: parseInt(e.target.value) })}
+                  disabled={headers.length === 0}
+                >
+                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Venue Name Column</label>
+                <select 
+                  value={columnMapping.venueName} 
+                  onChange={(e) => setColumnMapping({ ...columnMapping, venueName: parseInt(e.target.value) })}
                   disabled={headers.length === 0}
                 >
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
