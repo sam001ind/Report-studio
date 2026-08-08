@@ -23,15 +23,12 @@ const QpLabelPage = () => {
     centreName: 1,
     courseCode: 2,
     courseName: 3,
-    day: -1,
     date: -1,
-    time: -1
+    courseStartTime: -1,
+    courseEndTime: -1
   });
 
-  // Editor states for manual override defaults
-  const [defaultDay, setDefaultDay] = useState('Monday');
-  const [defaultDate, setDefaultDate] = useState('2025-10-13');
-  const [defaultTime, setDefaultTime] = useState('10:00:00 - 11:30:00');
+  // Editor states
   const [examName, setExamName] = useState('Second Semester Degree (Private Registration) Regular Examinations April 2025');
 
   // Processing states
@@ -70,9 +67,9 @@ const QpLabelPage = () => {
             if (lower.includes('centrename') || lower.includes('venue') || lower.includes('collegename')) autoMap.centreName = idx;
             if (lower.includes('coursecode') || (lower.includes('subject') && lower.includes('code'))) autoMap.courseCode = idx;
             if (lower.includes('coursename') || lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('subjecttitle')) autoMap.courseName = idx;
-            if (lower.includes('day')) autoMap.day = idx;
             if (lower.includes('date')) autoMap.date = idx;
-            if (lower.includes('time') || lower.includes('session')) autoMap.time = idx;
+            if (lower.includes('starttime') || (lower.includes('start') && lower.includes('time'))) autoMap.courseStartTime = idx;
+            if (lower.includes('endtime') || (lower.includes('end') && lower.includes('time'))) autoMap.courseEndTime = idx;
           });
           setColumnMapping(autoMap);
         }
@@ -140,19 +137,40 @@ const QpLabelPage = () => {
         const courseCode = String(row[columnMapping.courseCode] || '').trim();
         const courseName = String(row[columnMapping.courseName] || '').trim();
 
-        const rowDay = columnMapping.day !== -1 && row[columnMapping.day] ? String(row[columnMapping.day]).trim() : defaultDay;
-        
-        let rowDate = defaultDate;
+        let rowDate = '';
+        let dateObj = null;
         if (columnMapping.date !== -1) {
           const rawDate = row[columnMapping.date];
           if (rawDate instanceof Date) {
+            dateObj = rawDate;
             rowDate = rawDate.toLocaleDateString('en-CA');
           } else if (rawDate) {
             rowDate = String(rawDate).trim();
+            const parsed = Date.parse(rowDate);
+            if (!isNaN(parsed)) {
+              dateObj = new Date(parsed);
+            }
           }
         }
 
-        const rowTime = columnMapping.time !== -1 && row[columnMapping.time] ? String(row[columnMapping.time]).trim() : defaultTime;
+        // Derive day from date
+        let rowDay = '';
+        if (dateObj) {
+          const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          rowDay = daysOfWeek[dateObj.getDay()];
+        }
+
+        // Combine course start time and end time
+        const startTimeVal = columnMapping.courseStartTime !== -1 && row[columnMapping.courseStartTime] ? String(row[columnMapping.courseStartTime]).trim() : '';
+        const endTimeVal = columnMapping.courseEndTime !== -1 && row[columnMapping.courseEndTime] ? String(row[columnMapping.courseEndTime]).trim() : '';
+        let rowTime = '';
+        if (startTimeVal && endTimeVal) {
+          rowTime = `${startTimeVal} - ${endTimeVal}`;
+        } else if (startTimeVal) {
+          rowTime = startTimeVal;
+        } else if (endTimeVal) {
+          rowTime = endTimeVal;
+        }
 
         if (!cCode || !courseCode) return;
 
@@ -468,44 +486,25 @@ const QpLabelPage = () => {
                 </select>
               </div>
               <div className="form-group">
-                <label>Day Column</label>
-                <select value={columnMapping.day} onChange={(e) => setColumnMapping({ ...columnMapping, day: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  <option value="-1">- Use Default Override -</option>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
                 <label>Date Column</label>
                 <select value={columnMapping.date} onChange={(e) => setColumnMapping({ ...columnMapping, date: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  <option value="-1">- Use Default Override -</option>
+                  <option value="-1">- Keep Blank -</option>
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label>Time Column</label>
-                <select value={columnMapping.time} onChange={(e) => setColumnMapping({ ...columnMapping, time: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  <option value="-1">- Use Default Override -</option>
+                <label>Course Start Time</label>
+                <select value={columnMapping.courseStartTime} onChange={(e) => setColumnMapping({ ...columnMapping, courseStartTime: parseInt(e.target.value) })} disabled={headers.length === 0}>
+                  <option value="-1">- Keep Blank -</option>
                   {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
                 </select>
               </div>
-            </div>
-          </div>
-
-          {/* Schedule Override Defaults */}
-          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <strong style={{ fontSize: '13px' }}>Schedule Override Defaults (If missing in Excel)</strong>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', fontSize: '11px' }}>
               <div className="form-group">
-                <label>Default Day</label>
-                <input type="text" value={defaultDay} onChange={(e) => setDefaultDay(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Default Date</label>
-                <input type="text" value={defaultDate} onChange={(e) => setDefaultDate(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Default Time</label>
-                <input type="text" value={defaultTime} onChange={(e) => setDefaultTime(e.target.value)} />
+                <label>Course End Time</label>
+                <select value={columnMapping.courseEndTime} onChange={(e) => setColumnMapping({ ...columnMapping, courseEndTime: parseInt(e.target.value) })} disabled={headers.length === 0}>
+                  <option value="-1">- Keep Blank -</option>
+                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
+                </select>
               </div>
             </div>
           </div>
