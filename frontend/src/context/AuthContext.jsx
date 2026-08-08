@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../supabaseClient';
 
 const AuthContext = createContext();
 
@@ -8,74 +7,33 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [permissions, setPermissions] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUserData = async (currentUser) => {
-      if (!currentUser) {
-        setProfile(null);
-        setPermissions(null);
-        return;
-      }
-      
-      const { data: profData } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', currentUser.id)
-        .single();
-        
-      const { data: permData } = await supabase
-        .from('user_permissions')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .single();
-        
-      if (currentUser.email === 'admin@reportstudio.com') {
-        setProfile({
-          ...(profData || {}),
-          id: currentUser.id,
-          email: currentUser.email,
-          is_admin: true
-        });
-        setPermissions({
-          ...(permData || {}),
-          user_id: currentUser.id,
-          can_access_studio: true,
-          can_access_scheduler: true
-        });
-      } else {
-        setProfile(profData);
-        setPermissions(permData);
-      }
-    };
-
-    // Get current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      fetchUserData(currentUser).finally(() => setLoading(false));
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      fetchUserData(currentUser);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  // Hardcoded active admin session to bypass login entirely
+  const [user, setUser] = useState({
+    id: '00000000-0000-0000-0000-000000000000',
+    email: 'admin@reportstudio.com'
+  });
+  
+  const [profile, setProfile] = useState({
+    id: '00000000-0000-0000-0000-000000000000',
+    email: 'admin@reportstudio.com',
+    is_admin: true
+  });
+  
+  const [permissions, setPermissions] = useState({
+    user_id: '00000000-0000-0000-0000-000000000000',
+    can_access_studio: true,
+    can_access_scheduler: true
+  });
+  
+  const [loading, setLoading] = useState(false);
 
   const value = {
     user,
     profile,
     permissions,
-    signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
-    signUp: (email, password) => supabase.auth.signUp({ email, password }),
-    signOut: () => supabase.auth.signOut(),
+    signIn: async (email, password) => { return { data: { user }, error: null }; },
+    signUp: async (email, password) => { return { data: { user }, error: null }; },
+    signOut: async () => { /* No-op to remain permanently logged in */ },
   };
 
   return (
