@@ -60,7 +60,7 @@ const QpLabelPage = () => {
 
           // Get default Event Name from first data row
           if (rows.length > 1 && rows[1][0]) {
-            setEventNameVal(String(rows[1][0]).trim());
+            setExamName(String(rows[1][0]).trim());
           }
 
           const autoMap = { ...columnMapping };
