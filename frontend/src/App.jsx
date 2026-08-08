@@ -6,6 +6,7 @@ import RevaluationPage from './pages/RevaluationPage';
 import SplitterPage from './pages/SplitterPage';
 import MergerPage from './pages/MergerPage';
 import SllNominalPage from './pages/SllNominalPage';
+import QpStatementPage from './pages/QpStatementPage';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -67,6 +68,11 @@ function App() {
           <Route path="/sll-nominal" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <SllNominalPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/qp-statement" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <QpStatementPage />
             </ProtectedRoute>
           } />
           <Route path="/scheduler" element={

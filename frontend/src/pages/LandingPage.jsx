@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileDown, FileStack, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield, FileText } from 'lucide-react';
+import { FileDown, FileStack, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield, FileText, CalendarRange } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -111,6 +111,17 @@ const LandingPage = () => {
             </div>
           )}
           
+          {canSeeStudio && (
+            <div 
+              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+              onClick={() => navigate('/qp-statement')}
+            >
+              <div style={styles.featureIcon}><CalendarRange size={24} color="var(--accent)" /></div>
+              <h3 style={styles.featureTitle}>QP Statement Report</h3>
+              <p style={styles.featureText}>Compile daily printing lists and venue packing slips for examination question papers.</p>
+            </div>
+          )}
+
           {canSeeScheduler && (
             <div 
               style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
