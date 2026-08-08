@@ -33,8 +33,23 @@ export const AuthProvider = ({ children }) => {
         .eq('user_id', currentUser.id)
         .single();
         
-      setProfile(profData);
-      setPermissions(permData);
+      if (currentUser.email === 'admin@reportstudio.com') {
+        setProfile({
+          ...(profData || {}),
+          id: currentUser.id,
+          email: currentUser.email,
+          is_admin: true
+        });
+        setPermissions({
+          ...(permData || {}),
+          user_id: currentUser.id,
+          can_access_studio: true,
+          can_access_scheduler: true
+        });
+      } else {
+        setProfile(profData);
+        setPermissions(permData);
+      }
     };
 
     // Get current session
