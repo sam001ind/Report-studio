@@ -5,7 +5,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
 import { useAuth } from '../context/AuthContext';
-import { Settings, Download, Eye, FileText, Plus, Trash2, AlignCenter, AlignLeft, AlignRight, Bold } from 'lucide-react';
+import { Settings, Download, Eye, FileText, Plus, Trash2, AlignCenter, AlignLeft, AlignRight, Bold, Type } from 'lucide-react';
 
 const SllNominalPage = () => {
   const { user } = useAuth();
@@ -33,6 +33,15 @@ const SllNominalPage = () => {
     { text: 'Kannur University', fontSize: 16, isBold: true, align: 'center', yOffset: 40 },
     { text: 'Examination Branch', fontSize: 12, isBold: true, align: 'center', yOffset: 60 },
     { text: 'I Semester Private Registration 2025 -2028 Admission - November 2025', fontSize: 10, isBold: true, align: 'center', yOffset: 78 }
+  ]);
+
+  // Dynamic Table Columns styling editor (Rich Text styling for table grid)
+  const [tableColumns, setTableColumns] = useState([
+    { id: 'slNo', label: 'Sl No', width: 35, align: 'center', fontSize: 9 },
+    { id: 'seatNo', label: 'Seat No', width: 70, align: 'center', fontSize: 9 },
+    { id: 'name', label: 'Name', width: 140, align: 'left', fontSize: 9 },
+    { id: 'courses', label: 'Courses', width: 210, align: 'left', fontSize: 9.5 },
+    { id: 'remark', label: 'Remark', width: 60, align: 'left', fontSize: 9 }
   ]);
 
   // Processing states
@@ -241,18 +250,18 @@ const SllNominalPage = () => {
         
         // Only output student profile details on the first course row (enable row spanning)
         if (index === 0) {
-          row.push({ content: slNo.toString(), rowSpan: courseCount, styles: { valign: 'middle', halign: 'center' } });
-          row.push({ content: student.seatNo, rowSpan: courseCount, styles: { valign: 'middle', halign: 'center' } });
-          row.push({ content: student.name, rowSpan: courseCount, styles: { valign: 'middle' } });
+          row.push({ content: slNo.toString(), rowSpan: courseCount, styles: { valign: 'middle', halign: tableColumns[0].align } });
+          row.push({ content: student.seatNo, rowSpan: courseCount, styles: { valign: 'middle', halign: tableColumns[1].align } });
+          row.push({ content: student.name, rowSpan: courseCount, styles: { valign: 'middle', halign: tableColumns[2].align } });
         }
         
         // Course detail column (Course Code - Course Title)
         const courseStr = course.code ? `${course.code} - ${course.title}` : course.title;
-        row.push({ content: courseStr, styles: { valign: 'top' } });
+        row.push({ content: courseStr, styles: { valign: 'top', halign: tableColumns[3].align } });
         
         // Remark column
         if (index === 0) {
-          row.push({ content: '', rowSpan: courseCount });
+          row.push({ content: '', rowSpan: courseCount, styles: { valign: 'middle', halign: tableColumns[4].align } });
         }
 
         tableBody.push(row);
@@ -260,10 +269,23 @@ const SllNominalPage = () => {
       slNo += 1;
     });
 
+    // Extract dynamic headers configured by the user
+    const headLabels = tableColumns.map(col => col.label);
+
+    // Map column styles dynamically
+    const colStyles = {};
+    tableColumns.forEach((col, idx) => {
+      colStyles[idx] = { 
+        cellWidth: col.width,
+        halign: col.align,
+        fontSize: col.fontSize
+      };
+    });
+
     // 4. Generate Autotable
     autoTable(doc, {
       startY: 145,
-      head: [['Sl No', 'Seat No', 'Name', 'Courses', 'Remark']],
+      head: [headLabels],
       body: tableBody,
       theme: 'grid',
       margin: { left: 40, right: 40, bottom: 40 },
@@ -281,18 +303,7 @@ const SllNominalPage = () => {
         halign: 'center',
         lineWidth: 1
       },
-      columnStyles: {
-        0: { cellWidth: 35 },  // Sl No
-        1: { cellWidth: 70 },  // Seat No
-        2: { cellWidth: 140 }, // Name
-        3: { cellWidth: 210 }, // Course Code + Title
-        4: { cellWidth: 60 }   // Remark
-      },
-      didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index === 3) {
-          data.cell.styles.fontSize = 9.5;
-        }
-      }
+      columnStyles: colStyles
     });
 
     return doc;
@@ -360,6 +371,13 @@ const SllNominalPage = () => {
   const removeHeaderLine = (index) => {
     const updated = headerLines.filter((_, idx) => idx !== index);
     setHeaderLines(updated);
+  };
+
+  // Table Column Editor Actions
+  const updateTableCol = (index, key, value) => {
+    const updated = [...tableColumns];
+    updated[index][key] = value;
+    setTableColumns(updated);
   };
 
   return (
@@ -593,7 +611,7 @@ const SllNominalPage = () => {
                       </button>
                       <button
                         onClick={() => updateHeaderLine(idx, 'align', 'right')}
-                        style={{ padding: '4px 8px', background: line.align === 'right' ? 'var(--accent)' : 'var(--panel)', color: line.align === 'right' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
+                        style={{ padding: '4px 8px', background: line.align === 'right' ? 'var(--accent)' : 'var(--panel)', color: line.align === 'right' ? 'white' : 'white', border: 'none', cursor: 'pointer' }}
                       >
                         <AlignRight size={11} />
                       </button>
@@ -611,6 +629,79 @@ const SllNominalPage = () => {
                         style={{ flex: 1, height: '4px', cursor: 'pointer' }}
                       />
                       <span style={{ fontSize: '11px', color: 'var(--muted)', width: '25px', textAlign: 'right' }}>{line.yOffset}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Table Grid Columns Rich Text Editor */}
+          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <strong style={{ fontSize: '13px' }}>Table Column & Layout Editor</strong>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {tableColumns.map((col, idx) => (
+                <div key={col.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--muted)', width: '60px' }}>Col {idx+1}:</span>
+                    <input 
+                      type="text" 
+                      value={col.label} 
+                      onChange={(e) => updateTableCol(idx, 'label', e.target.value)} 
+                      placeholder="Header Label"
+                      style={{ flex: 2, padding: '6px', fontSize: '11px' }}
+                    />
+                    
+                    {/* Width setting */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--muted)' }}>Width:</span>
+                      <input 
+                        type="number" 
+                        value={col.width} 
+                        onChange={(e) => updateTableCol(idx, 'width', parseInt(e.target.value) || 20)} 
+                        style={{ width: '45px', padding: '4px', fontSize: '11px' }}
+                        min="10"
+                        max="300"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', paddingLeft: '68px' }}>
+                    {/* Font size */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--muted)' }}>Font Size:</span>
+                      <input 
+                        type="number" 
+                        value={col.fontSize} 
+                        onChange={(e) => updateTableCol(idx, 'fontSize', parseFloat(e.target.value) || 8)} 
+                        style={{ width: '45px', padding: '3px 4px', fontSize: '11px' }}
+                        step="0.5"
+                        min="6"
+                        max="16"
+                      />
+                      <span style={{ fontSize: '10px', color: 'var(--muted)' }}>pt</span>
+                    </div>
+
+                    {/* Alignment */}
+                    <div style={{ display: 'flex', gap: '2px', border: '1px solid var(--line)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <button
+                        onClick={() => updateTableCol(idx, 'align', 'left')}
+                        style={{ padding: '3px 6px', background: col.align === 'left' ? 'var(--accent)' : 'var(--panel)', color: col.align === 'left' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
+                      >
+                        <AlignLeft size={10} />
+                      </button>
+                      <button
+                        onClick={() => updateTableCol(idx, 'align', 'center')}
+                        style={{ padding: '3px 6px', background: col.align === 'center' ? 'var(--accent)' : 'var(--panel)', color: col.align === 'center' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
+                      >
+                        <AlignCenter size={10} />
+                      </button>
+                      <button
+                        onClick={() => updateTableCol(idx, 'align', 'right')}
+                        style={{ padding: '3px 6px', background: col.align === 'right' ? 'var(--accent)' : 'var(--panel)', color: col.align === 'right' ? 'white' : 'white', border: 'none', cursor: 'pointer' }}
+                      >
+                        <AlignRight size={10} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -687,11 +778,19 @@ const SllNominalPage = () => {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left', background: 'var(--bg)' }}>
                     <thead>
                       <tr style={{ background: 'var(--panel)', borderBottom: '2px solid var(--line)', color: 'var(--ink)' }}>
-                        <th style={{ padding: '10px 8px', borderRight: '1px solid var(--line)', textAlign: 'center', width: '40px' }}>Sl No</th>
-                        <th style={{ padding: '10px 8px', borderRight: '1px solid var(--line)', textAlign: 'center', width: '80px' }}>Seat No</th>
-                        <th style={{ padding: '10px 8px', borderRight: '1px solid var(--line)', width: '130px' }}>Name</th>
-                        <th style={{ padding: '10px 8px', borderRight: '1px solid var(--line)' }}>Courses</th>
-                        <th style={{ padding: '10px 8px', width: '70px' }}>Remark</th>
+                        {tableColumns.map((col, idx) => (
+                          <th 
+                            key={col.id}
+                            style={{ 
+                              padding: '10px 8px', 
+                              borderRight: idx < tableColumns.length - 1 ? '1px solid var(--line)' : 'none', 
+                              textAlign: col.align, 
+                              width: `${col.width}px` 
+                            }}
+                          >
+                            {col.label}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -704,25 +803,53 @@ const SllNominalPage = () => {
                                 <>
                                   <td 
                                     rowSpan={student.courses.length} 
-                                    style={{ padding: '8px', borderRight: '1px solid var(--line)', textAlign: 'center', verticalAlign: 'middle', background: 'rgba(255,255,255,0.01)' }}
+                                    style={{ 
+                                      padding: '8px', 
+                                      borderRight: '1px solid var(--line)', 
+                                      textAlign: tableColumns[0].align, 
+                                      verticalAlign: 'middle', 
+                                      background: 'rgba(255,255,255,0.01)',
+                                      fontSize: `${tableColumns[0].fontSize}px`
+                                    }}
                                   >
                                     {sIdx + 1}
                                   </td>
                                   <td 
                                     rowSpan={student.courses.length} 
-                                    style={{ padding: '8px', borderRight: '1px solid var(--line)', textAlign: 'center', verticalAlign: 'middle', fontWeight: 600 }}
+                                    style={{ 
+                                      padding: '8px', 
+                                      borderRight: '1px solid var(--line)', 
+                                      textAlign: tableColumns[1].align, 
+                                      verticalAlign: 'middle', 
+                                      fontWeight: 600,
+                                      fontSize: `${tableColumns[1].fontSize}px`
+                                    }}
                                   >
                                     {student.seatNo}
                                   </td>
                                   <td 
                                     rowSpan={student.courses.length} 
-                                    style={{ padding: '8px', borderRight: '1px solid var(--line)', verticalAlign: 'middle' }}
+                                    style={{ 
+                                      padding: '8px', 
+                                      borderRight: '1px solid var(--line)', 
+                                      verticalAlign: 'middle',
+                                      textAlign: tableColumns[2].align,
+                                      fontSize: `${tableColumns[2].fontSize}px`
+                                    }}
                                   >
                                     {student.name}
                                   </td>
                                 </>
                               ) : null}
-                              <td style={{ padding: '8px', borderRight: '1px solid var(--line)', color: 'var(--ink)' }}>
+                              <td 
+                                style={{ 
+                                  padding: '8px', 
+                                  borderRight: '1px solid var(--line)', 
+                                  color: 'var(--ink)',
+                                  textAlign: tableColumns[3].align,
+                                  fontSize: `${tableColumns[3].fontSize}px`
+                                }}
+                              >
                                 <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{course.code}</span>
                                 {course.code && course.title ? ' - ' : ''}
                                 <span>{course.title}</span>
@@ -730,7 +857,12 @@ const SllNominalPage = () => {
                               {isFirst ? (
                                 <td 
                                   rowSpan={student.courses.length} 
-                                  style={{ padding: '8px', verticalAlign: 'middle' }}
+                                  style={{ 
+                                    padding: '8px', 
+                                    verticalAlign: 'middle',
+                                    textAlign: tableColumns[4].align,
+                                    fontSize: `${tableColumns[4].fontSize}px`
+                                  }}
                                 >
                                   {/* Remark Column */}
                                 </td>
