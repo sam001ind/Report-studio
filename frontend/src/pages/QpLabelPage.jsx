@@ -58,7 +58,11 @@ const QpLabelPage = () => {
           const firstRow = rows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
           setHeaders(firstRow);
 
-          // Try to auto-detect columns
+          // Get default Event Name from first data row
+          if (rows.length > 1 && rows[1][0]) {
+            setEventNameVal(String(rows[1][0]).trim());
+          }
+
           const autoMap = { ...columnMapping };
           firstRow.forEach((name, idx) => {
             const lower = name.toLowerCase().replace(/[\s_-]/g, '');
@@ -131,7 +135,6 @@ const QpLabelPage = () => {
         const isBlank = row.every(cell => cell === null || cell === undefined || cell === '');
         if (isBlank) return;
 
-        // Read mapped values
         const cCode = String(row[columnMapping.centreCode] || '').trim();
         const cName = String(row[columnMapping.centreName] || '').trim();
         const courseCode = String(row[columnMapping.courseCode] || '').trim();
@@ -142,16 +145,15 @@ const QpLabelPage = () => {
         let rowDate = defaultDate;
         const rawDate = row[columnMapping.date];
         if (rawDate instanceof Date) {
-          rowDate = rawDate.toLocaleDateString('en-CA'); // YYYY-MM-DD
+          rowDate = rawDate.toLocaleDateString('en-CA');
         } else if (rawDate) {
           rowDate = String(rawDate).trim();
         }
 
         const rowTime = row[columnMapping.time] ? String(row[columnMapping.time]).trim() : defaultTime;
 
-        if (!cCode || !courseCode) return; // Skip invalid records
+        if (!cCode || !courseCode) return;
 
-        // Group key: unique Centre + Course
         const key = `${cCode}_${courseCode}`;
 
         if (!groups[key]) {
@@ -170,7 +172,6 @@ const QpLabelPage = () => {
       });
 
       const list = Object.values(groups);
-      // Sort by Centre Code, then Course Code
       list.sort((a, b) => a.centreCode.localeCompare(b.centreCode) || a.courseCode.localeCompare(b.courseCode));
       
       setLabelGroups(list);
@@ -183,162 +184,168 @@ const QpLabelPage = () => {
     }
   };
 
-  // Draw a Single QP Label Page on jsPDF
+  // Draw a Single QP Label Page on jsPDF (Landscape format)
   const drawLabelPage = (doc, data, isFirstPage = true) => {
     if (!isFirstPage) {
       doc.addPage();
     }
 
-    // A. Logo and University Headers (Centered Base64 Logo Image)
-    doc.addImage(logoBase64, 'PNG', 147.5, 30, 300, 85);
+    // A4 Landscape Width: 842 pt, Height: 595 pt.
+    // Center alignment point: X = 421 pt.
+
+    // A. Logo Header (Centered)
+    // Width: 320 pt, Height: 90 pt.
+    const logoWidth = 320;
+    const logoHeight = 90;
+    const logoX = (842 - logoWidth) / 2; // 261 pt
+    doc.addImage(logoBase64, 'PNG', logoX, 25, logoWidth, logoHeight);
 
     // B. Examination Subheading
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text('(Examination Branch)', 297, 125, { align: 'center' });
+    doc.text('(Examination Branch)', 421, 130, { align: 'center' });
 
     doc.setFontSize(10.5);
-    doc.text(examName, 297, 142, { align: 'center' });
+    doc.text(examName, 421, 147, { align: 'center' });
 
-    // C. Grid Layout Table (Exact Replica)
-    // Table starting at X: 40pt, Y: 160pt. Total Width: 515pt.
-    const startX = 40;
-    const startY = 160;
+    // C. Grid Layout Table (Landscape dimensions)
+    // Width: 600 pt (from X: 121 pt to X: 721 pt)
+    const startX = 121;
+    const startY = 165;
+    const tableWidth = 600;
+    const rowHeight = 22;
+
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(1);
 
     // Grid Row 1: CENTRE CODE AND NAME
-    doc.rect(startX, startY, 515, 22);
+    doc.rect(startX, startY, tableWidth, rowHeight);
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('CENTRE CODE AND NAME', startX + 8, startY + 14);
     doc.text(data.centreCode, startX + 160, startY + 14);
-    doc.setFont('Helvetica', 'bold');
-    doc.text(data.centreName, startX + 220, startY + 14);
+    doc.text(data.centreName, startX + 230, startY + 14);
 
     // Grid Verticals for Row 1
-    doc.line(startX + 150, startY, startX + 150, startY + 22);
-    doc.line(startX + 210, startY, startX + 210, startY + 22);
+    doc.line(startX + 150, startY, startX + 150, startY + rowHeight);
+    doc.line(startX + 220, startY, startX + 220, startY + rowHeight);
 
     // Grid Row 2: DAY, DATE, TIME
-    const row2Y = startY + 22;
-    doc.rect(startX, row2Y, 515, 22);
-    doc.setFont('Helvetica', 'bold');
+    const row2Y = startY + rowHeight;
+    doc.rect(startX, row2Y, tableWidth, rowHeight);
     doc.text('DAY', startX + 8, row2Y + 14);
     doc.setFont('Helvetica', 'normal');
     doc.text(data.day, startX + 160, row2Y + 14);
 
     doc.setFont('Helvetica', 'bold');
-    doc.text('DATE', startX + 220, row2Y + 14);
+    doc.text('DATE', startX + 230, row2Y + 14);
     doc.setFont('Helvetica', 'normal');
-    doc.text(data.date, startX + 280, row2Y + 14);
+    doc.text(data.date, startX + 290, row2Y + 14);
 
     doc.setFont('Helvetica', 'bold');
-    doc.text('TIME', startX + 390, row2Y + 14);
+    doc.text('TIME', startX + 410, row2Y + 14);
     doc.setFont('Helvetica', 'normal');
-    doc.text(data.time, startX + 440, row2Y + 14);
+    doc.text(data.time, startX + 460, row2Y + 14);
 
     // Grid Verticals for Row 2
-    doc.line(startX + 150, row2Y, startX + 150, row2Y + 22); // Day column end
-    doc.line(startX + 210, row2Y, startX + 210, row2Y + 22); // Date header start
-    doc.line(startX + 270, row2Y, startX + 270, row2Y + 22); // Date value start
-    doc.line(startX + 380, row2Y, startX + 380, row2Y + 22); // Time header start
-    doc.line(startX + 430, row2Y, startX + 430, row2Y + 22); // Time value start
+    doc.line(startX + 150, row2Y, startX + 150, row2Y + rowHeight); // Day label end
+    doc.line(startX + 220, row2Y, startX + 220, row2Y + rowHeight); // Date label start
+    doc.line(startX + 280, row2Y, startX + 280, row2Y + rowHeight); // Date value start
+    doc.line(startX + 400, row2Y, startX + 400, row2Y + rowHeight); // Time label start
+    doc.line(startX + 450, row2Y, startX + 450, row2Y + rowHeight); // Time value start
 
     // Grid Row 3: SUBJECT
-    const row3Y = row2Y + 22;
-    doc.rect(startX, row3Y, 515, 22);
+    const row3Y = row2Y + rowHeight;
+    doc.rect(startX, row3Y, tableWidth, rowHeight);
     doc.setFont('Helvetica', 'bold');
     doc.text('SUBJECT', startX + 8, row3Y + 14);
-    doc.setFont('Helvetica', 'bold');
     doc.text(`${data.courseCode} - ${data.courseName}`, startX + 160, row3Y + 14);
 
     // Vertical line for Row 3
-    doc.line(startX + 150, row3Y, startX + 150, row3Y + 22);
+    doc.line(startX + 150, row3Y, startX + 150, row3Y + rowHeight);
 
     // Grid Row 4: NO. OF COPIES, COVER NUMBER
-    const row4Y = row3Y + 22;
-    doc.rect(startX, row4Y, 515, 22);
-    doc.setFont('Helvetica', 'bold');
+    const row4Y = row3Y + rowHeight;
+    doc.rect(startX, row4Y, tableWidth, rowHeight);
     doc.text('NO. OF COPIES', startX + 8, row4Y + 14);
     
-    // Write strength as help context, but keep blank box clean
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(9);
     doc.text(`NC: ${data.studentCount}`, startX + 160, row4Y + 14);
 
     doc.setFont('Helvetica', 'bold');
-    doc.text('COVER NUMBER', startX + 220, row4Y + 14);
+    doc.setFontSize(10);
+    doc.text('COVER NUMBER', startX + 230, row4Y + 14);
 
     // Verticals for Row 4
-    doc.line(startX + 150, row4Y, startX + 150, row4Y + 22);
-    doc.line(startX + 210, row4Y, startX + 210, row4Y + 22);
-    doc.line(startX + 380, row4Y, startX + 380, row4Y + 22);
+    doc.line(startX + 150, row4Y, startX + 150, row4Y + rowHeight);
+    doc.line(startX + 220, row4Y, startX + 220, row4Y + rowHeight);
+    doc.line(startX + 400, row4Y, startX + 400, row4Y + rowHeight);
 
-    // D. Decorative Double Dotted/Dashed Line Break
-    const lineBreakY = row4Y + 45;
+    // D. Decorative Double Dotted Line Break
+    const lineBreakY = row4Y + 40;
     doc.setLineDash([3, 3], 0);
     doc.setDrawColor(120, 120, 120);
-    doc.line(startX, lineBreakY, startX + 515, lineBreakY);
-    doc.line(startX, lineBreakY + 4, startX + 515, lineBreakY + 4);
-    doc.setLineDash([], 0); // Restore solid line format
+    doc.line(startX, lineBreakY, startX + tableWidth, lineBreakY);
+    doc.line(startX, lineBreakY + 4, startX + tableWidth, lineBreakY + 4);
+    doc.setLineDash([], 0);
 
     // E. Certificate Subheading
-    const certY = lineBreakY + 30;
+    const certY = lineBreakY + 28;
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(0, 0, 0);
-    doc.text('CERTIFICATE', 297, certY, { align: 'center' });
+    doc.text('CERTIFICATE', 421, certY, { align: 'center' });
 
     // F. Certificate Description Body
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(11);
-    doc.text('We hereby certify that we have examined this cover and satisfied ourselves that the seals are intact and that it was opened at', 40, certY + 30);
-    doc.line(40, certY + 54, 210, certY + 54);
-    doc.text('A.M/P.M in our presence.', 215, certY + 50);
+    doc.text('We hereby certify that we have examined this cover and satisfied ourselves that the seals are intact and that it was opened at', startX, certY + 30);
+    doc.line(startX, certY + 54, startX + 180, certY + 54);
+    doc.text('A.M/P.M in our presence.', startX + 185, certY + 50);
 
     // G. Signatures Block
-    const signY = certY + 90;
+    const signY = certY + 85;
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('INVIGILATOR', 40, signY);
-    doc.text('ADDL.CHIEF SUPERINTENDENT', 370, signY);
+    doc.text('INVIGILATOR', startX, signY);
+    doc.text('ADDL.CHIEF SUPERINTENDENT', startX + 440, signY);
 
     // Invigilator signature lines
     doc.setFont('Helvetica', 'normal');
-    doc.text('(1) ________________________________', 45, signY + 30);
-    doc.text('(2) ________________________________', 45, signY + 55);
+    doc.text('(1) ________________________________', startX + 5, signY + 25);
+    doc.text('(2) ________________________________', startX + 5, signY + 48);
 
     // Place and Date left alignment, Chief Superintendent right alignment
-    const footerY = signY + 100;
+    const footerY = signY + 85;
     doc.setFont('Helvetica', 'bold');
-    doc.text('PLACE:', 40, footerY);
-    doc.text('DATE:', 40, footerY + 25);
-    doc.text('CHIEF SUPERINTENDENT', 390, footerY + 25);
+    doc.text('PLACE:', startX, footerY);
+    doc.text('DATE:', startX, footerY + 22);
+    doc.text('CHIEF SUPERINTENDENT', startX + 460, footerY + 22);
   };
 
-  // Download all combined in one PDF
+  // Download all combined in one Landscape PDF
   const downloadAllCombinedPDF = () => {
     if (labelGroups.length === 0) return;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     
     labelGroups.forEach((data, index) => {
       drawLabelPage(doc, data, index === 0);
     });
 
-    doc.save(`${eventNameValPrefix()}_Question_Paper_Labels.pdf`);
+    doc.save(`${eventNameValPrefix()}_Question_Paper_Labels_Landscape.pdf`);
   };
 
   // Download active index label PDF
   const downloadSinglePDF = (index) => {
     const data = labelGroups[index];
     if (!data) return;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     drawLabelPage(doc, data, true);
 
     const safeProg = data.courseCode.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
     const safeVenue = data.centreCode.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
-    doc.save(`QP_Label_${safeVenue}_${safeProg}.pdf`);
+    doc.save(`QP_Label_Landscape_${safeVenue}_${safeProg}.pdf`);
   };
 
   // Batch ZIP downloads
@@ -349,19 +356,19 @@ const QpLabelPage = () => {
 
     try {
       labelGroups.forEach((data) => {
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
         drawLabelPage(doc, data, true);
         const pdfBlob = doc.output('blob');
         const safeProg = data.courseCode.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
         const safeVenue = data.centreCode.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
-        zip.file(`QP_Label_${safeVenue}_${safeProg}.pdf`, pdfBlob);
+        zip.file(`QP_Label_Landscape_${safeVenue}_${safeProg}.pdf`, pdfBlob);
       });
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const downloadUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `QP_Labels_Package.zip`;
+      link.download = `QP_Labels_Landscape_Package.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -398,8 +405,8 @@ const QpLabelPage = () => {
         </div>
       </div>
 
-      <h2>QP Label Generator</h2>
-      <p className="subtitle">Compile print-ready covers and packet labels for examination question papers grouped by center and subject combinations.</p>
+      <h2>QP Label Generator (Landscape)</h2>
+      <p className="subtitle">Compile print-ready covers and packet labels in A4 Landscape format, grouped by center and subject combinations.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         {/* Settings Panel */}
@@ -552,7 +559,7 @@ const QpLabelPage = () => {
                 </div>
               </div>
 
-              {/* Visual simulated label rendering */}
+              {/* Visual simulated label rendering (Landscape design) */}
               <div style={{ 
                 flex: 1, 
                 border: '1px solid var(--line)', 
@@ -565,23 +572,23 @@ const QpLabelPage = () => {
                 boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '24px'
+                gap: '20px'
               }}>
                 {/* Header Logo Centered */}
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-                  <img src={logoBase64} alt="Kannur University Logo" style={{ maxWidth: '380px', height: 'auto' }} />
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4px' }}>
+                  <img src={logoBase64} alt="Kannur University Logo" style={{ maxWidth: '300px', height: 'auto' }} />
                 </div>
 
-                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <strong style={{ fontSize: '11px' }}>(Examination Branch)</strong>
-                  <strong style={{ fontSize: '11px' }}>{examName}</strong>
+                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <strong style={{ fontSize: '10px' }}>(Examination Branch)</strong>
+                  <strong style={{ fontSize: '10px' }}>{examName}</strong>
                 </div>
 
-                {/* Simulated table grid */}
+                {/* Simulated table grid (Landscape spacing) */}
                 <div style={{ border: '1px solid black', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', borderBottom: '1px solid black' }}>
-                    <div style={{ width: '130px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>CENTRE CODE AND NAME</div>
-                    <div style={{ width: '60px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>{labelGroups[activeLabelIndex].centreCode}</div>
+                    <div style={{ width: '150px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>CENTRE CODE AND NAME</div>
+                    <div style={{ width: '70px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>{labelGroups[activeLabelIndex].centreCode}</div>
                     <div style={{ flex: 1, padding: '6px', fontWeight: 'bold' }}>{labelGroups[activeLabelIndex].centreName}</div>
                   </div>
                   
@@ -595,40 +602,40 @@ const QpLabelPage = () => {
                   </div>
 
                   <div style={{ display: 'flex', borderBottom: '1px solid black' }}>
-                    <div style={{ width: '130px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>SUBJECT</div>
+                    <div style={{ width: '150px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>SUBJECT</div>
                     <div style={{ flex: 1, padding: '6px', fontWeight: 'bold' }}>
                       {labelGroups[activeLabelIndex].courseCode} - {labelGroups[activeLabelIndex].courseName}
                     </div>
                   </div>
 
                   <div style={{ display: 'flex' }}>
-                    <div style={{ width: '130px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>NO. OF COPIES</div>
-                    <div style={{ width: '60px', padding: '6px', borderRight: '1px solid black', color: '#888' }}>NC: {labelGroups[activeLabelIndex].studentCount}</div>
-                    <div style={{ width: '130px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>COVER NUMBER</div>
+                    <div style={{ width: '150px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>NO. OF COPIES</div>
+                    <div style={{ width: '70px', padding: '6px', borderRight: '1px solid black', color: '#888' }}>NC: {labelGroups[activeLabelIndex].studentCount}</div>
+                    <div style={{ width: '150px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>COVER NUMBER</div>
                     <div style={{ flex: 1, padding: '6px' }}></div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '2px dashed #999', paddingTop: '16px' }}>
-                  <h4 style={{ textAlign: 'center', margin: '0 0 10px 0', fontSize: '14px', letterSpacing: '0.5px' }}>CERTIFICATE</h4>
-                  <p style={{ margin: 0, lineHeight: '1.6' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '2px dashed #999', paddingTop: '12px' }}>
+                  <h4 style={{ textAlign: 'center', margin: '0 0 6px 0', fontSize: '13px', letterSpacing: '0.5px' }}>CERTIFICATE</h4>
+                  <p style={{ margin: 0, lineHeight: '1.5' }}>
                     We hereby certify that we have examined this cover and satisfied ourselves that the seals are intact and that it was opened at ________________________________A.M/P.M in our presence.
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontWeight: 'bold' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', fontWeight: 'bold' }}>
                   <div>
                     <span>INVIGILATOR</span>
-                    <div style={{ marginTop: '20px', fontWeight: 'normal' }}>(1) ________________________________</div>
-                    <div style={{ marginTop: '10px', fontWeight: 'normal' }}>(2) ________________________________</div>
+                    <div style={{ marginTop: '12px', fontWeight: 'normal' }}>(1) ________________________________</div>
+                    <div style={{ marginTop: '6px', fontWeight: 'normal' }}>(2) ________________________________</div>
                   </div>
                   <div>
                     <span>ADDL.CHIEF SUPERINTENDENT</span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', fontWeight: 'bold' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontWeight: 'bold' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <span>PLACE:</span>
                     <span>DATE:</span>
                   </div>
