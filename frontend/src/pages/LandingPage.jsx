@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileDown, FileStack, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield } from 'lucide-react';
+import { FileDown, FileStack, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -97,6 +97,17 @@ const LandingPage = () => {
               <div style={styles.featureIcon}><FileStack size={24} color="var(--accent)" /></div>
               <h3 style={styles.featureTitle}>Excel Sheet Merger</h3>
               <p style={styles.featureText}>Combine multiple Excel sheets into a single document with file origin tracking and custom headers.</p>
+            </div>
+          )}
+
+          {canSeeStudio && (
+            <div 
+              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+              onClick={() => navigate('/sll-nominal')}
+            >
+              <div style={styles.featureIcon}><FileText size={24} color="var(--accent)" /></div>
+              <h3 style={styles.featureTitle}>SLL Nominal Roll</h3>
+              <p style={styles.featureText}>Generate venue-wise nominal roll sheets and PDFs with merged student registration cells.</p>
             </div>
           )}
           

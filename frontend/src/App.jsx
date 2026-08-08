@@ -5,6 +5,7 @@ import SchedulerPage from './pages/SchedulerPage';
 import RevaluationPage from './pages/RevaluationPage';
 import SplitterPage from './pages/SplitterPage';
 import MergerPage from './pages/MergerPage';
+import SllNominalPage from './pages/SllNominalPage';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -61,6 +62,11 @@ function App() {
           <Route path="/merger" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <MergerPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/sll-nominal" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <SllNominalPage />
             </ProtectedRoute>
           } />
           <Route path="/scheduler" element={
