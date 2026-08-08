@@ -5,7 +5,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
 import { useAuth } from '../context/AuthContext';
-import { Settings, Download, Eye, FileText } from 'lucide-react';
+import { Settings, Download, Eye, FileText, Plus, Trash2, AlignCenter, AlignLeft, AlignRight, Bold } from 'lucide-react';
 
 const SllNominalPage = () => {
   const { user } = useAuth();
@@ -28,12 +28,12 @@ const SllNominalPage = () => {
     courseTitle: 7
   });
 
-  // Custom Header Text Configuration
-  const [headerConfig, setHeaderConfig] = useState({
-    title: 'Kannur University',
-    subtitle: 'Examination Branch',
-    session: 'I Semester Private Registration 2025 -2028 Admission - November 2025'
-  });
+  // Dynamic Header Rich Lines (Structured Rich Text Editor for PDF)
+  const [headerLines, setHeaderLines] = useState([
+    { text: 'Kannur University', fontSize: 16, isBold: true, align: 'center', yOffset: 40 },
+    { text: 'Examination Branch', fontSize: 12, isBold: true, align: 'center', yOffset: 60 },
+    { text: 'I Semester Private Registration 2025 -2028 Admission - November 2025', fontSize: 10, isBold: true, align: 'center', yOffset: 78 }
+  ]);
 
   // Processing states
   const [isProcessing, setIsProcessing] = useState(false);
@@ -210,18 +210,21 @@ const SllNominalPage = () => {
       format: 'a4'
     });
 
-    // 1. Header Block
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text(headerConfig.title, 297, 40, { align: 'center' });
-
-    doc.setFontSize(12);
-    doc.text(headerConfig.subtitle, 297, 60, { align: 'center' });
-
-    doc.setFontSize(10);
-    doc.text(headerConfig.session, 297, 78, { align: 'center' });
+    // 1. Dynamic Header Block
+    headerLines.forEach((line) => {
+      if (!line.text.trim()) return;
+      doc.setFont('Helvetica', line.isBold ? 'bold' : 'normal');
+      doc.setFontSize(line.fontSize);
+      
+      let xPos = 297; // center
+      if (line.align === 'left') xPos = 40;
+      if (line.align === 'right') xPos = 550; // a4 width is 595 pt
+      
+      doc.text(line.text, xPos, line.yOffset, { align: line.align });
+    });
 
     // 2. Metadata Info
+    doc.setFont('Helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(`Programme: ${programmeName}`, 40, 110);
     doc.text(`Venue: ${venueName}`, 40, 128);
@@ -339,6 +342,24 @@ const SllNominalPage = () => {
     } catch (err) {
       setStatus(`Failed to generate ZIP: ${err.message}`, 'error');
     }
+  };
+
+  // Header Rich Text Editor Helper Actions
+  const updateHeaderLine = (index, key, value) => {
+    const updated = [...headerLines];
+    updated[index][key] = value;
+    setHeaderLines(updated);
+  };
+
+  const addHeaderLine = () => {
+    const lastLine = headerLines[headerLines.length - 1];
+    const newY = lastLine ? lastLine.yOffset + 18 : 40;
+    setHeaderLines([...headerLines, { text: '', fontSize: 10, isBold: false, align: 'center', yOffset: newY }]);
+  };
+
+  const removeHeaderLine = (index) => {
+    const updated = headerLines.filter((_, idx) => idx !== index);
+    setHeaderLines(updated);
   };
 
   return (
@@ -487,34 +508,113 @@ const SllNominalPage = () => {
             </div>
           </div>
 
-          {/* Header Text Configurations */}
-          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)' }}>
-            <strong style={{ fontSize: '13px', display: 'block', marginBottom: '12px' }}>Report Headers</strong>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-              <div className="form-group">
-                <label>Header Line 1 (University)</label>
-                <input 
-                  type="text" 
-                  value={headerConfig.title} 
-                  onChange={(e) => setHeaderConfig({ ...headerConfig, title: e.target.value })} 
-                />
-              </div>
-              <div className="form-group">
-                <label>Header Line 2 (Branch)</label>
-                <input 
-                  type="text" 
-                  value={headerConfig.subtitle} 
-                  onChange={(e) => setHeaderConfig({ ...headerConfig, subtitle: e.target.value })} 
-                />
-              </div>
-              <div className="form-group">
-                <label>Header Line 3 (Session Detail)</label>
-                <input 
-                  type="text" 
-                  value={headerConfig.session} 
-                  onChange={(e) => setHeaderConfig({ ...headerConfig, session: e.target.value })} 
-                />
-              </div>
+          {/* Structured PDF Header Rich Text Style Manager */}
+          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: '13px' }}>PDF Header Layout Editor</strong>
+              <button 
+                onClick={addHeaderLine} 
+                className="secondary" 
+                style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Plus size={12} /> Add Line
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {headerLines.map((line, idx) => (
+                <div key={idx} style={{ borderBottom: '1px solid var(--line)', paddingBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--muted)', width: '45px' }}>Line {idx+1}</span>
+                    <input 
+                      type="text" 
+                      value={line.text} 
+                      onChange={(e) => updateHeaderLine(idx, 'text', e.target.value)} 
+                      placeholder={`Header Line Text ${idx+1}`}
+                      style={{ flex: 1, padding: '6px' }}
+                    />
+                    <button 
+                      onClick={() => removeHeaderLine(idx)} 
+                      style={{ padding: '6px', background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}
+                      disabled={headerLines.length <= 1}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+
+                  {/* Inline formatting controls */}
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', paddingLeft: '53px' }}>
+                    {/* Size selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Size:</span>
+                      <input 
+                        type="number" 
+                        value={line.fontSize} 
+                        onChange={(e) => updateHeaderLine(idx, 'fontSize', parseInt(e.target.value) || 10)} 
+                        style={{ width: '45px', padding: '3px 4px', fontSize: '11px' }}
+                        min="6"
+                        max="32"
+                      />
+                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>pt</span>
+                    </div>
+
+                    {/* Bold Toggle */}
+                    <button
+                      onClick={() => updateHeaderLine(idx, 'isBold', !line.isBold)}
+                      style={{
+                        padding: '4px 8px',
+                        background: line.isBold ? 'var(--accent)' : 'var(--panel)',
+                        color: line.isBold ? 'white' : 'var(--ink)',
+                        border: '1px solid var(--line)',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        fontSize: '11px'
+                      }}
+                    >
+                      <Bold size={11} /> {line.isBold ? 'Bold' : 'Normal'}
+                    </button>
+
+                    {/* Alignment */}
+                    <div style={{ display: 'flex', gap: '2px', border: '1px solid var(--line)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <button
+                        onClick={() => updateHeaderLine(idx, 'align', 'left')}
+                        style={{ padding: '4px 8px', background: line.align === 'left' ? 'var(--accent)' : 'var(--panel)', color: line.align === 'left' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
+                      >
+                        <AlignLeft size={11} />
+                      </button>
+                      <button
+                        onClick={() => updateHeaderLine(idx, 'align', 'center')}
+                        style={{ padding: '4px 8px', background: line.align === 'center' ? 'var(--accent)' : 'var(--panel)', color: line.align === 'center' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
+                      >
+                        <AlignCenter size={11} />
+                      </button>
+                      <button
+                        onClick={() => updateHeaderLine(idx, 'align', 'right')}
+                        style={{ padding: '4px 8px', background: line.align === 'right' ? 'var(--accent)' : 'var(--panel)', color: line.align === 'right' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
+                      >
+                        <AlignRight size={11} />
+                      </button>
+                    </div>
+
+                    {/* Vertical Position Offset slider */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Pos-Y:</span>
+                      <input 
+                        type="range" 
+                        value={line.yOffset} 
+                        onChange={(e) => updateHeaderLine(idx, 'yOffset', parseInt(e.target.value))} 
+                        min="20"
+                        max="140"
+                        style={{ flex: 1, height: '4px', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', width: '25px', textAlign: 'right' }}>{line.yOffset}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
