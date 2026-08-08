@@ -20,8 +20,8 @@ const LandingPage = () => {
 
       <nav style={styles.navbar}>
         <div style={styles.logo}>
-          <div style={styles.logoMark}>SOS</div>
-          <span style={styles.logoText}>Sorted Operational Suite</span>
+          <div style={styles.logoMark}>RS</div>
+          <span style={styles.logoText}>Report Studio</span>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <ThemeToggle />
@@ -48,7 +48,7 @@ const LandingPage = () => {
           <div style={styles.heroBadge}>✨ Unified Toolkit</div>
           <h1 style={styles.title}>
             Operational Efficiency,<br/>
-            <span style={styles.gradientText}>Sorted.</span>
+            <span style={styles.gradientText}>Report Studio.</span>
           </h1>
           <p style={styles.subtitle}>
             Access all available modules and services below to manage reports, schedule timetables, and automate your workflow.
