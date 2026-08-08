@@ -103,8 +103,8 @@ const QpLabelPage = () => {
         const autoMap = { ...columnMapping };
         firstHeaders.forEach((name, idx) => {
           const lower = name.toLowerCase().replace(/[\s_-]/g, '');
-          if (lower.includes('centrecode') || lower.includes('centercode') || lower.includes('venuecode')) autoMap.centreCode = idx;
-          if (lower.includes('centrename') || lower.includes('venue') || lower.includes('collegename')) autoMap.centreName = idx;
+          if (lower.includes('centrecode') || lower.includes('centercode') || lower.includes('venuecode') || lower.includes('venueid')) autoMap.centreCode = idx;
+          if (lower.includes('centrename') || lower.includes('venuename') || (lower.includes('venue') && !lower.includes('code') && !lower.includes('id')) || lower.includes('collegename')) autoMap.centreName = idx;
           if (lower.includes('coursecode') || (lower.includes('subject') && lower.includes('code'))) autoMap.courseCode = idx;
           if (lower.includes('coursename') || lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('subjecttitle')) autoMap.courseName = idx;
           if (lower.includes('date')) autoMap.date = idx;
