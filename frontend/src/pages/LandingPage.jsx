@@ -122,6 +122,17 @@ const LandingPage = () => {
             </div>
           )}
 
+          {canSeeStudio && (
+            <div 
+              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+              onClick={() => navigate('/qp-label')}
+            >
+              <div style={styles.featureIcon}><TableProperties size={24} color="var(--accent)" /></div>
+              <h3 style={styles.featureTitle}>QP Label Generator</h3>
+              <p style={styles.featureText}>Generate packet covers and Question Paper envelope labels sorted by center and subject.</p>
+            </div>
+          )}
+
           {canSeeScheduler && (
             <div 
               style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 

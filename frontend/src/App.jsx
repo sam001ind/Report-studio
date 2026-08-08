@@ -7,6 +7,7 @@ import SplitterPage from './pages/SplitterPage';
 import MergerPage from './pages/MergerPage';
 import SllNominalPage from './pages/SllNominalPage';
 import QpStatementPage from './pages/QpStatementPage';
+import QpLabelPage from './pages/QpLabelPage';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -73,6 +74,11 @@ function App() {
           <Route path="/qp-statement" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <QpStatementPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/qp-label" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <QpLabelPage />
             </ProtectedRoute>
           } />
           <Route path="/scheduler" element={
