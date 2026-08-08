@@ -101,10 +101,34 @@ const QpLabelPage = () => {
 
         // Auto-detect columns based on first file's headers
         const autoMap = { ...columnMapping };
+        let foundVenueCode = false;
+        let foundVenueName = false;
+
         firstHeaders.forEach((name, idx) => {
           const lower = name.toLowerCase().replace(/[\s_-]/g, '');
-          if (lower.includes('centrecode') || lower.includes('centercode') || lower.includes('venuecode') || lower.includes('venueid')) autoMap.centreCode = idx;
-          if (lower.includes('centrename') || lower.includes('venuename') || (lower.includes('venue') && !lower.includes('code') && !lower.includes('id')) || lower.includes('collegename')) autoMap.centreName = idx;
+          
+          // Prioritize Venue Code / Centre Code
+          if (lower === 'venuecode' || lower === 'centrecode' || lower === 'centercode') {
+            autoMap.centreCode = idx;
+            foundVenueCode = true;
+          } else if (!foundVenueCode && (lower.includes('venuecode') || lower.includes('centrecode') || lower.includes('centercode'))) {
+            autoMap.centreCode = idx;
+            foundVenueCode = true;
+          } else if (!foundVenueCode && lower.includes('venueid')) {
+            autoMap.centreCode = idx;
+          }
+
+          // Prioritize Venue Name / Centre Name
+          if (lower === 'venuename' || lower === 'centrename' || lower === 'collegename') {
+            autoMap.centreName = idx;
+            foundVenueName = true;
+          } else if (!foundVenueName && (lower.includes('venuename') || lower.includes('centrename') || lower.includes('collegename'))) {
+            autoMap.centreName = idx;
+            foundVenueName = true;
+          } else if (!foundVenueName && lower.includes('venue') && !lower.includes('code') && !lower.includes('id')) {
+            autoMap.centreName = idx;
+          }
+
           if (lower.includes('coursecode') || (lower.includes('subject') && lower.includes('code'))) autoMap.courseCode = idx;
           if (lower.includes('coursename') || lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('subjecttitle')) autoMap.courseName = idx;
           if (lower.includes('date')) autoMap.date = idx;
