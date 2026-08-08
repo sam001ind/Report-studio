@@ -214,7 +214,6 @@ const QpLabelPage = () => {
     // Center alignment point: X = 421 pt.
 
     // A. Logo Header (Centered)
-    // Width: 320 pt, Height: 90 pt.
     const logoWidth = 320;
     const logoHeight = 90;
     const logoX = (842 - logoWidth) / 2; // 261 pt
@@ -233,7 +232,7 @@ const QpLabelPage = () => {
     const startX = 121;
     const startY = 165;
     const tableWidth = 600;
-    const rowHeight = 22;
+    const rowHeight = 26; // Increased from 22 for visual breathing room
 
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(1);
@@ -242,9 +241,9 @@ const QpLabelPage = () => {
     doc.rect(startX, startY, tableWidth, rowHeight);
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('CENTRE CODE AND NAME', startX + 8, startY + 14);
-    doc.text(data.centreCode, startX + 160, startY + 14);
-    doc.text(data.centreName, startX + 230, startY + 14);
+    doc.text('CENTRE CODE AND NAME', startX + 8, startY + 17);
+    doc.text(data.centreCode, startX + 160, startY + 17);
+    doc.text(data.centreName, startX + 230, startY + 17);
 
     // Grid Verticals for Row 1
     doc.line(startX + 150, startY, startX + 150, startY + rowHeight);
@@ -253,19 +252,19 @@ const QpLabelPage = () => {
     // Grid Row 2: DAY, DATE, TIME
     const row2Y = startY + rowHeight;
     doc.rect(startX, row2Y, tableWidth, rowHeight);
-    doc.text('DAY', startX + 8, row2Y + 14);
+    doc.text('DAY', startX + 8, row2Y + 17);
     doc.setFont('Helvetica', 'normal');
-    doc.text(data.day, startX + 68, row2Y + 14);
+    doc.text(data.day, startX + 68, row2Y + 17);
 
     doc.setFont('Helvetica', 'bold');
-    doc.text('DATE', startX + 188, row2Y + 14);
+    doc.text('DATE', startX + 188, row2Y + 17);
     doc.setFont('Helvetica', 'normal');
-    doc.text(data.date, startX + 238, row2Y + 14);
+    doc.text(data.date, startX + 238, row2Y + 17);
 
     doc.setFont('Helvetica', 'bold');
-    doc.text('TIME', startX + 368, row2Y + 14);
+    doc.text('TIME', startX + 368, row2Y + 17);
     doc.setFont('Helvetica', 'normal');
-    doc.text(data.time, startX + 418, row2Y + 14);
+    doc.text(data.time, startX + 418, row2Y + 17);
 
     // Grid Verticals for Row 2
     doc.line(startX + 60, row2Y, startX + 60, row2Y + rowHeight); // DAY label end
@@ -278,8 +277,8 @@ const QpLabelPage = () => {
     const row3Y = row2Y + rowHeight;
     doc.rect(startX, row3Y, tableWidth, rowHeight);
     doc.setFont('Helvetica', 'bold');
-    doc.text('SUBJECT', startX + 8, row3Y + 14);
-    doc.text(`${data.courseCode} - ${data.courseName}`, startX + 160, row3Y + 14);
+    doc.text('SUBJECT', startX + 8, row3Y + 17);
+    doc.text(`${data.courseCode} - ${data.courseName}`, startX + 160, row3Y + 17);
 
     // Vertical line for Row 3
     doc.line(startX + 150, row3Y, startX + 150, row3Y + rowHeight);
@@ -287,11 +286,11 @@ const QpLabelPage = () => {
     // Grid Row 4: NO. OF COPIES, COVER NUMBER
     const row4Y = row3Y + rowHeight;
     doc.rect(startX, row4Y, tableWidth, rowHeight);
-    doc.text('NO. OF COPIES', startX + 8, row4Y + 14);
+    doc.text('NO. OF COPIES', startX + 8, row4Y + 17);
 
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('COVER NUMBER', startX + 230, row4Y + 14);
+    doc.text('COVER NUMBER', startX + 230, row4Y + 17);
 
     // Verticals for Row 4
     doc.line(startX + 150, row4Y, startX + 150, row4Y + rowHeight);
@@ -317,15 +316,14 @@ const QpLabelPage = () => {
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(11);
     doc.text('We hereby certify that we have examined this cover and satisfied ourselves that the seals are intact and that it was opened at', startX, certY + 30);
-    doc.line(startX, certY + 54, startX + 180, certY + 54);
-    doc.text('A.M/P.M in our presence.', startX + 185, certY + 50);
+    doc.text('______________________________________ A.M/P.M in our presence.', startX, certY + 52);
 
     // G. Signatures Block
-    const signY = certY + 85;
+    const signY = certY + 95;
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('INVIGILATOR', startX, signY);
-    doc.text('ADDL.CHIEF SUPERINTENDENT', startX + 440, signY);
+    doc.text('ADDL.CHIEF SUPERINTENDENT', startX + tableWidth, signY, { align: 'right' });
 
     // Invigilator signature lines
     doc.setFont('Helvetica', 'normal');
@@ -337,7 +335,7 @@ const QpLabelPage = () => {
     doc.setFont('Helvetica', 'bold');
     doc.text('PLACE:', startX, footerY);
     doc.text('DATE:', startX, footerY + 22);
-    doc.text('CHIEF SUPERINTENDENT', startX + 460, footerY + 22);
+    doc.text('CHIEF SUPERINTENDENT', startX + tableWidth, footerY + 22, { align: 'right' });
   };
 
   // Download all combined in one Landscape PDF
