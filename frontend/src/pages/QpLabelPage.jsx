@@ -235,24 +235,24 @@ const QpLabelPage = () => {
     doc.rect(startX, row2Y, tableWidth, rowHeight);
     doc.text('DAY', startX + 8, row2Y + 14);
     doc.setFont('Helvetica', 'normal');
-    doc.text(data.day, startX + 160, row2Y + 14);
+    doc.text(data.day, startX + 68, row2Y + 14);
 
     doc.setFont('Helvetica', 'bold');
-    doc.text('DATE', startX + 230, row2Y + 14);
+    doc.text('DATE', startX + 188, row2Y + 14);
     doc.setFont('Helvetica', 'normal');
-    doc.text(data.date, startX + 290, row2Y + 14);
+    doc.text(data.date, startX + 238, row2Y + 14);
 
     doc.setFont('Helvetica', 'bold');
-    doc.text('TIME', startX + 410, row2Y + 14);
+    doc.text('TIME', startX + 368, row2Y + 14);
     doc.setFont('Helvetica', 'normal');
-    doc.text(data.time, startX + 460, row2Y + 14);
+    doc.text(data.time, startX + 418, row2Y + 14);
 
     // Grid Verticals for Row 2
-    doc.line(startX + 150, row2Y, startX + 150, row2Y + rowHeight); // Day label end
-    doc.line(startX + 220, row2Y, startX + 220, row2Y + rowHeight); // Date label start
-    doc.line(startX + 280, row2Y, startX + 280, row2Y + rowHeight); // Date value start
-    doc.line(startX + 400, row2Y, startX + 400, row2Y + rowHeight); // Time label start
-    doc.line(startX + 450, row2Y, startX + 450, row2Y + rowHeight); // Time value start
+    doc.line(startX + 60, row2Y, startX + 60, row2Y + rowHeight); // DAY label end
+    doc.line(startX + 180, row2Y, startX + 180, row2Y + rowHeight); // DAY value end
+    doc.line(startX + 230, row2Y, startX + 230, row2Y + rowHeight); // DATE label start
+    doc.line(startX + 360, row2Y, startX + 360, row2Y + rowHeight); // DATE value start
+    doc.line(startX + 410, row2Y, startX + 410, row2Y + rowHeight); // TIME label start
 
     // Grid Row 3: SUBJECT
     const row3Y = row2Y + rowHeight;
@@ -268,10 +268,6 @@ const QpLabelPage = () => {
     const row4Y = row3Y + rowHeight;
     doc.rect(startX, row4Y, tableWidth, rowHeight);
     doc.text('NO. OF COPIES', startX + 8, row4Y + 14);
-    
-    doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(`NC: ${data.studentCount}`, startX + 160, row4Y + 14);
 
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(10);
@@ -594,10 +590,10 @@ const QpLabelPage = () => {
                   
                   <div style={{ display: 'flex', borderBottom: '1px solid black' }}>
                     <div style={{ width: '60px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>DAY</div>
-                    <div style={{ width: '130px', padding: '6px', borderRight: '1px solid black' }}>{labelGroups[activeLabelIndex].day}</div>
-                    <div style={{ width: '60px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>DATE</div>
-                    <div style={{ width: '110px', padding: '6px', borderRight: '1px solid black' }}>{labelGroups[activeLabelIndex].date}</div>
-                    <div style={{ width: '60px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>TIME</div>
+                    <div style={{ width: '120px', padding: '6px', borderRight: '1px solid black' }}>{labelGroups[activeLabelIndex].day}</div>
+                    <div style={{ width: '50px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>DATE</div>
+                    <div style={{ width: '130px', padding: '6px', borderRight: '1px solid black' }}>{labelGroups[activeLabelIndex].date}</div>
+                    <div style={{ width: '50px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>TIME</div>
                     <div style={{ flex: 1, padding: '6px' }}>{labelGroups[activeLabelIndex].time}</div>
                   </div>
 
@@ -610,7 +606,7 @@ const QpLabelPage = () => {
 
                   <div style={{ display: 'flex' }}>
                     <div style={{ width: '150px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>NO. OF COPIES</div>
-                    <div style={{ width: '70px', padding: '6px', borderRight: '1px solid black', color: '#888' }}>NC: {labelGroups[activeLabelIndex].studentCount}</div>
+                    <div style={{ width: '70px', padding: '6px', borderRight: '1px solid black' }}></div>
                     <div style={{ width: '150px', padding: '6px', borderRight: '1px solid black', fontWeight: 'bold' }}>COVER NUMBER</div>
                     <div style={{ flex: 1, padding: '6px' }}></div>
                   </div>
