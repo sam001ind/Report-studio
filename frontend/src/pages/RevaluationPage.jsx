@@ -26,13 +26,14 @@ const RevaluationPage = () => {
     if (!user) return;
     setLoadingDb(true);
     try {
+      // Fetch only metadata and rowCount to prevent downloading massive data arrays on page load
       const { data, error } = await supabase
         .from('configs')
-        .select('*')
+        .select('id, name, created_at, config_data->rowCount')
+        .eq('config_data->>isDataset', 'true')
         .eq('user_id', user.id);
       if (error) throw error;
-      const datasets = (data || []).filter(c => c.config_data?.isDataset);
-      setSavedDatasets(datasets);
+      setSavedDatasets(data || []);
     } catch (err) {
       console.error("Error fetching datasets:", err);
     } finally {
@@ -253,6 +254,7 @@ const RevaluationPage = () => {
     setIsSaving(true);
     const payload = {
       isDataset: true,
+      rowCount: mergedData.length,
       dataset: {
         columns: mergedCols,
         rows: mergedData
@@ -281,11 +283,34 @@ const RevaluationPage = () => {
     }
   };
 
-  const handleLoadSavedDataset = (dataset) => {
-    if (!dataset) return;
-    setMergedCols(dataset.columns || []);
-    setMergedData(dataset.rows || []);
-    alert(`Loaded database dataset successfully! See preview below.`);
+  const handleLoadSavedDataset = async (datasetInfo) => {
+    if (!datasetInfo) return;
+    setLoadingDb(true);
+    try {
+      // Fetch full dataset JSON on demand
+      const { data, error } = await supabase
+        .from('configs')
+        .select('config_data')
+        .eq('id', datasetInfo.id)
+        .single();
+        
+      if (error) throw error;
+      
+      const configData = data?.config_data;
+      const datasetObj = configData?.dataset;
+      
+      if (datasetObj) {
+        setMergedCols(datasetObj.columns || []);
+        setMergedData(datasetObj.rows || []);
+        alert(`Loaded database dataset "${datasetInfo.name}" successfully! See preview below.`);
+      } else {
+        alert("Selected config is not a valid dataset.");
+      }
+    } catch (err) {
+      alert("Error loading dataset: " + err.message);
+    } finally {
+      setLoadingDb(false);
+    }
   };
 
   const handleDeleteSavedDataset = async (id) => {
@@ -406,18 +431,21 @@ const RevaluationPage = () => {
             <div style={{ fontSize: '13px', color: 'var(--muted)', background: 'var(--bg)', padding: '12px', borderRadius: '6px', textAlign: 'center' }}>No saved tables found.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
-              {savedDatasets.map(d => (
-                <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line)', fontSize: '12px' }}>
-                  <div style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '60%' }}>
-                    <span style={{ fontWeight: 600, display: 'block' }}>💾 {d.name}</span>
-                    <span style={{ color: 'var(--muted)', fontSize: '11px' }}>{d.config_data?.dataset?.rows?.length || 0} rows</span>
+              {savedDatasets.map(d => {
+                const rowCount = d.rowCount !== undefined ? d.rowCount : (d.config_data?.rowCount !== undefined ? d.config_data.rowCount : (d.config_data?.dataset?.rows?.length || 0));
+                return (
+                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line)', fontSize: '12px' }}>
+                    <div style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+                      <span style={{ fontWeight: 600, display: 'block' }}>💾 {d.name}</span>
+                      <span style={{ color: 'var(--muted)', fontSize: '11px' }}>{rowCount} rows</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => handleLoadSavedDataset(d)} className="secondary" style={{ padding: '4px 8px', fontSize: '11px', borderColor: 'var(--accent)', color: 'var(--accent)' }}>Load</button>
+                      <button onClick={() => handleDeleteSavedDataset(d.id)} className="danger" style={{ padding: '4px 8px', fontSize: '11px' }}>Delete</button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => handleLoadSavedDataset(d.config_data?.dataset)} className="secondary" style={{ padding: '4px 8px', fontSize: '11px', borderColor: 'var(--accent)', color: 'var(--accent)' }}>Load</button>
-                    <button onClick={() => handleDeleteSavedDataset(d.id)} className="danger" style={{ padding: '4px 8px', fontSize: '11px' }}>Delete</button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

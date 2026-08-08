@@ -15,19 +15,18 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
   const fetchLibrary = async () => {
     setLoading(true);
     
-    // Fetch Configs
+    // Fetch Configs (excluding datasets database-side to prevent heavy network payloads)
     const { data: configsData, error: configsErr } = await supabase
       .from('configs')
-      .select('*')
+      .select('id, name, created_at, config_data')
+      .not('config_data->>isDataset', 'eq', 'true')
       .eq('user_id', user.id);
 
     if (configsErr) {
       console.error("Error fetching configs:", configsErr);
       alert("Error fetching configs: " + configsErr.message);
     } else {
-      const allConfigs = configsData || [];
-      const normalConfigs = allConfigs.filter(c => !c.config_data?.isDataset);
-      setConfigs(normalConfigs);
+      setConfigs(configsData || []);
     }
 
     // Fetch Templates
