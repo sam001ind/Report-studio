@@ -43,12 +43,12 @@ const QpStatementPage = () => {
 
   // Default PDF Columns matching screenshot: SL No, Date, Course, NC, QP, LP
   const [tableColumns, setTableColumns] = useState([
-    { id: 'slNo', label: 'SL No', width: 45, align: 'center', fontSize: 9.5 },
-    { id: 'date', label: 'Date', width: 140, align: 'left', fontSize: 9.5 },
-    { id: 'course', label: 'Course', width: 250, align: 'left', fontSize: 9.5 },
-    { id: 'nc', label: 'NC', width: 45, align: 'left', fontSize: 9.5 },
-    { id: 'qp', label: 'QP', width: 45, align: 'center', fontSize: 9.5 },
-    { id: 'lp', label: 'LP', width: 45, align: 'center', fontSize: 9.5 }
+    { id: 'slNo', label: 'SL No', width: 35, align: 'center', fontSize: 9.5 },
+    { id: 'date', label: 'Date', width: 110, align: 'left', fontSize: 9.5 },
+    { id: 'course', label: 'Course', width: 220, align: 'left', fontSize: 9.5 },
+    { id: 'nc', label: 'NC', width: 40, align: 'left', fontSize: 9.5 },
+    { id: 'qp', label: 'QP', width: 55, align: 'center', fontSize: 9.5 },
+    { id: 'lp', label: 'LP', width: 55, align: 'center', fontSize: 9.5 }
   ]);
 
   // Report generation mode: 'venue' (Separate slip per center) vs 'consolidated' (Date-wise summary)
