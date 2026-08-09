@@ -5,17 +5,13 @@ import {
   LayoutTemplate, 
   TableProperties, 
   CalendarDays, 
-  LogIn, 
-  LogOut, 
   FileText, 
   CalendarRange 
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
 
   return (
     <div style={styles.container}>
@@ -30,16 +26,6 @@ const LandingPage = () => {
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <ThemeToggle />
-          
-          {user ? (
-            <button style={{...styles.secondaryBtn, padding: '8px 16px'}} onClick={() => signOut()}>
-              <LogOut size={18} style={{marginRight: '8px'}} /> Sign Out
-            </button>
-          ) : (
-            <button style={{...styles.primaryBtn, padding: '8px 16px'}} onClick={() => navigate('/auth')}>
-              <LogIn size={18} style={{marginRight: '8px'}} /> Sign In
-            </button>
-          )}
         </div>
       </nav>
 
