@@ -694,6 +694,105 @@ const DataComparisonPage = () => {
     });
   }, [comparisonResults, activeResultTab, searchQuery]);
 
+  // Helper for tab names
+  const getTabLabel = (tabId) => {
+    switch(tabId) {
+      case 'exact': return 'Exact Matches';
+      case 'partial': return 'Partial Matches';
+      case 'discrepancy': return 'Value Discrepancies';
+      case 'unmatched_a': return 'Unmatched Left (A)';
+      case 'unmatched_b': return 'Unmatched Right (B)';
+      case 'duplicates': return 'Duplicates';
+      default: return 'All Records';
+    }
+  };
+
+  // EXPORT CURRENT ACTIVE TAB DIRECTLY AS EXCEL
+  const exportCurrentTabExcel = () => {
+    if (!comparisonResults) return;
+
+    const wb = XLSX.utils.book_new();
+    let sheetName = 'Records';
+    let dataToExport = [];
+
+    if (activeResultTab === 'all') {
+      sheetName = 'All_Compared_Records';
+      dataToExport = [
+        ...comparisonResults.exactMatches.map(m => ({ "Match_Status": m.status, "Confidence_%": m.confidence, ...m.rowA })),
+        ...comparisonResults.partialMatches.map(m => {
+          const row = { "Match_Status": m.status, "Confidence_%": m.confidence, "Match_Type": m.matchType };
+          Object.keys(m.rowA || {}).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
+          Object.keys(m.rowB || {}).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
+          return row;
+        }),
+        ...comparisonResults.valueDiscrepancies.map(m => {
+          const row = { "Match_Status": m.status, "Confidence_%": m.confidence, "Discrepancies": m.discrepancies.map(d => `${d.fieldA} vs ${d.fieldB}`).join('; ') };
+          Object.keys(m.rowA || {}).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
+          Object.keys(m.rowB || {}).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
+          return row;
+        }),
+        ...comparisonResults.unmatchedA.map(u => ({ "Match_Status": u.status, ...u.rowA })),
+        ...comparisonResults.unmatchedB.map(u => ({ "Match_Status": u.status, ...u.rowB }))
+      ];
+    } else if (activeResultTab === 'exact') {
+      sheetName = 'Exact_Matches';
+      dataToExport = comparisonResults.exactMatches.map((m, idx) => ({
+        "Match_ID": idx + 1,
+        "Status": m.status,
+        "Confidence_%": m.confidence,
+        ...m.rowA
+      }));
+    } else if (activeResultTab === 'partial') {
+      sheetName = 'Partial_Matches';
+      dataToExport = comparisonResults.partialMatches.map((m, idx) => {
+        const row = {
+          "Match_ID": idx + 1,
+          "Status": m.status,
+          "Confidence_%": m.confidence,
+          "Match_Explanation": m.matchType
+        };
+        Object.keys(m.rowA || {}).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
+        Object.keys(m.rowB || {}).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
+        return row;
+      });
+    } else if (activeResultTab === 'discrepancy') {
+      sheetName = 'Value_Discrepancies';
+      dataToExport = comparisonResults.valueDiscrepancies.map((m, idx) => {
+        const row = {
+          "Match_ID": idx + 1,
+          "Status": m.status,
+          "Confidence_%": m.confidence,
+          "Discrepancies": m.discrepancies.map(d => `${d.fieldA}("${d.valA}" vs "${d.valB}")`).join('; ')
+        };
+        Object.keys(m.rowA || {}).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
+        Object.keys(m.rowB || {}).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
+        return row;
+      });
+    } else if (activeResultTab === 'unmatched_a') {
+      sheetName = 'Unmatched_Left_A';
+      dataToExport = comparisonResults.unmatchedA.map(u => u.rowA);
+    } else if (activeResultTab === 'unmatched_b') {
+      sheetName = 'Unmatched_Right_B';
+      dataToExport = comparisonResults.unmatchedB.map(u => u.rowB);
+    } else if (activeResultTab === 'duplicates') {
+      sheetName = 'Duplicates';
+      dataToExport = [
+        ...comparisonResults.duplicatesA.map(d => ({ "Origin": "Dataset A", ...d })),
+        ...comparisonResults.duplicatesB.map(d => ({ "Origin": "Dataset B", ...d }))
+      ];
+    }
+
+    if (dataToExport.length === 0) {
+      alert(`No records available to export for "${getTabLabel(activeResultTab)}".`);
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+    XLSX.writeFile(wb, `${sheetName}_Report.xlsx`);
+    setStatus(`Downloaded ${sheetName}_Report.xlsx successfully!`, 'success');
+  };
+
   // EXPORT 1: Master Multi-Sheet Excel Workbook
   const exportMasterExcelWorkbook = () => {
     if (!comparisonResults) return;
@@ -1595,12 +1694,22 @@ const DataComparisonPage = () => {
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button 
-                  onClick={() => setCurrentStep(4)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+                  onClick={exportCurrentTabExcel}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '9px 16px', background: 'var(--accent)', color: 'white' }}
+                  title="Download records in currently selected tab as Excel spreadsheet"
                 >
-                  <Download size={16} /> Open Export Studio
+                  <Download size={15} /> Download {getTabLabel(activeResultTab)} (.xlsx)
+                </button>
+
+                <button 
+                  className="secondary"
+                  onClick={exportMasterExcelWorkbook}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '9px 16px' }}
+                  title="Download full multi-sheet workbook"
+                >
+                  <FileSpreadsheet size={15} /> Master Excel (.xlsx)
                 </button>
               </div>
             </div>
