@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import StudioLayout from './pages/StudioLayout';
@@ -14,6 +15,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { startSupabaseKeepAlive } from './utils/supabaseKeepAlive';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -22,6 +24,11 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  useEffect(() => {
+    const stopKeepAlive = startSupabaseKeepAlive(5 * 60 * 1000); // Heartbeat ping every 5 minutes
+    return () => stopKeepAlive();
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
