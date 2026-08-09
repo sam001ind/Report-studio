@@ -3,8 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "npm --prefix frontend run dev",
-    "build": "cd frontend && npm install && npm run build",
-    "lint": "npm --prefix frontend run lint"
+    "dev": "node -e \"const { execSync } = require('child_process'); execSync(require('fs').existsSync('frontend') ? 'cd frontend && npm run dev' : 'vite', { stdio: 'inherit' })\"",
+    "build": "node -e \"const { execSync } = require('child_process'); execSync(require('fs').existsSync('frontend') ? 'cd frontend && npm install && npm run build' : 'vite build', { stdio: 'inherit' })\"",
+    "lint": "node -e \"const { execSync } = require('child_process'); execSync(require('fs').existsSync('frontend') ? 'cd frontend && npm run lint' : 'eslint .', { stdio: 'inherit' })\""
   }
 }
