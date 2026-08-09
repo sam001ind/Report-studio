@@ -11,3 +11,9 @@ node_modules/
 # Splitter Temporary Files
 Excel Lot Splitter Source Code.zip
 extracted_splitter/
+
+# Build & Agent files
+dist/
+.agents/
+skills-lock.json
+.vercel/

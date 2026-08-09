@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
-import { useAuth } from '../context/AuthContext';
-import { Settings, Download, Eye, FileText, Plus, Trash2, AlignCenter, AlignLeft, AlignRight, Bold, Type } from 'lucide-react';
+import { Settings, Download, Eye, FileText, Plus, Trash2, AlignCenter, AlignLeft, AlignRight, Bold } from 'lucide-react';
 
 const SllNominalPage = () => {
-  const { user } = useAuth();
   
   // File and sheet states
   const [selectedFile, setSelectedFile] = useState(null);
@@ -70,18 +68,20 @@ const SllNominalPage = () => {
           setHeaders(firstRow);
 
           // Try to auto-detect columns
-          const autoMap = { ...columnMapping };
-          firstRow.forEach((name, idx) => {
-            const lower = name.toLowerCase();
-            if (lower.includes('programme') || lower.includes('program')) autoMap.programme = idx;
-            if (lower.includes('name')) autoMap.name = idx;
-            if (lower.includes('seat') || lower.includes('reg') || lower.includes('register') || lower.includes('roll')) autoMap.seatNo = idx;
-            if (lower.includes('venuecode') || lower.includes('centercode') || lower.includes('collegecode')) autoMap.venueCode = idx;
-            if (lower.includes('venuename') || lower.includes('centername') || lower.includes('collegename') || (lower.includes('venue') && !lower.includes('code'))) autoMap.venueName = idx;
-            if (lower.includes('coursecode') || lower.includes('subjectcode') || (lower.includes('course') && !lower.includes('title') && !lower.includes('name'))) autoMap.courseCode = idx;
-            if (lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('coursename') || lower.includes('title')) autoMap.courseTitle = idx;
+          setColumnMapping(prev => {
+            const autoMap = { ...prev };
+            firstRow.forEach((name, idx) => {
+              const lower = name.toLowerCase();
+              if (lower.includes('programme') || lower.includes('program')) autoMap.programme = idx;
+              if (lower.includes('name')) autoMap.name = idx;
+              if (lower.includes('seat') || lower.includes('reg') || lower.includes('register') || lower.includes('roll')) autoMap.seatNo = idx;
+              if (lower.includes('venuecode') || lower.includes('centercode') || lower.includes('collegecode')) autoMap.venueCode = idx;
+              if (lower.includes('venuename') || lower.includes('centername') || lower.includes('collegename') || (lower.includes('venue') && !lower.includes('code'))) autoMap.venueName = idx;
+              if (lower.includes('coursecode') || lower.includes('subjectcode') || (lower.includes('course') && !lower.includes('title') && !lower.includes('name'))) autoMap.courseCode = idx;
+              if (lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('coursename') || lower.includes('title')) autoMap.courseTitle = idx;
+            });
+            return autoMap;
           });
-          setColumnMapping(autoMap);
         }
       }
     } else {
@@ -314,8 +314,8 @@ const SllNominalPage = () => {
     const group = comboGroups[comboKey];
     if (!group) return;
     const doc = generateVenuePDF(group.programme, group.venue, group.students);
-    const safeProg = group.programme.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
-    const safeVenue = group.venue.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+    const safeProg = String(group.programme).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
+    const safeVenue = String(group.venue).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
     doc.save(`${safeProg}_${safeVenue}.pdf`);
   };
 
@@ -334,8 +334,8 @@ const SllNominalPage = () => {
         
         // Output PDF to Blob
         const pdfBlob = doc.output('blob');
-        const safeProg = group.programme.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
-        const safeVenue = group.venue.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+        const safeProg = String(group.programme).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
+        const safeVenue = String(group.venue).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
         zip.file(`${safeProg}_${safeVenue}.pdf`, pdfBlob);
       });
 
@@ -404,6 +404,7 @@ const SllNominalPage = () => {
 
       <h2>Venue-Wise Nominal Roll</h2>
       <p className="subtitle">Compile nominal roll lists grouped by unique combinations of Programme + Venue. Seat numbers with multiple subjects are automatically merged.</p>
+<p className="subtitle" style={{ marginTop: '8px', color: 'var(--muted)' }}>Upload one or more <strong>Event wise Pre exam data</strong> files (Excel <code>.xlsx</code>, <code>.xls</code>, <code>.xlsm</code>, <code>.csv</code>) or a <code>.zip</code> containing multiple Excel files. If a ZIP is uploaded, all Excel files will be merged before processing.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>
         {/* Settings Panel */}
@@ -420,7 +421,7 @@ const SllNominalPage = () => {
             )}
             <input 
               type="file" 
-              accept=".xlsx, .xls, .xlsm, .csv" 
+              accept=".xlsx, .xls, .xlsm, .csv, .zip" 
               onChange={handleFileChange} 
               style={{
                 position: 'absolute',

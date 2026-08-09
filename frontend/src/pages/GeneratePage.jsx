@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
 const PAGE_SIZES = {
@@ -94,6 +94,9 @@ const GeneratePage = ({ dataset }) => {
     if (generatedPages.length === 0) return alert("Generate a report first.");
     const container = document.querySelector('.print-container');
     if (!container) return;
+    const activeTemplate = templates.find(t => t.id === selectedTemplateId) || { pageSize: 'A4', orientation: 'portrait' };
+    const pSize = activeTemplate.pageSize === 'Letter' ? 'letter' : (activeTemplate.pageSize || 'a4').toLowerCase();
+    const pOrient = activeTemplate.orientation || 'portrait';
     
     const htmlContent = `
       <!DOCTYPE html>
@@ -109,7 +112,7 @@ const GeneratePage = ({ dataset }) => {
             body { background: white; padding: 0; }
             .preview-page { box-shadow: none; border: none; margin: 0; transform: none !important; }
             @page { 
-              size: ${template.pageSize === 'Letter' ? 'letter' : template.pageSize.toLowerCase()} ${template.orientation}; 
+              size: ${pSize} ${pOrient}; 
               margin: 0; 
             }
           }
@@ -205,7 +208,7 @@ const GeneratePage = ({ dataset }) => {
         </div>
       ) : (
         <div className="print-container" style={{ background: '#e5e7eb', padding: '40px', borderRadius: '12px', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px', overflowY: 'auto' }}>
-          {generatedPages.map((page, idx) => (
+          {generatedPages.map((page) => (
             <div 
               key={page.id} 
               className="preview-page" 

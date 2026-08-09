@@ -1,16 +1,21 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileDown, FileStack, LayoutTemplate, Zap, ArrowRight, TableProperties, CalendarDays, LogIn, LogOut, Shield, FileText, CalendarRange } from 'lucide-react';
+import { 
+  FileDown, 
+  FileStack, 
+  LayoutTemplate, 
+  TableProperties, 
+  CalendarDays, 
+  LogIn, 
+  LogOut, 
+  FileText, 
+  CalendarRange 
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { user, profile, permissions, signOut } = useAuth();
-  
-  // Admins see everything. Normal users see what they have permission for.
-  const canSeeStudio = profile?.is_admin || permissions?.can_access_studio;
-  const canSeeScheduler = profile?.is_admin || permissions?.can_access_scheduler;
+  const { user, signOut } = useAuth();
 
   return (
     <div style={styles.container}>
@@ -26,11 +31,6 @@ const LandingPage = () => {
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <ThemeToggle />
           
-          {profile?.is_admin && (
-            <button style={{...styles.secondaryBtn, padding: '8px 16px'}} onClick={() => navigate('/admin')}>
-              <Shield size={18} style={{marginRight: '8px'}} /> Admin
-            </button>
-          )}
           {user ? (
             <button style={{...styles.secondaryBtn, padding: '8px 16px'}} onClick={() => signOut()}>
               <LogOut size={18} style={{marginRight: '8px'}} /> Sign Out
@@ -56,94 +56,77 @@ const LandingPage = () => {
         </section>
 
         <section style={styles.features}>
-          {canSeeStudio && (
-            <div 
-              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/studio')}
-            >
-              <div style={styles.featureIcon}><LayoutTemplate size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>Report Studio</h3>
-              <p style={styles.featureText}>Build custom data-driven templates and generate hundreds of printable reports in seconds.</p>
-            </div>
-          )}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+            onClick={() => navigate('/studio')}
+          >
+            <div style={styles.featureIcon}><LayoutTemplate size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Report Studio</h3>
+            <p style={styles.featureText}>Build custom data-driven templates and generate hundreds of printable reports in seconds.</p>
+          </div>
 
-          {canSeeStudio && (
-            <div 
-              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/revaluation')}
-            >
-              <div style={styles.featureIcon}><TableProperties size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>Revaluation</h3>
-              <p style={styles.featureText}>Merge multiple application reports with result sheets to generate combined datasets and final PDFs.</p>
-            </div>
-          )}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+            onClick={() => navigate('/revaluation')}
+          >
+            <div style={styles.featureIcon}><TableProperties size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Revaluation</h3>
+            <p style={styles.featureText}>Merge multiple application reports with result sheets to generate combined datasets and final PDFs.</p>
+          </div>
 
-          {canSeeStudio && (
-            <div 
-              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/splitter')}
-            >
-              <div style={styles.featureIcon}><FileDown size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>Excel Lot Splitter</h3>
-              <p style={styles.featureText}>Split a large Excel worksheet into smaller lots/chunks and download them bundled in a ZIP archive.</p>
-            </div>
-          )}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+            onClick={() => navigate('/splitter')}
+          >
+            <div style={styles.featureIcon}><FileDown size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Excel Lot Splitter</h3>
+            <p style={styles.featureText}>Split a large Excel worksheet into smaller lots/chunks and download them bundled in a ZIP archive.</p>
+          </div>
 
-          {canSeeStudio && (
-            <div 
-              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/merger')}
-            >
-              <div style={styles.featureIcon}><FileStack size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>Excel Sheet Merger</h3>
-              <p style={styles.featureText}>Combine multiple Excel sheets into a single document with file origin tracking and custom headers.</p>
-            </div>
-          )}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+            onClick={() => navigate('/merger')}
+          >
+            <div style={styles.featureIcon}><FileStack size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Excel Sheet Merger</h3>
+            <p style={styles.featureText}>Combine multiple Excel sheets into a single document with file origin tracking and custom headers.</p>
+          </div>
 
-          {canSeeStudio && (
-            <div 
-              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/sll-nominal')}
-            >
-              <div style={styles.featureIcon}><FileText size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>Venue-Wise Nominal Roll</h3>
-              <p style={styles.featureText}>Generate venue-wise nominal roll sheets and PDFs with merged student registration cells.</p>
-            </div>
-          )}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+            onClick={() => navigate('/sll-nominal')}
+          >
+            <div style={styles.featureIcon}><FileText size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Venue-Wise Nominal Roll</h3>
+            <p style={styles.featureText}>Generate venue-wise nominal roll sheets and PDFs with merged student registration cells.</p>
+          </div>
           
-          {canSeeStudio && (
-            <div 
-              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/qp-statement')}
-            >
-              <div style={styles.featureIcon}><CalendarRange size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>QP Statement Report</h3>
-              <p style={styles.featureText}>Compile daily printing lists and venue packing slips for examination question papers.</p>
-            </div>
-          )}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+            onClick={() => navigate('/qp-statement')}
+          >
+            <div style={styles.featureIcon}><CalendarRange size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>QP Statement Report</h3>
+            <p style={styles.featureText}>Compile daily printing lists and venue packing slips for examination question papers.</p>
+          </div>
 
-          {canSeeStudio && (
-            <div 
-              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/qp-label')}
-            >
-              <div style={styles.featureIcon}><TableProperties size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>QP Label Generator</h3>
-              <p style={styles.featureText}>Generate packet covers and Question Paper envelope labels sorted by center and subject.</p>
-            </div>
-          )}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+            onClick={() => navigate('/qp-label')}
+          >
+            <div style={styles.featureIcon}><TableProperties size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>QP Label Generator</h3>
+            <p style={styles.featureText}>Generate packet covers and Question Paper envelope labels sorted by center and subject.</p>
+          </div>
 
-          {canSeeScheduler && (
-            <div 
-              style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
-              onClick={() => navigate('/scheduler')}
-            >
-              <div style={styles.featureIcon}><CalendarDays size={24} color="var(--accent)" /></div>
-              <h3 style={styles.featureTitle}>Timetable Scheduler</h3>
-              <p style={styles.featureText}>A dedicated tool to isolate structural blocks, map execution dates, and generate sorted venue logs.</p>
-            </div>
-          )}
-
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
+            onClick={() => navigate('/scheduler')}
+          >
+            <div style={styles.featureIcon}><CalendarDays size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Timetable Scheduler</h3>
+            <p style={styles.featureText}>A dedicated tool to isolate structural blocks, map execution dates, and generate sorted venue logs.</p>
+          </div>
         </section>
       </main>
     </div>

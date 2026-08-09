@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -22,7 +22,7 @@ const RevaluationPage = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   // Fetch saved datasets from configs table
-  const fetchSavedDatasets = async () => {
+  const fetchSavedDatasets = useCallback(async () => {
     if (!user) return;
     setLoadingDb(true);
     try {
@@ -39,11 +39,11 @@ const RevaluationPage = () => {
     } finally {
       setLoadingDb(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchSavedDatasets();
-  }, [user]);
+  }, [fetchSavedDatasets]);
 
   // Parse helper
   const parseFile = (file) => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
@@ -20,7 +20,19 @@ const styles = {
   title: {
     margin: 0,
     fontSize: '28px',
-    color: 'var(--accent)'
+    fontWeight: 'bold',
+    color: 'var(--accent-color)'
+  },
+  subtitle: {
+    margin: '5px 0 0 0',
+    color: 'var(--text-secondary)'
+  },
+  card: {
+    backgroundColor: 'var(--bg-secondary)',
+    borderRadius: '12px',
+    border: '1px solid var(--border-color)',
+    padding: '24px',
+    boxShadow: '0 8px 30px rgba(0,0,0,0.3)'
   },
   btn: {
     backgroundColor: 'var(--bg-secondary)',
@@ -34,39 +46,55 @@ const styles = {
   table: {
     width: '100%',
     borderCollapse: 'collapse',
-    backgroundColor: 'var(--bg-secondary)',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+    textAlign: 'left'
   },
   th: {
-    textAlign: 'left',
-    padding: '16px',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderBottom: '1px solid var(--border)',
-    color: 'var(--muted)'
+    padding: '12px 16px',
+    borderBottom: '1px solid var(--border-color)',
+    color: 'var(--text-secondary)',
+    fontSize: '14px',
+    textTransform: 'uppercase'
   },
   td: {
     padding: '16px',
-    borderBottom: '1px solid var(--border)',
+    borderBottom: '1px solid var(--border-color)',
+    fontSize: '15px'
   },
   toggleBtn: (active) => ({
     padding: '6px 12px',
-    borderRadius: '4px',
+    borderRadius: '20px',
     border: 'none',
     cursor: 'pointer',
-    fontWeight: 'bold',
-    backgroundColor: active ? 'var(--accent)' : 'rgba(255,255,255,0.1)',
+    fontWeight: '600',
+    fontSize: '12px',
+    backgroundColor: active ? 'var(--accent-color)' : 'var(--bg-primary)',
     color: active ? 'white' : 'var(--muted)',
     transition: 'all 0.2s'
   })
 };
 
 const AdminDashboard = () => {
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    // Fetch profiles and permissions
+    const { data: profiles, error: profErr } = await supabase.from('user_profiles').select('*');
+    const { data: perms, error: permErr } = await supabase.from('user_permissions').select('*');
+
+    if (!profErr && !permErr) {
+      // Merge them
+      const merged = (profiles || []).map(p => {
+        const userPerms = (perms || []).find(pm => pm.user_id === p.id) || {};
+        return { ...p, ...userPerms };
+      });
+      setUsers(merged);
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     // If not loaded yet, just wait.
@@ -80,24 +108,7 @@ const AdminDashboard = () => {
     }
 
     fetchUsers();
-  }, [profile]);
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    // Fetch profiles and permissions
-    const { data: profiles, error: profErr } = await supabase.from('user_profiles').select('*');
-    const { data: perms, error: permErr } = await supabase.from('user_permissions').select('*');
-
-    if (!profErr && !permErr) {
-      // Merge them
-      const merged = profiles.map(p => {
-        const userPerms = perms.find(pm => pm.user_id === p.id) || {};
-        return { ...p, ...userPerms };
-      });
-      setUsers(merged);
-    }
-    setLoading(false);
-  };
+  }, [profile, loading, navigate, fetchUsers]);
 
   const togglePermission = async (userId, field, currentValue) => {
     const newValue = !currentValue;

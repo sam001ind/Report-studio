@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -8,11 +8,7 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchLibrary();
-  }, []);
-
-  const fetchLibrary = async () => {
+  const fetchLibrary = useCallback(async () => {
     setLoading(true);
     
     // Fetch Configs (excluding datasets database-side to prevent heavy network payloads)
@@ -24,7 +20,6 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
 
     if (configsErr) {
       console.error("Error fetching configs:", configsErr);
-      alert("Error fetching configs: " + configsErr.message);
     } else {
       setConfigs(configsData || []);
     }
@@ -37,13 +32,16 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
 
     if (templatesErr) {
       console.error("Error fetching templates:", templatesErr);
-      alert("Error fetching templates: " + templatesErr.message);
     } else {
       setTemplates(templatesData || []);
     }
 
     setLoading(false);
-  };
+  }, [user.id]);
+
+  useEffect(() => {
+    fetchLibrary();
+  }, [fetchLibrary]);
 
   const deleteItem = async (table, id) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;

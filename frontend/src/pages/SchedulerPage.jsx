@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
@@ -9,11 +9,12 @@ const SchedulerPage = () => {
   const [stats, setStats] = useState({ rawRows: 0, students: 0, papers: 0 });
   const [rules, setRules] = useState([]);
   const [finalSlots, setFinalSlots] = useState([]);
+  const [paperMap, setPaperMap] = useState(new Map());
   const [hierarchicalMap, setHierarchicalMap] = useState(new Map());
   const [creatorMode, setCreatorMode] = useState('course'); // 'course' | 'group'
   
   // Ref for holding massive datasets without triggering endless re-renders
-  const dataRef = React.useRef({
+  const dataRef = useRef({
     masterDataset: [],
     uniquePrns: new Set(),
     uniquePapers: new Map(),
@@ -103,7 +104,7 @@ const SchedulerPage = () => {
     for (let i = 0; i < rawData.length; i++) {
       const r = rawData[i];
       
-      let entity = "";
+      let entity;
       if (creatorMode === 'group') {
         const groupKey = findRowKey(r, ['group', 'division', 'class', 'batch', 'section']);
         entity = groupKey ? String(r[groupKey]).trim() : "";
@@ -118,7 +119,7 @@ const SchedulerPage = () => {
       if (!entity || !code) continue;
 
       // Strip trailing formatting artifacts/dots
-      code = code.replace(/[.,\s_\-]+$/, ""); 
+      code = code.replace(/[.,\s_-]+$/, ""); 
 
       const trackingKey = `${entity}_${code}`;
       if (!filteringMap.has(trackingKey)) {
@@ -138,14 +139,15 @@ const SchedulerPage = () => {
 
         // Strict Two-Tier Regex Sorter Pass
         strictValidMainGroups.forEach(stemKey => {
-          const stemIndex = code.indexOf(stemKey);
-          if (stemIndex !== -1) {
+          if (code.includes(stemKey)) {
             if (!newHierarchicalMap.has(stemKey)) {
               newHierarchicalMap.set(stemKey, new Set());
             }
-            const remainingPart = code.substring(stemIndex + stemKey.length);
-            const alphaSubMatch = remainingPart.match(/[A-Z]+/); 
-            if (alphaSubMatch && alphaSubMatch[0].length > 0) {
+            // Isolate standard departmental prefix (e.g., MDCENG -> ENG)
+            const alphaSubMatch = code.match(new RegExp(`${stemKey}([A-Z]+)`, 'i'));
+            if (alphaSubMatch && alphaSubMatch[1]) {
+              newHierarchicalMap.get(stemKey).add(alphaSubMatch[1].toUpperCase());
+            } else {
               newHierarchicalMap.get(stemKey).add(alphaSubMatch[0]);
             }
           }
@@ -159,6 +161,8 @@ const SchedulerPage = () => {
       uniquePapers,
       enrollmentMap
     };
+
+    setPaperMap(new Map(uniquePapers));
 
     setStats({
       rawRows: consolidated.length,
@@ -496,7 +500,7 @@ const SchedulerPage = () => {
                     <div key={code} style={{ fontSize: '12px', fontFamily: 'monospace', padding: '4px 0', borderBottom: '1px dashed var(--line)' }}>
                       {code} <br/>
                       <span style={{ fontSize: '10px', color: 'var(--muted)', whiteSpace: 'normal', fontFamily: 'var(--font-family)' }}>
-                        {dataRef.current.uniquePapers.get(code)}
+                        {paperMap.get(code)}
                       </span>
                     </div>
                   ))}

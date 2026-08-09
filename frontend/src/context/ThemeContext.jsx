@@ -1,30 +1,30 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
-const ThemeContext = createContext();
+const ThemeContext = createContext(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider = ({ children }) => {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    const theme = localStorage.getItem('theme');
+    return theme === 'dark';
+  });
 
   useEffect(() => {
-    // Check initial theme on mount
-    const theme = localStorage.getItem('theme');
-    if (theme === 'dark') {
-      setIsDark(true);
+    if (isDark) {
       document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.remove('dark-theme');
     }
-  }, []);
+  }, [isDark]);
 
   const toggleTheme = () => {
-    if (isDark) {
-      document.body.classList.remove('dark-theme');
-      localStorage.setItem('theme', 'light');
-    } else {
-      document.body.classList.add('dark-theme');
-      localStorage.setItem('theme', 'dark');
-    }
-    setIsDark(!isDark);
+    setIsDark(prev => {
+      const next = !prev;
+      localStorage.setItem('theme', next ? 'dark' : 'light');
+      return next;
+    });
   };
 
   return (

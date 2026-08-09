@@ -1,103 +1,148 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
-import { useAuth } from '../context/AuthContext';
-import { Settings, Download, Eye, FileText, Plus, Trash2, AlignCenter, AlignLeft, AlignRight, Bold, HelpCircle } from 'lucide-react';
+import { 
+  Settings, 
+  Download, 
+  FileText, 
+  HelpCircle, 
+  UploadCloud, 
+  FileSpreadsheet, 
+  Archive, 
+  Printer, 
+  CheckCircle2, 
+  Search, 
+  Calendar, 
+  BookOpen, 
+  Users,
+  Sliders,
+  MapPin
+} from 'lucide-react';
 
 const QpStatementPage = () => {
-  const { user } = useAuth();
-  
-  // File and sheet states (supports multiple files)
+
+  // Upload and File states
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [consolidatedRows, setConsolidatedRows] = useState([]);
-  
-  // Column headers and mapping
   const [headers, setHeaders] = useState([]);
+  const [rawRows, setRawRows] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('Ready to upload Excel files.');
+  const [statusType, setStatusType] = useState('normal'); // 'normal' | 'error' | 'success'
+
+  // Header and Configuration settings (Venue-Wise by Default)
+  const [universityName, setUniversityName] = useState('Kannur University');
+  const [branchName, setBranchName] = useState('(Examination Branch)');
+  const [examTitle, setExamTitle] = useState('QP Statement for 1st Semester Degree Private Registration Regular/Supplementary Examination');
+  const [sessionName, setSessionName] = useState('November 2025');
+  const [centerPrefix, setCenterPrefix] = useState('Venue :'); // Default to 'Venue :'
+  const [groupByOption, setGroupByOption] = useState('venue'); // Default to 'venue'
+  const [courseCodeDot, setCourseCodeDot] = useState(true); // "KU3MDCARS202. - Kerala Culture in Arabic Narratives."
+  const [aggregateSameCourse, setAggregateSameCourse] = useState(true); // Sum Student Count if same course & date
+
+  // Column mapping (indices)
   const [columnMapping, setColumnMapping] = useState({
-    eventName: 0,
-    centerCode: 1,
-    centerName: 2,
-    venueCode: 3,
-    venueName: 4,
-    programName: 5,
-    examDate: 6,
-    startTime: 7,
-    endTime: 8,
-    courseCode: 9,
-    courseName: 10,
-    studentCount: 11
+    eventName: -1,
+    venueCode: -1,
+    venueName: -1,
+    centerCode: -1,
+    centerName: -1,
+    programName: -1,
+    examDate: -1,
+    courseStartTime: -1,
+    courseEndTime: -1,
+    courseCode: -1,
+    courseName: -1,
+    studentCount: -1,
+    venueId: -1
   });
 
-  // Dynamic Header Lines matching screenshot formatting
-  const [headerLines, setHeaderLines] = useState([
-    { text: 'Kannur University', fontSize: 16, isBold: true, align: 'center', yOffset: 40 },
-    { text: '(Examination Branch)', fontSize: 12, isBold: true, align: 'center', yOffset: 60 },
-    { text: 'QP Statement for 1st Semester Degree Private Registration Regular/Supplementary Examination', fontSize: 10, isBold: true, align: 'center', yOffset: 78 },
-    { text: 'November 2025', fontSize: 10, isBold: true, align: 'center', yOffset: 92 }
-  ]);
-
-  // Default PDF Columns matching screenshot: SL No, Date, Course, NC, QP, LP
-  const [tableColumns, setTableColumns] = useState([
-    { id: 'slNo', label: 'SL No', width: 35, align: 'center', fontSize: 9.5 },
-    { id: 'date', label: 'Date', width: 110, align: 'left', fontSize: 9.5 },
-    { id: 'course', label: 'Course', width: 220, align: 'left', fontSize: 9.5 },
-    { id: 'nc', label: 'NC', width: 40, align: 'left', fontSize: 9.5 },
-    { id: 'qp', label: 'QP', width: 55, align: 'center', fontSize: 9.5 },
-    { id: 'lp', label: 'LP', width: 55, align: 'center', fontSize: 9.5 }
-  ]);
-
-  // Report generation mode: 'venue' (Separate slip per center) vs 'consolidated' (Date-wise summary)
-  const [reportMode, setReportMode] = useState('venue');
-
-  // Processing states
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('Ready');
-  const [statusType, setStatusType] = useState('normal');
-
-  // Grouped datasets
-  const [consolidatedData, setConsolidatedData] = useState([]);
-  const [venueSlips, setVenueSlips] = useState({});
-  const [activeVenueTab, setActiveVenueTab] = useState('');
-  const [eventNameVal, setEventNameVal] = useState('');
+  // UI Navigation & Filters
+  const [activeGroupKey, setActiveGroupKey] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showConfig, setShowConfig] = useState(false);
 
   const setStatus = (msg, type = 'normal') => {
     setStatusMsg(msg);
     setStatusType(type);
   };
 
-  // Helper function to format Date to 'YYYY-MM-DD DayName'
+  // Helper to format date with Day of Week
   const formatDateWithDay = (dateVal) => {
     if (!dateVal) return '';
     let dateObj;
 
-    // Handle serial dates or direct Dates
-    if (dateVal instanceof Date) {
+    if (dateVal instanceof Date && !isNaN(dateVal)) {
       dateObj = dateVal;
     } else if (typeof dateVal === 'number') {
-      // Excel Serial Date conversion
-      dateObj = new Date((dateVal - 25569) * 86400 * 1000);
+      // Excel serial date format
+      dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
     } else {
-      dateObj = new Date(dateVal);
+      const strVal = String(dateVal).trim();
+      // Try YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}/.test(strVal)) {
+        const parts = strVal.split(/[-T\s]/);
+        dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      } else if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}/.test(strVal)) {
+        // DD/MM/YYYY or DD-MM-YYYY
+        const parts = strVal.split(/[/-]/);
+        dateObj = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+      } else {
+        const parsed = new Date(strVal);
+        if (!isNaN(parsed.getTime())) {
+          dateObj = parsed;
+        } else {
+          return strVal;
+        }
+      }
     }
 
-    if (isNaN(dateObj.getTime())) {
+    if (!dateObj || isNaN(dateObj.getTime())) {
       return String(dateVal).trim();
     }
 
     const yyyy = dateObj.getFullYear();
     const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
     const dd = String(dateObj.getDate()).padStart(2, '0');
-
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayName = days[dateObj.getDay()];
 
     return `${yyyy}-${mm}-${dd} ${dayName}`;
   };
 
-  // Helper function to read Excel rows as Promise
+  // Raw date key for sorting (YYYY-MM-DD)
+  const getSortableDate = (dateVal) => {
+    if (!dateVal) return '9999-99-99';
+    let dateObj;
+    if (dateVal instanceof Date && !isNaN(dateVal)) {
+      dateObj = dateVal;
+    } else if (typeof dateVal === 'number') {
+      dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+    } else {
+      const strVal = String(dateVal).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(strVal)) {
+        const parts = strVal.split(/[-T\s]/);
+        dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      } else if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}/.test(strVal)) {
+        const parts = strVal.split(/[/-]/);
+        dateObj = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+      } else {
+        const parsed = new Date(strVal);
+        if (!isNaN(parsed.getTime())) {
+          dateObj = parsed;
+        }
+      }
+    }
+    if (!dateObj || isNaN(dateObj.getTime())) return String(dateVal);
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // Helper to read excel file as ArrayBuffer
   const readExcelFile = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -122,378 +167,558 @@ const QpStatementPage = () => {
     });
   };
 
+  // Auto-detect column headers based on fuzzy keywords
+  const autoDetectColumns = (headerList) => {
+    const mapping = {
+      eventName: -1,
+      venueCode: -1,
+      venueName: -1,
+      centerCode: -1,
+      centerName: -1,
+      programName: -1,
+      examDate: -1,
+      courseStartTime: -1,
+      courseEndTime: -1,
+      courseCode: -1,
+      courseName: -1,
+      studentCount: -1,
+      venueId: -1
+    };
+
+    headerList.forEach((colName, idx) => {
+      const lower = String(colName).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      if (lower.includes('eventname') || (lower.includes('event') && !lower.includes('id'))) mapping.eventName = idx;
+      if (lower === 'venuecode') mapping.venueCode = idx;
+      if (lower === 'venuename') mapping.venueName = idx;
+      if (lower === 'centercode' || lower === 'centrecode') mapping.centerCode = idx;
+      if (lower === 'centername' || lower === 'centrename') mapping.centerName = idx;
+      if (lower.includes('programname') || lower.includes('programme')) mapping.programName = idx;
+      if (lower.includes('examdate') || lower === 'date') mapping.examDate = idx;
+      if (lower.includes('coursestarttime') || lower.includes('starttime')) mapping.courseStartTime = idx;
+      if (lower.includes('courseendtime') || lower.includes('endtime')) mapping.courseEndTime = idx;
+      if (lower === 'coursecode' || lower === 'qpcoursename' || lower.includes('subjectcode')) mapping.courseCode = idx;
+      if (lower === 'coursename' || lower.includes('subjectname') || lower.includes('coursetitle')) mapping.courseName = idx;
+      if (lower.includes('studentcount') || lower === 'count' || lower === 'nc' || lower.includes('candidatecount')) mapping.studentCount = idx;
+      if (lower === 'venueid') mapping.venueId = idx;
+    });
+
+    // Fallbacks if Center vs Venue is singular
+    if (mapping.venueCode === -1 && mapping.centerCode !== -1) mapping.venueCode = mapping.centerCode;
+    if (mapping.venueName === -1 && mapping.centerName !== -1) mapping.venueName = mapping.centerName;
+    if (mapping.centerCode === -1 && mapping.venueCode !== -1) mapping.centerCode = mapping.venueCode;
+    if (mapping.centerName === -1 && mapping.venueName !== -1) mapping.centerName = mapping.venueName;
+
+    return mapping;
+  };
+
+  // Handle uploaded files
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
     setSelectedFiles(files);
-    setStatus(`Reading ${files.length} file(s)...`);
-    setConsolidatedData([]);
-    setVenueSlips({});
-    setActiveVenueTab('');
+    setIsProcessing(true);
+    setStatus(`Reading ${files.length} file(s)...`, 'normal');
 
     try {
       const allFilesRows = await Promise.all(files.map(file => readExcelFile(file)));
-      
-      let masterRows = [];
-      let firstHeaders = [];
+      let combinedData = [];
+      let detectedHeaders = [];
 
-      allFilesRows.forEach((rows, index) => {
-        if (rows.length > 0) {
-          if (masterRows.length === 0) {
-            firstHeaders = rows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
-            masterRows = [...rows];
+      allFilesRows.forEach((fileRows) => {
+        if (fileRows.length > 0) {
+          if (detectedHeaders.length === 0) {
+            detectedHeaders = fileRows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
+            // Exclude header row from data
+            combinedData = combinedData.concat(fileRows.slice(1));
           } else {
-            // Append data rows excluding headers
-            masterRows = masterRows.concat(rows.slice(1));
+            // Append data rows
+            combinedData = combinedData.concat(fileRows.slice(1));
           }
         }
       });
 
-      if (masterRows.length > 0) {
-        setHeaders(firstHeaders);
-        setConsolidatedRows(masterRows);
+      if (detectedHeaders.length > 0) {
+        setHeaders(detectedHeaders);
+        setRawRows(combinedData);
 
-        // Get default Event Name from first data row
-        if (masterRows.length > 1 && masterRows[1][0] && String(masterRows[1][0]).length > 10) {
-          setEventNameVal(String(masterRows[1][0]).trim());
-          
-          // Update the 3rd header line with the detected exam name
-          const updatedHeaders = [...headerLines];
-          if (updatedHeaders[2]) {
-            updatedHeaders[2].text = String(masterRows[1][0]).trim();
-            setHeaderLines(updatedHeaders);
+        const newMapping = autoDetectColumns(detectedHeaders);
+        setColumnMapping(newMapping);
+
+        // Auto-populate Event Name from data if available
+        if (newMapping.eventName !== -1 && combinedData.length > 0) {
+          const sampleEvent = combinedData.find(r => r[newMapping.eventName])?.[newMapping.eventName];
+          if (sampleEvent && String(sampleEvent).trim()) {
+            const cleanEvent = String(sampleEvent).trim();
+            if (!cleanEvent.toLowerCase().startsWith('qp statement for')) {
+              setExamTitle(`QP Statement for ${cleanEvent}`);
+            } else {
+              setExamTitle(cleanEvent);
+            }
           }
         }
 
-        const autoMap = { ...columnMapping };
-        firstHeaders.forEach((name, idx) => {
-          const lower = name.toLowerCase().replace(/[\s_-]/g, '');
-          if (lower.includes('event')) autoMap.eventName = idx;
-          if (lower.includes('centercode')) autoMap.centerCode = idx;
-          if (lower.includes('centername')) autoMap.centerName = idx;
-          if (lower.includes('venuecode')) autoMap.venueCode = idx;
-          if (lower.includes('venuename') || (lower.includes('venue') && !lower.includes('code') && !lower.includes('id'))) autoMap.venueName = idx;
-          if (lower.includes('program')) autoMap.programName = idx;
-          if (lower.includes('date')) autoMap.examDate = idx;
-          if (lower.includes('starttime') || lower.includes('start')) autoMap.startTime = idx;
-          if (lower.includes('endtime') || lower.includes('end')) autoMap.endTime = idx;
-          if (lower.includes('coursecode') || (lower.includes('subject') && lower.includes('code'))) autoMap.courseCode = idx;
-          if (lower.includes('coursename') || lower.includes('coursetitle') || lower.includes('subjectname')) autoMap.courseName = idx;
-          if (lower.includes('studentcount') || lower.includes('count') || lower.includes('qty') || lower.includes('strength')) autoMap.studentCount = idx;
-        });
-        setColumnMapping(autoMap);
-
-        setStatus(`Loaded and merged ${files.length} file(s) with ${masterRows.length - 1} rows.`, 'success');
+        setStatus(`Successfully loaded ${combinedData.length} records from ${files.length} file(s).`, 'success');
       } else {
-        setStatus('No data rows found in uploaded files.', 'error');
+        setStatus('No data found in uploaded files.', 'error');
       }
     } catch (err) {
-      setStatus(`Error reading/merging files: ${err.message}`, 'error');
-      setConsolidatedRows([]);
-      setHeaders([]);
-    }
-  };
-
-  // Compile QP Statement
-  const processQpStatement = () => {
-    if (consolidatedRows.length < 2) {
-      setStatus('No uploaded data to compile statements from.', 'error');
-      return;
-    }
-
-    setIsProcessing(true);
-    setStatus('Grouping question paper statements...');
-
-    try {
-      const dataRows = consolidatedRows.slice(1);
-      const tempConsolidated = {};
-      const tempVenueSlips = {};
-
-      dataRows.forEach((row) => {
-        const isBlank = row.every(cell => cell === null || cell === undefined || cell === '');
-        if (isBlank) return;
-
-        const event = String(row[columnMapping.eventName] || eventNameVal || '').trim();
-        
-        // Match Center Name styling (NK - Naher Arts and Science College, Kanhirode)
-        const cCode = String(row[columnMapping.centerCode] || '').trim();
-        const cName = String(row[columnMapping.centerName] || '').trim();
-        const venue = cCode && cName ? `${cCode} - ${cName}` : (cCode || cName || 'Unassigned Venue');
-        
-        const dateRaw = row[columnMapping.examDate];
-        const dateFormatted = formatDateWithDay(dateRaw);
-
-        const cCodeVal = String(row[columnMapping.courseCode] || '').trim();
-        const cNameVal = String(row[columnMapping.courseName] || '').trim();
-        const count = parseInt(row[columnMapping.studentCount]) || 0;
-
-        if (!cCodeVal || !dateFormatted) return;
-
-        // A. Process Consolidated Summary (Date + Course)
-        const conKey = `${dateFormatted} | ${cCodeVal}`;
-        if (!tempConsolidated[conKey]) {
-          tempConsolidated[conKey] = {
-            date: dateFormatted,
-            courseCode: cCodeVal,
-            courseName: cNameVal,
-            totalQPs: 0,
-            venues: {}
-          };
-        }
-        tempConsolidated[conKey].totalQPs += count;
-        
-        // Add venue count for breakdown block
-        if (!tempConsolidated[conKey].venues[venue]) {
-          tempConsolidated[conKey].venues[venue] = 0;
-        }
-        tempConsolidated[conKey].venues[venue] += count;
-
-        // B. Process Venue Packing Slips (Separate Slip per Venue)
-        if (!tempVenueSlips[venue]) {
-          tempVenueSlips[venue] = [];
-        }
-        tempVenueSlips[venue].push({
-          date: dateFormatted,
-          courseCode: cCodeVal,
-          courseName: cNameVal,
-          studentCount: count
-        });
-      });
-
-      // Format Consolidated Summary Table data
-      const sortedConsolidated = Object.values(tempConsolidated);
-      // Sort by Date, then Course Code
-      sortedConsolidated.sort((a, b) => a.date.localeCompare(b.date) || a.courseCode.localeCompare(b.courseCode));
-      setConsolidatedData(sortedConsolidated);
-
-      // Sort courses inside each Venue packing slip by date
-      Object.keys(tempVenueSlips).forEach((venue) => {
-        tempVenueSlips[venue].sort((a, b) => a.date.localeCompare(b.date) || a.courseCode.localeCompare(b.courseCode));
-      });
-      setVenueSlips(tempVenueSlips);
-
-      const venueList = Object.keys(tempVenueSlips);
-      if (venueList.length > 0) {
-        setActiveVenueTab(venueList[0]);
-      }
-
-      setStatus(`Processed ${sortedConsolidated.length} date-wise blocks across ${venueList.length} venues.`, 'success');
-    } catch (err) {
-      setStatus(`Compilation failed: ${err.message}`, 'error');
+      console.error(err);
+      setStatus(`Error reading files: ${err.message}`, 'error');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Helper: Draw Header on jsPDF document page
-  const drawPageHeaders = (doc, titleText = '') => {
-    headerLines.forEach((line) => {
-      doc.setFont('Helvetica', line.isBold ? 'bold' : 'normal');
-      doc.setFontSize(line.fontSize);
-      doc.text(line.text, line.align === 'center' ? 297 : line.align === 'right' ? 550 : 45, line.yOffset, { align: line.align });
+  // Group and Process data into structured Venue / Center sets
+  const processedGroups = useMemo(() => {
+    if (rawRows.length === 0) return {};
+
+    const groups = {};
+
+    rawRows.forEach(row => {
+      // Determine Venue / Center identifiers (Venue Priority)
+      let code;
+      let name;
+
+      if (groupByOption === 'venue') {
+        const vCode = columnMapping.venueCode !== -1 && row[columnMapping.venueCode] ? String(row[columnMapping.venueCode]).trim() : '';
+        const vName = columnMapping.venueName !== -1 && row[columnMapping.venueName] ? String(row[columnMapping.venueName]).trim() : '';
+        code = vCode || (columnMapping.centerCode !== -1 ? String(row[columnMapping.centerCode] || '').trim() : '');
+        name = vName || (columnMapping.centerName !== -1 ? String(row[columnMapping.centerName] || '').trim() : '');
+      } else {
+        const cCode = columnMapping.centerCode !== -1 && row[columnMapping.centerCode] ? String(row[columnMapping.centerCode]).trim() : '';
+        const cName = columnMapping.centerName !== -1 && row[columnMapping.centerName] ? String(row[columnMapping.centerName]).trim() : '';
+        code = cCode || (columnMapping.venueCode !== -1 ? String(row[columnMapping.venueCode] || '').trim() : '');
+        name = cName || (columnMapping.venueName !== -1 ? String(row[columnMapping.venueName] || '').trim() : '');
+      }
+
+      if (!code && !name) {
+        code = 'DEFAULT';
+        name = 'General Examination Venue';
+      }
+
+      const groupKey = code && name ? `${code} - ${name}` : (code || name);
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          code: code,
+          name: name,
+          fullLabel: groupKey,
+          items: []
+        };
+      }
+
+      const dateRaw = columnMapping.examDate !== -1 ? row[columnMapping.examDate] : '';
+      const formattedDate = formatDateWithDay(dateRaw);
+      const sortDate = getSortableDate(dateRaw);
+
+      let cCode = columnMapping.courseCode !== -1 && row[columnMapping.courseCode] ? String(row[columnMapping.courseCode]).trim() : '';
+      let cName = columnMapping.courseName !== -1 && row[columnMapping.courseName] ? String(row[columnMapping.courseName]).trim() : '';
+      
+      const countVal = columnMapping.studentCount !== -1 ? parseInt(row[columnMapping.studentCount], 10) || 0 : 0;
+      const startTime = columnMapping.courseStartTime !== -1 && row[columnMapping.courseStartTime] ? String(row[columnMapping.courseStartTime]).trim() : '';
+      const endTime = columnMapping.courseEndTime !== -1 && row[columnMapping.courseEndTime] ? String(row[columnMapping.courseEndTime]).trim() : '';
+
+      groups[groupKey].items.push({
+        rawDate: dateRaw,
+        formattedDate,
+        sortDate,
+        courseCode: cCode,
+        courseName: cName,
+        studentCount: countVal,
+        startTime,
+        endTime
+      });
     });
 
-    if (titleText) {
-      doc.setFont('Helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text(titleText, 45, 115);
+    // Aggregate / Sort within each group
+    Object.keys(groups).forEach(key => {
+      let items = groups[key].items;
+
+      if (aggregateSameCourse) {
+        const mergedMap = new Map();
+        items.forEach(item => {
+          // Normalize course code and name by removing trailing dots, trimming whitespace, and ignoring case
+          const cleanCode = item.courseCode.replace(/\.+$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+          const cleanName = item.courseName.replace(/\.+$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+          const mKey = `${item.sortDate}__${cleanCode}__${cleanName}`;
+
+          if (mergedMap.has(mKey)) {
+            const existing = mergedMap.get(mKey);
+            existing.studentCount += item.studentCount;
+          } else {
+            // Keep clean normalized base representation
+            mergedMap.set(mKey, {
+              ...item,
+              courseCode: item.courseCode.replace(/\.+$/, '').trim(),
+              courseName: item.courseName.replace(/\.+$/, '').trim()
+            });
+          }
+        });
+        items = Array.from(mergedMap.values());
+      }
+
+      // Sort chronologically by date, then course code
+      items.sort((a, b) => {
+        if (a.sortDate !== b.sortDate) {
+          return a.sortDate.localeCompare(b.sortDate);
+        }
+        if (a.startTime && b.startTime && a.startTime !== b.startTime) {
+          return a.startTime.localeCompare(b.startTime);
+        }
+        return a.courseCode.localeCompare(b.courseCode);
+      });
+
+      groups[key].items = items;
+    });
+
+    return groups;
+  }, [rawRows, columnMapping, groupByOption, aggregateSameCourse]);
+
+  // Derived effective group key
+  const groupKeys = useMemo(() => Object.keys(processedGroups), [processedGroups]);
+  const effectiveGroupKey = (activeGroupKey && processedGroups[activeGroupKey]) ? activeGroupKey : (groupKeys[0] || '');
+
+  // Overall Statistics
+  const overallStats = useMemo(() => {
+    let totalExams = 0;
+    let totalCandidates = 0;
+    const allDates = new Set();
+
+    groupKeys.forEach(k => {
+      const items = processedGroups[k].items;
+      totalExams += items.length;
+      items.forEach(it => {
+        totalCandidates += it.studentCount;
+        if (it.sortDate) allDates.add(it.sortDate);
+      });
+    });
+
+    const sortedDates = Array.from(allDates).sort();
+    const dateRange = sortedDates.length > 0 
+      ? `${sortedDates[0]} to ${sortedDates[sortedDates.length - 1]}`
+      : 'N/A';
+
+    return {
+      totalGroups: groupKeys.length,
+      totalExams,
+      totalCandidates,
+      dateRange,
+      uniqueDays: sortedDates.length
+    };
+  }, [processedGroups, groupKeys]);
+
+  // Filtered rows for current active tab
+  const currentTabItems = useMemo(() => {
+    if (!effectiveGroupKey || !processedGroups[effectiveGroupKey]) return [];
+    const items = processedGroups[effectiveGroupKey].items;
+    if (!searchQuery.trim()) return items;
+
+    const q = searchQuery.toLowerCase();
+    return items.filter(it => 
+      it.formattedDate.toLowerCase().includes(q) ||
+      it.courseCode.toLowerCase().includes(q) ||
+      it.courseName.toLowerCase().includes(q) ||
+      String(it.studentCount).includes(q)
+    );
+  }, [effectiveGroupKey, processedGroups, searchQuery]);
+
+  // Helper to format course display text e.g. "KU3MDCARS202. - Kerala Culture in Arabic Narratives."
+  const formatCourseDisplay = (courseCode, courseName) => {
+    let codeStr = String(courseCode || '').trim();
+    let nameStr = String(courseName || '').trim();
+
+    // Strip existing trailing dots first
+    codeStr = codeStr.replace(/\.+$/, '').trim();
+    nameStr = nameStr.replace(/\.+$/, '').trim();
+
+    if (courseCodeDot) {
+      if (codeStr) codeStr += '.';
+      if (nameStr) nameStr += '.';
     }
 
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(1);
-    doc.line(45, 122, 550, 122); // Elegant horizontal line separation
+    if (codeStr && nameStr) {
+      return `${codeStr} - ${nameStr}`;
+    }
+    return codeStr || nameStr || '-';
   };
 
-  // Generate and Download Date-Wise Consolidated PDF
-  const downloadConsolidatedPDF = () => {
-    if (consolidatedData.length === 0) return;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  // Draw Page Header on PDF document
+  const drawPdfHeader = (doc, groupLabel) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let currentY = 32;
 
-    // Draw header and content using autoTable
-    drawPageHeaders(doc, 'Date-wise Consolidated Printing Summary');
+    // 1. University Name
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(0, 0, 0);
+    doc.text(universityName, pageWidth / 2, currentY, { align: 'center' });
 
-    const tableRows = consolidatedData.map((row, idx) => [
-      idx + 1,
-      row.date,
-      `${row.courseCode}\n${row.courseName}`,
-      row.totalQPs,
-      '', // Blank QP cell
-      ''  // Blank LP cell
-    ]);
+    // 2. Branch Name
+    currentY += 18;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(branchName, pageWidth / 2, currentY, { align: 'center' });
 
-    const cols = tableColumns.map(c => ({ header: c.label, dataKey: c.id }));
-    const widths = {};
-    tableColumns.forEach(c => { widths[c.id] = c.width; });
+    // 3. Exam Title / Event
+    if (examTitle) {
+      currentY += 16;
+      doc.setFontSize(9.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(examTitle, pageWidth / 2, currentY, { align: 'center' });
+    }
+
+    // 4. Session / Month Year
+    if (sessionName) {
+      currentY += 14;
+      doc.setFontSize(9.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(sessionName, pageWidth / 2, currentY, { align: 'center' });
+    }
+
+    // 5. Venue / Center Name (e.g. Venue : KI - Concord Arts and Science College, Muttannur)
+    currentY += 17;
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    const headerPrefixText = `${centerPrefix} ${groupLabel}`;
+    doc.text(headerPrefixText, pageWidth / 2, currentY, { align: 'center' });
+
+    return currentY + 12; // Return bottom Y for autotable start
+  };
+
+  // Generate Single Venue PDF
+  const generateVenuePdf = (groupKey, shouldSave = true) => {
+    const group = processedGroups[groupKey];
+    if (!group) return null;
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'pt',
+      format: 'a4'
+    });
+
+    const startTableY = drawPdfHeader(doc, group.fullLabel);
+
+    const tableBody = group.items.map((item, idx) => {
+      const courseText = formatCourseDisplay(item.courseCode, item.courseName);
+      return [
+        idx + 1,
+        item.formattedDate,
+        courseText,
+        item.studentCount,
+        '', // QP column empty for manual entry / verify
+        ''  // LP column empty for manual entry / verify
+      ];
+    });
 
     autoTable(doc, {
-      startY: 135,
-      columns: cols,
-      body: tableRows,
+      startY: startTableY,
+      head: [['SL\nNo', 'Date', 'Course', 'NC', 'QP', 'LP']],
+      body: tableBody,
       theme: 'grid',
+      margin: { top: 30, left: 36, right: 36, bottom: 36 },
       styles: {
         fontSize: 8.5,
-        cellPadding: 6,
+        textColor: [0, 0, 0],
+        lineColor: [0, 0, 0],
+        lineWidth: 0.65,
+        cellPadding: { top: 5, right: 5, bottom: 5, left: 5 },
         valign: 'middle'
       },
       headStyles: {
-        fillColor: [60, 60, 60],
-        textColor: [255, 255, 255],
+        fillColor: [240, 240, 240],
+        textColor: [0, 0, 0],
         fontStyle: 'bold',
-        halign: 'center'
+        halign: 'center',
+        valign: 'middle',
+        fontSize: 9,
+        lineColor: [0, 0, 0],
+        lineWidth: 0.8
       },
       columnStyles: {
-        slNo: { halign: 'center', cellWidth: widths.slNo },
-        date: { cellWidth: widths.date },
-        course: { cellWidth: widths.course },
-        nc: { halign: 'center', cellWidth: widths.nc },
-        qp: { cellWidth: widths.qp },
-        lp: { cellWidth: widths.lp }
-      },
-      didDrawPage: (data) => {
-        // Draw header on subsequent pages
-        if (data.pageNumber > 1) {
-          drawPageHeaders(doc, 'Date-wise Consolidated Printing Summary (Continued)');
-        }
+        0: { halign: 'center', cellWidth: 32 },
+        1: { halign: 'left', cellWidth: 105 },
+        2: { halign: 'left', cellWidth: 245 },
+        3: { halign: 'center', cellWidth: 42 },
+        4: { halign: 'center', cellWidth: 48 },
+        5: { halign: 'center', cellWidth: 48 }
       }
     });
 
-    doc.save(`${eventNameValPrefix()}_Consolidated_QP_Statement.pdf`);
+    const cleanFilename = `QP_Statement_Venue_${group.fullLabel.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+    if (shouldSave) {
+      doc.save(cleanFilename);
+    }
+    return { doc, filename: cleanFilename };
   };
 
-  // Generate and Download single Venue Packing Slip PDF
-  const downloadVenuePDF = (venueName) => {
-    const slipData = venueSlips[venueName];
-    if (!slipData) return;
+  // Download All Venues as ZIP
+  const downloadAllZip = async () => {
+    const groupKeys = Object.keys(processedGroups);
+    if (groupKeys.length === 0) return;
 
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-    drawPageHeaders(doc, `QP Envelope Packing Slip - Center: ${venueName}`);
-
-    const tableRows = slipData.map((row, idx) => [
-      idx + 1,
-      row.date,
-      `${row.courseCode}\n${row.courseName}`,
-      row.studentCount,
-      '', // Blank QP
-      ''  // Blank LP
-    ]);
-
-    const cols = tableColumns.map(c => ({ header: c.label, dataKey: c.id }));
-    const widths = {};
-    tableColumns.forEach(c => { widths[c.id] = c.width; });
-
-    autoTable(doc, {
-      startY: 135,
-      columns: cols,
-      body: tableRows,
-      theme: 'grid',
-      styles: {
-        fontSize: 8.5,
-        cellPadding: 6,
-        valign: 'middle'
-      },
-      headStyles: {
-        fillColor: [60, 60, 60],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        halign: 'center'
-      },
-      columnStyles: {
-        slNo: { halign: 'center', cellWidth: widths.slNo },
-        date: { cellWidth: widths.date },
-        course: { cellWidth: widths.course },
-        nc: { halign: 'center', cellWidth: widths.nc },
-        qp: { cellWidth: widths.qp },
-        lp: { cellWidth: widths.lp }
-      }
-    });
-
-    const safeVenue = venueName.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
-    doc.save(`QP_Packing_Slip_${safeVenue}.pdf`);
-  };
-
-  // Download all Venue Packing Slips compressed in a single ZIP
-  const downloadAllVenueSlipsZip = async () => {
-    const venues = Object.keys(venueSlips);
-    if (venues.length === 0) return;
-
-    setStatus('Creating ZIP archive...', 'normal');
-    const zip = new JSZip();
+    setStatus('Generating ZIP archive with all Venue Statements...', 'normal');
+    setIsProcessing(true);
 
     try {
-      venues.forEach((venue) => {
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-        drawPageHeaders(doc, `QP Envelope Packing Slip - Center: ${venue}`);
+      const zip = new JSZip();
 
-        const slipData = venueSlips[venue];
-        const tableRows = slipData.map((row, idx) => [
+      groupKeys.forEach(groupKey => {
+        const result = generateVenuePdf(groupKey, false);
+        if (result) {
+          const pdfBlob = result.doc.output('blob');
+          zip.file(result.filename, pdfBlob);
+        }
+      });
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `QP_Statements_All_Venues_${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setStatus(`Successfully exported ZIP containing ${groupKeys.length} venue statement(s)!`, 'success');
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to generate ZIP: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Download All Venues Combined into a single Master PDF
+  const downloadCombinedMasterPdf = () => {
+    const groupKeys = Object.keys(processedGroups);
+    if (groupKeys.length === 0) return;
+
+    setStatus('Compiling All Venues into Master PDF...', 'normal');
+    setIsProcessing(true);
+
+    try {
+      const masterDoc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'a4'
+      });
+
+      groupKeys.forEach((groupKey, groupIdx) => {
+        if (groupIdx > 0) {
+          masterDoc.addPage();
+        }
+
+        const group = processedGroups[groupKey];
+        const startTableY = drawPdfHeader(masterDoc, group.fullLabel);
+
+        const tableBody = group.items.map((item, idx) => [
           idx + 1,
-          row.date,
-          `${row.courseCode}\n${row.courseName}`,
-          row.studentCount,
+          item.formattedDate,
+          formatCourseDisplay(item.courseCode, item.courseName),
+          item.studentCount,
           '',
           ''
         ]);
 
-        const cols = tableColumns.map(c => ({ header: c.label, dataKey: c.id }));
-        const widths = {};
-        tableColumns.forEach(c => { widths[c.id] = c.width; });
-
-        autoTable(doc, {
-          startY: 135,
-          columns: cols,
-          body: tableRows,
+        autoTable(masterDoc, {
+          startY: startTableY,
+          head: [['SL\nNo', 'Date', 'Course', 'NC', 'QP', 'LP']],
+          body: tableBody,
           theme: 'grid',
+          margin: { top: 30, left: 36, right: 36, bottom: 36 },
           styles: {
             fontSize: 8.5,
-            cellPadding: 6,
+            textColor: [0, 0, 0],
+            lineColor: [0, 0, 0],
+            lineWidth: 0.65,
+            cellPadding: { top: 5, right: 5, bottom: 5, left: 5 },
             valign: 'middle'
           },
           headStyles: {
-            fillColor: [60, 60, 60],
-            textColor: [255, 255, 255],
+            fillColor: [240, 240, 240],
+            textColor: [0, 0, 0],
             fontStyle: 'bold',
-            halign: 'center'
+            halign: 'center',
+            valign: 'middle',
+            fontSize: 9,
+            lineColor: [0, 0, 0],
+            lineWidth: 0.8
           },
           columnStyles: {
-            slNo: { halign: 'center', cellWidth: widths.slNo },
-            date: { cellWidth: widths.date },
-            course: { cellWidth: widths.course },
-            nc: { halign: 'center', cellWidth: widths.nc },
-            qp: { cellWidth: widths.qp },
-            lp: { cellWidth: widths.lp }
+            0: { halign: 'center', cellWidth: 32 },
+            1: { halign: 'left', cellWidth: 105 },
+            2: { halign: 'left', cellWidth: 245 },
+            3: { halign: 'center', cellWidth: 42 },
+            4: { halign: 'center', cellWidth: 48 },
+            5: { halign: 'center', cellWidth: 48 }
           }
         });
-
-        const pdfBlob = doc.output('blob');
-        const safeVenue = venue.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
-        zip.file(`QP_Packing_Slip_${safeVenue}.pdf`, pdfBlob);
       });
 
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const downloadUrl = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `QP_Packing_Slips_Collection.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
-
-      setStatus(`ZIP archive downloaded successfully!`, 'success');
+      masterDoc.save(`QP_Statement_Consolidated_Master_Venues_${new Date().toISOString().slice(0, 10)}.pdf`);
+      setStatus('Master Venue PDF successfully downloaded!', 'success');
     } catch (err) {
-      setStatus(`Failed to generate ZIP: ${err.message}`, 'error');
+      console.error(err);
+      setStatus(`Failed to generate Master PDF: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const eventNameValPrefix = () => {
-    return eventNameVal.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_").substring(0, 35);
+  // Export Consolidated Excel
+  const exportConsolidatedExcel = () => {
+    const groupKeys = Object.keys(processedGroups);
+    if (groupKeys.length === 0) return;
+
+    try {
+      const rowsForExcel = [];
+
+      groupKeys.forEach(groupKey => {
+        const group = processedGroups[groupKey];
+        group.items.forEach((item, idx) => {
+          rowsForExcel.push({
+            'Venue': group.fullLabel,
+            'SL No': idx + 1,
+            'Date': item.formattedDate,
+            'Course Code': item.courseCode,
+            'Course Name': item.courseName,
+            'Full Course Details': formatCourseDisplay(item.courseCode, item.courseName),
+            'Student Count (NC)': item.studentCount,
+            'Start Time': item.startTime,
+            'End Time': item.endTime
+          });
+        });
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rowsForExcel);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'QP_Statement_Venue_Data');
+      XLSX.writeFile(wb, `QP_Statement_Venues_Consolidated_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+      setStatus('Consolidated Venue Excel report downloaded successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to export Excel: ${err.message}`, 'error');
+    }
+  };
+
+  // Open Direct Print / Preview
+  const handlePrintPreview = () => {
+    if (!activeGroupKey) return;
+    const result = generateVenuePdf(activeGroupKey, false);
+    if (result) {
+      const blobUrl = result.doc.output('bloburl');
+      window.open(blobUrl, '_blank');
+    }
   };
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto', overflowY: 'auto', width: '100%', minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)' }}>
-      {/* Navigation Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+    <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 20px 80px' }}>
+      
+      {/* Top Breadcrumb & Status Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <Link to="/" style={{ textDecoration: 'none', color: 'var(--accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
           ← Back to Portal
         </Link>
@@ -505,368 +730,554 @@ const QpStatementPage = () => {
           fontWeight: 600,
           background: statusType === 'error' ? 'var(--danger)' : statusType === 'success' ? 'var(--accent-soft)' : 'var(--panel)',
           color: statusType === 'error' ? 'white' : statusType === 'success' ? 'var(--accent)' : 'var(--muted)',
-          border: '1px solid var(--line)'
+          border: '1px solid var(--line)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
+          {statusType === 'success' && <CheckCircle2 size={16} />}
           {statusMsg}
         </div>
       </div>
 
-      <h2>QP Statement Report</h2>
-      <p className="subtitle">Group, merge, and generate unified date-wise printing summaries and separate center envelope packing slips.</p>
-
-      {/* Instructional Banner */}
-      <div style={{
-        padding: '16px 20px',
-        borderRadius: '8px',
-        background: 'var(--accent-soft)',
-        border: '1px solid var(--accent)',
-        color: 'var(--ink)',
-        fontSize: '13.5px',
-        lineHeight: '1.6',
-        marginBottom: '28px',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '12px'
-      }}>
-        <HelpCircle size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: '2px' }} />
-        <div>
-          <strong>📌 Instructions:</strong> Please upload the <strong>Course-wise Venue-wise Date-wise Report</strong> Excel sheet(s).
-          You can upload <strong>multiple reports at once</strong> (by holding Ctrl/Cmd during selection). The generator will automatically merge them into a single consolidated master list before compiling the statements.
-        </div>
+      {/* Header Banner */}
+      <div style={{ marginBottom: '28px' }}>
+        <h2 style={{ fontSize: '28px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--ink)' }}>
+          QP Statement Report (Venue-Wise)
+        </h2>
+        <p style={{ color: 'var(--muted)', margin: 0, fontSize: '14.5px' }}>
+          Generate official University Question Paper (QP) statements, candidate counts (NC), and venue distribution packing lists grouped by <strong>Venue Code</strong>.
+        </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>
-        {/* Settings Panel */}
-        <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', margin: 0 }}>
-          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={20} /> Settings</h3>
-          
-          <div style={{ border: '1px dashed var(--line)', padding: '24px', borderRadius: '8px', background: 'var(--bg)', textAlign: 'center', position: 'relative' }}>
-            <strong style={{ display: 'block', marginBottom: '8px' }}>Upload Reports (Supports Multiple)</strong>
-            {selectedFiles.length > 0 ? (
-              <div style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                {selectedFiles.length === 1 ? `📄 ${selectedFiles[0].name}` : `📂 ${selectedFiles.length} files selected`}
-              </div>
-            ) : (
-              <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Drag here or click to browse multiple files</span>
+      {/* Upload & Setup Section */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px', marginBottom: '28px' }}>
+        
+        {/* Upload Card */}
+        <div className="card" style={{ padding: '24px', margin: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <UploadCloud size={20} color="var(--accent)" /> 1. Upload Source Excel / Report
+            </h3>
+            {selectedFiles.length > 0 && (
+              <span style={{ fontSize: '12px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                {selectedFiles.length} file(s) loaded
+              </span>
             )}
+          </div>
+
+          <div style={{
+            border: '2px dashed var(--line)',
+            borderRadius: '10px',
+            padding: '32px 20px',
+            textAlign: 'center',
+            background: 'var(--bg)',
+            position: 'relative',
+            cursor: 'pointer',
+            transition: 'border-color 0.2s'
+          }}>
+            <input
+              type="file"
+              multiple
+              accept=".xlsx,.xls,.xlsm,.csv"
+              onChange={handleFileChange}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+            />
+            <FileSpreadsheet size={36} color="var(--accent)" style={{ margin: '0 auto 10px', display: 'block' }} />
+            <p style={{ margin: '0 0 4px 0', fontWeight: 600, fontSize: '14px' }}>
+              Click or Drag & Drop Excel Report Sheet(s)
+            </p>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              Supports .xlsx, .xls, .csv files (Multiple files auto-merge)
+            </span>
+          </div>
+
+          {/* Quick instructions */}
+          <div style={{ fontSize: '12.5px', color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: '6px', background: 'var(--panel)', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--line)' }}>
+            <HelpCircle size={15} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--accent)' }} />
+            <span>
+              Expected headers: <strong>Venue Code, Venue Name, Event Name, Exam Date, Course Code, Course Name, Student Count</strong>, etc.
+            </span>
+          </div>
+        </div>
+
+        {/* Report Header Customizer Card */}
+        <div className="card" style={{ padding: '24px', margin: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Settings size={20} color="var(--accent)" /> 2. PDF Document Header Settings
+            </h3>
+            <button 
+              className="secondary" 
+              onClick={() => setShowConfig(!showConfig)}
+              style={{ padding: '4px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Sliders size={14} /> {showConfig ? 'Hide Column Mapping' : 'Column Mapping'}
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label>University / Institution Name (Line 1)</label>
+              <input 
+                type="text" 
+                value={universityName} 
+                onChange={(e) => setUniversityName(e.target.value)} 
+                placeholder="e.g. Kannur University"
+              />
+            </div>
+            <div className="form-group">
+              <label>Branch / Section (Line 2)</label>
+              <input 
+                type="text" 
+                value={branchName} 
+                onChange={(e) => setBranchName(e.target.value)} 
+                placeholder="e.g. (Examination Branch)"
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>QP Statement Event Title (Line 3)</label>
             <input 
-              type="file" 
-              multiple 
-              accept=".xlsx, .xls, .xlsm, .csv" 
-              onChange={handleFileChange} 
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, cursor: 'pointer', width: '100%' }} 
+              type="text" 
+              value={examTitle} 
+              onChange={(e) => setExamTitle(e.target.value)} 
+              placeholder="e.g. QP Statement for 1st Semester Degree Private Registration..."
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
             <div className="form-group">
-              <label>Report Compilation Mode</label>
-              <select value={reportMode} onChange={(e) => setReportMode(e.target.value)}>
-                <option value="venue">Separate slips per Center/Venue</option>
-                <option value="consolidated">Unified Date-wise Summary</option>
+              <label>Exam Session / Month-Year (Line 4)</label>
+              <input 
+                type="text" 
+                value={sessionName} 
+                onChange={(e) => setSessionName(e.target.value)} 
+                placeholder="e.g. November 2025"
+              />
+            </div>
+            <div className="form-group">
+              <label>Venue Line Prefix (Line 5)</label>
+              <select 
+                value={centerPrefix} 
+                onChange={(e) => setCenterPrefix(e.target.value)}
+              >
+                <option value="Venue :">Venue :</option>
+                <option value="Center Name :">Center Name :</option>
+                <option value="College :">College :</option>
+                <option value="Venue & Center :">Venue & Center :</option>
               </select>
             </div>
           </div>
 
-          {/* Mappings */}
-          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)' }}>
-            <strong style={{ fontSize: '13px', display: 'block', marginBottom: '12px' }}>Excel Column Mappings</strong>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px' }}>
-              <div className="form-group">
-                <label>Event Name Column</label>
-                <select value={columnMapping.eventName} onChange={(e) => setColumnMapping({ ...columnMapping, eventName: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Center Code</label>
-                <select value={columnMapping.centerCode} onChange={(e) => setColumnMapping({ ...columnMapping, centerCode: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Center Name</label>
-                <select value={columnMapping.centerName} onChange={(e) => setColumnMapping({ ...columnMapping, centerName: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Venue Code</label>
-                <select value={columnMapping.venueCode} onChange={(e) => setColumnMapping({ ...columnMapping, venueCode: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Venue Name</label>
-                <select value={columnMapping.venueName} onChange={(e) => setColumnMapping({ ...columnMapping, venueName: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Program Name</label>
-                <select value={columnMapping.programName} onChange={(e) => setColumnMapping({ ...columnMapping, programName: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Exam Date</label>
-                <select value={columnMapping.examDate} onChange={(e) => setColumnMapping({ ...columnMapping, examDate: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Course Code</label>
-                <select value={columnMapping.courseCode} onChange={(e) => setColumnMapping({ ...columnMapping, courseCode: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Course Name</label>
-                <select value={columnMapping.courseName} onChange={(e) => setColumnMapping({ ...columnMapping, courseName: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Student Count (NC)</label>
-                <select value={columnMapping.studentCount} onChange={(e) => setColumnMapping({ ...columnMapping, studentCount: parseInt(e.target.value) })} disabled={headers.length === 0}>
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-            </div>
+          {/* Quick formatting toggles */}
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', paddingTop: '4px' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={aggregateSameCourse} 
+                onChange={(e) => setAggregateSameCourse(e.target.checked)} 
+              />
+              Sum NC for duplicate course on same date
+            </label>
+
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={courseCodeDot} 
+                onChange={(e) => setCourseCodeDot(e.target.checked)} 
+              />
+              Format: CODE. - NAME.
+            </label>
           </div>
-
-          {/* Header Layout Editor */}
-          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: '13px' }}>PDF Header Layout Editor</strong>
-              <button onClick={addHeaderLine} className="secondary" style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}><Plus size={12} /> Add Line</button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {headerLines.map((line, idx) => (
-                <div key={idx} style={{ borderBottom: '1px solid var(--line)', paddingBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--muted)', width: '45px' }}>Line {idx+1}</span>
-                    <input type="text" value={line.text} onChange={(e) => updateHeaderLine(idx, 'text', e.target.value)} placeholder={`Header Line Text ${idx+1}`} style={{ flex: 1, padding: '6px' }} />
-                    <button onClick={() => removeHeaderLine(idx)} style={{ padding: '6px', background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} disabled={headerLines.length <= 1}><Trash2 size={14} /></button>
-                  </div>
-                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', paddingLeft: '53px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Size:</span>
-                      <input type="number" value={line.fontSize} onChange={(e) => updateHeaderLine(idx, 'fontSize', parseInt(e.target.value) || 10)} style={{ width: '45px', padding: '3px 4px', fontSize: '11px' }} min="6" max="32" />
-                    </div>
-                    <button onClick={() => updateHeaderLine(idx, 'isBold', !line.isBold)} style={{ padding: '4px 8px', background: line.isBold ? 'var(--accent)' : 'var(--panel)', color: line.isBold ? 'white' : 'var(--ink)', border: '1px solid var(--line)', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}><Bold size={11} /> Bold</button>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flex: 1 }}>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Pos-Y:</span>
-                      <input type="range" value={line.yOffset} onChange={(e) => updateHeaderLine(idx, 'yOffset', parseInt(e.target.value))} min="20" max="140" style={{ flex: 1 }} />
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{line.yOffset}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Table Customizer */}
-          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <strong style={{ fontSize: '13px' }}>Table Column Width Customizer (A4 printable width is 515pt)</strong>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {tableColumns.map((col, idx) => (
-                <div key={col.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '11px' }}>
-                  <span style={{ fontWeight: 600, width: '60px' }}>{col.label}</span>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <span>Width:</span>
-                    <input type="number" value={col.width} onChange={(e) => updateTableCol(idx, 'width', parseInt(e.target.value) || 20)} style={{ width: '45px', padding: '3px 4px' }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <span>Font:</span>
-                    <input type="number" value={col.fontSize} step="0.5" onChange={(e) => updateTableCol(idx, 'fontSize', parseFloat(e.target.value) || 9)} style={{ width: '45px', padding: '3px 4px' }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <span>Align:</span>
-                    <select value={col.align} onChange={(e) => updateTableCol(idx, 'align', e.target.value)} style={{ padding: '3px 4px', fontSize: '11px' }}>
-                      <option value="left">Left</option>
-                      <option value="center">Center</option>
-                      <option value="right">Right</option>
-                    </select>
-                  </div>
-                </div>
-              ))}
-              <div style={{
-                fontSize: '11px',
-                padding: '8px 12px',
-                borderRadius: '4px',
-                background: tableColumns.reduce((s, c) => s + c.width, 0) === 515 ? 'var(--accent-soft)' : 'var(--panel)',
-                color: tableColumns.reduce((s, c) => s + c.width, 0) === 515 ? 'var(--accent)' : 'var(--danger)',
-                fontWeight: 600
-              }}>
-                Current sum: {tableColumns.reduce((s, c) => s + c.width, 0)} pt / Target: 515 pt
-              </div>
-            </div>
-          </div>
-
-          <button onClick={processQpStatement} disabled={isProcessing || consolidatedRows.length === 0} style={{ width: '100%', padding: '14px', fontSize: '15px' }}>
-            {isProcessing ? "Processing Data..." : "Generate QP Statement"}
-          </button>
-        </div>
-
-        {/* Live Preview Panel */}
-        <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', margin: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Eye size={20} /> Live Preview</h3>
-            
-            {reportMode === 'consolidated' && consolidatedData.length > 0 && (
-              <button onClick={downloadConsolidatedPDF} style={{ padding: '8px 16px', fontSize: '13px' }}>
-                Download Consolidated PDF
-              </button>
-            )}
-
-            {reportMode === 'venue' && Object.keys(venueSlips).length > 0 && (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => downloadVenuePDF(activeVenueTab)} style={{ padding: '8px 16px', fontSize: '13px' }}>
-                  Download Slip PDF
-                </button>
-                <button onClick={downloadAllVenueSlipsZip} className="secondary" style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', borderColor: 'var(--line)', color: 'var(--ink)' }}>
-                  Download All ZIP
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Consolidated Mode Preview */}
-          {reportMode === 'consolidated' && (
-            consolidatedData.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
-                <div style={{
-                  padding: '24px',
-                  border: '1px solid var(--line)',
-                  borderRadius: '8px',
-                  background: 'white',
-                  color: 'black',
-                  fontFamily: 'Helvetica, Arial, sans-serif',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
-                  overflowX: 'auto'
-                }}>
-                  {/* Header Preview */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '12px' }}>
-                    {headerLines.map((line, i) => (
-                      <span key={i} style={{ 
-                        fontSize: `${line.fontSize}px`, 
-                        fontWeight: line.isBold ? 'bold' : 'normal',
-                        textAlign: line.align,
-                        width: '100%',
-                        display: 'block',
-                        marginBottom: '4px'
-                      }}>{line.text}</span>
-                    ))}
-                    <strong style={{ fontSize: '11px', width: '100%', textAlign: 'left', marginTop: '10px' }}>Date-wise Consolidated Printing Summary</strong>
-                  </div>
-
-                  {/* Table Preview */}
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
-                    <thead>
-                      <tr style={{ background: '#3c3c3c', color: 'white', fontWeight: 'bold' }}>
-                        {tableColumns.map(col => (
-                          <th key={col.id} style={{ border: '1px solid #ccc', padding: '6px', width: `${col.width}px`, textAlign: col.align }}>{col.label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {consolidatedData.map((row, idx) => (
-                        <tr key={idx}>
-                          <td style={{ border: '1px solid #ccc', padding: '6px', textAlign: 'center' }}>{idx + 1}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px' }}>{row.date}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px', whiteSpace: 'pre-line' }}><strong>{row.courseCode}</strong><br />{row.courseName}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px', textAlign: 'center' }}>{row.totalQPs}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px' }}></td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px' }}></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--line)', borderRadius: '8px', padding: '60px', color: 'var(--muted)', fontSize: '14px', textAlign: 'center' }}>
-                Upload nominal roll reports, map columns, and click "Generate QP Statement" to render summary table preview.
-              </div>
-            )
-          )}
-
-          {/* Venue Mode Preview */}
-          {reportMode === 'venue' && (
-            Object.keys(venueSlips).length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
-                {/* Tabs */}
-                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '1px solid var(--line)' }}>
-                  {Object.keys(venueSlips).map((venue) => (
-                    <button
-                      key={venue}
-                      onClick={() => setActiveVenueTab(venue)}
-                      className={activeVenueTab === venue ? 'primary' : 'secondary'}
-                      style={{ padding: '6px 12px', fontSize: '11px', whiteSpace: 'nowrap', borderColor: activeVenueTab === venue ? 'var(--accent)' : 'var(--line)', background: activeVenueTab === venue ? 'var(--accent)' : 'transparent', color: activeVenueTab === venue ? 'white' : 'var(--ink)' }}
-                    >
-                      {venue.split('-')[0].trim()}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{
-                  padding: '24px',
-                  border: '1px solid var(--line)',
-                  borderRadius: '8px',
-                  background: 'white',
-                  color: 'black',
-                  fontFamily: 'Helvetica, Arial, sans-serif',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
-                  overflowX: 'auto'
-                }}>
-                  {/* Header Preview */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '12px' }}>
-                    {headerLines.map((line, i) => (
-                      <span key={i} style={{ 
-                        fontSize: `${line.fontSize}px`, 
-                        fontWeight: line.isBold ? 'bold' : 'normal',
-                        textAlign: line.align,
-                        width: '100%',
-                        display: 'block',
-                        marginBottom: '4px'
-                      }}>{line.text}</span>
-                    ))}
-                    <strong style={{ fontSize: '11px', width: '100%', textAlign: 'left', marginTop: '10px' }}>QP Envelope Packing Slip - Center: {activeVenueTab}</strong>
-                  </div>
-
-                  {/* Table Preview */}
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
-                    <thead>
-                      <tr style={{ background: '#3c3c3c', color: 'white', fontWeight: 'bold' }}>
-                        {tableColumns.map(col => (
-                          <th key={col.id} style={{ border: '1px solid #ccc', padding: '6px', width: `${col.width}px`, textAlign: col.align }}>{col.label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {venueSlips[activeVenueTab] && venueSlips[activeVenueTab].map((row, idx) => (
-                        <tr key={idx}>
-                          <td style={{ border: '1px solid #ccc', padding: '6px', textAlign: 'center' }}>{idx + 1}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px' }}>{row.date}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px', whiteSpace: 'pre-line' }}><strong>{row.courseCode}</strong><br />{row.courseName}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px', textAlign: 'center' }}>{row.studentCount}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px' }}></td>
-                          <td style={{ border: '1px solid #ccc', padding: '6px' }}></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--line)', borderRadius: '8px', padding: '60px', color: 'var(--muted)', fontSize: '14px', textAlign: 'center' }}>
-                Upload nominal roll reports, map columns, and click "Generate QP Statement" to render separate venue packing slips.
-              </div>
-            )
-          )}
         </div>
       </div>
+
+      {/* Advanced Column Mapping Drawer / Accordion */}
+      {showConfig && (
+        <div className="card" style={{ padding: '20px 24px', marginBottom: '28px', background: 'var(--panel)', border: '1px solid var(--accent)' }}>
+          <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Sliders size={16} /> Column Header Mappings
+          </h4>
+          <p style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 0, marginBottom: '16px' }}>
+            Verify or re-link which column in your uploaded Excel sheet maps to each statement field.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+            
+            <div className="form-group">
+              <label>Event Name Column</label>
+              <select 
+                value={columnMapping.eventName}
+                onChange={(e) => setColumnMapping({ ...columnMapping, eventName: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Venue Code Column</label>
+              <select 
+                value={columnMapping.venueCode}
+                onChange={(e) => setColumnMapping({ ...columnMapping, venueCode: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Venue Name Column</label>
+              <select 
+                value={columnMapping.venueName}
+                onChange={(e) => setColumnMapping({ ...columnMapping, venueName: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Center Code Column</label>
+              <select 
+                value={columnMapping.centerCode}
+                onChange={(e) => setColumnMapping({ ...columnMapping, centerCode: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Center Name Column</label>
+              <select 
+                value={columnMapping.centerName}
+                onChange={(e) => setColumnMapping({ ...columnMapping, centerName: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Exam Date Column</label>
+              <select 
+                value={columnMapping.examDate}
+                onChange={(e) => setColumnMapping({ ...columnMapping, examDate: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Course Code Column</label>
+              <select 
+                value={columnMapping.courseCode}
+                onChange={(e) => setColumnMapping({ ...columnMapping, courseCode: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Course Name Column</label>
+              <select 
+                value={columnMapping.courseName}
+                onChange={(e) => setColumnMapping({ ...columnMapping, courseName: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Student Count (NC) Column</label>
+              <select 
+                value={columnMapping.studentCount}
+                onChange={(e) => setColumnMapping({ ...columnMapping, studentCount: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Group By Strategy</label>
+              <select 
+                value={groupByOption}
+                onChange={(e) => setGroupByOption(e.target.value)}
+              >
+                <option value="venue">Venue Code & Venue Name (Default)</option>
+                <option value="center">Center Code & Center Name</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area (When Data Loaded) */}
+      {Object.keys(processedGroups).length > 0 ? (
+        <div>
+          
+          {/* Summary Statistics Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div className="card" style={{ padding: '16px 20px', margin: 0, display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ background: 'var(--accent-soft)', padding: '12px', borderRadius: '10px', color: 'var(--accent)' }}>
+                <MapPin size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  {groupByOption === 'venue' ? 'Total Venues' : 'Total Centers'}
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--ink)' }}>{overallStats.totalGroups}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '16px 20px', margin: 0, display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ background: 'rgba(23, 107, 135, 0.15)', padding: '12px', borderRadius: '10px', color: 'var(--accent)' }}>
+                <BookOpen size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Exam Papers</div>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--ink)' }}>{overallStats.totalExams}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '16px 20px', margin: 0, display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ background: 'rgba(40, 167, 69, 0.15)', padding: '12px', borderRadius: '10px', color: '#28a745' }}>
+                <Users size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Candidates (NC)</div>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--ink)' }}>{overallStats.totalCandidates}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '16px 20px', margin: 0, display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ background: 'rgba(255, 193, 7, 0.15)', padding: '12px', borderRadius: '10px', color: '#d39e00' }}>
+                <Calendar size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Exam Days</div>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--ink)' }}>{overallStats.uniqueDays} Days</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons Toolbar */}
+          <div className="card" style={{ padding: '16px 20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => generateVenuePdf(effectiveGroupKey)}
+                disabled={!effectiveGroupKey || isProcessing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Download size={16} /> Download Selected Venue PDF
+              </button>
+
+              <button 
+                className="secondary" 
+                onClick={handlePrintPreview}
+                disabled={!effectiveGroupKey || isProcessing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Printer size={16} /> Print / PDF Preview
+              </button>
+
+              <button 
+                className="secondary" 
+                onClick={downloadCombinedMasterPdf}
+                disabled={isProcessing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <FileText size={16} /> All Venues (Combined PDF)
+              </button>
+
+              <button 
+                className="secondary" 
+                onClick={downloadAllZip}
+                disabled={isProcessing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Archive size={16} /> All Venues (ZIP Bundle)
+              </button>
+
+              <button 
+                className="secondary" 
+                onClick={exportConsolidatedExcel}
+                disabled={isProcessing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <FileSpreadsheet size={16} /> Export Excel
+              </button>
+            </div>
+
+            <div style={{ position: 'relative', minWidth: '240px' }}>
+              <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+              <input 
+                type="text" 
+                placeholder="Search course, date..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingLeft: '32px', width: '100%', fontSize: '13px' }}
+              />
+            </div>
+          </div>
+
+          {/* Venue Dropdown Selector Bar */}
+          <div className="card" style={{ padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', background: 'var(--panel)', border: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '320px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '14px', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                <MapPin size={18} /> Select Venue:
+              </div>
+              <select
+                value={effectiveGroupKey}
+                onChange={(e) => setActiveGroupKey(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  border: '1.5px solid var(--accent)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  cursor: 'pointer'
+                }}
+              >
+                {groupKeys.map((groupKey, idx) => {
+                  const items = processedGroups[groupKey].items;
+                  const totalNC = items.reduce((sum, it) => sum + it.studentCount, 0);
+                  return (
+                    <option key={groupKey} value={groupKey}>
+                      {idx + 1}. {groupKey}  ({items.length} Papers • {totalNC} NC)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Quick Prev / Next Buttons and Counter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>
+                Venue {groupKeys.indexOf(effectiveGroupKey) + 1} of {groupKeys.length}
+              </span>
+              <button
+                className="secondary"
+                disabled={groupKeys.indexOf(effectiveGroupKey) <= 0}
+                onClick={() => {
+                  const currIdx = groupKeys.indexOf(effectiveGroupKey);
+                  if (currIdx > 0) setActiveGroupKey(groupKeys[currIdx - 1]);
+                }}
+                style={{ padding: '7px 12px', fontSize: '12px' }}
+              >
+                ← Prev
+              </button>
+              <button
+                className="secondary"
+                disabled={groupKeys.indexOf(effectiveGroupKey) >= groupKeys.length - 1}
+                onClick={() => {
+                  const currIdx = groupKeys.indexOf(effectiveGroupKey);
+                  if (currIdx < groupKeys.length - 1) setActiveGroupKey(groupKeys[currIdx + 1]);
+                }}
+                style={{ padding: '7px 12px', fontSize: '12px' }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+
+          {/* Live Preview Paper Display (Matches PDF Layout 1:1) */}
+          <div className="card" style={{ padding: '36px 40px', background: 'white', border: '1px solid var(--line)', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+            
+            {/* Rendered Header inside Paper */}
+            <div style={{ textAlign: 'center', marginBottom: '24px', borderBottom: '1px solid #eee', paddingBottom: '16px' }}>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#000', letterSpacing: '0.2px', marginBottom: '4px' }}>
+                {universityName}
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#111', marginBottom: '6px' }}>
+                {branchName}
+              </div>
+              <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#111', marginBottom: '4px' }}>
+                {examTitle}
+              </div>
+              {sessionName && (
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#222', marginBottom: '4px' }}>
+                  {sessionName}
+                </div>
+              )}
+              <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#000', marginTop: '6px' }}>
+                {centerPrefix} {effectiveGroupKey}
+              </div>
+            </div>
+
+            {/* Rendered Statement Table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', fontFamily: 'inherit' }}>
+                <thead>
+                  <tr style={{ background: '#f2f2f2', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                    <th style={{ border: '1px solid #000', padding: '8px 6px', width: '50px', textAlign: 'center', fontWeight: 700 }}>SL<br/>No</th>
+                    <th style={{ border: '1px solid #000', padding: '8px 10px', width: '180px', textAlign: 'left', fontWeight: 700 }}>Date</th>
+                    <th style={{ border: '1px solid #000', padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Course</th>
+                    <th style={{ border: '1px solid #000', padding: '8px 6px', width: '70px', textAlign: 'center', fontWeight: 700 }}>NC</th>
+                    <th style={{ border: '1px solid #000', padding: '8px 6px', width: '75px', textAlign: 'center', fontWeight: 700 }}>QP</th>
+                    <th style={{ border: '1px solid #000', padding: '8px 6px', width: '75px', textAlign: 'center', fontWeight: 700 }}>LP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentTabItems.length > 0 ? (
+                    currentTabItems.map((row, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #000', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px 10px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>{row.formattedDate}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px 12px', verticalAlign: 'middle', lineHeight: '1.4' }}>
+                          {formatCourseDisplay(row.courseCode, row.courseName)}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', fontWeight: 700 }}>{row.studentCount}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', color: '#999' }}>—</td>
+                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', color: '#999' }}>—</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: 'var(--muted)' }}>
+                        No records matching query "{searchQuery}"
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer / Summary */}
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: 'var(--muted)' }}>
+              <div>
+                Showing <strong>{currentTabItems.length}</strong> exam paper(s) for <strong>{effectiveGroupKey}</strong>
+              </div>
+              <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
+                Total NC Candidates: {currentTabItems.reduce((acc, curr) => acc + curr.studentCount, 0)}
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      ) : (
+        /* Empty State */
+        <div className="card" style={{ padding: '60px 20px', textAlign: 'center', background: 'var(--panel)', border: '1px dashed var(--line)' }}>
+          <BookOpen size={48} color="var(--accent)" style={{ margin: '0 auto 16px', opacity: 0.8 }} />
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700 }}>No Report Loaded Yet</h3>
+          <p style={{ color: 'var(--muted)', maxWidth: '520px', margin: '0 auto 20px', fontSize: '14px', lineHeight: '1.6' }}>
+            Upload your <strong>Venue-wise / Course-wise / Date-wise</strong> examination Excel file above. The system will group reports by <strong>Venue Code</strong>, format candidate counts (NC), and generate clean university statements.
+          </p>
+        </div>
+      )}
+
     </div>
   );
 };

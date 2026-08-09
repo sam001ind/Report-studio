@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
-import { useAuth } from '../context/AuthContext';
 
 const SplitterPage = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
   
   // File and sheet states
   const [selectedFile, setSelectedFile] = useState(null);
@@ -207,7 +204,7 @@ const SplitterPage = () => {
           XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, selectedSheet.slice(0, 31) || "Sheet1");
 
           const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: true });
-          const safeColVal = colValue.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+          const safeColVal = String(colValue).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
           const fileName = `${baseName}_${safeColVal}.xlsx`;
 
           zip.file(fileName, excelBuffer);

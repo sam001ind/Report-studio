@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import mammoth from 'mammoth';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -11,7 +11,7 @@ const PAGE_SIZES = {
 
 const TemplatePage = ({ dataset, initialTemplate }) => {
   const { user } = useAuth();
-  const [template, setTemplate] = useState(initialTemplate?.layout_data || {
+  const [template, setTemplate] = useState(() => initialTemplate?.layout_data || {
     pageSize: 'A4',
     orientation: 'portrait',
     zoomScale: 0.75,
@@ -28,13 +28,8 @@ const TemplatePage = ({ dataset, initialTemplate }) => {
   // Dragging / Resizing State
   const actionRef = useRef(null);
 
-  // Auto-save mechanism
   useEffect(() => {
-    // We could save to localStorage here if we wanted persistent drafts
-  }, [template]);
-
-  useEffect(() => {
-    if (initialTemplate) {
+    if (initialTemplate?.layout_data) {
       setTemplate(initialTemplate.layout_data);
     }
   }, [initialTemplate]);
@@ -270,7 +265,7 @@ const TemplatePage = ({ dataset, initialTemplate }) => {
       ...template,
       createdAt: new Date().toISOString()
     };
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('templates')
       .insert([{ name: template.name, layout_data: layoutData, user_id: user.id }]);
       

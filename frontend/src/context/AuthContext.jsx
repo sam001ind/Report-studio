@@ -1,44 +1,40 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+// eslint-disable-next-line react-refresh/only-export-components
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  // Hardcoded active admin session to bypass login entirely
-  const [user, setUser] = useState({
+  const [user] = useState({
     id: '00000000-0000-0000-0000-000000000000',
     email: 'admin@reportstudio.com'
   });
   
-  const [profile, setProfile] = useState({
+  const [profile] = useState({
     id: '00000000-0000-0000-0000-000000000000',
     email: 'admin@reportstudio.com',
     is_admin: true
   });
   
-  const [permissions, setPermissions] = useState({
+  const [permissions] = useState({
     user_id: '00000000-0000-0000-0000-000000000000',
     can_access_studio: true,
     can_access_scheduler: true
   });
-  
-  const [loading, setLoading] = useState(false);
 
   const value = {
     user,
     profile,
     permissions,
-    signIn: async (email, password) => { return { data: { user }, error: null }; },
-    signUp: async (email, password) => { return { data: { user }, error: null }; },
-    signOut: async () => { /* No-op to remain permanently logged in */ },
+    signIn: async () => ({ data: { user }, error: null }),
+    signUp: async () => ({ data: { user }, error: null }),
+    signOut: async () => {},
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
@@ -19,93 +19,7 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
   const [configName, setConfigName] = useState('');
   const [showAddStep, setShowAddStep] = useState(false);
 
-  // Load from initialConfig
-  useEffect(() => {
-    if (initialConfig && initialConfig.config_data) {
-      setConfigName(initialConfig.name);
-      const loadedSteps = initialConfig.config_data.pipeline || [];
-      
-      // Migrate old format
-      if (initialConfig.config_data.filters && loadedSteps.length === 0) {
-        setPipelineSteps(initialConfig.config_data.filters.map(f => ({ ...f, type: 'filter' })));
-      } else {
-        setPipelineSteps(loadedSteps);
-      }
-    }
-  }, [initialConfig]);
-
-  // Rerun pipeline whenever steps or source data changes
-  useEffect(() => {
-    runPipeline(pipelineSteps, sourceRows, sourceCols);
-  }, [pipelineSteps, sourceRows, sourceCols]);
-
-  const processFile = (file) => {
-    if (!file) return;
-
-    setUploadStatus(`Loaded: ${file.name}`);
-    const ext = file.name.split('.').pop().toLowerCase();
-    
-    const processData = (data) => {
-      if (!data || data.length === 0) return alert("File is empty.");
-      
-      let columns = Object.keys(data[0] || {}).map(c => c.trim());
-      
-      const records = data.map(row => {
-         const newRow = {};
-         for (let col of columns) {
-            const origKey = Object.keys(row).find(k => k.trim() === col) || col;
-            let val = row[origKey];
-            newRow[col] = (val === null || val === undefined) ? "" : String(val);
-         }
-         return newRow;
-      });
-      
-      setSourceCols(columns);
-      setSourceRows(records);
-      
-      // The useEffect will automatically run the pipeline and update dataset/stats
-    };
-    
-    if (ext === 'csv') {
-       Papa.parse(file, { header: true, skipEmptyLines: true, complete: (results) => processData(results.data), error: (err) => alert("Error parsing CSV: " + err.message) });
-    } else if (ext === 'xlsx' || ext === 'xls') {
-       const reader = new FileReader();
-       reader.onload = (evt) => {
-          try {
-             const arrayBuffer = evt.target.result;
-             const workbook = XLSX.read(arrayBuffer, {type: 'array'});
-             const sheetName = workbook.SheetNames[0];
-             const sheet = workbook.Sheets[sheetName];
-             const data = XLSX.utils.sheet_to_json(sheet, {defval: ""});
-             processData(data);
-          } catch(err) {
-             alert("Error parsing Excel: " + err.message);
-          }
-       };
-       reader.readAsArrayBuffer(file);
-    } else if (ext === 'json') {
-       const reader = new FileReader();
-       reader.onload = (evt) => {
-          try {
-             const data = JSON.parse(evt.target.result);
-             if (!Array.isArray(data)) return alert("JSON must be an array of objects.");
-             processData(data);
-          } catch(err) {
-             alert("Error parsing JSON: " + err.message);
-          }
-       };
-       reader.readAsText(file);
-    } else {
-       alert("Unsupported file format.");
-    }
-  };
-
-  const handleFileUpload = (e) => processFile(e.target.files[0]);
-  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
-  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files?.length > 0) processFile(e.dataTransfer.files[0]); };
-
-  const runPipeline = (steps, initialRows, initialCols) => {
+  const runPipeline = useCallback((steps, initialRows, initialCols) => {
     let currentData = [...initialRows];
     let currentCols = [...initialCols];
 
@@ -204,7 +118,93 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
     setFilteredRows(currentData);
     setDataset({ columns: currentCols, rows: currentData });
     setStats({ rows: currentData.length, cols: currentCols.length });
+  }, [setDataset, setStats]);
+
+  // Load from initialConfig
+  useEffect(() => {
+    if (initialConfig && initialConfig.config_data) {
+      setConfigName(initialConfig.name);
+      const loadedSteps = initialConfig.config_data.pipeline || [];
+      
+      // Migrate old format
+      if (initialConfig.config_data.filters && loadedSteps.length === 0) {
+        setPipelineSteps(initialConfig.config_data.filters.map(f => ({ ...f, type: 'filter' })));
+      } else {
+        setPipelineSteps(loadedSteps);
+      }
+    }
+  }, [initialConfig]);
+
+  // Rerun pipeline whenever steps or source data changes
+  useEffect(() => {
+    runPipeline(pipelineSteps, sourceRows, sourceCols);
+  }, [pipelineSteps, sourceRows, sourceCols, runPipeline]);
+
+  const processFile = (file) => {
+    if (!file) return;
+
+    setUploadStatus(`Loaded: ${file.name}`);
+    const ext = file.name.split('.').pop().toLowerCase();
+    
+    const processData = (data) => {
+      if (!data || data.length === 0) return alert("File is empty.");
+      
+      let columns = Object.keys(data[0] || {}).map(c => c.trim());
+      
+      const records = data.map(row => {
+         const newRow = {};
+         for (let col of columns) {
+            const origKey = Object.keys(row).find(k => k.trim() === col) || col;
+            let val = row[origKey];
+            newRow[col] = (val === null || val === undefined) ? "" : String(val);
+         }
+         return newRow;
+      });
+      
+      setSourceCols(columns);
+      setSourceRows(records);
+      
+      // The useEffect will automatically run the pipeline and update dataset/stats
+    };
+    
+    if (ext === 'csv') {
+       Papa.parse(file, { header: true, skipEmptyLines: true, complete: (results) => processData(results.data), error: (err) => alert("Error parsing CSV: " + err.message) });
+    } else if (ext === 'xlsx' || ext === 'xls') {
+       const reader = new FileReader();
+       reader.onload = (evt) => {
+          try {
+             const arrayBuffer = evt.target.result;
+             const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+             const sheetName = workbook.SheetNames[0];
+             const sheet = workbook.Sheets[sheetName];
+             const data = XLSX.utils.sheet_to_json(sheet, {defval: ""});
+             processData(data);
+          } catch(err) {
+             alert("Error parsing Excel: " + err.message);
+          }
+       };
+       reader.readAsArrayBuffer(file);
+    } else if (ext === 'json') {
+       const reader = new FileReader();
+       reader.onload = (evt) => {
+          try {
+             const data = JSON.parse(evt.target.result);
+             if (!Array.isArray(data)) return alert("JSON must be an array of objects.");
+             processData(data);
+          } catch(err) {
+             alert("Error parsing JSON: " + err.message);
+          }
+       };
+       reader.readAsText(file);
+    } else {
+       alert("Unsupported file format.");
+    }
   };
+
+  const handleFileUpload = (e) => processFile(e.target.files[0]);
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files?.length > 0) processFile(e.dataTransfer.files[0]); };
 
   const addStep = (type) => {
     const newStep = { id: Date.now(), type };
@@ -249,7 +249,7 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
       createdAt: new Date().toISOString()
     };
     
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('configs')
       .insert([
         { name: configName, config_data: configData, user_id: user.id }

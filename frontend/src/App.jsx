@@ -14,25 +14,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 
-const ProtectedRoute = ({ children, requiredPermission }) => {
-  const { user, permissions, profile } = useAuth();
-  
+const ProtectedRoute = ({ children }) => {
+  const { user } = useAuth();
   if (!user) return <Navigate to="/auth" />;
-  
-  // If a specific permission is required, and they are NOT an admin, check the permission
-  if (requiredPermission && profile && !profile.is_admin) {
-    if (!permissions || !permissions[requiredPermission]) {
-      // User does not have access
-      return (
-        <div style={{ padding: '40px', color: 'white', textAlign: 'center' }}>
-          <h2>Access Denied</h2>
-          <p>You do not have permission to access this module.</p>
-          <button onClick={() => window.location.href = '/'} style={{ padding: '10px 20px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Back to Home</button>
-        </div>
-      );
-    }
-  }
-  
   return children;
 };
 
