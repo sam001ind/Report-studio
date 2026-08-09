@@ -22,7 +22,9 @@ import {
   FileArchive, 
   Plus, 
   Trash2, 
-  Percent
+  Percent,
+  Sliders,
+  FileText
 } from 'lucide-react';
 import { normalizeText, stringSimilarity, calculateCompositeSimilarity } from '../utils/fuzzyMatch';
 
@@ -107,6 +109,11 @@ const DataComparisonPage = () => {
   const [activeResultTab, setActiveResultTab] = useState('all'); // 'all' | 'exact' | 'partial' | 'discrepancy' | 'unmatched_a' | 'unmatched_b' | 'duplicates'
   const [searchQuery, setSearchQuery] = useState('');
   const [inspectModalItem, setInspectModalItem] = useState(null);
+
+  // Custom Report Builder States (Step 4)
+  const [customSelectedCols, setCustomSelectedCols] = useState(null);
+  const [customRecordScope, setCustomRecordScope] = useState('all'); // 'all' | 'matched' | 'discrepancy' | 'partial' | 'unmatched_a' | 'unmatched_b'
+  const [customReportName, setCustomReportName] = useState('Custom_Reconciled_Report');
 
   const setStatus = (msg, type = 'normal') => {
     setStatusMsg(msg);
@@ -956,6 +963,158 @@ const DataComparisonPage = () => {
     URL.revokeObjectURL(downloadUrl);
 
     setStatus("ZIP bundle downloaded successfully!", "success");
+  };
+
+  // Available custom column options from both uploaded files + audit metadata
+  const allCustomColumnsList = useMemo(() => {
+    const list = [
+      { key: 'meta:status', label: 'Match Status', origin: 'meta', badge: 'Audit Status' },
+      { key: 'meta:confidence', label: 'Confidence Score (%)', origin: 'meta', badge: 'Audit Score' },
+      { key: 'meta:discrepancies', label: 'Discrepancy Details', origin: 'meta', badge: 'Discrepancy' }
+    ];
+
+    (datasetA.columns || []).forEach(c => {
+      list.push({ key: `A:${c}`, label: c, originalName: c, origin: 'A', badge: `Dataset A: ${datasetA.name || 'File A'}` });
+    });
+
+    (datasetB.columns || []).forEach(c => {
+      list.push({ key: `B:${c}`, label: c, originalName: c, origin: 'B', badge: `Dataset B: ${datasetB.name || 'File B'}` });
+    });
+
+    return list;
+  }, [datasetA.columns, datasetA.name, datasetB.columns, datasetB.name]);
+
+  // Current active selected column keys
+  const effectiveSelectedCols = useMemo(() => {
+    if (customSelectedCols !== null) return customSelectedCols;
+    return allCustomColumnsList.map(c => c.key);
+  }, [customSelectedCols, allCustomColumnsList]);
+
+  const toggleCustomCol = (colKey) => {
+    if (effectiveSelectedCols.includes(colKey)) {
+      setCustomSelectedCols(effectiveSelectedCols.filter(k => k !== colKey));
+    } else {
+      setCustomSelectedCols([...effectiveSelectedCols, colKey]);
+    }
+  };
+
+  const selectAllCustomCols = () => {
+    setCustomSelectedCols(allCustomColumnsList.map(c => c.key));
+  };
+
+  const selectGroupCols = (groupKey) => {
+    const groupColKeys = allCustomColumnsList.filter(c => c.origin === groupKey).map(c => c.key);
+    const combined = Array.from(new Set([...effectiveSelectedCols, ...groupColKeys]));
+    setCustomSelectedCols(combined);
+  };
+
+  const deselectGroupCols = (groupKey) => {
+    setCustomSelectedCols(effectiveSelectedCols.filter(k => {
+      const col = allCustomColumnsList.find(c => c.key === k);
+      return col && col.origin !== groupKey;
+    }));
+  };
+
+  const clearAllCustomCols = () => {
+    setCustomSelectedCols([]);
+  };
+
+  // Generate Custom Output Rows based on selected columns & record scope
+  const getCustomExportRows = () => {
+    if (!comparisonResults) return [];
+
+    let targetItems = [];
+    if (customRecordScope === 'all') {
+      targetItems = [
+        ...comparisonResults.exactMatches,
+        ...comparisonResults.partialMatches,
+        ...comparisonResults.valueDiscrepancies,
+        ...comparisonResults.unmatchedA,
+        ...comparisonResults.unmatchedB
+      ];
+    } else if (customRecordScope === 'matched') {
+      targetItems = [
+        ...comparisonResults.exactMatches,
+        ...comparisonResults.partialMatches
+      ];
+    } else if (customRecordScope === 'discrepancy') {
+      targetItems = comparisonResults.valueDiscrepancies;
+    } else if (customRecordScope === 'partial') {
+      targetItems = comparisonResults.partialMatches;
+    } else if (customRecordScope === 'unmatched_a') {
+      targetItems = comparisonResults.unmatchedA;
+    } else if (customRecordScope === 'unmatched_b') {
+      targetItems = comparisonResults.unmatchedB;
+    }
+
+    return targetItems.map((item, idx) => {
+      const row = { "Row_Index": idx + 1 };
+      
+      effectiveSelectedCols.forEach(k => {
+        if (k === 'meta:status') {
+          row['Match_Status'] = item.status || 'Unmatched';
+        } else if (k === 'meta:confidence') {
+          row['Confidence_%'] = item.confidence ?? '';
+        } else if (k === 'meta:discrepancies') {
+          row['Discrepancy_Details'] = (item.discrepancies && item.discrepancies.length > 0)
+            ? item.discrepancies.map(d => `${d.fieldA}("${d.valA}" vs "${d.valB}")`).join('; ')
+            : (item.status === 'Exact Match' ? 'None (100% Match)' : '');
+        } else if (k.startsWith('A:')) {
+          const col = k.slice(2);
+          row[`A_${col}`] = item.rowA ? (item.rowA[col] ?? '') : '';
+        } else if (k.startsWith('B:')) {
+          const col = k.slice(2);
+          row[`B_${col}`] = item.rowB ? (item.rowB[col] ?? '') : '';
+        }
+      });
+
+      return row;
+    });
+  };
+
+  const exportCustomExcel = () => {
+    if (effectiveSelectedCols.length === 0) {
+      alert("Please select at least one column from Dataset A, Dataset B, or Audit Metadata to include in your customized report.");
+      return;
+    }
+    const rows = getCustomExportRows();
+    if (rows.length === 0) {
+      alert("No records found matching the selected record scope.");
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const fileName = `${customReportName.trim() || 'Custom_Reconciled_Report'}.xlsx`;
+    XLSX.utils.book_append_sheet(wb, ws, "Custom_Report");
+    XLSX.writeFile(wb, fileName);
+    setStatus(`Downloaded custom report ${fileName} successfully!`, 'success');
+  };
+
+  const exportCustomCsv = () => {
+    if (effectiveSelectedCols.length === 0) {
+      alert("Please select at least one column to include in your customized report.");
+      return;
+    }
+    const rows = getCustomExportRows();
+    if (rows.length === 0) {
+      alert("No records found matching the selected record scope.");
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const csvData = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const fileName = `${customReportName.trim() || 'Custom_Reconciled_Report'}.csv`;
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+    setStatus(`Downloaded custom CSV report ${fileName} successfully!`, 'success');
   };
 
   return (
@@ -1918,6 +2077,270 @@ const DataComparisonPage = () => {
               >
                 <FileArchive size={18} /> Download All as ZIP (.zip)
               </button>
+            </div>
+
+          </div>
+
+          {/* Custom Column & Master Merged Report Studio */}
+          <div className="card" style={{ padding: '32px', border: '1.5px solid var(--accent)', background: 'var(--panel)' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ background: 'linear-gradient(135deg, var(--accent), #5cbbd4)', color: 'white', padding: '12px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Sliders size={26} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800 }}>Custom Column & Master Merged Report Builder</h3>
+                    <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '12px', background: 'rgba(23, 107, 135, 0.12)', color: 'var(--accent)' }}>
+                      CUSTOMIZABLE OUTPUT
+                    </span>
+                  </div>
+                  <p style={{ color: 'var(--muted)', fontSize: '13.5px', margin: '4px 0 0 0' }}>
+                    Select and customize any headers from <strong>Dataset A</strong> ({datasetA.name}), <strong>Dataset B</strong> ({datasetB.name}), and <strong>Audit Status Flags</strong> to build your bespoke spreadsheet.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Config Controls Row: Report Name & Record Scope */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px', background: 'var(--bg)', padding: '20px', borderRadius: '10px', border: '1px solid var(--line)', marginBottom: '24px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                  Custom Report File Name:
+                </label>
+                <input 
+                  type="text" 
+                  value={customReportName} 
+                  onChange={(e) => setCustomReportName(e.target.value)}
+                  placeholder="Custom_Reconciled_Report"
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '13.5px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                  Record Scope Filter:
+                </label>
+                <select 
+                  value={customRecordScope} 
+                  onChange={(e) => setCustomRecordScope(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '13.5px' }}
+                >
+                  <option value="all">All Reconciled Records (Full Merged Outer View)</option>
+                  <option value="matched">Matched Records Only (Exact + Fuzzy)</option>
+                  <option value="discrepancy">Value Discrepancies Only</option>
+                  <option value="partial">Partial / Fuzzy Matches Only</option>
+                  <option value="unmatched_a">Unmatched Dataset A Only</option>
+                  <option value="unmatched_b">Unmatched Dataset B Only</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Column Presets / Quick Selection Bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Quick Selectors:
+                </span>
+                <button className="secondary" onClick={selectAllCustomCols} style={{ padding: '5px 10px', fontSize: '12px' }}>
+                  Select All Columns
+                </button>
+                <button className="secondary" onClick={() => selectGroupCols('A')} style={{ padding: '5px 10px', fontSize: '12px' }}>
+                  All Dataset A ({datasetA.columns.length})
+                </button>
+                <button className="secondary" onClick={() => selectGroupCols('B')} style={{ padding: '5px 10px', fontSize: '12px' }}>
+                  All Dataset B ({datasetB.columns.length})
+                </button>
+                <button className="secondary" onClick={() => selectGroupCols('meta')} style={{ padding: '5px 10px', fontSize: '12px' }}>
+                  Audit Metadata (3)
+                </button>
+                <button className="secondary" onClick={clearAllCustomCols} style={{ padding: '5px 10px', fontSize: '12px', color: 'var(--danger)' }}>
+                  Deselect All
+                </button>
+              </div>
+
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent)' }}>
+                {effectiveSelectedCols.length} of {allCustomColumnsList.length} Headers Selected
+              </div>
+            </div>
+
+            {/* Categorized Column Selection Deck */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+              
+              {/* Group 1: Dataset A Columns */}
+              <div style={{ background: 'var(--bg)', borderRadius: '10px', padding: '16px', border: '1.5px solid rgba(23, 107, 135, 0.25)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ background: 'var(--accent)', color: 'white', width: '20px', height: '20px', borderRadius: '50%', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>A</div>
+                    <strong style={{ fontSize: '13px' }}>Dataset A Headers ({datasetA.columns.length})</strong>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="secondary" onClick={() => selectGroupCols('A')} style={{ padding: '2px 6px', fontSize: '11px' }}>All</button>
+                    <button className="secondary" onClick={() => deselectGroupCols('A')} style={{ padding: '2px 6px', fontSize: '11px' }}>None</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto' }}>
+                  {datasetA.columns.map(c => {
+                    const colKey = `A:${c}`;
+                    const isChecked = effectiveSelectedCols.includes(colKey);
+                    return (
+                      <label 
+                        key={colKey}
+                        onClick={() => toggleCustomCol(colKey)}
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '10px', 
+                          padding: '7px 10px', 
+                          borderRadius: '6px', 
+                          fontSize: '12.5px', 
+                          cursor: 'pointer',
+                          background: isChecked ? 'rgba(23, 107, 135, 0.1)' : 'var(--panel)',
+                          border: isChecked ? '1px solid var(--accent)' : '1px solid var(--line)',
+                          fontWeight: isChecked ? 600 : 400
+                        }}
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => {}} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span style={{ flex: 1, wordBreak: 'break-word' }}>{c}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--muted)', background: 'var(--bg)', padding: '2px 6px', borderRadius: '4px' }}>A</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Group 2: Dataset B Columns */}
+              <div style={{ background: 'var(--bg)', borderRadius: '10px', padding: '16px', border: '1.5px solid rgba(139, 92, 246, 0.25)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ background: '#8b5cf6', color: 'white', width: '20px', height: '20px', borderRadius: '50%', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>B</div>
+                    <strong style={{ fontSize: '13px' }}>Dataset B Headers ({datasetB.columns.length})</strong>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="secondary" onClick={() => selectGroupCols('B')} style={{ padding: '2px 6px', fontSize: '11px' }}>All</button>
+                    <button className="secondary" onClick={() => deselectGroupCols('B')} style={{ padding: '2px 6px', fontSize: '11px' }}>None</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto' }}>
+                  {datasetB.columns.map(c => {
+                    const colKey = `B:${c}`;
+                    const isChecked = effectiveSelectedCols.includes(colKey);
+                    return (
+                      <label 
+                        key={colKey}
+                        onClick={() => toggleCustomCol(colKey)}
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '10px', 
+                          padding: '7px 10px', 
+                          borderRadius: '6px', 
+                          fontSize: '12.5px', 
+                          cursor: 'pointer',
+                          background: isChecked ? 'rgba(139, 92, 246, 0.1)' : 'var(--panel)',
+                          border: isChecked ? '1px solid #8b5cf6' : '1px solid var(--line)',
+                          fontWeight: isChecked ? 600 : 400
+                        }}
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => {}} 
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span style={{ flex: 1, wordBreak: 'break-word' }}>{c}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--muted)', background: 'var(--bg)', padding: '2px 6px', borderRadius: '4px' }}>B</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Group 3: Audit Metadata Columns */}
+              <div style={{ background: 'var(--bg)', borderRadius: '10px', padding: '16px', border: '1.5px solid rgba(16, 185, 129, 0.25)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ background: '#10b981', color: 'white', width: '20px', height: '20px', borderRadius: '50%', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>✓</div>
+                    <strong style={{ fontSize: '13px' }}>Audit & Reconciled Metadata (3)</strong>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="secondary" onClick={() => selectGroupCols('meta')} style={{ padding: '2px 6px', fontSize: '11px' }}>All</button>
+                    <button className="secondary" onClick={() => deselectGroupCols('meta')} style={{ padding: '2px 6px', fontSize: '11px' }}>None</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto' }}>
+                  {[
+                    { key: 'meta:status', label: 'Match Status (Exact / Partial / Discrepancy / Unmatched)', sub: 'Reconciled classification badge' },
+                    { key: 'meta:confidence', label: 'Confidence Score (%)', sub: 'Calculated fuzzy similarity percentage' },
+                    { key: 'meta:discrepancies', label: 'Discrepancy Details', sub: 'Summary of mismatched attributes' }
+                  ].map(m => {
+                    const isChecked = effectiveSelectedCols.includes(m.key);
+                    return (
+                      <label 
+                        key={m.key}
+                        onClick={() => toggleCustomCol(m.key)}
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'flex-start', 
+                          gap: '10px', 
+                          padding: '7px 10px', 
+                          borderRadius: '6px', 
+                          fontSize: '12.5px', 
+                          cursor: 'pointer',
+                          background: isChecked ? 'rgba(16, 185, 129, 0.1)' : 'var(--panel)',
+                          border: isChecked ? '1px solid #10b981' : '1px solid var(--line)',
+                          fontWeight: isChecked ? 600 : 400
+                        }}
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => {}} 
+                          style={{ cursor: 'pointer', marginTop: '3px' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div>{m.label}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 400 }}>{m.sub}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Custom Output Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', paddingTop: '20px', borderTop: '1px solid var(--line)' }}>
+              <div style={{ fontSize: '13.5px', color: 'var(--muted)' }}>
+                Ready to generate custom report with <strong>{effectiveSelectedCols.length} column(s)</strong>.
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <button 
+                  onClick={exportCustomExcel}
+                  disabled={effectiveSelectedCols.length === 0}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 700 }}
+                >
+                  <Download size={18} /> Download Custom Excel (.xlsx)
+                </button>
+
+                <button 
+                  className="secondary"
+                  onClick={exportCustomCsv}
+                  disabled={effectiveSelectedCols.length === 0}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 20px', fontSize: '14px', fontWeight: 700 }}
+                >
+                  <FileText size={18} /> Download Custom CSV (.csv)
+                </button>
+              </div>
             </div>
 
           </div>
