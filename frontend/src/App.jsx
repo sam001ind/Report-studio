@@ -10,6 +10,8 @@ import SllNominalPage from './pages/SllNominalPage';
 import QpStatementPage from './pages/QpStatementPage';
 import QpLabelPage from './pages/QpLabelPage';
 import DataComparisonPage from './pages/DataComparisonPage';
+import UrlShortenerPage from './pages/UrlShortenerPage';
+import UrlRedirectHandler from './pages/UrlRedirectHandler';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -78,6 +80,12 @@ function App() {
               <DataComparisonPage />
             </ProtectedRoute>
           } />
+          <Route path="/shortener" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <UrlShortenerPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/s/:code" element={<UrlRedirectHandler />} />
           <Route path="/scheduler" element={
             <ProtectedRoute requiredPermission="can_access_scheduler">
               <SchedulerPage />

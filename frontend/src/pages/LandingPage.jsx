@@ -7,7 +7,8 @@ import {
   CalendarDays, 
   FileText, 
   CalendarRange,
-  GitCompare
+  GitCompare,
+  Link as LinkIcon
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -113,6 +114,15 @@ const LandingPage = () => {
             <div style={styles.featureIcon}><GitCompare size={24} color="var(--accent)" /></div>
             <h3 style={styles.featureTitle}>Data Comparison & Reconciliation</h3>
             <p style={styles.featureText}>Fuzzy match & compare Excel datasets, identify partial matches, detect discrepancies, and export audit reports.</p>
+          </div>
+
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/shortener')}
+          >
+            <div style={styles.featureIcon}><LinkIcon size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>URL Shortener & QR Studio</h3>
+            <p style={styles.featureText}>Create short links, custom aliases, high-res QR codes, and batch-shorten entire Excel roster columns.</p>
           </div>
 
           <div 
