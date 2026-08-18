@@ -250,6 +250,22 @@ const SllNominalPage = () => {
   const groupKeys = useMemo(() => Object.keys(processedGroups).sort(), [processedGroups]);
   const effectiveGroupKey = activeGroupKey && processedGroups[activeGroupKey] ? activeGroupKey : (groupKeys[0] || '');
 
+  // Unique list of programmes for cascading selector
+  const programmesList = useMemo(() => {
+    const set = new Set();
+    groupKeys.forEach(k => {
+      if (processedGroups[k]?.programme) set.add(processedGroups[k].programme);
+    });
+    return Array.from(set).sort();
+  }, [groupKeys, processedGroups]);
+
+  const currentProgramme = processedGroups[effectiveGroupKey]?.programme || programmesList[0] || '';
+
+  const venuesForCurrentProg = useMemo(() => {
+    if (groupByOption !== 'programme_venue') return groupKeys;
+    return groupKeys.filter(k => processedGroups[k]?.programme === currentProgramme);
+  }, [groupByOption, groupKeys, processedGroups, currentProgramme]);
+
   // Statistics
   const stats = useMemo(() => {
     if (!groupKeys.length) return { totalGroups: 0, totalCandidates: 0, totalUniqueCourses: 0, totalVenues: 0 };
@@ -318,16 +334,34 @@ const SllNominalPage = () => {
       doc.text(sessionName, 105, 30, { align: 'center' });
     }
 
-    // Venue & Programme Info Box
+    // Venue & Programme Info Box (Stacked with auto-wrapping for long names)
+    const progText = `Programme: ${gData.programme || 'N/A'}`;
+    const venueText = `Venue: ${gData.venueLabel || 'N/A'}`;
+    const candCountText = `Total Candidates: ${gData.totalCandidates}`;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    
+    // Auto-wrap long lines so they never truncate or overflow
+    const progLines = doc.splitTextToSize(progText, 136);
+    const venueLines = doc.splitTextToSize(venueText, 136);
+    
+    const boxHeight = Math.max(16, (progLines.length + venueLines.length) * 4.5 + 5);
+
     doc.setDrawColor(180, 180, 180);
     doc.setFillColor(248, 249, 250);
-    doc.roundedRect(14, 34, 182, 14, 2, 2, 'FD');
+    doc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
 
-    doc.setFontSize(9.5);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Venue: ${gData.venueLabel}`, 18, 40);
-    doc.text(`Programme: ${gData.programme}`, 18, 45);
-    doc.text(`Total Candidates: ${gData.totalCandidates}`, 150, 42.5);
+    let textY = 38.5;
+    doc.setTextColor(20, 20, 20);
+    doc.text(progLines, 18, textY);
+    textY += progLines.length * 4.5;
+    
+    doc.setTextColor(23, 107, 135);
+    doc.text(venueLines, 18, textY);
+    
+    doc.setTextColor(20, 20, 20);
+    doc.text(candCountText, 150, 39);
 
     // Table Content
     const tableData = gData.candidates.map((c, idx) => {
@@ -341,8 +375,10 @@ const SllNominalPage = () => {
       ];
     });
 
+    const startTableY = 34 + boxHeight + 4;
+
     autoTable(doc, {
-      startY: 51,
+      startY: startTableY,
       head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
       body: tableData,
       theme: 'grid',
@@ -397,23 +433,42 @@ const SllNominalPage = () => {
           doc.text(sessionName, 105, 30, { align: 'center' });
         }
 
+        const progText = `Programme: ${gData.programme || 'N/A'}`;
+        const venueText = `Venue: ${gData.venueLabel || 'N/A'}`;
+        const candCountText = `Candidates: ${gData.totalCandidates}`;
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        
+        const progLines = doc.splitTextToSize(progText, 136);
+        const venueLines = doc.splitTextToSize(venueText, 136);
+        
+        const boxHeight = Math.max(16, (progLines.length + venueLines.length) * 4.5 + 5);
+
         doc.setDrawColor(180, 180, 180);
         doc.setFillColor(248, 249, 250);
-        doc.roundedRect(14, 34, 182, 14, 2, 2, 'FD');
+        doc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
 
-        doc.setFontSize(9.5);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Venue: ${gData.venueLabel}`, 18, 40);
-        doc.text(`Programme: ${gData.programme}`, 18, 45);
-        doc.text(`Candidates: ${gData.totalCandidates}`, 150, 42.5);
+        let textY = 38.5;
+        doc.setTextColor(20, 20, 20);
+        doc.text(progLines, 18, textY);
+        textY += progLines.length * 4.5;
+        
+        doc.setTextColor(23, 107, 135);
+        doc.text(venueLines, 18, textY);
+        
+        doc.setTextColor(20, 20, 20);
+        doc.text(candCountText, 150, 39);
 
         const tableData = gData.candidates.map((c, idx) => {
           const coursesStr = c.courses.map((crs, cIdx) => `${cIdx + 1}. ${crs.display}`).join('\n');
           return [idx + 1, c.seatNo, c.studentName, coursesStr || '—', ''];
         });
 
+        const startTableY = 34 + boxHeight + 4;
+
         autoTable(doc, {
-          startY: 51,
+          startY: startTableY,
           head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
           body: tableData,
           theme: 'grid',
@@ -752,74 +807,111 @@ const SllNominalPage = () => {
             </div>
           </div>
 
-          {/* Venue & Report Navigation Toolbar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+          {/* Venue & Programme Navigation Toolbar */}
+          <div className="card" style={{ padding: '18px 24px', marginBottom: '20px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '10px' }}>
             
-            {/* Venue / Group Selector Dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '320px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-                Select Venue / Group:
-              </span>
-              <select
-                value={effectiveGroupKey}
-                onChange={(e) => setActiveGroupKey(e.target.value)}
-                style={{ flex: 1, padding: '10px 14px', fontSize: '13.5px', fontWeight: 600, borderRadius: '8px', border: '1.5px solid var(--accent)' }}
-              >
-                {groupKeys.map((gKey, idx) => {
-                  const cCount = processedGroups[gKey].totalCandidates;
-                  return (
-                    <option key={gKey} value={gKey}>
-                      {idx + 1}. {gKey} ({cCount} Candidates)
-                    </option>
-                  );
-                })}
-              </select>
+            {/* Top Row: Programme & Venue Selectors */}
+            <div style={{ display: 'grid', gridTemplateColumns: groupByOption === 'programme_venue' && programmesList.length > 1 ? 'repeat(auto-fit, minmax(320px, 1fr))' : '1fr', gap: '16px', marginBottom: '14px' }}>
+              
+              {groupByOption === 'programme_venue' && programmesList.length > 1 && (
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
+                    <GraduationCap size={15} color="var(--accent)" /> 1. Select Programme ({programmesList.length}):
+                  </label>
+                  <select
+                    value={currentProgramme}
+                    onChange={(e) => {
+                      const newProg = e.target.value;
+                      const firstMatchingKey = groupKeys.find(k => processedGroups[k]?.programme === newProg);
+                      if (firstMatchingKey) setActiveGroupKey(firstMatchingKey);
+                    }}
+                    style={{ width: '100%', padding: '9px 12px', fontSize: '13px', fontWeight: 600, borderRadius: '8px', border: '1.5px solid var(--line)', background: 'white' }}
+                  >
+                    {programmesList.map((prog, pIdx) => {
+                      const vCount = groupKeys.filter(k => processedGroups[k]?.programme === prog).length;
+                      return (
+                        <option key={pIdx} value={prog}>
+                          {prog} ({vCount} Venues)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
+                  <MapPin size={15} color="var(--accent)" /> {groupByOption === 'programme_venue' && programmesList.length > 1 ? '2. Select Examination Venue' : 'Select Examination Venue'} ({venuesForCurrentProg.length}):
+                </label>
+                <select
+                  value={effectiveGroupKey}
+                  onChange={(e) => setActiveGroupKey(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '13px', fontWeight: 600, borderRadius: '8px', border: '1.5px solid var(--accent)', background: 'white' }}
+                >
+                  {venuesForCurrentProg.map((gKey, vIdx) => {
+                    const g = processedGroups[gKey];
+                    return (
+                      <option key={gKey} value={gKey}>
+                        {vIdx + 1}. {g.venueLabel} ({g.totalCandidates} Candidates)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
             </div>
 
-            {/* Quick Prev / Next Buttons & Search */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ position: 'relative' }}>
+            {/* Bottom Row: Quick Actions, Search, Prev/Next & Download */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
+              <div style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
                 <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
                 <input 
                   type="text"
-                  placeholder="Search candidate, seat no..."
+                  placeholder="Search candidates, register no..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ paddingLeft: '32px', fontSize: '13px', width: '220px' }}
+                  style={{ paddingLeft: '32px', fontSize: '13px', width: '100%' }}
                 />
               </div>
 
-              <button
-                className="button secondary"
-                disabled={groupKeys.indexOf(effectiveGroupKey) <= 0}
-                onClick={() => {
-                  const currIdx = groupKeys.indexOf(effectiveGroupKey);
-                  if (currIdx > 0) setActiveGroupKey(groupKeys[currIdx - 1]);
-                }}
-                style={{ padding: '8px 12px', fontSize: '12.5px' }}
-              >
-                ← Prev
-              </button>
-              <button
-                className="button secondary"
-                disabled={groupKeys.indexOf(effectiveGroupKey) >= groupKeys.length - 1}
-                onClick={() => {
-                  const currIdx = groupKeys.indexOf(effectiveGroupKey);
-                  if (currIdx < groupKeys.length - 1) setActiveGroupKey(groupKeys[currIdx + 1]);
-                }}
-                style={{ padding: '8px 12px', fontSize: '12.5px' }}
-              >
-                Next →
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
+                  Venue {groupKeys.indexOf(effectiveGroupKey) + 1} of {groupKeys.length}
+                </span>
 
-              <button
-                className="button"
-                onClick={() => exportSingleGroupPdf(effectiveGroupKey)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '8px 16px' }}
-              >
-                <Download size={15} /> Download Venue PDF
-              </button>
+                <button
+                  className="button secondary"
+                  disabled={groupKeys.indexOf(effectiveGroupKey) <= 0}
+                  onClick={() => {
+                    const currIdx = groupKeys.indexOf(effectiveGroupKey);
+                    if (currIdx > 0) setActiveGroupKey(groupKeys[currIdx - 1]);
+                  }}
+                  style={{ padding: '7px 12px', fontSize: '12.5px' }}
+                >
+                  ← Prev
+                </button>
+                <button
+                  className="button secondary"
+                  disabled={groupKeys.indexOf(effectiveGroupKey) >= groupKeys.length - 1}
+                  onClick={() => {
+                    const currIdx = groupKeys.indexOf(effectiveGroupKey);
+                    if (currIdx < groupKeys.length - 1) setActiveGroupKey(groupKeys[currIdx + 1]);
+                  }}
+                  style={{ padding: '7px 12px', fontSize: '12.5px' }}
+                >
+                  Next →
+                </button>
+
+                <button
+                  className="button"
+                  onClick={() => exportSingleGroupPdf(effectiveGroupKey)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '7px 16px' }}
+                >
+                  <Download size={15} /> Download Venue PDF
+                </button>
+              </div>
             </div>
+
           </div>
 
           {/* Live Preview Paper Display (Matches PDF Layout 1:1) */}
@@ -841,10 +933,21 @@ const SllNominalPage = () => {
                   {sessionName}
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', fontSize: '14px', fontWeight: 700, color: '#000', marginTop: '8px', background: '#f8f9fa', padding: '8px 16px', borderRadius: '6px' }}>
-                <span><strong>Venue:</strong> {processedGroups[effectiveGroupKey]?.venueLabel}</span>
-                <span>•</span>
-                <span><strong>Programme:</strong> {processedGroups[effectiveGroupKey]?.programme}</span>
+              
+              {/* Separate and Stacked Programme & Venue Box */}
+              <div style={{ margin: '14px auto 0', maxWidth: '850px', background: '#f8fafc', padding: '12px 18px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '13.5px', color: '#1e293b', marginBottom: '6px', lineHeight: '1.4' }}>
+                  <span style={{ fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', marginRight: '8px' }}>
+                    Programme
+                  </span>
+                  <strong>{processedGroups[effectiveGroupKey]?.programme || 'N/A'}</strong>
+                </div>
+                <div style={{ fontSize: '14px', color: '#0f172a', lineHeight: '1.4' }}>
+                  <span style={{ fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', marginRight: '8px' }}>
+                    Venue
+                  </span>
+                  <strong style={{ color: 'var(--accent)' }}>{processedGroups[effectiveGroupKey]?.venueLabel || 'N/A'}</strong>
+                </div>
               </div>
             </div>
 
