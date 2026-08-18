@@ -966,13 +966,14 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         <div style={{ display: isSidebarOpen ? 'block' : 'none' }}>
           
           {/* Sub-Tab Navigation for Studio Controls */}
-          <div style={{ display: 'flex', background: 'var(--panel)', borderRadius: '8px', padding: '4px', marginBottom: '16px', gap: '4px', border: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', background: 'var(--panel)', borderRadius: '8px', padding: '4px', marginBottom: '16px', gap: '4px', border: '1px solid var(--line)', flexWrap: 'wrap' }}>
             <button
               onClick={() => setActiveToolTab('headers')}
               style={{
                 flex: 1,
+                minWidth: '85px',
                 padding: '8px 4px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -981,30 +982,32 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 color: activeToolTab === 'headers' ? 'white' : 'var(--ink)'
               }}
             >
-              Headers & Text
+              📑 Page Headers
             </button>
             <button
-              onClick={() => setActiveToolTab('page')}
+              onClick={() => setActiveToolTab('columns')}
               style={{
                 flex: 1,
+                minWidth: '85px',
                 padding: '8px 4px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
                 cursor: 'pointer',
-                background: activeToolTab === 'page' ? 'var(--accent)' : 'transparent',
-                color: activeToolTab === 'page' ? 'white' : 'var(--ink)'
+                background: activeToolTab === 'columns' ? 'var(--accent)' : 'transparent',
+                color: activeToolTab === 'columns' ? 'white' : 'var(--ink)'
               }}
             >
-              Page & Logo
+              📊 Table Columns
             </button>
             <button
               onClick={() => setActiveToolTab('data')}
               style={{
                 flex: 1,
+                minWidth: '85px',
                 padding: '8px 4px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1013,14 +1016,32 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 color: activeToolTab === 'data' ? 'white' : 'var(--ink)'
               }}
             >
-              Data Binding
+              🔗 Data Binding
+            </button>
+            <button
+              onClick={() => setActiveToolTab('page')}
+              style={{
+                flex: 1,
+                minWidth: '85px',
+                padding: '8px 4px',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: activeToolTab === 'page' ? 'var(--accent)' : 'transparent',
+                color: activeToolTab === 'page' ? 'white' : 'var(--ink)'
+              }}
+            >
+              🖼️ Page & Logo
             </button>
             <button
               onClick={() => setActiveToolTab('styling')}
               style={{
                 flex: 1,
+                minWidth: '85px',
                 padding: '8px 4px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1029,17 +1050,22 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 color: activeToolTab === 'styling' ? 'white' : 'var(--ink)'
               }}
             >
-              Table Style
+              🎨 Table Colors
             </button>
           </div>
 
-          {/* TAB 1: DYNAMIC HEADERS & RICH TEXT BUILDER */}
+          {/* TAB 1: DYNAMIC PAGE HEADERS & RICH TEXT BUILDER */}
           {activeToolTab === 'headers' && (
             <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Edit3 size={16} /> Rich Text Headers ({currentConfig.headersList?.length || 0})
-                </h3>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Edit3 size={16} /> Page Title & Sub-Headers ({currentConfig.headersList?.length || 0})
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--muted)' }}>
+                    Add, remove, reorder, and style institutional headers at the top of the report.
+                  </p>
+                </div>
                 <button
                   className="button"
                   onClick={addHeaderLine}
@@ -1212,6 +1238,193 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* TAB 2: TABLE COLUMN HEADERS & LABELS */}
+          {activeToolTab === 'columns' && (
+            <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <TableProperties size={16} /> Table Columns & Header Titles
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                  Customize the column header titles printed in the report table.
+                </p>
+              </div>
+
+              {/* Archetype Columns */}
+              {activeArchetype === 'NOMINAL_ROLL' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 1 Header (Serial Number):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.slNo || 'Sl No'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, slNo: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 2 Header (Register / Seat No):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.regNo || 'Register Number'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, regNo: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 3 Header (Candidate Name):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.name || 'Candidate Name'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, name: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 4 Header (Courses / Papers):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.courses || 'Courses'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, courses: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 5 Header (Remarks / Signature):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.remarks || 'Remarks'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, remarks: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeArchetype === 'QP_STATEMENT' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 1 Header:</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.slNo || 'SL No'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, slNo: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 2 Header (Date):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.date || 'Date'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, date: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 3 Header (Course / Subject):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.course || 'Course'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, course: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 4 Header (Candidate Count):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.count || 'NC'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, count: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 5 Header (QP Count):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.qp || 'QP'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, qp: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 6 Header (LP Count):</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.headers?.lp || 'LP'} 
+                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, lp: e.target.value } })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeArchetype === 'QP_COVER_LABEL' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Centre Header Title:</label>
+                    <input 
+                      type="text" 
+                      value={currentConfig.centerPrefix || 'CENTRE CODE AND NAME'} 
+                      onChange={e => updateCurrentConfig({ centerPrefix: e.target.value })} 
+                      style={{ width: '100%', fontSize: '13px' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Certificate Text:</label>
+                    <textarea 
+                      rows={4}
+                      value={currentConfig.certificateText || ''} 
+                      onChange={e => updateCurrentConfig({ certificateText: e.target.value })} 
+                      style={{ width: '100%', fontSize: '12.5px', lineHeight: '1.4' }} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeArchetype === 'CUSTOM_TABULAR' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--muted)' }}>
+                    Select which columns to display from your dataset and customize their header labels:
+                  </p>
+                  {dataset.columns.map(col => {
+                    const isChecked = !currentConfig.selectedColumns || currentConfig.selectedColumns.length === 0 || currentConfig.selectedColumns.includes(col);
+                    return (
+                      <div key={col} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const cur = currentConfig.selectedColumns || [...dataset.columns];
+                            const updated = e.target.checked ? [...cur, col] : cur.filter(c => c !== col);
+                            updateCurrentConfig({ selectedColumns: updated });
+                          }}
+                          style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+                        />
+                        <strong style={{ fontSize: '12.5px', width: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col}</strong>
+                        <input 
+                          type="text"
+                          value={currentConfig.columnLabels?.[col] !== undefined ? currentConfig.columnLabels[col] : col}
+                          onChange={(e) => {
+                            updateCurrentConfig({
+                              columnLabels: {
+                                ...(currentConfig.columnLabels || {}),
+                                [col]: e.target.value
+                              }
+                            });
+                          }}
+                          placeholder="Header title..."
+                          style={{ flex: 1, fontSize: '12.5px', padding: '4px 8px' }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
