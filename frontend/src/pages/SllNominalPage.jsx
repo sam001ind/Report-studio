@@ -79,48 +79,108 @@ const SllNominalPage = () => {
   // Auto-detect columns on headers update
   useEffect(() => {
     if (headers.length > 0) {
-      const autoMap = {
-        programme: -1,
-        venueCode: -1,
-        venueName: -1,
-        seatNo: -1,
-        name: -1,
-        courseCode: -1,
-        courseTitle: -1,
-        session: -1
+      const norm = headers.map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+      
+      const findBest = (patterns) => {
+        for (const pat of patterns) {
+          if (typeof pat === 'string') {
+            const idx = norm.findIndex(n => n === pat);
+            if (idx !== -1) return idx;
+          } else if (typeof pat === 'function') {
+            const idx = norm.findIndex(pat);
+            if (idx !== -1) return idx;
+          }
+        }
+        return -1;
       };
 
-      headers.forEach((headerName, idx) => {
-        const lower = headerName.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (lower.includes('programme') || lower.includes('program') || lower.includes('course') && !lower.includes('code') && !lower.includes('title')) {
-          if (autoMap.programme === -1) autoMap.programme = idx;
-        }
-        if (lower.includes('venuecode') || lower.includes('centercode') || lower.includes('collegecode') || (lower.includes('venue') && lower.includes('code'))) {
-          if (autoMap.venueCode === -1) autoMap.venueCode = idx;
-        }
-        if (lower.includes('venuename') || lower.includes('centername') || lower.includes('collegename') || (lower.includes('venue') && !lower.includes('code')) || lower.includes('college')) {
-          if (autoMap.venueName === -1) autoMap.venueName = idx;
-        }
-        if (lower.includes('seat') || lower.includes('reg') || lower.includes('prn') || lower.includes('roll') || lower.includes('candidateno')) {
-          if (autoMap.seatNo === -1) autoMap.seatNo = idx;
-        }
-        if (lower.includes('studentname') || lower.includes('candidatename') || lower.includes('name') && !lower.includes('venue') && !lower.includes('college')) {
-          if (autoMap.name === -1) autoMap.name = idx;
-        }
-        if (lower.includes('coursecode') || lower.includes('subjectcode') || lower.includes('papercode') || lower.includes('qpcode')) {
-          if (autoMap.courseCode === -1) autoMap.courseCode = idx;
-        }
-        if (lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('coursename') || lower.includes('title')) {
-          if (autoMap.courseTitle === -1) autoMap.courseTitle = idx;
-        }
-        if (lower.includes('session') || lower.includes('date') || lower.includes('time')) {
-          if (autoMap.session === -1) autoMap.session = idx;
-        }
-      });
+      const autoMap = {
+        // 1. Seat / Register Number (Prefer SeatNumber, RegisterNo, CandidateCode over PRN)
+        seatNo: findBest([
+          'seatnumber', 'seatno', 'registerno', 'registernumber', 'regno', 'candidatecode',
+          n => n.includes('seat') && (n.includes('no') || n.includes('num')),
+          n => n.includes('reg') && (n.includes('no') || n.includes('num')),
+          'seat', 'rollno', 'rollnumber', 'prn', n => n.includes('prn')
+        ]),
+
+        // 2. Candidate Name (Avoid Father, Mother, Venue, College, Program, Paper, User, Vernacular names)
+        name: findBest([
+          'fullname', 'studentname', 'candidatename', 'nameofthecandidate', 'nameofthestudent', 'studentfullname',
+          n => (n.includes('name') || n.includes('candidate') || n.includes('student')) && 
+               !n.includes('father') && !n.includes('mother') && !n.includes('parent') && 
+               !n.includes('venue') && !n.includes('college') && !n.includes('center') && !n.includes('centre') && 
+               !n.includes('program') && !n.includes('course') && !n.includes('paper') && !n.includes('sub') && 
+               !n.includes('event') && !n.includes('grp') && !n.includes('group') && !n.includes('vernacular') && 
+               !n.includes('user') && !n.includes('regional'),
+          'name'
+        ]),
+
+        // 3. Venue Code (Prefer VenueCode, ExamCenterCode over RegionalCenterCode)
+        venueCode: findBest([
+          'venuecode', 'examcentercode', 'centercode', 'collegecode',
+          n => n.includes('venue') && n.includes('code') && !n.includes('preferred') && !n.includes('regional'),
+          n => n.includes('center') && n.includes('code') && !n.includes('preferred') && !n.includes('regional'),
+          n => n.includes('college') && n.includes('code') && !n.includes('regional'),
+          n => n.includes('centercode') || n.includes('venuecode')
+        ]),
+
+        // 4. Venue Name (Prefer VenueName, ExamCenterName over RegionalCenterName)
+        venueName: findBest([
+          'venuename', 'examcentername', 'centername', 'collegename', 'studycentername',
+          n => n.includes('venue') && (n.includes('name') || n.includes('title')) && !n.includes('preferred') && !n.includes('regional'),
+          n => n.includes('center') && (n.includes('name') || n.includes('title')) && !n.includes('preferred') && !n.includes('regional'),
+          n => (n.includes('college') || n.includes('studycenter')) && n.includes('name') && !n.includes('regional'),
+          n => n.includes('venuename') || n.includes('centername')
+        ]),
+
+        // 5. Course Code (Prefer PaperCode, CourseCode, SubjectCode, QPCode)
+        courseCode: findBest([
+          'papercode', 'coursecode', 'subjectcode', 'qpcode',
+          n => n.includes('paper') && n.includes('code'),
+          n => n.includes('course') && n.includes('code'),
+          n => n.includes('subject') && n.includes('code'),
+          n => n.includes('qp') && n.includes('code')
+        ]),
+
+        // 6. Course Title (Prefer PaperName, CourseTitle, SubjectName, CourseName, PaperTitle)
+        courseTitle: findBest([
+          'papername', 'coursetitle', 'subjectname', 'coursename', 'papertitle',
+          n => n.includes('paper') && (n.includes('name') || n.includes('title')),
+          n => n.includes('course') && (n.includes('title') || n.includes('name')) && !n.includes('code'),
+          n => n.includes('subject') && (n.includes('name') || n.includes('title')) && !n.includes('code'),
+          'title'
+        ]),
+
+        // 7. Programme (Prefer Programme Name, Branch, ProgramFullName)
+        programme: findBest([
+          'programmename', 'programname', 'branch', 'programfullname', 'programmefullname',
+          n => n.includes('program') && n.includes('name') && !n.includes('term') && !n.includes('part') && !n.includes('code') && !n.includes('abbr'),
+          'programmecode', 'programcode',
+          n => n.includes('programme') || n.includes('program')
+        ]),
+
+        // 8. Session (Prefer EventName, ProgramTerm, Session - NEVER dateofbirth)
+        session: findBest([
+          'eventname', 'programterm', 'examsession', 'session',
+          n => n.includes('event') && n.includes('name'),
+          n => n.includes('term') && !n.includes('code'),
+          n => n.includes('session') && !n.includes('time'),
+          n => (n.includes('exam') || n.includes('examination')) && n.includes('date')
+        ])
+      };
 
       setColumnMapping(autoMap);
+
+      // Auto-detect Examination Session name from uploaded data if available
+      if (rawRows.length > 0 && autoMap.session !== -1) {
+        const sessHeader = headers[autoMap.session];
+        const sampleSess = rawRows.find(r => r[sessHeader])?.[sessHeader];
+        if (sampleSess && typeof sampleSess === 'string' && sampleSess.trim()) {
+          setSessionName(sampleSess.trim());
+        }
+      }
     }
-  }, [headers]);
+  }, [headers, rawRows]);
 
   // Load sample dataset
   const loadSampleData = () => {

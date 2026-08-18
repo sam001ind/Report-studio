@@ -109,12 +109,18 @@ export const readSpreadsheetFile = async (file) => {
     const wb = parseWorkbookFromBuffer(buf);
 
     if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
-      const firstSheet = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-      if (json && json.length > 0) {
-        detectedCols = Object.keys(json[0]);
-        allRows = json;
-      }
+      wb.SheetNames.forEach(sheetName => {
+        const sheet = wb.Sheets[sheetName];
+        if (sheet) {
+          const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+          if (json && json.length > 0) {
+            if (detectedCols.length === 0) {
+              detectedCols = Object.keys(json[0]);
+            }
+            allRows = allRows.concat(json);
+          }
+        }
+      });
     }
   }
 
