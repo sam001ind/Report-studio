@@ -19,8 +19,8 @@ import {
   Users,
   GraduationCap,
   BookOpen,
-  CalendarDays,
-  FileText
+  FileText,
+  RefreshCw
 } from "lucide-react";
 import { readSpreadsheetFile } from "../utils/excelParser";
 
@@ -75,12 +75,12 @@ const SllNominalPage = () => {
   useEffect(() => {
     if (columns.length > 0) {
       const findCol = (regex) => columns.find(c => regex.test(c)) || "";
-      if (!venueCol) setVenueCol(findCol(/venue|college|center|centre|institution/i) || columns[0]);
-      if (!regNoCol) setRegNoCol(findCol(/reg|prn|roll|candidate_id|id/i) || columns[1] || columns[0]);
-      if (!nameCol) setNameCol(findCol(/name|student|candidate/i) || columns[2] || columns[0]);
-      if (!courseCodeCol) setCourseCodeCol(findCol(/course.*code|sub.*code|qp.*code|code/i) || columns[3] || columns[0]);
-      if (!courseTitleCol) setCourseTitleCol(findCol(/course.*title|course.*name|subject|title/i) || columns[4] || "");
-      if (!sessionCol) setSessionCol(findCol(/session|time|date|semester|sem/i) || "");
+      setVenueCol(prev => prev || findCol(/venue|college|center|centre|institution/i) || columns[0]);
+      setRegNoCol(prev => prev || findCol(/reg|prn|roll|candidate_id|id/i) || columns[1] || columns[0]);
+      setNameCol(prev => prev || findCol(/name|student|candidate/i) || columns[2] || columns[0]);
+      setCourseCodeCol(prev => prev || findCol(/course.*code|sub.*code|qp.*code|code/i) || columns[3] || columns[0]);
+      setCourseTitleCol(prev => prev || findCol(/course.*title|course.*name|subject|title/i) || columns[4] || "");
+      setSessionCol(prev => prev || findCol(/session|time|date|semester|sem/i) || "");
     }
   }, [columns]);
 
@@ -205,7 +205,7 @@ const SllNominalPage = () => {
           5: { cellWidth: 16, halign: "center" },
           6: { cellWidth: 28 }
         },
-        didDrawPage: (data) => {
+        didDrawPage: () => {
           doc.setFontSize(8);
           doc.setTextColor(100);
           doc.text(`Page ${doc.internal.getNumberOfPages()}`, 105, 290, { align: "center" });
@@ -250,7 +250,7 @@ const SllNominalPage = () => {
         "Session": r[sessionCol] || ""
       }));
       const ws = XLSX.utils.json_to_sheet(vRows);
-      const sheetName = v.replace(/[/\?%*:|"<>]/g, "_").slice(0, 30);
+      const sheetName = v.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 30);
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
     });
 
@@ -392,9 +392,10 @@ const SllNominalPage = () => {
               <p style={{ color: "var(--muted)", fontSize: "13px", margin: "0 0 18px 0" }}>
                 Supports university exam rosters, multi-file collections, and auto-extracting ZIP archives
               </p>
-              <label className="button" style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "10px 22px", fontSize: "14px" }}>
-                Browse File
-                <input type="file" accept=".xlsx, .xls, .csv, .zip" onChange={handleFileUpload} style={{ display: "none" }} />
+              <label className="button" style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: isLoading ? "wait" : "pointer", padding: "10px 22px", fontSize: "14px", opacity: isLoading ? 0.7 : 1 }}>
+                {isLoading ? <RefreshCw size={16} className="spin" /> : <Upload size={16} />}
+                {isLoading ? "Reading & Extracting..." : "Browse File"}
+                <input type="file" accept=".xlsx, .xls, .csv, .zip" onChange={handleFileUpload} disabled={isLoading} style={{ display: "none" }} />
               </label>
             </div>
 

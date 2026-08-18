@@ -39,12 +39,12 @@ export const readSpreadsheetFile = async (file) => {
     try {
       // 1. Binary ArrayBuffer (True OpenXML .xlsx & BIFF8 .xls)
       wb = XLSX.read(new Uint8Array(item.buffer), { type: "array", cellDates: true });
-    } catch (e1) {
+    } catch {
       try {
         // 2. UTF-8 Text Fallback (HTML tables / CSVs exported with .xls extension)
         const text = new TextDecoder("utf-8").decode(item.buffer);
         wb = XLSX.read(text, { type: "string", raw: true });
-      } catch (e2) {
+      } catch {
         // 3. Windows-1252 Fallback
         const text = new TextDecoder("windows-1252").decode(item.buffer);
         wb = XLSX.read(text, { type: "string", raw: true });
