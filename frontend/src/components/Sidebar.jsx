@@ -67,19 +67,7 @@ const Sidebar = ({ activePage, setActivePage, stats }) => {
           }}
         >
           <span className="icon" style={{ marginRight: isOpen ? '12px' : 0 }}>🎨</span> 
-          {isOpen && <span>Template Creator</span>}
-        </button>
-        <button 
-          onClick={() => setActivePage('generate')}
-          style={{ 
-            ...styles.navBtnBase, 
-            ...(activePage === 'generate' ? styles.navBtnActive : {}),
-            justifyContent: isOpen ? 'flex-start' : 'center', 
-            padding: isOpen ? '12px 16px' : '12px 0' 
-          }}
-        >
-          <span className="icon" style={{ marginRight: isOpen ? '12px' : 0 }}>⚙️</span> 
-          {isOpen && <span>Generate Output</span>}
+          {isOpen && <span>Template Studio</span>}
         </button>
       </nav>
 

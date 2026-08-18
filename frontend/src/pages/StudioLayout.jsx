@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import ConfigPage from './ConfigPage';
 import TemplatePage from './TemplatePage';
-import GeneratePage from './GeneratePage';
 import LibraryPage from './LibraryPage';
 
 const StudioLayout = () => {
@@ -78,7 +77,6 @@ const StudioLayout = () => {
           />
         )}
         {activePage === 'template' && <TemplatePage dataset={dataset} initialTemplate={loadedTemplate} />}
-        {activePage === 'generate' && <GeneratePage dataset={dataset} />}
       </main>
     </div>
   );
