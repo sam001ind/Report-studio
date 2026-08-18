@@ -1,3 +1,64 @@
+
+// Bulletproof Universal Excel, CSV, HTML-table & ZIP parser
+const parseUploadedSpreadsheet = async (file) => {
+  let buffers = [];
+
+  if (file.name.toLowerCase().endsWith(".zip")) {
+    const zip = await JSZip.loadAsync(file);
+    const validFiles = Object.keys(zip.files).filter(name => 
+      !name.startsWith("__MACOSX/") && 
+      !name.startsWith(".") && 
+      !zip.files[name].dir &&
+      (name.toLowerCase().endsWith(".xlsx") || name.toLowerCase().endsWith(".xls") || name.toLowerCase().endsWith(".csv"))
+    );
+
+    if (validFiles.length === 0) {
+      throw new Error("No .xlsx, .xls, or .csv spreadsheets found inside the uploaded ZIP archive.");
+    }
+
+    for (const name of validFiles) {
+      const buf = await zip.files[name].async("arraybuffer");
+      buffers.push({ name, buffer: buf });
+    }
+  } else {
+    const buf = await file.arrayBuffer();
+    buffers.push({ name: file.name, buffer: buf });
+  }
+
+  let allRows = [];
+  for (const item of buffers) {
+    let wb;
+    try {
+      // Attempt 1: Binary array buffer (True .xlsx / .xls)
+      wb = XLSX.read(new Uint8Array(item.buffer), { type: "array", cellDates: true });
+    } catch (err1) {
+      try {
+        // Attempt 2: UTF-8 string parse (HTML table or CSV saved as .xls/.xlsx)
+        const text = new TextDecoder("utf-8").decode(item.buffer);
+        wb = XLSX.read(text, { type: "string", raw: true });
+      } catch (err2) {
+        // Attempt 3: Windows-1252 / ISO-8859 parse
+        const text = new TextDecoder("windows-1252").decode(item.buffer);
+        wb = XLSX.read(text, { type: "string", raw: true });
+      }
+    }
+
+    if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+      const firstSheet = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+      if (json && json.length > 0) {
+        allRows = allRows.concat(json);
+      }
+    }
+  }
+
+  if (allRows.length === 0) {
+    throw new Error("No data rows found in the uploaded file(s).");
+  }
+
+  return allRows;
+};
+
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
