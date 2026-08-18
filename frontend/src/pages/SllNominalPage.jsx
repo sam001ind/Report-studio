@@ -221,7 +221,12 @@ const SllNominalPage = () => {
         const cleanCode = String(cCode || '').trim().replace(/^[.\s]+|[.\s]+$/g, '');
         const cleanTitle = String(cTitle || '').trim().replace(/^[-–—:.\s]+|[.\s]+$/g, '');
         
-        const displayStr = cleanCode && cleanTitle ? `${cleanCode} - ${cleanTitle}` : (cleanCode || cleanTitle);
+        const formattedCode = cleanCode ? (cleanCode.endsWith('.') ? cleanCode : `${cleanCode}.`) : '';
+        const formattedTitle = cleanTitle ? (cleanTitle.endsWith('.') ? cleanTitle : `${cleanTitle}.`) : '';
+
+        const displayStr = formattedCode && formattedTitle 
+          ? `${formattedCode} - ${formattedTitle}` 
+          : (formattedCode || formattedTitle);
 
         const courseItem = {
           code: cleanCode,
