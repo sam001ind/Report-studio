@@ -390,10 +390,9 @@ const SllNominalPage = () => {
     return list;
   }, [effectiveGroupKey, processedGroups, searchQuery]);
 
-  // EXPORT: Single Venue / Group PDF
-  const exportSingleGroupPdf = (gKey) => {
-    const targetKey = gKey || effectiveGroupKey;
-    if (!targetKey || !processedGroups[targetKey]) return;
+  // Core PDF Generator for a single Programme + Venue combination
+  const generateGroupPdfDocument = (targetKey) => {
+    if (!targetKey || !processedGroups[targetKey]) return null;
 
     const gData = processedGroups[targetKey];
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -516,8 +515,23 @@ const SllNominalPage = () => {
       }
     });
 
-    const safeName = targetKey.replace(/[/\\?%*:|"<>•]/g, '_').slice(0, 40);
-    doc.save(`Nominal_Roll_${safeName}.pdf`);
+    return doc;
+  };
+
+  // EXPORT: Single Venue / Group PDF
+  const exportSingleGroupPdf = (gKey) => {
+    const targetKey = gKey || effectiveGroupKey;
+    const gData = processedGroups[targetKey];
+    if (!gData) return;
+
+    const doc = generateGroupPdfDocument(targetKey);
+    if (!doc) return;
+
+    const sanitize = (str) => String(str || '').replace(/[/\\?%*:|"<>•]/g, '_').replace(/\s+/g, ' ').trim();
+    const safeProg = sanitize(gData.programme).slice(0, 40);
+    const safeVenue = sanitize(gData.venueLabel).slice(0, 40);
+
+    doc.save(`Nominal_Roll_${safeProg}_${safeVenue}.pdf`);
   };
 
   // EXPORT: Consolidated Master PDF (All Venues Combined)
@@ -653,7 +667,49 @@ const SllNominalPage = () => {
     }
   };
 
-  // EXPORT: All Groups & Complete Report in ZIP Archive
+  // EXPORT: All Individual Programme + Venue PDFs as a ZIP Archive
+  const exportIndividualPdfsZip = async () => {
+    if (!groupKeys.length) return;
+    setStatus('Generating individual PDFs for all Programme + Venue combinations...', 'normal');
+    setIsProcessing(true);
+
+    try {
+      const zip = new JSZip();
+      const sanitize = (str) => String(str || '').replace(/[/\\?%*:|"<>•]/g, '_').replace(/\s+/g, ' ').trim();
+
+      groupKeys.forEach((gKey) => {
+        const gData = processedGroups[gKey];
+        const doc = generateGroupPdfDocument(gKey);
+        if (!doc) return;
+
+        const safeProg = sanitize(gData.programme || 'General_Programme').slice(0, 60);
+        const safeVenue = sanitize(gData.venueLabel || 'Venue').slice(0, 60);
+        const pdfBlob = doc.output('blob');
+
+        if (groupByOption === 'programme_venue') {
+          zip.file(`Individual_PDFs/${safeProg}/${safeVenue}_Nominal_Roll.pdf`, pdfBlob);
+        } else {
+          zip.file(`Individual_PDFs/${safeVenue}_Nominal_Roll.pdf`, pdfBlob);
+        }
+      });
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Programme_Venue_Individual_PDFs.zip';
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setStatus(`Successfully exported ${groupKeys.length} individual Programme + Venue PDFs as a ZIP archive!`, 'success');
+    } catch (err) {
+      setStatus(`Error generating individual PDFs ZIP: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // EXPORT: All Groups & Complete Report in ZIP Archive (Individual PDFs, Consolidated Master PDF & Excel)
   const exportAllGroupsZip = async () => {
     if (!groupKeys.length) return;
     setStatus('Generating complete ZIP package with all venue nominal rolls...', 'normal');
@@ -661,128 +717,137 @@ const SllNominalPage = () => {
 
     try {
       const zip = new JSZip();
+      const sanitize = (str) => String(str || '').replace(/[/\\?%*:|"<>•]/g, '_').replace(/\s+/g, ' ').trim();
       const consolidatedDoc = new jsPDF('p', 'mm', 'a4');
 
       groupKeys.forEach((gKey, gIdx) => {
         const gData = processedGroups[gKey];
-        const doc = new jsPDF('p', 'mm', 'a4');
+        const doc = generateGroupPdfDocument(gKey);
 
         if (gIdx > 0) consolidatedDoc.addPage();
 
-        [doc, consolidatedDoc].forEach((targetDoc) => {
-          targetDoc.setFontSize(14);
-          targetDoc.setFont('helvetica', 'bold');
-          targetDoc.text(universityName, 105, 14, { align: 'center' });
+        // Build consolidated page
+        consolidatedDoc.setFontSize(14);
+        consolidatedDoc.setFont('helvetica', 'bold');
+        consolidatedDoc.text(universityName, 105, 14, { align: 'center' });
 
-          targetDoc.setFontSize(10.5);
-          targetDoc.setFont('helvetica', 'bold');
-          targetDoc.text(branchName, 105, 19.5, { align: 'center' });
+        consolidatedDoc.setFontSize(10.5);
+        consolidatedDoc.setFont('helvetica', 'bold');
+        consolidatedDoc.text(branchName, 105, 19.5, { align: 'center' });
 
-          targetDoc.setFontSize(10);
-          targetDoc.setFont('helvetica', 'bold');
-          targetDoc.text(examTitle, 105, 25, { align: 'center' });
+        consolidatedDoc.setFontSize(10);
+        consolidatedDoc.setFont('helvetica', 'bold');
+        consolidatedDoc.text(examTitle, 105, 25, { align: 'center' });
 
-          if (sessionName) {
-            targetDoc.setFontSize(9.5);
-            targetDoc.setFont('helvetica', 'normal');
-            targetDoc.text(sessionName, 105, 30, { align: 'center' });
+        if (sessionName) {
+          consolidatedDoc.setFontSize(9.5);
+          consolidatedDoc.setFont('helvetica', 'normal');
+          consolidatedDoc.text(sessionName, 105, 30, { align: 'center' });
+        }
+
+        const progText = `Programme: ${gData.programme || 'N/A'}`;
+        const venueText = `Venue: ${gData.venueLabel || 'N/A'}`;
+
+        consolidatedDoc.setFontSize(9);
+        consolidatedDoc.setFont('helvetica', 'bold');
+        
+        const progLines = consolidatedDoc.splitTextToSize(progText, 172);
+        const venueLines = consolidatedDoc.splitTextToSize(venueText, 172);
+        
+        const boxHeight = Math.max(13, (progLines.length + venueLines.length) * 4.2 + 4);
+
+        consolidatedDoc.setDrawColor(180, 180, 180);
+        consolidatedDoc.setFillColor(248, 249, 250);
+        consolidatedDoc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
+
+        let textY = 38;
+        consolidatedDoc.setTextColor(20, 20, 20);
+        consolidatedDoc.text(progLines, 18, textY);
+        textY += progLines.length * 4.2;
+        
+        consolidatedDoc.setTextColor(23, 107, 135);
+        consolidatedDoc.text(venueLines, 18, textY);
+
+        const tableBody = [];
+        gData.candidates.forEach((cand, candIdx) => {
+          const cCount = Math.max(1, cand.courses.length);
+          if (cand.courses.length === 0) {
+            tableBody.push([
+              { content: String(candIdx + 1), styles: { halign: 'center', valign: 'middle' } },
+              { content: cand.seatNo, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
+              { content: cand.studentName, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
+              { content: '—', styles: { halign: 'left', valign: 'middle' } },
+              { content: '', styles: { halign: 'center', valign: 'middle' } }
+            ]);
+          } else {
+            cand.courses.forEach((crs, crsIdx) => {
+              if (crsIdx === 0) {
+                tableBody.push([
+                  { content: String(candIdx + 1), rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } },
+                  { content: cand.seatNo, rowSpan: cCount, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
+                  { content: cand.studentName, rowSpan: cCount, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
+                  { content: crs.display, styles: { halign: 'left', valign: 'middle' } },
+                  { content: '', rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } }
+                ]);
+              } else {
+                tableBody.push([
+                  { content: crs.display, styles: { halign: 'left', valign: 'middle' } }
+                ]);
+              }
+            });
           }
-
-          const progText = `Programme: ${gData.programme || 'N/A'}`;
-          const venueText = `Venue: ${gData.venueLabel || 'N/A'}`;
-
-          targetDoc.setFontSize(9);
-          targetDoc.setFont('helvetica', 'bold');
-          
-          const progLines = targetDoc.splitTextToSize(progText, 172);
-          const venueLines = targetDoc.splitTextToSize(venueText, 172);
-          
-          const boxHeight = Math.max(13, (progLines.length + venueLines.length) * 4.2 + 4);
-
-          targetDoc.setDrawColor(180, 180, 180);
-          targetDoc.setFillColor(248, 249, 250);
-          targetDoc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
-
-          let textY = 38;
-          targetDoc.setTextColor(20, 20, 20);
-          targetDoc.text(progLines, 18, textY);
-          textY += progLines.length * 4.2;
-          
-          targetDoc.setTextColor(23, 107, 135);
-          targetDoc.text(venueLines, 18, textY);
-
-          const tableBody = [];
-          gData.candidates.forEach((cand, candIdx) => {
-            const cCount = Math.max(1, cand.courses.length);
-            if (cand.courses.length === 0) {
-              tableBody.push([
-                { content: String(candIdx + 1), styles: { halign: 'center', valign: 'middle' } },
-                { content: cand.seatNo, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
-                { content: cand.studentName, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
-                { content: '—', styles: { halign: 'left', valign: 'middle' } },
-                { content: '', styles: { halign: 'center', valign: 'middle' } }
-              ]);
-            } else {
-              cand.courses.forEach((crs, crsIdx) => {
-                if (crsIdx === 0) {
-                  tableBody.push([
-                    { content: String(candIdx + 1), rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } },
-                    { content: cand.seatNo, rowSpan: cCount, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
-                    { content: cand.studentName, rowSpan: cCount, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
-                    { content: crs.display, styles: { halign: 'left', valign: 'middle' } },
-                    { content: '', rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } }
-                  ]);
-                } else {
-                  tableBody.push([
-                    { content: crs.display, styles: { halign: 'left', valign: 'middle' } }
-                  ]);
-                }
-              });
-            }
-          });
-
-          const startTableY = 34 + boxHeight + 4;
-
-          autoTable(targetDoc, {
-            startY: startTableY,
-            head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
-            body: tableBody,
-            theme: 'grid',
-            styles: { 
-              font: 'helvetica',
-              fontSize: 8, 
-              valign: 'middle',
-              cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, 
-              minCellHeight: 5,
-              textColor: [0, 0, 0],
-              lineColor: [100, 100, 100],
-              lineWidth: 0.18,
-              overflow: 'linebreak'
-            },
-            headStyles: { 
-              fillColor: [240, 240, 240], 
-              textColor: [0, 0, 0], 
-              fontSize: 8.5, 
-              fontStyle: 'bold',
-              halign: 'center',
-              valign: 'middle',
-              cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 },
-              lineColor: [100, 100, 100],
-              lineWidth: 0.18
-            },
-            columnStyles: {
-              0: { cellWidth: 10, halign: 'center', valign: 'middle' },
-              1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-              2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
-              3: { cellWidth: 76, valign: 'middle' },
-              4: { cellWidth: 24, valign: 'middle' }
-            }
-          });
         });
 
-        const pdfBlob = doc.output('blob');
-        const safeFileName = `Nominal_Roll_${gKey.replace(/[/\\?%*:|"<>•]/g, '_').slice(0, 40)}.pdf`;
-        zip.file(safeFileName, pdfBlob);
+        const startTableY = 34 + boxHeight + 4;
+
+        autoTable(consolidatedDoc, {
+          startY: startTableY,
+          head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
+          body: tableBody,
+          theme: 'grid',
+          styles: { 
+            font: 'helvetica',
+            fontSize: 8, 
+            valign: 'middle',
+            cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, 
+            minCellHeight: 5,
+            textColor: [0, 0, 0],
+            lineColor: [100, 100, 100],
+            lineWidth: 0.18,
+            overflow: 'linebreak'
+          },
+          headStyles: { 
+            fillColor: [240, 240, 240], 
+            textColor: [0, 0, 0], 
+            fontSize: 8.5, 
+            fontStyle: 'bold',
+            halign: 'center',
+            valign: 'middle',
+            cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 },
+            lineColor: [100, 100, 100],
+            lineWidth: 0.18
+          },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center', valign: 'middle' },
+            1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+            2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
+            3: { cellWidth: 76, valign: 'middle' },
+            4: { cellWidth: 24, valign: 'middle' }
+          }
+        });
+
+        // Add individual PDF into ZIP with clean folder hierarchy
+        if (doc) {
+          const safeProg = sanitize(gData.programme || 'General_Programme').slice(0, 60);
+          const safeVenue = sanitize(gData.venueLabel || 'Venue').slice(0, 60);
+          const pdfBlob = doc.output('blob');
+
+          if (groupByOption === 'programme_venue') {
+            zip.file(`Individual_PDFs/${safeProg}/${safeVenue}_Nominal_Roll.pdf`, pdfBlob);
+          } else {
+            zip.file(`Individual_PDFs/${safeVenue}_Nominal_Roll.pdf`, pdfBlob);
+          }
+        }
       });
 
       // Add Master Consolidated PDF to ZIP
@@ -921,6 +986,15 @@ const SllNominalPage = () => {
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '9px 16px' }}
               >
                 <Archive size={15} /> Download Complete Report (.zip)
+              </button>
+
+              <button
+                className="button secondary"
+                onClick={exportIndividualPdfsZip}
+                disabled={isProcessing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '9px 16px' }}
+              >
+                <Archive size={15} /> Individual PDFs (.zip)
               </button>
 
               <button
@@ -1278,6 +1352,16 @@ const SllNominalPage = () => {
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '7px 14px' }}
                 >
                   <Download size={15} /> Download Venue PDF
+                </button>
+
+                <button
+                  className="button secondary"
+                  onClick={exportIndividualPdfsZip}
+                  disabled={isProcessing}
+                  title="Download all Programme + Venue combinations as individual PDFs inside a ZIP"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '7px 14px' }}
+                >
+                  <Archive size={15} /> Individual PDFs (.zip)
                 </button>
 
                 <button
