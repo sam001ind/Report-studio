@@ -370,16 +370,35 @@ const SllNominalPage = () => {
     doc.setTextColor(20, 20, 20);
     doc.text(candCountText, 150, 39);
 
-    // Table Content
-    const tableData = gData.candidates.map((c, idx) => {
-      const coursesStr = c.courses.map((crs, cIdx) => `${cIdx + 1}. ${crs.display}`).join('\n');
-      return [
-        idx + 1,
-        c.seatNo,
-        c.studentName,
-        coursesStr || '—',
-        '' // Blank Remarks
-      ];
+    // Table Content with rowSpan for individual course divider lines
+    const tableBody = [];
+    gData.candidates.forEach((cand, candIdx) => {
+      const cCount = Math.max(1, cand.courses.length);
+      if (cand.courses.length === 0) {
+        tableBody.push([
+          { content: String(candIdx + 1), styles: { halign: 'center', valign: 'middle' } },
+          { content: cand.seatNo, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
+          { content: cand.studentName, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
+          { content: '—', styles: { halign: 'left', valign: 'middle' } },
+          { content: '', styles: { halign: 'center', valign: 'middle' } }
+        ]);
+      } else {
+        cand.courses.forEach((crs, crsIdx) => {
+          if (crsIdx === 0) {
+            tableBody.push([
+              { content: String(candIdx + 1), rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } },
+              { content: cand.seatNo, rowSpan: cCount, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
+              { content: cand.studentName, rowSpan: cCount, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
+              { content: crs.display, styles: { halign: 'left', valign: 'middle' } },
+              { content: '', rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } }
+            ]);
+          } else {
+            tableBody.push([
+              { content: crs.display, styles: { halign: 'left', valign: 'middle' } }
+            ]);
+          }
+        });
+      }
     });
 
     const startTableY = 34 + boxHeight + 4;
@@ -387,33 +406,34 @@ const SllNominalPage = () => {
     autoTable(doc, {
       startY: startTableY,
       head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
-      body: tableData,
+      body: tableBody,
       theme: 'grid',
       styles: { 
         font: 'helvetica',
         fontSize: 8.5, 
-        lineHeightFactor: 1.4,
         valign: 'middle',
-        cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, 
-        textColor: [15, 23, 42],
-        lineColor: [200, 205, 215],
-        lineWidth: 0.2,
+        cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+        textColor: [0, 0, 0],
+        lineColor: [100, 100, 100],
+        lineWidth: 0.18,
         overflow: 'linebreak'
       },
       headStyles: { 
-        fillColor: [23, 107, 135], 
-        textColor: 255, 
+        fillColor: [240, 240, 240], 
+        textColor: [0, 0, 0], 
         fontSize: 9, 
         fontStyle: 'bold',
         halign: 'center',
         valign: 'middle',
-        cellPadding: { top: 4, bottom: 4, left: 2, right: 2 }
+        cellPadding: { top: 4, bottom: 4, left: 2, right: 2 },
+        lineColor: [100, 100, 100],
+        lineWidth: 0.18
       },
       columnStyles: {
-        0: { cellWidth: 10, halign: 'center', valign: 'middle' },
-        1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        2: { cellWidth: 40, fontStyle: 'bold', valign: 'middle' },
-        3: { cellWidth: 78, valign: 'middle', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 2 } },
+        0: { cellWidth: 12, halign: 'center', valign: 'middle' },
+        1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+        2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
+        3: { cellWidth: 72, valign: 'middle' },
         4: { cellWidth: 24, valign: 'middle' }
       },
       didDrawPage: (data) => {
@@ -486,9 +506,34 @@ const SllNominalPage = () => {
         doc.setTextColor(20, 20, 20);
         doc.text(candCountText, 150, 39);
 
-        const tableData = gData.candidates.map((c, idx) => {
-          const coursesStr = c.courses.map((crs, cIdx) => `${cIdx + 1}. ${crs.display}`).join('\n');
-          return [idx + 1, c.seatNo, c.studentName, coursesStr || '—', ''];
+        const tableBody = [];
+        gData.candidates.forEach((cand, candIdx) => {
+          const cCount = Math.max(1, cand.courses.length);
+          if (cand.courses.length === 0) {
+            tableBody.push([
+              { content: String(candIdx + 1), styles: { halign: 'center', valign: 'middle' } },
+              { content: cand.seatNo, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
+              { content: cand.studentName, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
+              { content: '—', styles: { halign: 'left', valign: 'middle' } },
+              { content: '', styles: { halign: 'center', valign: 'middle' } }
+            ]);
+          } else {
+            cand.courses.forEach((crs, crsIdx) => {
+              if (crsIdx === 0) {
+                tableBody.push([
+                  { content: String(candIdx + 1), rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } },
+                  { content: cand.seatNo, rowSpan: cCount, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
+                  { content: cand.studentName, rowSpan: cCount, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
+                  { content: crs.display, styles: { halign: 'left', valign: 'middle' } },
+                  { content: '', rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } }
+                ]);
+              } else {
+                tableBody.push([
+                  { content: crs.display, styles: { halign: 'left', valign: 'middle' } }
+                ]);
+              }
+            });
+          }
         });
 
         const startTableY = 34 + boxHeight + 4;
@@ -496,33 +541,34 @@ const SllNominalPage = () => {
         autoTable(doc, {
           startY: startTableY,
           head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
-          body: tableData,
+          body: tableBody,
           theme: 'grid',
           styles: { 
             font: 'helvetica',
             fontSize: 8.5, 
-            lineHeightFactor: 1.4,
             valign: 'middle',
-            cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, 
-            textColor: [15, 23, 42],
-            lineColor: [200, 205, 215],
-            lineWidth: 0.2,
+            cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+            textColor: [0, 0, 0],
+            lineColor: [100, 100, 100],
+            lineWidth: 0.18,
             overflow: 'linebreak'
           },
           headStyles: { 
-            fillColor: [23, 107, 135], 
-            textColor: 255, 
+            fillColor: [240, 240, 240], 
+            textColor: [0, 0, 0], 
             fontSize: 9, 
             fontStyle: 'bold',
             halign: 'center',
             valign: 'middle',
-            cellPadding: { top: 4, bottom: 4, left: 2, right: 2 }
+            cellPadding: { top: 4, bottom: 4, left: 2, right: 2 },
+            lineColor: [100, 100, 100],
+            lineWidth: 0.18
           },
           columnStyles: {
-            0: { cellWidth: 10, halign: 'center', valign: 'middle' },
-            1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-            2: { cellWidth: 40, fontStyle: 'bold', valign: 'middle' },
-            3: { cellWidth: 78, valign: 'middle', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 2 } },
+            0: { cellWidth: 12, halign: 'center', valign: 'middle' },
+            1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+            2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
+            3: { cellWidth: 72, valign: 'middle' },
             4: { cellWidth: 24, valign: 'middle' }
           }
         });
@@ -599,9 +645,34 @@ const SllNominalPage = () => {
           targetDoc.setTextColor(20, 20, 20);
           targetDoc.text(candCountText, 150, 39);
 
-          const tableData = gData.candidates.map((c, idx) => {
-            const coursesStr = c.courses.map((crs, cIdx) => `${cIdx + 1}. ${crs.display}`).join('\n');
-            return [idx + 1, c.seatNo, c.studentName, coursesStr || '—', ''];
+          const tableBody = [];
+          gData.candidates.forEach((cand, candIdx) => {
+            const cCount = Math.max(1, cand.courses.length);
+            if (cand.courses.length === 0) {
+              tableBody.push([
+                { content: String(candIdx + 1), styles: { halign: 'center', valign: 'middle' } },
+                { content: cand.seatNo, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
+                { content: cand.studentName, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
+                { content: '—', styles: { halign: 'left', valign: 'middle' } },
+                { content: '', styles: { halign: 'center', valign: 'middle' } }
+              ]);
+            } else {
+              cand.courses.forEach((crs, crsIdx) => {
+                if (crsIdx === 0) {
+                  tableBody.push([
+                    { content: String(candIdx + 1), rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } },
+                    { content: cand.seatNo, rowSpan: cCount, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
+                    { content: cand.studentName, rowSpan: cCount, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
+                    { content: crs.display, styles: { halign: 'left', valign: 'middle' } },
+                    { content: '', rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } }
+                  ]);
+                } else {
+                  tableBody.push([
+                    { content: crs.display, styles: { halign: 'left', valign: 'middle' } }
+                  ]);
+                }
+              });
+            }
           });
 
           const startTableY = 34 + boxHeight + 4;
@@ -609,33 +680,34 @@ const SllNominalPage = () => {
           autoTable(targetDoc, {
             startY: startTableY,
             head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
-            body: tableData,
+            body: tableBody,
             theme: 'grid',
             styles: { 
               font: 'helvetica',
               fontSize: 8.5, 
-              lineHeightFactor: 1.4,
               valign: 'middle',
-              cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, 
-              textColor: [15, 23, 42],
-              lineColor: [200, 205, 215],
-              lineWidth: 0.2,
+              cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+              textColor: [0, 0, 0],
+              lineColor: [100, 100, 100],
+              lineWidth: 0.18,
               overflow: 'linebreak'
             },
             headStyles: { 
-              fillColor: [23, 107, 135], 
-              textColor: 255, 
+              fillColor: [240, 240, 240], 
+              textColor: [0, 0, 0], 
               fontSize: 9, 
               fontStyle: 'bold',
               halign: 'center',
               valign: 'middle',
-              cellPadding: { top: 4, bottom: 4, left: 2, right: 2 }
+              cellPadding: { top: 4, bottom: 4, left: 2, right: 2 },
+              lineColor: [100, 100, 100],
+              lineWidth: 0.18
             },
             columnStyles: {
-              0: { cellWidth: 10, halign: 'center', valign: 'middle' },
-              1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-              2: { cellWidth: 40, fontStyle: 'bold', valign: 'middle' },
-              3: { cellWidth: 78, valign: 'middle', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 2 } },
+              0: { cellWidth: 12, halign: 'center', valign: 'middle' },
+              1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+              2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
+              3: { cellWidth: 72, valign: 'middle' },
               4: { cellWidth: 24, valign: 'middle' }
             }
           });
@@ -1179,50 +1251,57 @@ const SllNominalPage = () => {
 
             {/* Rendered Nominal Roll Table */}
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', fontFamily: 'inherit' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', fontFamily: 'inherit', border: '1px solid #777' }}>
                 <thead>
-                  <tr style={{ background: '#176b87', color: '#ffffff' }}>
-                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 6px', width: '55px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>SL<br/>No</th>
-                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 10px', width: '140px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>Register Number</th>
-                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 12px', width: '200px', textAlign: 'left', fontWeight: 700, verticalAlign: 'middle' }}>Candidate Name</th>
-                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 14px', textAlign: 'left', fontWeight: 700, verticalAlign: 'middle' }}>Courses</th>
-                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 8px', width: '120px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>Remarks</th>
+                  <tr style={{ background: '#f0f0f0', color: '#000' }}>
+                    <th style={{ border: '1px solid #777', padding: '10px 6px', width: '55px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>Sl No</th>
+                    <th style={{ border: '1px solid #777', padding: '10px 10px', width: '140px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>Register Number</th>
+                    <th style={{ border: '1px solid #777', padding: '10px 12px', width: '200px', textAlign: 'left', fontWeight: 700, verticalAlign: 'middle' }}>Candidate Name</th>
+                    <th style={{ border: '1px solid #777', padding: '10px 14px', textAlign: 'left', fontWeight: 700, verticalAlign: 'middle' }}>Courses</th>
+                    <th style={{ border: '1px solid #777', padding: '10px 8px', width: '120px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
                   {currentTabCandidates.length > 0 ? (
-                    currentTabCandidates.map((cand, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #cbd5e1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 6px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle', fontSize: '13px', color: '#334155' }}>
-                          {idx + 1}
-                        </td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 10px', textAlign: 'center', fontWeight: 800, color: 'var(--accent)', verticalAlign: 'middle', fontFamily: 'monospace, monospace', fontSize: '13.5px', letterSpacing: '0.5px' }}>
-                          {cand.seatNo}
-                        </td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 12px', fontWeight: 700, verticalAlign: 'middle', textTransform: 'uppercase', color: '#0f172a', fontSize: '13px' }}>
-                          {cand.studentName}
-                        </td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 14px', verticalAlign: 'middle' }}>
-                          {cand.courses.length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                              {cand.courses.map((crs, cIdx) => (
-                                <div key={cIdx} style={{ fontSize: '12.5px', lineHeight: '1.45', color: '#1e293b' }}>
-                                  <span style={{ fontWeight: 700, color: 'var(--accent)', marginRight: '6px' }}>
-                                    {cIdx + 1}. {crs.code}
-                                  </span>
-                                  {crs.title && <span style={{ color: '#334155' }}>— {crs.title}</span>}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#94a3b8' }}>—</span>
+                    currentTabCandidates.map((cand, candIdx) => {
+                      const cCount = Math.max(1, cand.courses.length);
+                      if (cand.courses.length === 0) {
+                        return (
+                          <tr key={cand.seatNo} style={{ background: '#fff' }}>
+                            <td style={{ border: '1px solid #777', padding: '8px 6px', textAlign: 'center', fontWeight: 600, verticalAlign: 'middle' }}>{candIdx + 1}</td>
+                            <td style={{ border: '1px solid #777', padding: '8px 10px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle', fontFamily: 'monospace', fontSize: '13.5px' }}>{cand.seatNo}</td>
+                            <td style={{ border: '1px solid #777', padding: '8px 12px', fontWeight: 700, verticalAlign: 'middle', textTransform: 'uppercase' }}>{cand.studentName}</td>
+                            <td style={{ border: '1px solid #777', padding: '8px 12px', verticalAlign: 'middle' }}>—</td>
+                            <td style={{ border: '1px solid #777', padding: '8px 8px', verticalAlign: 'middle' }}></td>
+                          </tr>
+                        );
+                      }
+                      return cand.courses.map((crs, cIdx) => (
+                        <tr key={`${cand.seatNo}-${cIdx}`} style={{ background: '#fff' }}>
+                          {cIdx === 0 && (
+                            <>
+                              <td rowSpan={cCount} style={{ border: '1px solid #777', padding: '8px 6px', textAlign: 'center', fontWeight: 600, verticalAlign: 'middle', fontSize: '13px' }}>
+                                {candIdx + 1}
+                              </td>
+                              <td rowSpan={cCount} style={{ border: '1px solid #777', padding: '8px 10px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle', fontFamily: 'monospace', fontSize: '13.5px' }}>
+                                {cand.seatNo}
+                              </td>
+                              <td rowSpan={cCount} style={{ border: '1px solid #777', padding: '8px 12px', fontWeight: 700, verticalAlign: 'middle', textTransform: 'uppercase', fontSize: '13px' }}>
+                                {cand.studentName}
+                              </td>
+                            </>
                           )}
-                        </td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 8px', verticalAlign: 'middle', background: 'rgba(248, 250, 252, 0.5)' }}>
-                          {/* Blank for Remarks */}
-                        </td>
-                      </tr>
-                    ))
+                          <td style={{ border: '1px solid #777', padding: '8px 12px', verticalAlign: 'middle', fontSize: '12.5px', color: '#111' }}>
+                            {crs.display}
+                          </td>
+                          {cIdx === 0 && (
+                            <td rowSpan={cCount} style={{ border: '1px solid #777', padding: '8px 8px', verticalAlign: 'middle' }}>
+                              {/* Blank Remarks */}
+                            </td>
+                          )}
+                        </tr>
+                      ));
+                    })
                   ) : (
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--muted)' }}>
