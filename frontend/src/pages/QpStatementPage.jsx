@@ -1215,8 +1215,8 @@ const QpStatementPage = () => {
                           {formatCourseDisplay(row.courseCode, row.courseName)}
                         </td>
                         <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', fontWeight: 700 }}>{row.studentCount}</td>
-                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', color: '#999' }}>—</td>
-                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', color: '#999' }}>—</td>
+                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center' }}></td>
+                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center' }}></td>
                       </tr>
                     ))
                   ) : (
