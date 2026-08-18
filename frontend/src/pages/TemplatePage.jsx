@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
@@ -187,14 +187,133 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     reader.readAsDataURL(file);
   };
 
+  // Mock Fallback Data Generator when no dataset is loaded
+  const getMockDataForArchetype = useCallback((archetype, formatDots = false) => {
+    if (archetype === 'NOMINAL_ROLL') {
+      const prog = 'Bachelor of Business Administration (BBA)';
+      const venueLabel = 'GA - Sree Narayana Guru College of Advanced Studies, Thottada';
+      const c1 = formatDots ? 'KU4VACBBA200. - Disaster Management.' : 'KU4VACBBA200 - Disaster Management';
+      const c2 = formatDots ? 'KU4SECBBA201. - Soft Skills & Personality Development.' : 'KU4SECBBA201 - Soft Skills & Personality Development';
+      const c3 = formatDots ? 'KU4MDCBBA202. - Digital Marketing & E-Commerce.' : 'KU4MDCBBA202 - Digital Marketing & E-Commerce';
+      const c4 = formatDots ? 'KU4AECBBA203. - Business Ethics & Corporate Governance.' : 'KU4AECBBA203 - Business Ethics & Corporate Governance';
+
+      const groupKey = `${prog} • ${venueLabel}`;
+      return {
+        groups: {
+          [groupKey]: {
+            programme: prog,
+            venueCode: 'GA',
+            venueName: 'Sree Narayana Guru College of Advanced Studies, Thottada',
+            venueLabel,
+            candidates: [
+              {
+                seatNo: '4PR24BB001',
+                studentName: 'ADITHYA K',
+                courses: [
+                  { display: c1 },
+                  { display: c2 },
+                  { display: c3 },
+                  { display: c4 }
+                ]
+              },
+              {
+                seatNo: '4PR24BB002',
+                studentName: 'ANANYA RAJEEV',
+                courses: [
+                  { display: c1 },
+                  { display: c2 },
+                  { display: c3 }
+                ]
+              },
+              {
+                seatNo: '4PR24BB003',
+                studentName: 'FARHAN MOHAMMED',
+                courses: [
+                  { display: c1 },
+                  { display: c3 },
+                  { display: c4 }
+                ]
+              }
+            ],
+            totalCandidates: 3
+          }
+        },
+        groupKeys: [groupKey],
+        totalCount: 1
+      };
+    }
+
+    if (archetype === 'QP_STATEMENT') {
+      const venueLabel = 'GA - Sree Narayana Guru College of Advanced Studies, Thottada';
+      return {
+        groups: {
+          [venueLabel]: {
+            venueLabel,
+            items: [
+              { date: '2026-09-09', courseDisplay: 'KU4VACBBA200 - Disaster Management', studentCount: 28 },
+              { date: '2026-09-11', courseDisplay: 'KU4SECBBA201 - Soft Skills & Personality Development', studentCount: 28 },
+              { date: '2026-09-15', courseDisplay: 'KU4MDCBBA202 - Digital Marketing & E-Commerce', studentCount: 25 },
+              { date: '2026-09-18', courseDisplay: 'KU4AECBBA203 - Business Ethics & Corporate Governance', studentCount: 28 }
+            ]
+          }
+        },
+        groupKeys: [venueLabel],
+        totalCount: 1
+      };
+    }
+
+    if (archetype === 'QP_COVER_LABEL') {
+      const labels = [
+        {
+          venueCode: 'GA',
+          venueName: 'Sree Narayana Guru College of Advanced Studies, Thottada',
+          day: 'Wednesday',
+          date: '2026-09-09',
+          timeRange: '01:30 PM - 03:00 PM',
+          subject: 'KU4VACBBA200 - Disaster Management',
+          studentCount: '28',
+          coverNumber: '1'
+        },
+        {
+          venueCode: 'GA',
+          venueName: 'Sree Narayana Guru College of Advanced Studies, Thottada',
+          day: 'Friday',
+          date: '2026-09-11',
+          timeRange: '01:30 PM - 03:00 PM',
+          subject: 'KU4SECBBA201 - Soft Skills & Personality Development',
+          studentCount: '28',
+          coverNumber: '2'
+        }
+      ];
+      return {
+        groups: { allLabels: labels },
+        groupKeys: ['allLabels'],
+        totalCount: labels.length
+      };
+    }
+
+    return {
+      groups: {
+        default: [
+          { 'Sl No': 1, 'Register No': '4PR24BB001', 'Candidate Name': 'ADITHYA K', 'Course': 'Disaster Management', 'Status': 'Registered' },
+          { 'Sl No': 2, 'Register No': '4PR24BB002', 'Candidate Name': 'ANANYA RAJEEV', 'Course': 'Disaster Management', 'Status': 'Registered' }
+        ]
+      },
+      groupKeys: ['default'],
+      totalCount: 1
+    };
+  }, []);
+
   // --- DATA GROUPING AND STRUCTURING ENGINE --- //
   const processedData = useMemo(() => {
     const rows = dataset?.rows || [];
-    if (!rows.length) return { groups: {}, groupKeys: [], totalCount: 0 };
+    if (!rows.length) {
+      return getMockDataForArchetype(activeArchetype, currentConfig.formatCodeDotNameDot);
+    }
 
     const getVal = (row, colKey, fallback = '') => {
-      if (!colKey || !row[colKey]) return fallback;
-      return String(row[colKey]).trim();
+      if (colKey && row[colKey] !== undefined && row[colKey] !== null) return String(row[colKey]).trim();
+      return fallback;
     };
 
     if (activeArchetype === 'NOMINAL_ROLL') {
@@ -254,7 +373,10 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       const finalized = {};
       Object.keys(groups).sort().forEach(gKey => {
         const g = groups[gKey];
-        const candidateList = Object.values(g.candidatesMap).sort((a, b) => 
+        const candidateList = Object.values(g.candidatesMap).map(cand => ({
+          ...cand,
+          courses: cand.courses && cand.courses.length > 0 ? cand.courses : [{ display: '—' }]
+        })).sort((a, b) => 
           a.seatNo.localeCompare(b.seatNo, undefined, { numeric: true, sensitivity: 'base' })
         );
         finalized[gKey] = {
@@ -367,7 +489,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     }
 
     return { groups: { default: rows }, groupKeys: ['default'], totalCount: rows.length };
-  }, [dataset, activeArchetype, currentConfig, columnMappings]);
+  }, [dataset, activeArchetype, currentConfig, columnMappings, getMockDataForArchetype]);
 
   const effectiveGroupKey = processedData.groupKeys[activePreviewIndex] || processedData.groupKeys[0] || '';
   const currentPreviewGroup = processedData.groups[effectiveGroupKey];
