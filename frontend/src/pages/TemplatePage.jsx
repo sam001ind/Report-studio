@@ -26,7 +26,9 @@ import {
   AlignCenter,
   AlignRight,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight as ArrowRightIcon
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -34,7 +36,7 @@ import { logoBase64 } from '../assets/logoBase64';
 import { TEMPLATE_ARCHETYPES, autoDetectDatasetColumns, suggestArchetype } from '../utils/templateEngine';
 
 const hexToRgb = (hex) => {
-  let c = hex.replace(/^#/, '');
+  let c = String(hex || '#000000').replace(/^#/, '');
   if (c.length === 3) c = c.split('').map(x => x + x).join('');
   const num = parseInt(c, 16);
   if (isNaN(num)) return [0, 0, 0];
@@ -73,8 +75,8 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
   const [isProcessing, setIsProcessing] = useState(false);
   const [activePreviewIndex, setActivePreviewIndex] = useState(0);
 
-  // Active Tool Tab: 'headers' | 'data' | 'page' | 'styling'
-  const [activeToolTab, setActiveToolTab] = useState('headers');
+  // Active Tool Tab: 'headers' | 'columns' | 'data' | 'page' | 'styling'
+  const [activeToolTab, setActiveToolTab] = useState('columns');
 
   // Update column detection when dataset changes
   useEffect(() => {
@@ -133,7 +135,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     }));
   };
 
-  // Header Management Helpers
+  // Top Page Headers Helpers
   const addHeaderLine = () => {
     const newHeader = {
       id: `h_${Date.now()}`,
@@ -168,6 +170,40 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     list[index] = list[targetIdx];
     list[targetIdx] = temp;
     updateCurrentConfig({ headersList: list });
+  };
+
+  // Table Column Headers Helpers
+  const addTableColumn = () => {
+    const cols = currentConfig.tableColumns || [];
+    const newCol = {
+      id: `col_${Date.now()}`,
+      label: `Column ${cols.length + 1}`,
+      field: 'blank',
+      width: 25,
+      align: 'center',
+      isSpan: true
+    };
+    updateCurrentConfig({ tableColumns: [...cols, newCol] });
+  };
+
+  const updateTableColumn = (id, updates) => {
+    const cols = (currentConfig.tableColumns || []).map(c => c.id === id ? { ...c, ...updates } : c);
+    updateCurrentConfig({ tableColumns: cols });
+  };
+
+  const removeTableColumn = (id) => {
+    const cols = (currentConfig.tableColumns || []).filter(c => c.id !== id);
+    updateCurrentConfig({ tableColumns: cols });
+  };
+
+  const moveTableColumn = (index, direction) => {
+    const cols = [...(currentConfig.tableColumns || [])];
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= cols.length) return;
+    const temp = cols[index];
+    cols[index] = cols[targetIdx];
+    cols[targetIdx] = temp;
+    updateCurrentConfig({ tableColumns: cols });
   };
 
   // Logo Upload Handler
@@ -209,6 +245,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               {
                 seatNo: '4PR24BB001',
                 studentName: 'ADITHYA K',
+                rawRow: {},
                 courses: [
                   { display: c1 },
                   { display: c2 },
@@ -219,6 +256,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               {
                 seatNo: '4PR24BB002',
                 studentName: 'ANANYA RAJEEV',
+                rawRow: {},
                 courses: [
                   { display: c1 },
                   { display: c2 },
@@ -228,6 +266,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               {
                 seatNo: '4PR24BB003',
                 studentName: 'FARHAN MOHAMMED',
+                rawRow: {},
                 courses: [
                   { display: c1 },
                   { display: c3 },
@@ -346,6 +385,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
           groups[groupKey].candidatesMap[seatNo] = {
             seatNo,
             studentName: candName,
+            rawRow: row,
             courses: []
           };
         }
@@ -583,54 +623,59 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       doc.setTextColor(23, 107, 135);
       doc.text(venueLines, 18, textY);
 
+      const cols = currentConfig.tableColumns || TEMPLATE_ARCHETYPES.NOMINAL_ROLL.defaultConfig.tableColumns;
       const tableBody = [];
+
       g.candidates.forEach((cand, candIdx) => {
         const cCount = Math.max(1, cand.courses.length);
-        if (cand.courses.length === 0) {
-          tableBody.push([
-            { content: String(candIdx + 1), styles: { halign: 'center', valign: 'middle' } },
-            { content: cand.seatNo, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
-            { content: cand.studentName, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
-            { content: '—', styles: { halign: 'left', valign: 'middle' } },
-            { content: '', styles: { halign: 'center', valign: 'middle' } }
-          ]);
-        } else {
-          cand.courses.forEach((crs, crsIdx) => {
-            if (crsIdx === 0) {
-              tableBody.push([
-                { content: String(candIdx + 1), rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } },
-                { content: cand.seatNo, rowSpan: cCount, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold' } },
-                { content: cand.studentName, rowSpan: cCount, styles: { halign: 'left', valign: 'middle', fontStyle: 'bold' } },
-                { content: crs.display, styles: { halign: 'left', valign: 'middle' } },
-                { content: '', rowSpan: cCount, styles: { halign: 'center', valign: 'middle' } }
-              ]);
+        cand.courses.forEach((crs, crsIdx) => {
+          const rowCells = [];
+          cols.forEach(col => {
+            let content = '';
+            const styles = { halign: col.align || 'left', valign: 'middle' };
+            if (col.bold) styles.fontStyle = 'bold';
+
+            if (col.field === 'slNo') content = String(candIdx + 1);
+            else if (col.field === 'seatNo') content = cand.seatNo;
+            else if (col.field === 'name') content = cand.studentName;
+            else if (col.field === 'courses') content = crs.display;
+            else if (col.field === 'remarks' || col.field === 'blank') content = '';
+            else if (cand.rawRow && cand.rawRow[col.field]) content = String(cand.rawRow[col.field]);
+
+            if (col.field === 'courses' || !col.isSpan) {
+              rowCells.push({ content, styles });
             } else {
-              tableBody.push([
-                { content: crs.display, styles: { halign: 'left', valign: 'middle' } }
-              ]);
+              if (crsIdx === 0) {
+                rowCells.push({ content, rowSpan: cCount, styles });
+              }
             }
           });
-        }
+          tableBody.push(rowCells);
+        });
       });
 
       const [hBgR, hBgG, hBgB] = hexToRgb(currentConfig.tableTheme?.headerBg || '#f1f5f9');
       const [hTxtR, hTxtG, hTxtB] = hexToRgb(currentConfig.tableTheme?.headerColor || '#000000');
       const [bdrR, bdrG, bdrB] = hexToRgb(currentConfig.tableTheme?.borderColor || '#64748b');
 
+      const colStylesObj = {};
+      cols.forEach((c, i) => {
+        colStylesObj[i] = {
+          cellWidth: isLandscape ? Math.round(c.width * 1.3) : c.width,
+          halign: c.align || 'left',
+          valign: 'middle'
+        };
+        if (c.bold) colStylesObj[i].fontStyle = 'bold';
+      });
+
       autoTable(doc, {
         startY: headerEndY + boxHeight + 4,
-        head: [[currentConfig.headers.slNo, currentConfig.headers.regNo, currentConfig.headers.name, currentConfig.headers.courses, currentConfig.headers.remarks]],
+        head: [cols.map(c => c.label)],
         body: tableBody,
         theme: 'grid',
         styles: { font: 'helvetica', fontSize: currentConfig.tableTheme?.fontSize || 8, valign: 'middle', cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, minCellHeight: 5, textColor: [0, 0, 0], lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.18 },
         headStyles: { fillColor: [hBgR, hBgG, hBgB], textColor: [hTxtR, hTxtG, hTxtB], fontSize: 8.5, fontStyle: 'bold', halign: 'center', valign: 'middle', cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 }, lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.18 },
-        columnStyles: {
-          0: { cellWidth: isLandscape ? 14 : currentConfig.columnStyles.slNo, halign: 'center', valign: 'middle' },
-          1: { cellWidth: isLandscape ? 40 : currentConfig.columnStyles.regNo, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-          2: { cellWidth: isLandscape ? 60 : currentConfig.columnStyles.name, fontStyle: 'bold', valign: 'middle' },
-          3: { cellWidth: isLandscape ? 120 : currentConfig.columnStyles.courses, valign: 'middle' },
-          4: { cellWidth: isLandscape ? 35 : currentConfig.columnStyles.remarks, valign: 'middle' }
-        }
+        columnStyles: colStylesObj
       });
       return doc;
     }
@@ -646,34 +691,40 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       doc.setTextColor(0, 0, 0);
       doc.text(`${currentConfig.centerPrefix} ${g.venueLabel}`, pageWidth / 2, headerEndY, { align: 'center' });
 
-      const tableBody = g.items.map((it, idx) => [
-        idx + 1,
-        it.date,
-        it.courseDisplay,
-        it.studentCount,
-        '',
-        ''
-      ]);
+      const cols = currentConfig.tableColumns || TEMPLATE_ARCHETYPES.QP_STATEMENT.defaultConfig.tableColumns;
+      const tableBody = g.items.map((it, idx) => {
+        return cols.map(col => {
+          if (col.field === 'slNo') return idx + 1;
+          if (col.field === 'date') return it.date;
+          if (col.field === 'course') return it.courseDisplay;
+          if (col.field === 'count') return it.studentCount;
+          if (col.field === 'qp' || col.field === 'lp' || col.field === 'blank') return '';
+          return it[col.field] || '';
+        });
+      });
 
       const [hBgR, hBgG, hBgB] = hexToRgb(currentConfig.tableTheme?.headerBg || '#f1f5f9');
       const [hTxtR, hTxtG, hTxtB] = hexToRgb(currentConfig.tableTheme?.headerColor || '#000000');
       const [bdrR, bdrG, bdrB] = hexToRgb(currentConfig.tableTheme?.borderColor || '#000000');
 
+      const colStylesObj = {};
+      cols.forEach((c, i) => {
+        colStylesObj[i] = {
+          cellWidth: isLandscape ? Math.round(c.width * 1.3) : c.width,
+          halign: c.align || 'left',
+          valign: 'middle'
+        };
+        if (c.bold) colStylesObj[i].fontStyle = 'bold';
+      });
+
       autoTable(doc, {
         startY: headerEndY + 6,
-        head: [[currentConfig.headers.slNo, currentConfig.headers.date, currentConfig.headers.course, currentConfig.headers.count, currentConfig.headers.qp, currentConfig.headers.lp]],
+        head: [cols.map(c => c.label)],
         body: tableBody,
         theme: 'grid',
         styles: { font: 'helvetica', fontSize: currentConfig.tableTheme?.fontSize || 8.5, valign: 'middle', cellPadding: 3, textColor: [0, 0, 0], lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.2 },
         headStyles: { fillColor: [hBgR, hBgG, hBgB], textColor: [hTxtR, hTxtG, hTxtB], fontStyle: 'bold', halign: 'center', valign: 'middle', fontSize: 9, lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.3 },
-        columnStyles: {
-          0: { halign: 'center', cellWidth: isLandscape ? 16 : currentConfig.columnStyles.slNo },
-          1: { halign: 'left', cellWidth: isLandscape ? 50 : currentConfig.columnStyles.date },
-          2: { halign: 'left', cellWidth: isLandscape ? 135 : currentConfig.columnStyles.course },
-          3: { halign: 'center', cellWidth: isLandscape ? 22 : currentConfig.columnStyles.count, fontStyle: 'bold' },
-          4: { halign: 'center', cellWidth: isLandscape ? 24 : currentConfig.columnStyles.qp },
-          5: { halign: 'center', cellWidth: isLandscape ? 24 : currentConfig.columnStyles.lp }
-        }
+        columnStyles: colStylesObj
       });
       return doc;
     }
@@ -881,6 +932,8 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     }
   };
 
+  const activeCols = currentConfig.tableColumns || TEMPLATE_ARCHETYPES[activeArchetype]?.defaultConfig?.tableColumns || [];
+
   return (
     <div style={{ padding: '24px 32px 80px', maxWidth: '1600px', margin: '0 auto', fontFamily: 'var(--font-family)' }}>
       
@@ -891,7 +944,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             <Sparkles size={24} color="var(--accent)" /> Report Template Studio
           </h1>
           <p style={{ margin: '4px 0 0 0', color: 'var(--muted)', fontSize: '13.5px' }}>
-            Create and customize report templates with Rich Text headers, logo uploads, portrait/landscape orientation, and dynamic Excel column binding.
+            Create and customize report templates with Rich Text headers, customizable table columns, logo upload, and dynamic Excel column binding.
           </p>
         </div>
 
@@ -960,7 +1013,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       </div>
 
       {/* Main Studio Two-Column Grid: Config Controls (Left) + WYSIWYG A4 Preview (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: isSidebarOpen ? '420px 1fr' : '0px 1fr', gap: isSidebarOpen ? '24px' : '0px', transition: 'all 0.3s ease' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isSidebarOpen ? '440px 1fr' : '0px 1fr', gap: isSidebarOpen ? '24px' : '0px', transition: 'all 0.3s ease' }}>
         
         {/* LEFT COLUMN: Customization Panels with Tabbed Controls */}
         <div style={{ display: isSidebarOpen ? 'block' : 'none' }}>
@@ -968,29 +1021,12 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
           {/* Sub-Tab Navigation for Studio Controls */}
           <div style={{ display: 'flex', background: 'var(--panel)', borderRadius: '8px', padding: '4px', marginBottom: '16px', gap: '4px', border: '1px solid var(--line)', flexWrap: 'wrap' }}>
             <button
-              onClick={() => setActiveToolTab('headers')}
-              style={{
-                flex: 1,
-                minWidth: '85px',
-                padding: '8px 4px',
-                fontSize: '11.5px',
-                fontWeight: 700,
-                borderRadius: '6px',
-                border: 'none',
-                cursor: 'pointer',
-                background: activeToolTab === 'headers' ? 'var(--accent)' : 'transparent',
-                color: activeToolTab === 'headers' ? 'white' : 'var(--ink)'
-              }}
-            >
-              📑 Page Headers
-            </button>
-            <button
               onClick={() => setActiveToolTab('columns')}
               style={{
                 flex: 1,
-                minWidth: '85px',
+                minWidth: '80px',
                 padding: '8px 4px',
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1002,12 +1038,29 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               📊 Table Columns
             </button>
             <button
+              onClick={() => setActiveToolTab('headers')}
+              style={{
+                flex: 1,
+                minWidth: '80px',
+                padding: '8px 4px',
+                fontSize: '11px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: activeToolTab === 'headers' ? 'var(--accent)' : 'transparent',
+                color: activeToolTab === 'headers' ? 'white' : 'var(--ink)'
+              }}
+            >
+              📑 Page Headers
+            </button>
+            <button
               onClick={() => setActiveToolTab('data')}
               style={{
                 flex: 1,
-                minWidth: '85px',
+                minWidth: '80px',
                 padding: '8px 4px',
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1022,9 +1075,9 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               onClick={() => setActiveToolTab('page')}
               style={{
                 flex: 1,
-                minWidth: '85px',
+                minWidth: '80px',
                 padding: '8px 4px',
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1039,9 +1092,9 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               onClick={() => setActiveToolTab('styling')}
               style={{
                 flex: 1,
-                minWidth: '85px',
+                minWidth: '80px',
                 padding: '8px 4px',
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1053,6 +1106,135 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               🎨 Table Colors
             </button>
           </div>
+
+          {/* TAB: TABLE COLUMN HEADERS & LABELS (ADD / REMOVE / REORDER) */}
+          {activeToolTab === 'columns' && (
+            <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <TableProperties size={16} /> Table Columns ({activeCols.length})
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--muted)' }}>
+                    Add, remove, reorder, and rename columns printed in the report table.
+                  </p>
+                </div>
+                <button
+                  className="button"
+                  onClick={addTableColumn}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '5px 10px' }}
+                >
+                  <Plus size={14} /> Add Column
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '550px', overflowY: 'auto', paddingRight: '4px' }}>
+                {activeCols.map((col, idx) => (
+                  <div key={col.id || idx} style={{ padding: '12px', background: 'var(--bg)', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                    
+                    {/* Top Row: Column # & Move/Delete */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                        Column #{idx + 1}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button 
+                          disabled={idx === 0} 
+                          onClick={() => moveTableColumn(idx, -1)} 
+                          style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? '#ccc' : 'var(--ink)', padding: '2px' }}
+                          title="Move Left"
+                        >
+                          <ArrowLeft size={14} />
+                        </button>
+                        <button 
+                          disabled={idx === activeCols.length - 1} 
+                          onClick={() => moveTableColumn(idx, 1)} 
+                          style={{ background: 'none', border: 'none', cursor: idx === activeCols.length - 1 ? 'default' : 'pointer', color: idx === activeCols.length - 1 ? '#ccc' : 'var(--ink)', padding: '2px' }}
+                          title="Move Right"
+                        >
+                          <ArrowRightIcon size={14} />
+                        </button>
+                        <button 
+                          onClick={() => removeTableColumn(col.id)} 
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '2px', marginLeft: '4px' }}
+                          title="Remove Column"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Header Label Input */}
+                    <div style={{ marginBottom: '8px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, marginBottom: '3px' }}>Header Title:</label>
+                      <input 
+                        type="text"
+                        value={col.label || ''}
+                        onChange={(e) => updateTableColumn(col.id, { label: e.target.value })}
+                        placeholder="Column Header Text..."
+                        style={{ width: '100%', fontSize: '13px', fontWeight: 700 }}
+                      />
+                    </div>
+
+                    {/* Field Binding & Alignment */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, marginBottom: '3px' }}>Data Content:</label>
+                        <select
+                          value={col.field || 'blank'}
+                          onChange={(e) => updateTableColumn(col.id, { field: e.target.value })}
+                          style={{ width: '100%', fontSize: '12px' }}
+                        >
+                          <optgroup label="Standard Fields">
+                            <option value="slNo">Serial No (1, 2, 3...)</option>
+                            <option value="seatNo">Register / Seat No</option>
+                            <option value="name">Candidate Name</option>
+                            <option value="courses">Merged Courses (Sub-rows)</option>
+                            <option value="date">Exam Date</option>
+                            <option value="course">Course Name</option>
+                            <option value="count">Candidate Count</option>
+                            <option value="blank">Blank / Signature Box</option>
+                          </optgroup>
+                          {dataset.columns?.length > 0 && (
+                            <optgroup label="Excel Columns">
+                              {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </optgroup>
+                          )}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, marginBottom: '3px' }}>Alignment:</label>
+                        <div style={{ display: 'flex', gap: '3px' }}>
+                          {['left', 'center', 'right'].map(align => (
+                            <button
+                              key={align}
+                              type="button"
+                              onClick={() => updateTableColumn(col.id, { align })}
+                              style={{
+                                flex: 1,
+                                padding: '4px',
+                                textTransform: 'capitalize',
+                                fontSize: '11px',
+                                borderRadius: '4px',
+                                border: '1px solid var(--line)',
+                                background: col.align === align ? 'var(--accent)' : 'white',
+                                color: col.align === align ? 'white' : 'var(--ink)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {align}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* TAB 1: DYNAMIC PAGE HEADERS & RICH TEXT BUILDER */}
           {activeToolTab === 'headers' && (
@@ -1238,193 +1420,6 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* TAB 2: TABLE COLUMN HEADERS & LABELS */}
-          {activeToolTab === 'columns' && (
-            <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
-              <div style={{ marginBottom: '16px' }}>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <TableProperties size={16} /> Table Columns & Header Titles
-                </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                  Customize the column header titles printed in the report table.
-                </p>
-              </div>
-
-              {/* Archetype Columns */}
-              {activeArchetype === 'NOMINAL_ROLL' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 1 Header (Serial Number):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.slNo || 'Sl No'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, slNo: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 2 Header (Register / Seat No):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.regNo || 'Register Number'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, regNo: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 3 Header (Candidate Name):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.name || 'Candidate Name'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, name: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 4 Header (Courses / Papers):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.courses || 'Courses'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, courses: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 5 Header (Remarks / Signature):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.remarks || 'Remarks'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, remarks: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                </div>
-              )}
-
-              {activeArchetype === 'QP_STATEMENT' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 1 Header:</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.slNo || 'SL No'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, slNo: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 2 Header (Date):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.date || 'Date'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, date: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 3 Header (Course / Subject):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.course || 'Course'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, course: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 4 Header (Candidate Count):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.count || 'NC'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, count: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 5 Header (QP Count):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.qp || 'QP'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, qp: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Column 6 Header (LP Count):</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.headers?.lp || 'LP'} 
-                      onChange={e => updateCurrentConfig({ headers: { ...currentConfig.headers, lp: e.target.value } })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                </div>
-              )}
-
-              {activeArchetype === 'QP_COVER_LABEL' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Centre Header Title:</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.centerPrefix || 'CENTRE CODE AND NAME'} 
-                      onChange={e => updateCurrentConfig({ centerPrefix: e.target.value })} 
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, marginBottom: '4px' }}>Certificate Text:</label>
-                    <textarea 
-                      rows={4}
-                      value={currentConfig.certificateText || ''} 
-                      onChange={e => updateCurrentConfig({ certificateText: e.target.value })} 
-                      style={{ width: '100%', fontSize: '12.5px', lineHeight: '1.4' }} 
-                    />
-                  </div>
-                </div>
-              )}
-
-              {activeArchetype === 'CUSTOM_TABULAR' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--muted)' }}>
-                    Select which columns to display from your dataset and customize their header labels:
-                  </p>
-                  {dataset.columns.map(col => {
-                    const isChecked = !currentConfig.selectedColumns || currentConfig.selectedColumns.length === 0 || currentConfig.selectedColumns.includes(col);
-                    return (
-                      <div key={col} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
-                        <input 
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            const cur = currentConfig.selectedColumns || [...dataset.columns];
-                            const updated = e.target.checked ? [...cur, col] : cur.filter(c => c !== col);
-                            updateCurrentConfig({ selectedColumns: updated });
-                          }}
-                          style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
-                        />
-                        <strong style={{ fontSize: '12.5px', width: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col}</strong>
-                        <input 
-                          type="text"
-                          value={currentConfig.columnLabels?.[col] !== undefined ? currentConfig.columnLabels[col] : col}
-                          onChange={(e) => {
-                            updateCurrentConfig({
-                              columnLabels: {
-                                ...(currentConfig.columnLabels || {}),
-                                [col]: e.target.value
-                              }
-                            });
-                          }}
-                          placeholder="Header title..."
-                          style={{ flex: 1, fontSize: '12.5px', padding: '4px 8px' }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           )}
 
@@ -2008,11 +2003,19 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8}pt` }}>
                   <thead>
                     <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 4px', width: '45px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.slNo}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 6px', width: '140px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.regNo}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 10px', width: '180px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.name}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 10px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.courses}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 6px', width: '90px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.remarks}</th>
+                      {activeCols.map(c => (
+                        <th 
+                          key={c.id} 
+                          style={{ 
+                            border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, 
+                            padding: '8px 6px', 
+                            textAlign: c.align || 'left', 
+                            fontWeight: 700 
+                          }}
+                        >
+                          {c.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -2020,17 +2023,51 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                       const courses = cand.courses || [];
                       return courses.map((crs, crsIdx) => (
                         <tr key={`${candIdx}_${crsIdx}`} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}` }}>
-                          {crsIdx === 0 && (
-                            <>
-                              <td rowSpan={courses.length} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle' }}>{candIdx + 1}</td>
-                              <td rowSpan={courses.length} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700 }}>{cand.seatNo}</td>
-                              <td rowSpan={courses.length} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 10px', verticalAlign: 'middle', fontWeight: 700 }}>{cand.studentName}</td>
-                            </>
-                          )}
-                          <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '5px 8px', verticalAlign: 'middle' }}>{crs.display}</td>
-                          {crsIdx === 0 && (
-                            <td rowSpan={courses.length} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px', textAlign: 'center', verticalAlign: 'middle' }}></td>
-                          )}
+                          {activeCols.map(col => {
+                            let content = '';
+                            if (col.field === 'slNo') content = candIdx + 1;
+                            else if (col.field === 'seatNo') content = cand.seatNo;
+                            else if (col.field === 'name') content = cand.studentName;
+                            else if (col.field === 'courses') content = crs.display;
+                            else if (col.field === 'remarks' || col.field === 'blank') content = '';
+                            else if (cand.rawRow && cand.rawRow[col.field]) content = cand.rawRow[col.field];
+
+                            if (col.field === 'courses' || !col.isSpan) {
+                              return (
+                                <td 
+                                  key={col.id} 
+                                  style={{ 
+                                    border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, 
+                                    padding: '5px 8px', 
+                                    verticalAlign: 'middle',
+                                    textAlign: col.align || 'left',
+                                    fontWeight: col.bold ? 700 : 400
+                                  }}
+                                >
+                                  {content}
+                                </td>
+                              );
+                            } else {
+                              if (crsIdx === 0) {
+                                return (
+                                  <td 
+                                    key={col.id} 
+                                    rowSpan={courses.length} 
+                                    style={{ 
+                                      border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, 
+                                      padding: '6px 8px', 
+                                      textAlign: col.align || 'left', 
+                                      verticalAlign: 'middle', 
+                                      fontWeight: col.bold || col.field === 'seatNo' || col.field === 'name' ? 700 : 400 
+                                    }}
+                                  >
+                                    {content}
+                                  </td>
+                                );
+                              }
+                              return null;
+                            }
+                          })}
                         </tr>
                       ));
                     })}
@@ -2045,23 +2082,31 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8.5}pt` }}>
                   <thead>
                     <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 4px', width: '50px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.slNo}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 8px', width: '160px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.date}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.course}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 6px', width: '65px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.count}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 6px', width: '70px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.qp}</th>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 6px', width: '70px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.lp}</th>
+                      {activeCols.map(c => (
+                        <th key={c.id} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 6px', textAlign: c.align || 'left', fontWeight: 700 }}>
+                          {c.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {currentPreviewGroup?.items?.map((it, idx) => (
                       <tr key={idx} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}` }}>
-                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 4px', textAlign: 'center' }}>{idx + 1}</td>
-                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 8px' }}>{it.date}</td>
-                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 12px' }}>{it.courseDisplay}</td>
-                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 6px', textAlign: 'center', fontWeight: 700 }}>{it.studentCount}</td>
-                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 6px', textAlign: 'center' }}></td>
-                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 6px', textAlign: 'center' }}></td>
+                        {activeCols.map(col => {
+                          let content;
+                          if (col.field === 'slNo') content = idx + 1;
+                          else if (col.field === 'date') content = it.date;
+                          else if (col.field === 'course') content = it.courseDisplay;
+                          else if (col.field === 'count') content = it.studentCount;
+                          else if (col.field === 'qp' || col.field === 'lp' || col.field === 'blank') content = '';
+                          else content = it[col.field] || '';
+
+                          return (
+                            <td key={col.id} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 8px', textAlign: col.align || 'left', fontWeight: col.bold || col.field === 'count' ? 700 : 400 }}>
+                              {content}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>
@@ -2155,19 +2200,30 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8.5}pt` }}>
                   <thead>
                     <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 4px', width: '45px', textAlign: 'center' }}>SL No</th>
-                      {dataset.columns.slice(0, 6).map(c => (
-                        <th key={c} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 6px', textAlign: 'left' }}>{c}</th>
+                      {activeCols.map(c => (
+                        <th key={c.id} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 6px', textAlign: c.align || 'left' }}>
+                          {c.label}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {dataset.rows.slice(0, 25).map((row, idx) => (
                       <tr key={idx} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}` }}>
-                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 4px', textAlign: 'center' }}>{idx + 1}</td>
-                        {dataset.columns.slice(0, 6).map(c => (
-                          <td key={c} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px' }}>{row[c]}</td>
-                        ))}
+                        {activeCols.map(col => {
+                          let content;
+                          if (col.field === 'slNo') content = idx + 1;
+                          else if (col.field === 'seatNo') content = row[columnMappings.seatNo] || row['seatNo'] || '';
+                          else if (col.field === 'name') content = row[columnMappings.name] || row['name'] || '';
+                          else if (col.field === 'blank') content = '';
+                          else content = row[col.field] || '';
+
+                          return (
+                            <td key={col.id} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 8px', textAlign: col.align || 'left' }}>
+                              {content}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>

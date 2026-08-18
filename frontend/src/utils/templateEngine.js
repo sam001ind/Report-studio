@@ -9,12 +9,12 @@ export const TEMPLATE_ARCHETYPES = {
     icon: 'FileText',
     defaultConfig: {
       pageSize: 'A4',
-      orientation: 'portrait', // 'portrait' | 'landscape'
+      orientation: 'portrait',
       logo: {
         show: false,
         src: logoBase64,
-        position: 'center', // 'left' | 'center' | 'right' | 'top'
-        width: 18 // mm
+        position: 'center',
+        width: 18
       },
       headersList: [
         { id: 'h1', text: 'Kannur University', size: 15, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' },
@@ -22,29 +22,22 @@ export const TEMPLATE_ARCHETYPES = {
         { id: 'h3', text: 'IV Semester Private Registration 2024 -2027 Admission', size: 10, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
         { id: 'h4', text: 'April 2026', size: 9.5, bold: false, italic: false, align: 'center', color: '#222222', font: 'helvetica' }
       ],
+      tableColumns: [
+        { id: 'c1', label: 'Sl No', field: 'slNo', width: 10, align: 'center', isSpan: true },
+        { id: 'c2', label: 'Register Number', field: 'seatNo', width: 30, align: 'center', isSpan: true, bold: true },
+        { id: 'c3', label: 'Candidate Name', field: 'name', width: 42, align: 'left', isSpan: true, bold: true },
+        { id: 'c4', label: 'Courses', field: 'courses', width: 76, align: 'left', isSpan: false },
+        { id: 'c5', label: 'Remarks', field: 'remarks', width: 24, align: 'center', isSpan: true }
+      ],
       tableTheme: {
         headerBg: '#f1f5f9',
         headerColor: '#000000',
         fontSize: 8,
         borderColor: '#64748b'
       },
-      groupBy: 'programme_venue', // 'programme_venue' | 'venue' | 'programme' | 'none'
+      groupBy: 'programme_venue',
       showGroupBox: true,
-      formatCodeDotNameDot: true,
-      headers: {
-        slNo: 'Sl No',
-        regNo: 'Register Number',
-        name: 'Candidate Name',
-        courses: 'Courses',
-        remarks: 'Remarks'
-      },
-      columnStyles: {
-        slNo: 10,
-        regNo: 30,
-        name: 42,
-        courses: 76,
-        remarks: 24
-      }
+      formatCodeDotNameDot: true
     }
   },
   QP_STATEMENT: {
@@ -68,6 +61,14 @@ export const TEMPLATE_ARCHETYPES = {
         { id: 'h3', text: 'QP Statement for 4th Semester Degree Private Registration Regular Examination', size: 10, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
         { id: 'h4', text: 'April 2026', size: 9.5, bold: false, italic: false, align: 'center', color: '#222222', font: 'helvetica' }
       ],
+      tableColumns: [
+        { id: 'c1', label: 'SL No', field: 'slNo', width: 12, align: 'center' },
+        { id: 'c2', label: 'Date', field: 'date', width: 35, align: 'left' },
+        { id: 'c3', label: 'Course', field: 'course', width: 85, align: 'left' },
+        { id: 'c4', label: 'NC', field: 'count', width: 16, align: 'center', bold: true },
+        { id: 'c5', label: 'QP', field: 'qp', width: 17, align: 'center' },
+        { id: 'c6', label: 'LP', field: 'lp', width: 17, align: 'center' }
+      ],
       tableTheme: {
         headerBg: '#f1f5f9',
         headerColor: '#000000',
@@ -75,24 +76,8 @@ export const TEMPLATE_ARCHETYPES = {
         borderColor: '#000000'
       },
       centerPrefix: 'Center Name :',
-      groupBy: 'venue', // 'venue' | 'center' | 'none'
-      formatCodeDotNameDot: false,
-      headers: {
-        slNo: 'SL\nNo',
-        date: 'Date',
-        course: 'Course',
-        count: 'NC',
-        qp: 'QP',
-        lp: 'LP'
-      },
-      columnStyles: {
-        slNo: 12,
-        date: 35,
-        course: 85,
-        count: 16,
-        qp: 17,
-        lp: 17
-      }
+      groupBy: 'venue',
+      formatCodeDotNameDot: false
     }
   },
   QP_COVER_LABEL: {
@@ -107,7 +92,7 @@ export const TEMPLATE_ARCHETYPES = {
       logo: {
         show: true,
         src: logoBase64,
-        position: 'left', // left of bilingual header
+        position: 'left',
         width: 18
       },
       headersList: [
@@ -155,6 +140,13 @@ export const TEMPLATE_ARCHETYPES = {
         { id: 'h2', text: 'Institutional Examination Report', size: 11, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
         { id: 'h3', text: 'Consolidated Statement', size: 10, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' }
       ],
+      tableColumns: [
+        { id: 'c1', label: 'Sl No', field: 'slNo', width: 10, align: 'center' },
+        { id: 'c2', label: 'Register Number', field: 'seatNo', width: 35, align: 'center', bold: true },
+        { id: 'c3', label: 'Candidate Name', field: 'name', width: 50, align: 'left', bold: true },
+        { id: 'c4', label: 'Course / Paper', field: 'course', width: 65, align: 'left' },
+        { id: 'c5', label: 'Status', field: 'remarks', width: 25, align: 'center' }
+      ],
       tableTheme: {
         headerBg: '#f1f5f9',
         headerColor: '#000000',
@@ -162,10 +154,7 @@ export const TEMPLATE_ARCHETYPES = {
         borderColor: '#64748b'
       },
       groupBy: 'none',
-      showTotalCount: true,
-      selectedColumns: [],
-      columnLabels: {},
-      columnWidths: {}
+      showTotalCount: true
     }
   }
 };
