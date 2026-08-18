@@ -195,9 +195,8 @@ const SllNominalPage = () => {
     }, 150);
   };
 
-  // Universal File Upload Handler (Auto-extracts .zip, .xlsx, .xls, .csv)
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
+  // Universal File Upload Handler (Auto-extracts .xlsx, .xls, .xlsm, .csv, .zip)
+  const handleFileObject = async (file) => {
     if (!file) return;
 
     setIsProcessing(true);
@@ -214,6 +213,11 @@ const SllNominalPage = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileObject(file);
   };
 
   // Reset tool state
@@ -1050,20 +1054,35 @@ const SllNominalPage = () => {
       {/* Upload Zone (Shown When No Data Loaded or in Settings) */}
       {groupKeys.length === 0 && (
         <div className="card" style={{ padding: '36px', marginBottom: '24px' }}>
-          <div style={{ border: '2px dashed var(--line)', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', background: 'var(--bg)' }}>
+          <div 
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const file = e.dataTransfer.files?.[0];
+              if (file) handleFileObject(file);
+            }}
+            style={{ border: '2px dashed var(--line)', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', background: 'var(--bg)' }}
+          >
             <UploadCloud size={44} color="var(--accent)" style={{ margin: '0 auto 12px', opacity: 0.8 }} />
             <div style={{ fontWeight: 800, fontSize: '17px', marginBottom: '6px' }}>
-              Upload Nominal Roll Spreadsheet or ZIP
+              Upload Nominal Roll Spreadsheet (.xlsx, .xls, .csv, .zip)
             </div>
             <p style={{ color: 'var(--muted)', fontSize: '13.5px', maxWidth: '640px', margin: '0 auto 20px', lineHeight: '1.5' }}>
-              Upload one or more <strong>Pre-exam / SLL nominal roll</strong> files (Excel <code>.xlsx, .xls, .xlsm, .csv</code>) or a <code>.zip</code> containing multiple spreadsheets. All files will be merged and mapped before processing.
+              Drag and drop or select your <strong>.xlsx</strong> / <strong>.xls</strong> / <strong>.csv</strong> spreadsheet or a <strong>.zip</strong> archive. Supports all standard single-sheet and multi-sheet university examination exports.
             </p>
             
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
               <label className="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: isProcessing ? 'wait' : 'pointer', padding: '11px 24px', fontSize: '14px', fontWeight: 700 }}>
                 {isProcessing ? <RefreshCw size={16} className="spin" /> : <UploadCloud size={16} />}
-                {isProcessing ? 'Reading & Extracting...' : 'Select Excel / ZIP File'}
-                <input type="file" accept=".xlsx, .xls, .xlsm, .csv, .zip" onChange={handleFileUpload} disabled={isProcessing} style={{ display: 'none' }} />
+                {isProcessing ? 'Reading & Extracting...' : 'Select .xlsx / Excel / ZIP File'}
+                <input 
+                  type="file" 
+                  accept=".xlsx, .xls, .xlsm, .csv, .tsv, .zip, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv, application/zip" 
+                  onChange={handleFileUpload} 
+                  disabled={isProcessing} 
+                  style={{ display: 'none' }} 
+                />
               </label>
 
               <button 
