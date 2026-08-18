@@ -807,23 +807,70 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       return doc;
     }
 
+    if (activeArchetype === 'CUSTOM_TABULAR') {
+      const rows = Array.isArray(groupData) ? groupData : (groupData?.default || dataset.rows || []);
+      const headerEndY = drawDynamicHeaders(doc, pageWidth);
+      const cols = currentConfig.tableColumns || TEMPLATE_ARCHETYPES.CUSTOM_TABULAR.defaultConfig.tableColumns;
+      
+      const tableBody = rows.map((row, idx) => {
+        return cols.map(col => {
+          if (col.field === 'slNo') return idx + 1;
+          if (col.field === 'seatNo') return row[columnMappings.seatNo] || row['seatNo'] || row['Register No'] || '';
+          if (col.field === 'name') return row[columnMappings.name] || row['name'] || row['Candidate Name'] || '';
+          if (col.field === 'blank') return '';
+          return row[col.field] !== undefined ? row[col.field] : (row[col.label] || '');
+        });
+      });
+
+      const [hBgR, hBgG, hBgB] = hexToRgb(currentConfig.tableTheme?.headerBg || '#f1f5f9');
+      const [hTxtR, hTxtG, hTxtB] = hexToRgb(currentConfig.tableTheme?.headerColor || '#000000');
+      const [bdrR, bdrG, bdrB] = hexToRgb(currentConfig.tableTheme?.borderColor || '#64748b');
+
+      const colStylesObj = {};
+      cols.forEach((c, i) => {
+        colStylesObj[i] = {
+          cellWidth: isLandscape ? Math.round((c.width || 25) * 1.3) : (c.width || 25),
+          halign: c.align || 'left',
+          valign: 'middle'
+        };
+        if (c.bold) colStylesObj[i].fontStyle = 'bold';
+      });
+
+      autoTable(doc, {
+        startY: headerEndY + 4,
+        head: [cols.map(c => c.label)],
+        body: tableBody,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: currentConfig.tableTheme?.fontSize || 8.5, valign: 'middle', cellPadding: 2.5, textColor: [0, 0, 0], lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.2 },
+        headStyles: { fillColor: [hBgR, hBgG, hBgB], textColor: [hTxtR, hTxtG, hTxtB], fontStyle: 'bold', halign: 'center', valign: 'middle', fontSize: 9, lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.25 },
+        columnStyles: colStylesObj
+      });
+
+      return doc;
+    }
+
     return doc;
   };
 
   // --- EXPORT HANDLERS --- //
   const handleDownloadSinglePdf = () => {
-    if (!currentPreviewGroup) return;
-    const doc = generatePdfForArchetype(
-      activeArchetype === 'QP_COVER_LABEL' 
-        ? processedData.groups.allLabels[activePreviewIndex] 
-        : currentPreviewGroup
-    );
+    let dataToRender;
+    if (activeArchetype === 'QP_COVER_LABEL') {
+      dataToRender = processedData.groups.allLabels?.[activePreviewIndex] || processedData.groups.allLabels?.[0];
+    } else if (activeArchetype === 'CUSTOM_TABULAR') {
+      dataToRender = processedData.groups.default || dataset.rows || [];
+    } else {
+      const key = processedData.groupKeys[activePreviewIndex] || processedData.groupKeys[0];
+      dataToRender = processedData.groups[key];
+    }
+
+    if (!dataToRender) return alert('No preview data available to export.');
+    const doc = generatePdfForArchetype(dataToRender);
     const safeName = templateName.replace(/[^a-zA-Z0-9_-]/g, '_');
     doc.save(`${safeName}_Page_${activePreviewIndex + 1}.pdf`);
   };
 
   const handleDownloadConsolidatedPdf = () => {
-    if (!processedData.groupKeys.length) return;
     setIsProcessing(true);
 
     try {
@@ -832,12 +879,17 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
 
       if (activeArchetype === 'QP_COVER_LABEL') {
         const labels = processedData.groups.allLabels || [];
+        if (!labels.length) return alert('No labels found to export.');
         labels.forEach((lbl, idx) => {
           if (idx > 0) doc.addPage();
           generatePdfForArchetype(lbl, doc);
         });
+      } else if (activeArchetype === 'CUSTOM_TABULAR') {
+        generatePdfForArchetype(processedData.groups.default || dataset.rows || [], doc);
       } else {
-        processedData.groupKeys.forEach((gKey, idx) => {
+        const keys = processedData.groupKeys || [];
+        if (!keys.length) return alert('No records found to export.');
+        keys.forEach((gKey, idx) => {
           if (idx > 0) doc.addPage();
           generatePdfForArchetype(processedData.groups[gKey], doc);
         });
@@ -847,14 +899,13 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       doc.save(`Master_Consolidated_${safeName}.pdf`);
     } catch (err) {
       console.error(err);
-      alert(`Error: ${err.message}`);
+      alert(`Error generating PDF: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleDownloadZip = async () => {
-    if (!processedData.groupKeys.length) return;
     setIsProcessing(true);
 
     try {
@@ -866,27 +917,31 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         labels.forEach((lbl, idx) => {
           const doc = generatePdfForArchetype(lbl);
           const pdfBlob = doc.output('blob');
-          const safeVenue = sanitize(lbl.venueName).slice(0, 40);
-          const safeSubject = sanitize(lbl.subject).slice(0, 40);
+          const safeVenue = sanitize(lbl.venueName || 'Venue').slice(0, 40);
+          const safeSubject = sanitize(lbl.subject || 'Subject').slice(0, 40);
           zip.file(`QP_Cover_Labels/${safeVenue}/${lbl.date}_${safeSubject}_Label_${idx + 1}.pdf`, pdfBlob);
         });
       } else if (activeArchetype === 'NOMINAL_ROLL') {
-        processedData.groupKeys.forEach((gKey) => {
+        (processedData.groupKeys || []).forEach((gKey) => {
           const g = processedData.groups[gKey];
           const doc = generatePdfForArchetype(g);
           const pdfBlob = doc.output('blob');
-          const safeProg = sanitize(g.programme).slice(0, 50);
-          const safeVenue = sanitize(g.venueLabel).slice(0, 60);
+          const safeProg = sanitize(g.programme || 'Programme').slice(0, 50);
+          const safeVenue = sanitize(g.venueLabel || 'Venue').slice(0, 60);
           zip.file(`Individual_PDFs/${safeProg}/${safeVenue}_Nominal_Roll.pdf`, pdfBlob);
         });
-      } else {
-        processedData.groupKeys.forEach((gKey) => {
+      } else if (activeArchetype === 'QP_STATEMENT') {
+        (processedData.groupKeys || []).forEach((gKey) => {
           const g = processedData.groups[gKey];
           const doc = generatePdfForArchetype(g);
           const pdfBlob = doc.output('blob');
-          const safeVenue = sanitize(g.venueLabel || gKey).slice(0, 60);
+          const safeVenue = sanitize(g.venueLabel || gKey || 'Venue').slice(0, 60);
           zip.file(`Statements/${safeVenue}_Statement.pdf`, pdfBlob);
         });
+      } else {
+        const doc = generatePdfForArchetype(processedData.groups.default || dataset.rows || []);
+        const pdfBlob = doc.output('blob');
+        zip.file(`Report_Data.pdf`, pdfBlob);
       }
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
