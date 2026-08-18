@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { readSpreadsheetWorkbook } from '../utils/excelParser';
 
 const SplitterPage = () => {
   
@@ -51,7 +52,7 @@ const SplitterPage = () => {
     }
   }, [workbook, selectedSheet]);
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -59,23 +60,18 @@ const SplitterPage = () => {
     setStatus('Reading file...');
     setRunSummary(null);
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = evt.target.result;
-        const wb = XLSX.read(data, { type: 'array', cellDates: true, cellStyles: true });
-        setWorkbook(wb);
-        setSheetNames(wb.SheetNames);
-        setSelectedSheet(wb.SheetNames[0] || '');
-        setStatus('Workbook loaded', 'success');
-      } catch (err) {
-        setStatus(`Error reading Excel: ${err.message}`, 'error');
-        setWorkbook(null);
-        setSheetNames([]);
-        setSelectedSheet('');
-      }
-    };
-    reader.readAsArrayBuffer(file);
+    try {
+      const { workbook: wb, sheetNames: sheets } = await readSpreadsheetWorkbook(file);
+      setWorkbook(wb);
+      setSheetNames(sheets);
+      setSelectedSheet(sheets[0] || '');
+      setStatus('Workbook loaded successfully', 'success');
+    } catch (err) {
+      setStatus(`Error reading Excel: ${err.message}`, 'error');
+      setWorkbook(null);
+      setSheetNames([]);
+      setSelectedSheet('');
+    }
   };
 
   const isBlankRow = (row) => {
@@ -204,8 +200,8 @@ const SplitterPage = () => {
           XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, selectedSheet.slice(0, 31) || "Sheet1");
 
           const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: true });
-          const safeColVal = String(colValue).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
-          const fileName = `${baseName}_${safeColVal}.xlsx`;
+          const safeColVal = String(colValue).replace(/[/\\?%*:|"<>]/g, "_").trim() || "Unassigned";
+          const fileName = `${safeColVal}.xlsx`;
 
           zip.file(fileName, excelBuffer);
 

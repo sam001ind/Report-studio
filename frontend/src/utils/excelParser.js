@@ -2,24 +2,44 @@ import * as XLSX from "xlsx";
 import JSZip from "jszip";
 
 /**
- * Universal Spreadsheet & ZIP Archive Reader
- * Supports: True .xlsx (OpenXML), .xls (BIFF8), HTML-tables (.xls/.xlsx), CSV/TSV, and .zip archives
+ * Parses raw ArrayBuffer with multi-stage fallback:
+ * 1. Binary ArrayBuffer (True OpenXML .xlsx & BIFF8 .xls)
+ * 2. UTF-8 String (HTML-tables and CSVs exported as .xls/.xlsx)
+ * 3. Windows-1252 String
+ */
+export const parseWorkbookFromBuffer = (buffer) => {
+  let wb;
+  try {
+    wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true, cellStyles: true });
+  } catch {
+    try {
+      const text = new TextDecoder("utf-8").decode(buffer);
+      wb = XLSX.read(text, { type: "string", raw: true });
+    } catch {
+      const text = new TextDecoder("windows-1252").decode(buffer);
+      wb = XLSX.read(text, { type: "string", raw: true });
+    }
+  }
+  return wb;
+};
+
+/**
+ * Universal Spreadsheet & ZIP Archive Reader (Returns JSON Objects)
  */
 export const readSpreadsheetFile = async (file) => {
   let buffers = [];
 
-  // Handle .zip archives
   if (file.name.toLowerCase().endsWith(".zip")) {
     const zip = await JSZip.loadAsync(file);
     const validFiles = Object.keys(zip.files).filter(name =>
       !name.startsWith("__MACOSX/") &&
       !name.startsWith(".") &&
       !zip.files[name].dir &&
-      (name.toLowerCase().endsWith(".xlsx") || name.toLowerCase().endsWith(".xls") || name.toLowerCase().endsWith(".csv"))
+      (name.toLowerCase().endsWith(".xlsx") || name.toLowerCase().endsWith(".xls") || name.toLowerCase().endsWith(".csv") || name.toLowerCase().endsWith(".xlsm"))
     );
 
     if (validFiles.length === 0) {
-      throw new Error("No .xlsx, .xls, or .csv spreadsheets found inside the uploaded ZIP archive.");
+      throw new Error("No spreadsheet files (.xlsx, .xls, .csv, .xlsm) found inside the uploaded ZIP archive.");
     }
 
     for (const name of validFiles) {
@@ -35,21 +55,7 @@ export const readSpreadsheetFile = async (file) => {
   let detectedCols = [];
 
   for (const item of buffers) {
-    let wb;
-    try {
-      // 1. Binary ArrayBuffer (True OpenXML .xlsx & BIFF8 .xls)
-      wb = XLSX.read(new Uint8Array(item.buffer), { type: "array", cellDates: true });
-    } catch {
-      try {
-        // 2. UTF-8 Text Fallback (HTML tables / CSVs exported with .xls extension)
-        const text = new TextDecoder("utf-8").decode(item.buffer);
-        wb = XLSX.read(text, { type: "string", raw: true });
-      } catch {
-        // 3. Windows-1252 Fallback
-        const text = new TextDecoder("windows-1252").decode(item.buffer);
-        wb = XLSX.read(text, { type: "string", raw: true });
-      }
-    }
+    const wb = parseWorkbookFromBuffer(item.buffer);
 
     if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
       const firstSheet = wb.Sheets[wb.SheetNames[0]];
@@ -68,4 +74,65 @@ export const readSpreadsheetFile = async (file) => {
   }
 
   return { rows: allRows, columns: detectedCols };
+};
+
+/**
+ * Universal Spreadsheet Reader returning Array-of-Arrays (AOA)
+ */
+export const readSpreadsheetAsAoa = async (file) => {
+  let buffers = [];
+
+  if (file.name.toLowerCase().endsWith(".zip")) {
+    const zip = await JSZip.loadAsync(file);
+    const validFiles = Object.keys(zip.files).filter(name =>
+      !name.startsWith("__MACOSX/") &&
+      !name.startsWith(".") &&
+      !zip.files[name].dir &&
+      (name.toLowerCase().endsWith(".xlsx") || name.toLowerCase().endsWith(".xls") || name.toLowerCase().endsWith(".csv") || name.toLowerCase().endsWith(".xlsm"))
+    );
+
+    if (validFiles.length === 0) {
+      throw new Error("No spreadsheet files found inside the uploaded ZIP archive.");
+    }
+
+    for (const name of validFiles) {
+      const buf = await zip.files[name].async("arraybuffer");
+      buffers.push({ name, buffer: buf });
+    }
+  } else {
+    const buf = await file.arrayBuffer();
+    buffers.push({ name: file.name, buffer: buf });
+  }
+
+  let combinedAoa = [];
+  let headerRow = null;
+
+  for (const item of buffers) {
+    const wb = parseWorkbookFromBuffer(item.buffer);
+    if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
+      if (rows.length > 0) {
+        if (!headerRow) {
+          headerRow = rows[0];
+          combinedAoa.push(headerRow);
+          combinedAoa = combinedAoa.concat(rows.slice(1));
+        } else {
+          // Append subsequent files' data rows
+          combinedAoa = combinedAoa.concat(rows.slice(1));
+        }
+      }
+    }
+  }
+
+  return combinedAoa;
+};
+
+/**
+ * Universal Workbook Reader (Returns Workbook instance + SheetNames)
+ */
+export const readSpreadsheetWorkbook = async (file) => {
+  const buf = await file.arrayBuffer();
+  const wb = parseWorkbookFromBuffer(buf);
+  return { workbook: wb, sheetNames: wb.SheetNames || [] };
 };

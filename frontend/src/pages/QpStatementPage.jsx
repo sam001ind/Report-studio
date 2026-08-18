@@ -21,6 +21,7 @@ import {
   Sliders,
   MapPin
 } from 'lucide-react';
+import { readSpreadsheetAsAoa } from '../utils/excelParser';
 
 const QpStatementPage = () => {
 
@@ -142,31 +143,6 @@ const QpStatementPage = () => {
     return `${yyyy}-${mm}-${dd}`;
   };
 
-  // Helper to read excel file as ArrayBuffer
-  const readExcelFile = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = e.target.result;
-          const wb = XLSX.read(data, { type: 'array', cellDates: true });
-          const firstSheet = wb.SheetNames[0];
-          const sheet = wb.Sheets[firstSheet];
-          if (!sheet) {
-            resolve([]);
-            return;
-          }
-          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-          resolve(rows);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (err) => reject(err);
-      reader.readAsArrayBuffer(file);
-    });
-  };
-
   // Auto-detect column headers based on fuzzy keywords
   const autoDetectColumns = (headerList) => {
     const mapping = {
@@ -222,12 +198,12 @@ const QpStatementPage = () => {
     setStatus(`Reading ${files.length} file(s)...`, 'normal');
 
     try {
-      const allFilesRows = await Promise.all(files.map(file => readExcelFile(file)));
+      const allFilesRows = await Promise.all(files.map(file => readSpreadsheetAsAoa(file)));
       let combinedData = [];
       let detectedHeaders = [];
 
       allFilesRows.forEach((fileRows) => {
-        if (fileRows.length > 0) {
+        if (fileRows && fileRows.length > 0) {
           if (detectedHeaders.length === 0) {
             detectedHeaders = fileRows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
             // Exclude header row from data

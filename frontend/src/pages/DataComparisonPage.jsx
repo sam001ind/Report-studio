@@ -26,6 +26,7 @@ import {
   Sliders,
   FileText
 } from 'lucide-react';
+import { parseWorkbookFromBuffer } from '../utils/excelParser';
 import { normalizeText, stringSimilarity, calculateCompositeSimilarity } from '../utils/fuzzyMatch';
 
 const SAMPLE_DATASET_A = [
@@ -211,8 +212,8 @@ const DataComparisonPage = () => {
         const reader = new FileReader();
         reader.onload = (e) => {
           try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+            const buffer = e.target.result;
+            const workbook = parseWorkbookFromBuffer(buffer);
             
             if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
               reject(new Error(`Workbook ${originalFileName} has no sheets.`));

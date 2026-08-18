@@ -17,6 +17,7 @@ import {
   Globe
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { readSpreadsheetFile } from '../utils/excelParser';
 
 const STORAGE_KEY = 'rs_short_urls_history';
 
@@ -235,7 +236,7 @@ const UrlShortenerPage = () => {
   };
 
   // Handle Bulk Excel Upload
-  const handleBulkUpload = (e) => {
+  const handleBulkUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -243,32 +244,23 @@ const UrlShortenerPage = () => {
     setBulkResults(null);
     setBulkProgress(0);
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    try {
+      const { rows: json, columns: cols } = await readSpreadsheetFile(file);
 
-        if (json.length === 0) {
-          alert('Uploaded file contains no rows.');
-          return;
-        }
-
-        const cols = Object.keys(json[0]);
-        setBulkColumns(cols);
-        setBulkRows(json);
-
-        // Auto-select column containing 'url', 'link', or 'web'
-        const matchedCol = cols.find(c => /url|link|website|web|href|portal/i.test(c)) || cols[0];
-        setSelectedUrlCol(matchedCol);
-      } catch (err) {
-        alert('Error reading Excel file: ' + err.message);
+      if (json.length === 0) {
+        alert('Uploaded file contains no rows.');
+        return;
       }
-    };
-    reader.readAsArrayBuffer(file);
+
+      setBulkColumns(cols);
+      setBulkRows(json);
+
+      // Auto-select column containing 'url', 'link', or 'web'
+      const matchedCol = cols.find(c => /url|link|website|web|href|portal/i.test(c)) || cols[0];
+      setSelectedUrlCol(matchedCol);
+    } catch (err) {
+      alert('Error reading Excel file: ' + err.message);
+    }
   };
 
   // Process Bulk Shortening

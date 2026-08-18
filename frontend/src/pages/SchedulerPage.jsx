@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { readSpreadsheetFile } from '../utils/excelParser';
 
 const SchedulerPage = () => {
   const [loading, setLoading] = useState(false);
@@ -69,23 +69,13 @@ const SchedulerPage = () => {
     }
   };
 
-  const extractSpreadsheetRows = (fileBlob) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          let rows = [];
-          workbook.SheetNames.forEach(name => {
-            const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: "" });
-            rows = rows.concat(sheetRows);
-          });
-          resolve(rows);
-        } catch (ex) { reject(ex); }
-      };
-      reader.readAsArrayBuffer(fileBlob);
-    });
+  const extractSpreadsheetRows = async (fileBlob) => {
+    try {
+      const { rows } = await readSpreadsheetFile(fileBlob);
+      return rows;
+    } catch (ex) {
+      throw new Error(ex.message, { cause: ex });
+    }
   };
 
   const alignAndConsolidateData = (rawData) => {

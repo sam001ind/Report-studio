@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { readSpreadsheetFile } from '../utils/excelParser';
 
 const RevaluationPage = () => {
   const navigate = useNavigate();
@@ -46,31 +45,13 @@ const RevaluationPage = () => {
   }, [fetchSavedDatasets]);
 
   // Parse helper
-  const parseFile = (file) => {
-    return new Promise((resolve, reject) => {
-      const ext = file.name.split('.').pop().toLowerCase();
-      if (ext === 'csv') {
-        Papa.parse(file, { 
-          header: true, 
-          skipEmptyLines: true, 
-          complete: (res) => resolve(res.data), 
-          error: reject 
-        });
-      } else if (ext === 'xlsx' || ext === 'xls') {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const workbook = XLSX.read(e.target.result, { type: 'array' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const data = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-            resolve(data);
-          } catch (err) { reject(err); }
-        };
-        reader.readAsArrayBuffer(file);
-      } else {
-        reject(new Error("Unsupported format"));
-      }
-    });
+  const parseFile = async (file) => {
+    try {
+      const { rows } = await readSpreadsheetFile(file);
+      return rows;
+    } catch (err) {
+      throw new Error(`Failed to read ${file.name}: ${err.message}`, { cause: err });
+    }
   };
 
   const handleAppFilesChange = (e) => {

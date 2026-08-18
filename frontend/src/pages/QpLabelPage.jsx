@@ -24,6 +24,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { logoBase64 } from '../assets/logoBase64';
+import { readSpreadsheetAsAoa } from '../utils/excelParser';
 
 const QpLabelPage = () => {
   
@@ -65,31 +66,6 @@ const QpLabelPage = () => {
   const setStatus = (msg, type = 'normal') => {
     setStatusMsg(msg);
     setStatusType(type);
-  };
-
-  // Helper function to read Excel rows as Promise
-  const readExcelFile = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = e.target.result;
-          const wb = XLSX.read(data, { type: 'array', cellDates: true });
-          const firstSheet = wb.SheetNames[0];
-          const sheet = wb.Sheets[firstSheet];
-          if (!sheet) {
-            resolve([]);
-            return;
-          }
-          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-          resolve(rows);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (err) => reject(err);
-      reader.readAsArrayBuffer(file);
-    });
   };
 
   // Auto-detect columns
@@ -142,12 +118,12 @@ const QpLabelPage = () => {
     setActiveLabelIndexInVenue(0);
 
     try {
-      const allFilesRows = await Promise.all(files.map(file => readExcelFile(file)));
+      const allFilesRows = await Promise.all(files.map(file => readSpreadsheetAsAoa(file)));
       let combinedData = [];
       let detectedHeaders = [];
 
       allFilesRows.forEach((fileRows) => {
-        if (fileRows.length > 0) {
+        if (fileRows && fileRows.length > 0) {
           if (detectedHeaders.length === 0) {
             detectedHeaders = fileRows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
             combinedData = combinedData.concat(fileRows.slice(1));
