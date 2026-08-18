@@ -9,6 +9,7 @@ import {
   UploadCloud, 
   FileSpreadsheet, 
   Archive, 
+  FileText,
   Search, 
   BookOpen, 
   Users,
@@ -402,18 +403,19 @@ const SllNominalPage = () => {
     doc.save(`Nominal_Roll_${safeName}.pdf`);
   };
 
-  // EXPORT: All Groups in ZIP Archive
-  const exportAllGroupsZip = async () => {
+  // EXPORT: Consolidated Master PDF (All Venues Combined)
+  const exportConsolidatedPdf = () => {
     if (!groupKeys.length) return;
-    setStatus('Generating ZIP package with all venue nominal rolls...', 'normal');
+    setStatus('Generating consolidated PDF for all venues...', 'normal');
     setIsProcessing(true);
 
     try {
-      const zip = new JSZip();
+      const doc = new jsPDF('p', 'mm', 'a4');
 
-      groupKeys.forEach(gKey => {
+      groupKeys.forEach((gKey, gIdx) => {
+        if (gIdx > 0) doc.addPage();
+
         const gData = processedGroups[gKey];
-        const doc = new jsPDF('p', 'mm', 'a4');
 
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
@@ -472,8 +474,8 @@ const SllNominalPage = () => {
           head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
           body: tableData,
           theme: 'grid',
-          headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5 },
-          bodyStyles: { fontSize: 8, cellPadding: 2.5 },
+          headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 8.5, cellPadding: 3, textColor: [20, 20, 20] },
           columnStyles: {
             0: { cellWidth: 12, halign: 'center' },
             1: { cellWidth: 30, fontStyle: 'bold', halign: 'center' },
@@ -482,21 +484,158 @@ const SllNominalPage = () => {
             4: { cellWidth: 28 }
           }
         });
+      });
+
+      doc.save('Master_Consolidated_Nominal_Roll.pdf');
+      setStatus('Consolidated Master PDF downloaded successfully!', 'success');
+    } catch (err) {
+      setStatus(`Error generating consolidated PDF: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // EXPORT: All Groups & Complete Report in ZIP Archive
+  const exportAllGroupsZip = async () => {
+    if (!groupKeys.length) return;
+    setStatus('Generating complete ZIP package with all venue nominal rolls...', 'normal');
+    setIsProcessing(true);
+
+    try {
+      const zip = new JSZip();
+      const consolidatedDoc = new jsPDF('p', 'mm', 'a4');
+
+      groupKeys.forEach((gKey, gIdx) => {
+        const gData = processedGroups[gKey];
+        const doc = new jsPDF('p', 'mm', 'a4');
+
+        if (gIdx > 0) consolidatedDoc.addPage();
+
+        [doc, consolidatedDoc].forEach((targetDoc) => {
+          targetDoc.setFontSize(14);
+          targetDoc.setFont('helvetica', 'bold');
+          targetDoc.text(universityName, 105, 14, { align: 'center' });
+
+          targetDoc.setFontSize(10.5);
+          targetDoc.setFont('helvetica', 'bold');
+          targetDoc.text(branchName, 105, 19.5, { align: 'center' });
+
+          targetDoc.setFontSize(10);
+          targetDoc.setFont('helvetica', 'bold');
+          targetDoc.text(examTitle, 105, 25, { align: 'center' });
+
+          if (sessionName) {
+            targetDoc.setFontSize(9.5);
+            targetDoc.setFont('helvetica', 'normal');
+            targetDoc.text(sessionName, 105, 30, { align: 'center' });
+          }
+
+          const progText = `Programme: ${gData.programme || 'N/A'}`;
+          const venueText = `Venue: ${gData.venueLabel || 'N/A'}`;
+          const candCountText = `Candidates: ${gData.totalCandidates}`;
+
+          targetDoc.setFontSize(9);
+          targetDoc.setFont('helvetica', 'bold');
+          
+          const progLines = targetDoc.splitTextToSize(progText, 136);
+          const venueLines = targetDoc.splitTextToSize(venueText, 136);
+          
+          const boxHeight = Math.max(16, (progLines.length + venueLines.length) * 4.5 + 5);
+
+          targetDoc.setDrawColor(180, 180, 180);
+          targetDoc.setFillColor(248, 249, 250);
+          targetDoc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
+
+          let textY = 38.5;
+          targetDoc.setTextColor(20, 20, 20);
+          targetDoc.text(progLines, 18, textY);
+          textY += progLines.length * 4.5;
+          
+          targetDoc.setTextColor(23, 107, 135);
+          targetDoc.text(venueLines, 18, textY);
+          
+          targetDoc.setTextColor(20, 20, 20);
+          targetDoc.text(candCountText, 150, 39);
+
+          const tableData = gData.candidates.map((c, idx) => {
+            const coursesStr = c.courses.map((crs, cIdx) => `${cIdx + 1}. ${crs.display}`).join('\n');
+            return [idx + 1, c.seatNo, c.studentName, coursesStr || '—', ''];
+          });
+
+          const startTableY = 34 + boxHeight + 4;
+
+          autoTable(targetDoc, {
+            startY: startTableY,
+            head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5 },
+            bodyStyles: { fontSize: 8, cellPadding: 2.5 },
+            columnStyles: {
+              0: { cellWidth: 12, halign: 'center' },
+              1: { cellWidth: 30, fontStyle: 'bold', halign: 'center' },
+              2: { cellWidth: 46 },
+              3: { cellWidth: 66 },
+              4: { cellWidth: 28 }
+            }
+          });
+        });
 
         const pdfBlob = doc.output('blob');
         const safeFileName = `Nominal_Roll_${gKey.replace(/[/\\?%*:|"<>•]/g, '_').slice(0, 40)}.pdf`;
         zip.file(safeFileName, pdfBlob);
       });
 
+      // Add Master Consolidated PDF to ZIP
+      const consolidatedPdfBlob = consolidatedDoc.output('blob');
+      zip.file('Master_Consolidated_Nominal_Roll.pdf', consolidatedPdfBlob);
+
+      // Add Master Excel to ZIP
+      const wb = XLSX.utils.book_new();
+      const summaryRows = [
+        ['VENUE-WISE NOMINAL ROLL MASTER SUMMARY'],
+        ['Generated At', new Date().toLocaleString()],
+        ['Total Venues', stats.totalVenues],
+        ['Total Groups', stats.totalGroups],
+        ['Total Candidates', stats.totalCandidates],
+        ['Total Unique Courses', stats.totalUniqueCourses],
+        [''],
+        ['SL NO', 'PROGRAMME', 'VENUE', 'CANDIDATE COUNT']
+      ];
+      groupKeys.forEach((gKey, idx) => {
+        const g = processedGroups[gKey];
+        summaryRows.push([idx + 1, g.programme, g.venueLabel, g.totalCandidates]);
+      });
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+      groupKeys.forEach((gKey, gIdx) => {
+        const g = processedGroups[gKey];
+        const rowsData = g.candidates.map((c, cIdx) => ({
+          'Sl_No': cIdx + 1,
+          'Register_Number': c.seatNo,
+          'Candidate_Name': c.studentName,
+          'Courses': c.courses.map(crs => crs.display).join('; '),
+          'Remarks': '',
+          'Programme': g.programme,
+          'Venue': g.venueLabel
+        }));
+        const ws = XLSX.utils.json_to_sheet(rowsData);
+        const sheetName = `Group_${gIdx + 1}_${g.venueCode || 'V'}`.slice(0, 30);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      zip.file('Master_Venue_Nominal_Roll.xlsx', excelBuffer);
+
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'Venue_Nominal_Rolls_Bundle.zip';
+      a.download = 'Venue_Nominal_Roll_Complete_Report.zip';
       a.click();
       URL.revokeObjectURL(url);
 
-      setStatus(`Exported ZIP bundle with ${groupKeys.length} nominal roll documents!`, 'success');
+      setStatus(`Exported Complete Report ZIP with ${groupKeys.length} individual venue PDFs, Consolidated PDF, and Master Excel!`, 'success');
     } catch (err) {
       setStatus(`Error generating ZIP: ${err.message}`, 'error');
     } finally {
@@ -582,7 +721,16 @@ const SllNominalPage = () => {
                 disabled={isProcessing}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '9px 16px' }}
               >
-                <Archive size={15} /> Download All PDFs (.zip)
+                <Archive size={15} /> Download Complete Report (.zip)
+              </button>
+
+              <button
+                className="button secondary"
+                onClick={exportConsolidatedPdf}
+                disabled={isProcessing}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '9px 16px' }}
+              >
+                <FileText size={15} /> Consolidated Master PDF
               </button>
 
               <button
@@ -903,11 +1051,20 @@ const SllNominalPage = () => {
                 </button>
 
                 <button
-                  className="button"
+                  className="button secondary"
                   onClick={() => exportSingleGroupPdf(effectiveGroupKey)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '7px 16px' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '7px 14px' }}
                 >
                   <Download size={15} /> Download Venue PDF
+                </button>
+
+                <button
+                  className="button"
+                  onClick={exportAllGroupsZip}
+                  disabled={isProcessing}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '7px 16px' }}
+                >
+                  <Archive size={15} /> Download Complete Report (.zip)
                 </button>
               </div>
             </div>
