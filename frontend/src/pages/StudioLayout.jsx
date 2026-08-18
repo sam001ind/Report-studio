@@ -8,7 +8,7 @@ import LibraryPage from './LibraryPage';
 
 const StudioLayout = () => {
   const location = useLocation();
-  const [activePage, setActivePage] = useState(location.state?.activePage || 'library');
+  const [activePage, setActivePage] = useState(location.state?.activePage || 'template');
   const [stats, setStats] = useState(location.state?.stats || { rows: 0, cols: 0 });
   const [dataset, setDataset] = useState(location.state?.dataset || { columns: [], rows: [] });
   
@@ -28,6 +28,11 @@ const StudioLayout = () => {
   const handleLoadDataset = (datasetObj) => {
     setDataset({ columns: datasetObj.columns, rows: datasetObj.rows });
     setStats({ rows: datasetObj.rows.length, cols: datasetObj.columns.length });
+    setActivePage('template');
+  };
+
+  const handleNavigateToTemplate = (archetype) => {
+    setLoadedTemplate({ archetype });
     setActivePage('template');
   };
 
@@ -69,6 +74,7 @@ const StudioLayout = () => {
             setDataset={setDataset}
             setStats={setStats}
             initialConfig={loadedConfig}
+            onNavigateToTemplate={handleNavigateToTemplate}
           />
         )}
         {activePage === 'template' && <TemplatePage dataset={dataset} initialTemplate={loadedTemplate} />}

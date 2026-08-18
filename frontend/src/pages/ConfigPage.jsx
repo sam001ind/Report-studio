@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { readSpreadsheetFile } from '../utils/excelParser';
+import { autoDetectDatasetColumns, suggestArchetype, TEMPLATE_ARCHETYPES } from '../utils/templateEngine';
+import { Sparkles, FileText, CalendarRange, Tag, TableProperties, ArrowRight, UploadCloud } from 'lucide-react';
 
-const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
+const ConfigPage = ({ dataset, setDataset, setStats, initialConfig, onNavigateToTemplate }) => {
   const { user } = useAuth();
-  const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload Dataset (CSV, XLSX, JSON)');
+  const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload Spreadsheet (.xlsx, .xls, .csv, .zip)');
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const [sourceRows, setSourceRows] = useState(dataset.rows || []);
   const [sourceCols, setSourceCols] = useState(dataset.columns || []);
@@ -18,6 +20,8 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
   
   const [configName, setConfigName] = useState('');
   const [showAddStep, setShowAddStep] = useState(false);
+
+  const detectedArchetype = sourceCols.length > 0 ? suggestArchetype(autoDetectDatasetColumns(sourceCols)) : 'NOMINAL_ROLL';
 
   const runPipeline = useCallback((steps, initialRows, initialCols) => {
     let currentData = [...initialRows];
@@ -125,8 +129,6 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
     if (initialConfig && initialConfig.config_data) {
       setConfigName(initialConfig.name);
       const loadedSteps = initialConfig.config_data.pipeline || [];
-      
-      // Migrate old format
       if (initialConfig.config_data.filters && loadedSteps.length === 0) {
         setPipelineSteps(initialConfig.config_data.filters.map(f => ({ ...f, type: 'filter' })));
       } else {
@@ -140,71 +142,40 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
     runPipeline(pipelineSteps, sourceRows, sourceCols);
   }, [pipelineSteps, sourceRows, sourceCols, runPipeline]);
 
-  const processFile = (file) => {
+  const processFile = async (file) => {
     if (!file) return;
 
-    setUploadStatus(`Loaded: ${file.name}`);
-    const ext = file.name.split('.').pop().toLowerCase();
-    
-    const processData = (data) => {
-      if (!data || data.length === 0) return alert("File is empty.");
-      
-      let columns = Object.keys(data[0] || {}).map(c => c.trim());
-      
-      const records = data.map(row => {
-         const newRow = {};
-         for (let col of columns) {
-            const origKey = Object.keys(row).find(k => k.trim() === col) || col;
-            let val = row[origKey];
-            newRow[col] = (val === null || val === undefined) ? "" : String(val);
-         }
-         return newRow;
-      });
-      
+    setUploadStatus(`Reading: ${file.name}...`);
+    setIsProcessing(true);
+
+    try {
+      const { rows, columns } = await readSpreadsheetFile(file);
+      if (!rows || rows.length === 0) {
+        alert('File is empty.');
+        setIsProcessing(false);
+        return;
+      }
+
+      setUploadStatus(`Loaded: ${file.name} (${rows.length} rows, ${columns.length} columns)`);
       setSourceCols(columns);
-      setSourceRows(records);
-      
-      // The useEffect will automatically run the pipeline and update dataset/stats
-    };
-    
-    if (ext === 'csv') {
-       Papa.parse(file, { header: true, skipEmptyLines: true, complete: (results) => processData(results.data), error: (err) => alert("Error parsing CSV: " + err.message) });
-    } else if (ext === 'xlsx' || ext === 'xls') {
-       const reader = new FileReader();
-       reader.onload = (evt) => {
-          try {
-             const arrayBuffer = evt.target.result;
-             const workbook = XLSX.read(arrayBuffer, {type: 'array'});
-             const sheetName = workbook.SheetNames[0];
-             const sheet = workbook.Sheets[sheetName];
-             const data = XLSX.utils.sheet_to_json(sheet, {defval: ""});
-             processData(data);
-          } catch(err) {
-             alert("Error parsing Excel: " + err.message);
-          }
-       };
-       reader.readAsArrayBuffer(file);
-    } else if (ext === 'json') {
-       const reader = new FileReader();
-       reader.onload = (evt) => {
-          try {
-             const data = JSON.parse(evt.target.result);
-             if (!Array.isArray(data)) return alert("JSON must be an array of objects.");
-             processData(data);
-          } catch(err) {
-             alert("Error parsing JSON: " + err.message);
-          }
-       };
-       reader.readAsText(file);
-    } else {
-       alert("Unsupported file format.");
+      setSourceRows(rows);
+    } catch (err) {
+      console.error(err);
+      alert('Error parsing file: ' + err.message);
+      setUploadStatus('Failed to read file. Please try another .xlsx or .csv file.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleFileUpload = (e) => processFile(e.target.files[0]);
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
-  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files?.length > 0) processFile(e.dataTransfer.files[0]); };
+  const handleDrop = (e) => { 
+    e.preventDefault(); 
+    setIsDragging(false); 
+    if (e.dataTransfer.files?.length > 0) processFile(e.dataTransfer.files[0]); 
+  };
 
   const addStep = (type) => {
     const newStep = { id: Date.now(), type };
@@ -242,7 +213,7 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
   };
 
   const saveReportConfig = async () => {
-    if (!configName) return alert("Enter a configuration name.");
+    if (!configName) return alert('Enter a configuration name.');
     
     const configData = {
       pipeline: pipelineSteps,
@@ -257,24 +228,24 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
       
     if (error) {
       console.error(error);
-      alert("Error saving config to Supabase: " + error.message);
+      alert('Error saving config to Supabase: ' + error.message);
     } else {
-      alert("Configuration Saved to Cloud!");
+      alert('Configuration Saved to Cloud!');
     }
   };
 
   const handleExportCsv = () => {
-    if (filteredRows.length === 0) return alert("No data to export.");
-    const header = currentPipelineCols.join(",");
+    if (filteredRows.length === 0) return alert('No data to export.');
+    const header = currentPipelineCols.join(',');
     const csvContent = filteredRows.map(row => 
-      currentPipelineCols.map(col => `"${String(row[col] || '').replace(/"/g, '""')}"`).join(",")
-    ).join("\n");
-    const fullCsv = header + "\n" + csvContent;
+      currentPipelineCols.map(col => `"${String(row[col] || '').replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    const fullCsv = header + '\n' + csvContent;
     
-    const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(fullCsv);
+    const dataStr = 'data:text/csv;charset=utf-8,' + encodeURIComponent(fullCsv);
     const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", (configName || "filtered_data") + ".csv");
+    downloadAnchorNode.setAttribute('href', dataStr);
+    downloadAnchorNode.setAttribute('download', (configName || 'filtered_data') + '.csv');
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -282,12 +253,12 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
 
   return (
     <div style={styles.page}>
-      <h2>Report Configuration</h2>
-      <p className="subtitle">Build an interactive data pipeline to clean, filter, and transform your data.</p>
+      <h2>Report Configuration & Dataset Ingestion</h2>
+      <p className="subtitle">Upload any university or examination Excel spreadsheet, clean data, and launch customizable report templates.</p>
 
-      {/* STEP 1 */}
+      {/* STEP 1: UPLOAD DATASET */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Step 1: Data Source</h3>
+        <h3 style={{ marginTop: 0 }}>Step 1: Upload Excel / Spreadsheet Data</h3>
         
         {initialConfig && sourceRows.length === 0 && (
           <div style={{ padding: '16px', background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: '8px', marginBottom: '16px', fontWeight: 600 }}>
@@ -300,34 +271,104 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
             ...styles.fileDrop,
             borderColor: isDragging ? 'var(--accent)' : 'var(--line)',
             backgroundColor: isDragging ? 'rgba(0, 240, 255, 0.05)' : 'var(--panel)',
+            cursor: isProcessing ? 'wait' : 'pointer'
           }} 
-          onClick={() => document.getElementById('fileInput').click()}
+          onClick={() => !isProcessing && document.getElementById('fileInput').click()}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <h3>{uploadStatus}</h3>
-          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-            Data is parsed securely inside your browser. No data is uploaded to a server.
+          <UploadCloud size={44} color="var(--accent)" style={{ margin: '0 auto 12px', opacity: 0.8 }} />
+          <h3 style={{ margin: '0 0 6px 0', fontSize: '17px' }}>{uploadStatus}</h3>
+          <p style={{ color: 'var(--muted)', fontSize: '13.5px', margin: 0 }}>
+            Supports binary <code>.xlsx</code>, <code>.xls</code>, <code>.csv</code>, <code>.tsv</code>, or <code>.zip</code> multi-sheet archives.
           </p>
           <input 
             type="file" 
             id="fileInput" 
-            accept=".csv, .xlsx, .xls, .json" 
+            accept=".csv, .xlsx, .xls, .xlsm, .tsv, .zip" 
             style={{ display: 'none' }}
             onChange={handleFileUpload}
+            disabled={isProcessing}
           />
         </div>
       </div>
+
+      {/* RECOMMENDED REPORT TEMPLATES BANNER */}
+      {sourceRows.length > 0 && (
+        <div className="card" style={{ background: 'linear-gradient(135deg, rgba(23,107,135,0.06), #fff)', border: '1.5px solid var(--accent)', padding: '24px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={20} /> Choose or Customize a Report Template
+              </h3>
+              <p style={{ margin: '4px 0 0 0', color: 'var(--muted)', fontSize: '13px' }}>
+                {sourceRows.length} records loaded. Pick a layout to open directly in the Report Template Studio:
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+            {Object.values(TEMPLATE_ARCHETYPES).map(arch => {
+              const isRecommended = arch.id === detectedArchetype;
+              return (
+                <div 
+                  key={arch.id}
+                  onClick={() => onNavigateToTemplate && onNavigateToTemplate(arch.id)}
+                  style={{
+                    padding: '16px',
+                    borderRadius: '10px',
+                    border: isRecommended ? '2px solid var(--accent)' : '1px solid var(--line)',
+                    background: 'white',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {arch.id === 'NOMINAL_ROLL' && <FileText size={18} color="var(--accent)" />}
+                        {arch.id === 'QP_STATEMENT' && <CalendarRange size={18} color="var(--accent)" />}
+                        {arch.id === 'QP_COVER_LABEL' && <Tag size={18} color="var(--accent)" />}
+                        {arch.id === 'CUSTOM_TABULAR' && <TableProperties size={18} color="var(--accent)" />}
+                        <strong style={{ fontSize: '14px' }}>{arch.name}</strong>
+                      </div>
+                      {isRecommended && (
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+                          Recommended
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: 'var(--muted)', lineHeight: '1.4' }}>
+                      {arch.description}
+                    </p>
+                  </div>
+
+                  <button 
+                    className="button"
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12.5px', padding: '7px 12px', width: '100%' }}
+                  >
+                    Open in Template Studio <ArrowRight size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       
       {/* STEP 2 - PIPELINE */}
       {sourceCols.length > 0 && (
         <div id="dataMgmtSection">
           
           <div className="card">
-            <h3 style={{ marginTop: 0 }}>Step 2: Data Pipeline</h3>
+            <h3 style={{ marginTop: 0 }}>Step 2: Data Pipeline (Optional Filtering & Calculations)</h3>
             <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '24px' }}>
-              Add transformation steps. They run from top to bottom.
+              Add transformation steps if you need to filter rows, combine fields, or perform aggregations before generating reports.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
@@ -352,94 +393,22 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
                         <option value="contains">Contains</option>
                         <option value="greater">Greater Than</option>
                         <option value="less">Less Than</option>
-                        <option value="not_blank">Is Not Blank</option>
+                        <option value="not_blank">Not Blank</option>
                       </select>
-                      <input type="text" value={step.val} onChange={e => updateStep(step.id, 'val', e.target.value)} placeholder="Value" disabled={step.op === 'not_blank'} />
+                      {step.op !== 'not_blank' && (
+                        <input type="text" value={step.val} onChange={e => updateStep(step.id, 'val', e.target.value)} placeholder="Filter value..." />
+                      )}
                     </div>
                   )}
 
                   {step.type === 'combine' && (
-                    <div className="form-row" style={{ marginBottom: 0, alignItems: 'center' }}>
+                    <div className="form-row" style={{ marginBottom: 0 }}>
                       <select value={step.cols[0]} onChange={e => updateStep(step.id, 'cols', [e.target.value, step.cols[1]])}>
                         {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
-                      <span style={{ fontWeight: 'bold' }}>+</span>
                       <select value={step.cols[1]} onChange={e => updateStep(step.id, 'cols', [step.cols[0], e.target.value])}>
                         {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
-                      <span style={{ fontWeight: 'bold', margin: '0 8px' }}>=</span>
-                      <input type="text" value={step.newName} onChange={e => updateStep(step.id, 'newName', e.target.value)} placeholder="New Column Name" />
-                    </div>
-                  )}
-
-                  {step.type === 'calc' && (
-                    <div>
-                      <div className="form-row" style={{ flexWrap: 'wrap', marginBottom: '10px' }}>
-                        <select value={step.op} onChange={e => updateStep(step.id, 'op', e.target.value)}>
-                          <option value="SUM_IF">SUM IF</option>
-                          <option value="COUNT_IF">COUNT IF</option>
-                        </select>
-                        
-                        {step.op === 'SUM_IF' && (
-                          <select value={step.targetCol} onChange={e => updateStep(step.id, 'targetCol', e.target.value)}>
-                            <option value="" disabled>Target Column</option>
-                            {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        )}
-                        
-                        <span style={{ margin: '8px 4px', fontWeight: 'bold' }}>WHERE</span>
-                        
-                        <select value={step.condCol} onChange={e => updateStep(step.id, 'condCol', e.target.value)}>
-                          {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        
-                        <select value={step.condOp} onChange={e => updateStep(step.id, 'condOp', e.target.value)}>
-                          <option value="equals">Equals</option>
-                          <option value="contains">Contains</option>
-                          <option value="greater">Greater Than</option>
-                          <option value="less">Less Than</option>
-                          <option value="not_blank">Not Blank</option>
-                        </select>
-                        
-                        <input type="text" value={step.condVal} onChange={e => updateStep(step.id, 'condVal', e.target.value)} placeholder="Condition Value" disabled={step.condOp === 'not_blank'} />
-                      </div>
-                      
-                      <div className="form-row" style={{ flexWrap: 'wrap', alignItems: 'center', marginBottom: 0 }}>
-                        <label style={{ marginRight: '10px', fontWeight: 600 }}>Output:</label>
-                        <select value={step.outputMode} onChange={e => updateStep(step.id, 'outputMode', e.target.value)}>
-                          <option value="ROW_BY_ROW">Row-by-Row</option>
-                          <option value="GLOBAL_AGG">Global Aggregate</option>
-                          <option value="PIVOT">Group By (Pivot)</option>
-                        </select>
-                        
-                        {step.outputMode === 'PIVOT' && (
-                          <>
-                            <span style={{ margin: '0 8px' }}>GROUP BY:</span>
-                            <select value={step.groupCol} onChange={e => updateStep(step.id, 'groupCol', e.target.value)}>
-                              {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          </>
-                        )}
-                        
-                        <span style={{ margin: '0 8px', fontWeight: 'bold' }}>=</span>
-                        <input type="text" value={step.newColName} onChange={e => updateStep(step.id, 'newColName', e.target.value)} placeholder="Result Col Name" />
-                      </div>
-                    </div>
-                  )}
-
-                  {step.type === 'extract_date' && (
-                    <div className="form-row" style={{ marginBottom: 0, alignItems: 'center' }}>
-                      <select value={step.col} onChange={e => updateStep(step.id, 'col', e.target.value)}>
-                        {sourceCols.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      <span style={{ margin: '0 8px' }}>➡</span>
-                      <select value={step.part} onChange={e => updateStep(step.id, 'part', e.target.value)}>
-                        <option value="day_of_week">Day of Week (e.g. Monday)</option>
-                        <option value="day_of_month">Day of Month (e.g. 25)</option>
-                        <option value="month">Month (e.g. October)</option>
-                        <option value="year">Year (e.g. 2023)</option>
-                      </select>
-                      <span style={{ fontWeight: 'bold', margin: '0 8px' }}>=</span>
                       <input type="text" value={step.newName} onChange={e => updateStep(step.id, 'newName', e.target.value)} placeholder="New Column Name" />
                     </div>
                   )}
@@ -469,7 +438,7 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
             <div className="form-row">
               <div className="form-group" style={{ flex: 2 }}>
                 <label>Configuration Name</label>
-                <input type="text" value={configName} onChange={e => setConfigName(e.target.value)} placeholder="e.g., Monthly Sales Rules" />
+                <input type="text" value={configName} onChange={e => setConfigName(e.target.value)} placeholder="e.g., Examination Data Pipeline" />
               </div>
               <button onClick={saveReportConfig}>Save Config</button>
             </div>
@@ -478,7 +447,7 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig }) => {
           {/* LIVE PREVIEW */}
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0 }}>Pipeline Output Preview - {filteredRows.length} Rows</h3>
+              <h3 style={{ margin: 0 }}>Data Output Preview - {filteredRows.length} Rows</h3>
               <button onClick={handleExportCsv} className="secondary" style={{ borderColor: 'var(--accent)', color: 'var(--accent)', padding: '6px 12px' }}>
                 ⬇️ Export CSV
               </button>

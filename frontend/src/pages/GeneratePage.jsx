@@ -42,10 +42,11 @@ const GeneratePage = ({ dataset }) => {
     
     // Use timeout to allow UI to show loading state
     setTimeout(() => {
-      const template = templates.find(t => t.id === selectedTemplateId);
+      const template = templates.find(t => t.id === selectedTemplateId) || {};
       
-      let width = PAGE_SIZES[template.pageSize].width;
-      let height = PAGE_SIZES[template.pageSize].height;
+      const pSize = template.pageSize && PAGE_SIZES[template.pageSize] ? template.pageSize : 'A4';
+      let width = PAGE_SIZES[pSize].width;
+      let height = PAGE_SIZES[pSize].height;
       if (template.orientation === 'landscape') [width, height] = [height, width];
       
       const pages = [];
