@@ -52,6 +52,7 @@ const SllNominalPage = () => {
   const [examTitle, setExamTitle] = useState('Venue-Wise Candidate Nominal Roll & Attendance Record');
   const [sessionName, setSessionName] = useState('I Semester Degree Examination - November 2025');
   const [groupByOption, setGroupByOption] = useState('programme_venue'); // 'programme_venue' | 'venue'
+  const [formatCodeDotNameDot, setFormatCodeDotNameDot] = useState(true); // 'CODE. - NAME.' toggle
 
   // Column mapping (0-indexed indices)
   const [columnMapping, setColumnMapping] = useState({
@@ -218,23 +219,33 @@ const SllNominalPage = () => {
 
       // Append course if not duplicate
       if (cCode || cTitle) {
-        const cleanCode = String(cCode || '').trim().replace(/^[.\s]+|[.\s]+$/g, '');
-        const cleanTitle = String(cTitle || '').trim().replace(/^[-–—:.\s]+|[.\s]+$/g, '');
+        let cleanCode = String(cCode || '').trim().replace(/^[.\s]+|[.\s]+$/g, '');
+        let cleanTitle = String(cTitle || '').trim().replace(/^[-–—:.\s]+|[.\s]+$/g, '');
         
-        const formattedCode = cleanCode ? (cleanCode.endsWith('.') ? cleanCode : `${cleanCode}.`) : '';
-        const formattedTitle = cleanTitle ? (cleanTitle.endsWith('.') ? cleanTitle : `${cleanTitle}.`) : '';
+        let formattedCode = cleanCode;
+        let formattedTitle = cleanTitle;
+
+        if (formatCodeDotNameDot) {
+          // When ticked: ensure CODE. and NAME. have trailing periods
+          if (formattedCode && !formattedCode.endsWith('.')) formattedCode += '.';
+          if (formattedTitle && !formattedTitle.endsWith('.')) formattedTitle += '.';
+        } else {
+          // When unticked: omit all trailing periods from both CODE and NAME
+          formattedCode = formattedCode.replace(/\.+$/g, '').trim();
+          formattedTitle = formattedTitle.replace(/\.+$/g, '').trim();
+        }
 
         const displayStr = formattedCode && formattedTitle 
           ? `${formattedCode} - ${formattedTitle}` 
           : (formattedCode || formattedTitle);
 
         const courseItem = {
-          code: cleanCode,
-          title: cleanTitle,
+          code: formattedCode,
+          title: formattedTitle,
           session: sess,
           display: displayStr
         };
-        const exists = groups[groupKey].candidatesMap[seatNo].courses.some(c => c.code === cleanCode && c.title === cleanTitle);
+        const exists = groups[groupKey].candidatesMap[seatNo].courses.some(c => c.code === formattedCode && c.title === formattedTitle);
         if (!exists) {
           groups[groupKey].candidatesMap[seatNo].courses.push(courseItem);
         }
@@ -257,7 +268,7 @@ const SllNominalPage = () => {
     });
 
     return finalized;
-  }, [rawRows, headers, columnMapping, groupByOption]);
+  }, [rawRows, headers, columnMapping, groupByOption, formatCodeDotNameDot]);
 
   const groupKeys = useMemo(() => Object.keys(processedGroups).sort(), [processedGroups]);
   const effectiveGroupKey = activeGroupKey && processedGroups[activeGroupKey] ? activeGroupKey : (groupKeys[0] || '');
@@ -1032,6 +1043,18 @@ const SllNominalPage = () => {
               </select>
             </div>
 
+            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '6px' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                <input
+                  type="checkbox"
+                  checked={formatCodeDotNameDot}
+                  onChange={(e) => setFormatCodeDotNameDot(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                />
+                Format: CODE. - NAME.
+              </label>
+            </div>
+
           </div>
         </div>
       )}
@@ -1139,15 +1162,26 @@ const SllNominalPage = () => {
 
             {/* Bottom Row: Quick Actions, Search, Prev/Next & Download */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
-              <div style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
-                <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-                <input 
-                  type="text"
-                  placeholder="Search candidates, register no..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ paddingLeft: '32px', fontSize: '13px', width: '100%' }}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', flex: 1, minWidth: '280px' }}>
+                <div style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                  <input 
+                    type="text"
+                    placeholder="Search candidates, register no..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{ paddingLeft: '32px', fontSize: '13px', width: '100%' }}
+                  />
+                </div>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', userSelect: 'none', background: '#f8fafc', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                  <input
+                    type="checkbox"
+                    checked={formatCodeDotNameDot}
+                    onChange={(e) => setFormatCodeDotNameDot(e.target.checked)}
+                    style={{ width: '15px', height: '15px', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                  />
+                  Format: CODE. - NAME.
+                </label>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
