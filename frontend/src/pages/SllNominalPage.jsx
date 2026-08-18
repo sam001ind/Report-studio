@@ -217,13 +217,18 @@ const SllNominalPage = () => {
 
       // Append course if not duplicate
       if (cCode || cTitle) {
+        const cleanCode = String(cCode || '').trim().replace(/^[.\s]+|[.\s]+$/g, '');
+        const cleanTitle = String(cTitle || '').trim().replace(/^[-–—:.\s]+|[.\s]+$/g, '');
+        
+        const displayStr = cleanCode && cleanTitle ? `${cleanCode} - ${cleanTitle}` : (cleanCode || cleanTitle);
+
         const courseItem = {
-          code: cCode,
-          title: cTitle,
+          code: cleanCode,
+          title: cleanTitle,
           session: sess,
-          display: cCode && cTitle ? `${cCode} - ${cTitle}` : (cCode || cTitle)
+          display: displayStr
         };
-        const exists = groups[groupKey].candidatesMap[seatNo].courses.some(c => c.code === cCode && c.title === cTitle);
+        const exists = groups[groupKey].candidatesMap[seatNo].courses.some(c => c.code === cleanCode && c.title === cleanTitle);
         if (!exists) {
           groups[groupKey].candidatesMap[seatNo].courses.push(courseItem);
         }
@@ -383,14 +388,29 @@ const SllNominalPage = () => {
       head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 8.5, cellPadding: 3, textColor: [20, 20, 20] },
+      headStyles: { 
+        fillColor: [23, 107, 135], 
+        textColor: 255, 
+        fontSize: 9, 
+        fontStyle: 'bold',
+        halign: 'center',
+        valign: 'middle',
+        cellPadding: { top: 3.5, bottom: 3.5, left: 2, right: 2 }
+      },
+      bodyStyles: { 
+        fontSize: 8.5, 
+        cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+        textColor: [15, 23, 42],
+        valign: 'middle',
+        lineColor: [200, 205, 215],
+        lineWidth: 0.2
+      },
       columnStyles: {
-        0: { cellWidth: 12, halign: 'center' },
-        1: { cellWidth: 30, fontStyle: 'bold', halign: 'center' },
-        2: { cellWidth: 46 },
-        3: { cellWidth: 66 },
-        4: { cellWidth: 28 }
+        0: { cellWidth: 12, halign: 'center', valign: 'middle' },
+        1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+        2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
+        3: { cellWidth: 72, valign: 'middle', cellPadding: { top: 3, bottom: 3, left: 3, right: 2 } },
+        4: { cellWidth: 24, valign: 'middle' }
       },
       didDrawPage: (data) => {
         doc.setFontSize(8);
@@ -474,14 +494,29 @@ const SllNominalPage = () => {
           head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
           body: tableData,
           theme: 'grid',
-          headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 8.5, cellPadding: 3, textColor: [20, 20, 20] },
+          headStyles: { 
+            fillColor: [23, 107, 135], 
+            textColor: 255, 
+            fontSize: 9, 
+            fontStyle: 'bold',
+            halign: 'center',
+            valign: 'middle',
+            cellPadding: { top: 3.5, bottom: 3.5, left: 2, right: 2 }
+          },
+          bodyStyles: { 
+            fontSize: 8.5, 
+            cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+            textColor: [15, 23, 42],
+            valign: 'middle',
+            lineColor: [200, 205, 215],
+            lineWidth: 0.2
+          },
           columnStyles: {
-            0: { cellWidth: 12, halign: 'center' },
-            1: { cellWidth: 30, fontStyle: 'bold', halign: 'center' },
-            2: { cellWidth: 46 },
-            3: { cellWidth: 66 },
-            4: { cellWidth: 28 }
+            0: { cellWidth: 12, halign: 'center', valign: 'middle' },
+            1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+            2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
+            3: { cellWidth: 72, valign: 'middle', cellPadding: { top: 3, bottom: 3, left: 3, right: 2 } },
+            4: { cellWidth: 24, valign: 'middle' }
           }
         });
       });
@@ -569,14 +604,29 @@ const SllNominalPage = () => {
             head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
             body: tableData,
             theme: 'grid',
-            headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5 },
-            bodyStyles: { fontSize: 8, cellPadding: 2.5 },
+            headStyles: { 
+              fillColor: [23, 107, 135], 
+              textColor: 255, 
+              fontSize: 9, 
+              fontStyle: 'bold',
+              halign: 'center',
+              valign: 'middle',
+              cellPadding: { top: 3.5, bottom: 3.5, left: 2, right: 2 }
+            },
+            bodyStyles: { 
+              fontSize: 8.5, 
+              cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+              textColor: [15, 23, 42],
+              valign: 'middle',
+              lineColor: [200, 205, 215],
+              lineWidth: 0.2
+            },
             columnStyles: {
-              0: { cellWidth: 12, halign: 'center' },
-              1: { cellWidth: 30, fontStyle: 'bold', halign: 'center' },
-              2: { cellWidth: 46 },
-              3: { cellWidth: 66 },
-              4: { cellWidth: 28 }
+              0: { cellWidth: 12, halign: 'center', valign: 'middle' },
+              1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+              2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
+              3: { cellWidth: 72, valign: 'middle', cellPadding: { top: 3, bottom: 3, left: 3, right: 2 } },
+              4: { cellWidth: 24, valign: 'middle' }
             }
           });
         });
@@ -1110,37 +1160,46 @@ const SllNominalPage = () => {
 
             {/* Rendered Nominal Roll Table */}
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', fontFamily: 'inherit' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', fontFamily: 'inherit' }}>
                 <thead>
-                  <tr style={{ background: '#f2f2f2', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                    <th style={{ border: '1px solid #000', padding: '8px 6px', width: '50px', textAlign: 'center', fontWeight: 700 }}>SL<br/>No</th>
-                    <th style={{ border: '1px solid #000', padding: '8px 10px', width: '120px', textAlign: 'center', fontWeight: 700 }}>Register Number</th>
-                    <th style={{ border: '1px solid #000', padding: '8px 12px', width: '220px', textAlign: 'left', fontWeight: 700 }}>Candidate Name</th>
-                    <th style={{ border: '1px solid #000', padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Courses</th>
-                    <th style={{ border: '1px solid #000', padding: '8px 8px', width: '110px', textAlign: 'center', fontWeight: 700 }}>Remarks</th>
+                  <tr style={{ background: '#176b87', color: '#ffffff' }}>
+                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 6px', width: '55px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>SL<br/>No</th>
+                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 10px', width: '140px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>Register Number</th>
+                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 12px', width: '200px', textAlign: 'left', fontWeight: 700, verticalAlign: 'middle' }}>Candidate Name</th>
+                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 14px', textAlign: 'left', fontWeight: 700, verticalAlign: 'middle' }}>Courses</th>
+                    <th style={{ border: '1px solid #0f4c5c', padding: '10px 8px', width: '120px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle' }}>Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
                   {currentTabCandidates.length > 0 ? (
                     currentTabCandidates.map((cand, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #000', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                        <td style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
-                        <td style={{ border: '1px solid #000', padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: 'var(--accent)' }}>{cand.seatNo}</td>
-                        <td style={{ border: '1px solid #000', padding: '8px 12px', fontWeight: 600 }}>{cand.studentName}</td>
-                        <td style={{ border: '1px solid #000', padding: '8px 12px', verticalAlign: 'middle', lineHeight: '1.5' }}>
+                      <tr key={idx} style={{ borderBottom: '1px solid #cbd5e1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 6px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle', fontSize: '13px', color: '#334155' }}>
+                          {idx + 1}
+                        </td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 10px', textAlign: 'center', fontWeight: 800, color: 'var(--accent)', verticalAlign: 'middle', fontFamily: 'monospace, monospace', fontSize: '13.5px', letterSpacing: '0.5px' }}>
+                          {cand.seatNo}
+                        </td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 12px', fontWeight: 700, verticalAlign: 'middle', textTransform: 'uppercase', color: '#0f172a', fontSize: '13px' }}>
+                          {cand.studentName}
+                        </td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 14px', verticalAlign: 'middle' }}>
                           {cand.courses.length > 0 ? (
-                            <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                               {cand.courses.map((crs, cIdx) => (
-                                <li key={cIdx}>
-                                  <strong>{crs.code}</strong> {crs.title && `— ${crs.title}`}
-                                </li>
+                                <div key={cIdx} style={{ fontSize: '12.5px', lineHeight: '1.45', color: '#1e293b' }}>
+                                  <span style={{ fontWeight: 700, color: 'var(--accent)', marginRight: '6px' }}>
+                                    {cIdx + 1}. {crs.code}
+                                  </span>
+                                  {crs.title && <span style={{ color: '#334155' }}>— {crs.title}</span>}
+                                </div>
                               ))}
-                            </ul>
+                            </div>
                           ) : (
-                            <span style={{ color: '#888' }}>—</span>
+                            <span style={{ color: '#94a3b8' }}>—</span>
                           )}
                         </td>
-                        <td style={{ border: '1px solid #000', padding: '8px 8px' }}>
+                        <td style={{ border: '1px solid #cbd5e1', padding: '10px 8px', verticalAlign: 'middle', background: 'rgba(248, 250, 252, 0.5)' }}>
                           {/* Blank for Remarks */}
                         </td>
                       </tr>
