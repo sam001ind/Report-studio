@@ -1,951 +1,770 @@
+import { useState, useMemo, useEffect } from "react";
+import { Link } from "react-router-dom";
+import * as XLSX from "xlsx";
+import JSZip from "jszip";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import { 
+  Building2, 
+  Upload, 
+  Settings2, 
+  Eye, 
+  Download, 
+  Search, 
+  CheckCircle2, 
+  RotateCcw, 
+  FileSpreadsheet, 
+  FileArchive, 
+  Sparkles,
+  Users,
+  GraduationCap,
+  BookOpen,
+  CalendarDays,
+  FileText
+} from "lucide-react";
 import { readSpreadsheetFile } from "../utils/excelParser";
 
-// Bulletproof Universal Excel, CSV, HTML-table & ZIP parser
-const parseUploadedSpreadsheet = async (file) => {
-  let buffers = [];
-
-  if (file.name.toLowerCase().endsWith(".zip")) {
-    const zip = await JSZip.loadAsync(file);
-    const validFiles = Object.keys(zip.files).filter(name => 
-      !name.startsWith("__MACOSX/") && 
-      !name.startsWith(".") && 
-      !zip.files[name].dir &&
-      (name.toLowerCase().endsWith(".xlsx") || name.toLowerCase().endsWith(".xls") || name.toLowerCase().endsWith(".csv"))
-    );
-
-    if (validFiles.length === 0) {
-      throw new Error("No .xlsx, .xls, or .csv spreadsheets found inside the uploaded ZIP archive.");
-    }
-
-    for (const name of validFiles) {
-      const buf = await zip.files[name].async("arraybuffer");
-      buffers.push({ name, buffer: buf });
-    }
-  } else {
-    const buf = await file.arrayBuffer();
-    buffers.push({ name: file.name, buffer: buf });
-  }
-
-  let allRows = [];
-  for (const item of buffers) {
-    let wb;
-    try {
-      // Attempt 1: Binary array buffer (True .xlsx / .xls)
-      wb = XLSX.read(new Uint8Array(item.buffer), { type: "array", cellDates: true });
-    } catch (err1) {
-      try {
-        // Attempt 2: UTF-8 string parse (HTML table or CSV saved as .xls/.xlsx)
-        const text = new TextDecoder("utf-8").decode(item.buffer);
-        wb = XLSX.read(text, { type: "string", raw: true });
-      } catch (err2) {
-        // Attempt 3: Windows-1252 / ISO-8859 parse
-        const text = new TextDecoder("windows-1252").decode(item.buffer);
-        wb = XLSX.read(text, { type: "string", raw: true });
-      }
-    }
-
-    if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
-      const firstSheet = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-      if (json && json.length > 0) {
-        allRows = allRows.concat(json);
-      }
-    }
-  }
-
-  if (allRows.length === 0) {
-    throw new Error("No data rows found in the uploaded file(s).");
-  }
-
-  return allRows;
-};
-
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import JSZip from 'jszip';
-import { Settings, Download, Eye, FileText, Plus, Trash2, AlignCenter, AlignLeft, AlignRight, Bold } from 'lucide-react';
+const SAMPLE_NOMINAL_DATA = [
+  { "Venue": "Government College Kasaragod", "Register_No": "KU2025001", "Student_Name": "Muhammed Rashid K", "Course_Code": "ENG101", "Course_Title": "English Literature", "Session": "FN" },
+  { "Venue": "Government College Kasaragod", "Register_No": "KU2025002", "Student_Name": "Ananya S Nair", "Course_Code": "ENG101", "Course_Title": "English Literature", "Session": "FN" },
+  { "Venue": "Government College Kasaragod", "Register_No": "KU2025003", "Student_Name": "Fathima Hameed", "Course_Code": "MAL102", "Course_Title": "Malayalam Poetry", "Session": "AN" },
+  { "Venue": "Payyanur College", "Register_No": "KU2025004", "Student_Name": "Abhijith T", "Course_Code": "CS104", "Course_Title": "Data Structures", "Session": "FN" },
+  { "Venue": "Payyanur College", "Register_No": "KU2025005", "Student_Name": "Devika Menon", "Course_Code": "CS104", "Course_Title": "Data Structures", "Session": "FN" },
+  { "Venue": "Sir Syed College Taliparamba", "Register_No": "KU2025006", "Student_Name": "Rahul K V", "Course_Code": "CHE106", "Course_Title": "Organic Chemistry", "Session": "FN" },
+  { "Venue": "Sir Syed College Taliparamba", "Register_No": "KU2025007", "Student_Name": "Sneha Prakash", "Course_Code": "CHE106", "Course_Title": "Organic Chemistry", "Session": "FN" }
+];
 
 const SllNominalPage = () => {
-  
-  // File and sheet states
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [workbook, setWorkbook] = useState(null);
-  const [sheetNames, setSheetNames] = useState([]);
-  const [selectedSheet, setSelectedSheet] = useState('');
-  
-  // Column mapping states (0-indexed indices mapping to excel columns)
-  const [headers, setHeaders] = useState([]);
-  const [columnMapping, setColumnMapping] = useState({
-    programme: 0,
-    name: 2,
-    seatNo: 3,
-    venueCode: 4,
-    venueName: 5,
-    courseCode: 6,
-    courseTitle: 7
-  });
+  const [currentStep, setCurrentStep] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [columns, setColumns] = useState([]);
+  const [fileName, setFileName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Dynamic Header Rich Lines (Structured Rich Text Editor for PDF)
-  const [headerLines, setHeaderLines] = useState([
-    { text: 'Kannur University', fontSize: 16, isBold: true, align: 'center', yOffset: 40 },
-    { text: 'Examination Branch', fontSize: 12, isBold: true, align: 'center', yOffset: 60 },
-    { text: 'I Semester Private Registration 2025 -2028 Admission - November 2025', fontSize: 10, isBold: true, align: 'center', yOffset: 78 }
-  ]);
+  // Field Mappings
+  const [venueCol, setVenueCol] = useState("");
+  const [regNoCol, setRegNoCol] = useState("");
+  const [nameCol, setNameCol] = useState("");
+  const [courseCodeCol, setCourseCodeCol] = useState("");
+  const [courseTitleCol, setCourseTitleCol] = useState("");
+  const [sessionCol, setSessionCol] = useState("");
 
-  // Dynamic Table Columns styling editor (Rich Text styling for table grid)
-  const [tableColumns, setTableColumns] = useState([
-    { id: 'slNo', label: 'Sl No', width: 35, align: 'center', fontSize: 9 },
-    { id: 'seatNo', label: 'Seat No', width: 70, align: 'center', fontSize: 9 },
-    { id: 'name', label: 'Name', width: 140, align: 'left', fontSize: 9 },
-    { id: 'courses', label: 'Courses', width: 210, align: 'left', fontSize: 9.5 },
-    { id: 'remark', label: 'Remark', width: 60, align: 'left', fontSize: 9 }
-  ]);
+  // Step 3 Filter States
+  const [selectedVenue, setSelectedVenue] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Processing states
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('Ready');
-  const [statusType, setStatusType] = useState('normal'); // 'normal' | 'error' | 'success'
+  // Header customization
+  const [examTitle, setExamTitle] = useState("KANNUR UNIVERSITY - EXAMINATION BRANCH");
+  const [subTitle, setSubTitle] = useState("CANDIDATE NOMINAL ROLL & ATTENDANCE RECORD");
 
-  // Generated Venue Data State
-  const [comboGroups, setComboGroups] = useState({});
-  const [activeComboTab, setActiveComboTab] = useState('');
-
-  const setStatus = (msg, type = 'normal') => {
-    setStatusMsg(msg);
-    setStatusType(type);
+  // Load sample dataset
+  const loadSample = () => {
+    setRows(SAMPLE_NOMINAL_DATA);
+    const cols = Object.keys(SAMPLE_NOMINAL_DATA[0]);
+    setColumns(cols);
+    setFileName("Sample_Nominal_Roll.xlsx");
+    setVenueCol("Venue");
+    setRegNoCol("Register_No");
+    setNameCol("Student_Name");
+    setCourseCodeCol("Course_Code");
+    setCourseTitleCol("Course_Title");
+    setSessionCol("Session");
   };
 
-  // Extract headers on sheet change
+  // Auto-detect columns on file load
   useEffect(() => {
-    if (workbook && selectedSheet) {
-      const sheet = workbook.Sheets[selectedSheet];
-      if (sheet) {
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-        if (rows.length > 0) {
-          // Store raw headers for mapping dropdowns
-          const firstRow = rows[0].map((cell, idx) => cell ? String(cell).trim() : `Column ${idx + 1}`);
-          setHeaders(firstRow);
-
-          // Try to auto-detect columns
-          setColumnMapping(prev => {
-            const autoMap = { ...prev };
-            firstRow.forEach((name, idx) => {
-              const lower = name.toLowerCase();
-              if (lower.includes('programme') || lower.includes('program')) autoMap.programme = idx;
-              if (lower.includes('name')) autoMap.name = idx;
-              if (lower.includes('seat') || lower.includes('reg') || lower.includes('register') || lower.includes('roll')) autoMap.seatNo = idx;
-              if (lower.includes('venuecode') || lower.includes('centercode') || lower.includes('collegecode')) autoMap.venueCode = idx;
-              if (lower.includes('venuename') || lower.includes('centername') || lower.includes('collegename') || (lower.includes('venue') && !lower.includes('code'))) autoMap.venueName = idx;
-              if (lower.includes('coursecode') || lower.includes('subjectcode') || (lower.includes('course') && !lower.includes('title') && !lower.includes('name'))) autoMap.courseCode = idx;
-              if (lower.includes('coursetitle') || lower.includes('subjectname') || lower.includes('coursename') || lower.includes('title')) autoMap.courseTitle = idx;
-            });
-            return autoMap;
-          });
-        }
-      }
-    } else {
-      setHeaders([]);
+    if (columns.length > 0) {
+      const findCol = (regex) => columns.find(c => regex.test(c)) || "";
+      if (!venueCol) setVenueCol(findCol(/venue|college|center|centre|institution/i) || columns[0]);
+      if (!regNoCol) setRegNoCol(findCol(/reg|prn|roll|candidate_id|id/i) || columns[1] || columns[0]);
+      if (!nameCol) setNameCol(findCol(/name|student|candidate/i) || columns[2] || columns[0]);
+      if (!courseCodeCol) setCourseCodeCol(findCol(/course.*code|sub.*code|qp.*code|code/i) || columns[3] || columns[0]);
+      if (!courseTitleCol) setCourseTitleCol(findCol(/course.*title|course.*name|subject|title/i) || columns[4] || "");
+      if (!sessionCol) setSessionCol(findCol(/session|time|date|semester|sem/i) || "");
     }
-  }, [workbook, selectedSheet]);
+  }, [columns]);
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
+  // Universal File Upload Handler
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
-    setSelectedFile(file);
-    setStatus('Reading workbook...');
-    setComboGroups({});
-    setActiveComboTab('');
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = evt.target.result;
-        const wb = XLSX.read(data, { type: 'array', cellDates: true });
-        setWorkbook(wb);
-        setSheetNames(wb.SheetNames);
-        setSelectedSheet(wb.SheetNames[0] || '');
-        setStatus('Workbook loaded successfully', 'success');
-      } catch (err) {
-        setStatus(`Error reading Excel: ${err.message}`, 'error');
-        setWorkbook(null);
-        setSheetNames([]);
-        setSelectedSheet('');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  // Group data by [Programme Name] + [VenueCode - VenueName]
-  const processNominalRoll = () => {
-    if (!workbook || !selectedSheet) {
-      setStatus('Please upload and select an Excel sheet first.', 'error');
-      return;
-    }
-
-    const sheet = workbook.Sheets[selectedSheet];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
-    if (rows.length < 2) {
-      setStatus('Sheet does not contain sufficient data rows.', 'error');
-      return;
-    }
-
-    setIsProcessing(true);
-    setStatus('Grouping nominal rolls...');
-
+    setIsLoading(true);
     try {
-      const dataRows = rows.slice(1);
-      const groups = {};
-
-      dataRows.forEach((row) => {
-        // Skip blank rows
-        const isBlank = row.every(cell => cell === null || cell === undefined || cell === '');
-        if (isBlank) return;
-
-        const programme = String(row[columnMapping.programme] || 'Unassigned Programme').trim();
-        
-        // Merge Venue Code and Venue Name into a single "Code - Name" string
-        const vCode = String(row[columnMapping.venueCode] || '').trim();
-        const vName = String(row[columnMapping.venueName] || '').trim();
-        const venue = vCode && vName ? `${vCode} - ${vName}` : (vCode || vName || 'Unassigned Venue');
-
-        const seatNo = String(row[columnMapping.seatNo] || '').trim();
-        const name = String(row[columnMapping.name] || '').trim();
-        const cCode = String(row[columnMapping.courseCode] || '').trim();
-        const cTitle = String(row[columnMapping.courseTitle] || '').trim();
-
-        if (!venue || !seatNo) return; // Skip if no venue or register number
-
-        const comboKey = `${programme} - ${venue}`;
-
-        if (!groups[comboKey]) {
-          groups[comboKey] = {
-            programme,
-            venue,
-            students: {}
-          };
-        }
-
-        // Group by seatNo (register number) to perform row spanning
-        const studentKey = `${seatNo}_${name}`;
-        if (!groups[comboKey].students[studentKey]) {
-          groups[comboKey].students[studentKey] = {
-            seatNo,
-            name,
-            courses: []
-          };
-        }
-
-        groups[comboKey].students[studentKey].courses.push({
-          code: cCode,
-          title: cTitle
-        });
-      });
-
-      // Convert inner dictionary to sorted arrays of students
-      const processedGroups = {};
-      Object.keys(groups).forEach(comboKey => {
-        const { programme, venue, students } = groups[comboKey];
-        const studentList = Object.values(students);
-        // Sort students by Seat No
-        studentList.sort((a, b) => a.seatNo.localeCompare(b.seatNo, undefined, { numeric: true, sensitivity: 'base' }));
-        processedGroups[comboKey] = {
-          programme,
-          venue,
-          students: studentList
-        };
-      });
-
-      setComboGroups(processedGroups);
-      const comboKeys = Object.keys(processedGroups);
-      if (comboKeys.length > 0) {
-        setActiveComboTab(comboKeys[0]);
-      }
-      
-      setStatus(`Nominal rolls processed! Found ${comboKeys.length} Programme-Venue combinations.`, 'success');
+      const { rows: dataRows, columns: dataCols } = await readSpreadsheetFile(file);
+      setRows(dataRows);
+      setColumns(dataCols);
+      setFileName(file.name);
     } catch (err) {
-      setStatus(`Error processing data: ${err.message}`, 'error');
+      alert("Error reading file: " + err.message);
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
-  // Generate jsPDF instance for a single combo group
-  const generateVenuePDF = (programmeName, venueName, students) => {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'pt',
-      format: 'a4'
+  // Grouped Venue Data
+  const venueList = useMemo(() => {
+    if (!rows.length || !venueCol) return [];
+    const set = new Set();
+    rows.forEach(r => {
+      const v = String(r[venueCol] || "").trim();
+      if (v) set.add(v);
     });
+    return Array.from(set).sort();
+  }, [rows, venueCol]);
 
-    // 1. Dynamic Header Block
-    headerLines.forEach((line) => {
-      if (!line.text.trim()) return;
-      doc.setFont('Helvetica', line.isBold ? 'bold' : 'normal');
-      doc.setFontSize(line.fontSize);
-      
-      let xPos = 297; // center
-      if (line.align === 'left') xPos = 40;
-      if (line.align === 'right') xPos = 550; // a4 width is 595 pt
-      
-      doc.text(line.text, xPos, line.yOffset, { align: line.align });
+  const venueGroups = useMemo(() => {
+    if (!rows.length || !venueCol) return {};
+    const groups = {};
+    rows.forEach(r => {
+      const v = String(r[venueCol] || "Unassigned Venue").trim();
+      if (!groups[v]) groups[v] = [];
+      groups[v].push(r);
     });
+    return groups;
+  }, [rows, venueCol]);
 
-    // 2. Metadata Info
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text(`Programme: ${programmeName}`, 40, 110);
-    doc.text(`Venue: ${venueName}`, 40, 128);
+  // Filtered Rows for Preview
+  const displayedRows = useMemo(() => {
+    let list = rows;
+    if (selectedVenue !== "all") {
+      list = venueGroups[selectedVenue] || [];
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(r => 
+        String(r[nameCol] || "").toLowerCase().includes(q) ||
+        String(r[regNoCol] || "").toLowerCase().includes(q) ||
+        String(r[courseCodeCol] || "").toLowerCase().includes(q) ||
+        String(r[venueCol] || "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [rows, selectedVenue, venueGroups, searchQuery, nameCol, regNoCol, courseCodeCol, venueCol]);
 
-    // 3. Prepare Table Data (Applying Row-Spanning / Merging)
-    const tableBody = [];
-    let slNo = 1;
+  // Unique course count
+  const courseCount = useMemo(() => {
+    if (!rows.length || !courseCodeCol) return 0;
+    const set = new Set(rows.map(r => String(r[courseCodeCol] || "").trim()).filter(Boolean));
+    return set.size;
+  }, [rows, courseCodeCol]);
 
-    students.forEach((student) => {
-      const courseCount = student.courses.length;
-      
-      student.courses.forEach((course, index) => {
-        const row = [];
-        
-        // Only output student profile details on the first course row (enable row spanning)
-        if (index === 0) {
-          row.push({ content: slNo.toString(), rowSpan: courseCount, styles: { valign: 'middle', halign: tableColumns[0].align } });
-          row.push({ content: student.seatNo, rowSpan: courseCount, styles: { valign: 'middle', halign: tableColumns[1].align } });
-          row.push({ content: student.name, rowSpan: courseCount, styles: { valign: 'middle', halign: tableColumns[2].align } });
+  // EXPORT: Single Venue / Consolidated PDF
+  const exportPdf = (targetVenue = null) => {
+    const doc = new jsPDF("p", "mm", "a4");
+    const venuesToPrint = targetVenue ? [targetVenue] : (selectedVenue === "all" ? venueList : [selectedVenue]);
+
+    venuesToPrint.forEach((vName, vIdx) => {
+      if (vIdx > 0) doc.addPage();
+      const vRows = venueGroups[vName] || [];
+
+      // Header
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(examTitle, 105, 15, { align: "center" });
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(subTitle, 105, 21, { align: "center" });
+
+      // Venue Info Box
+      doc.setDrawColor(200, 200, 200);
+      doc.setFillColor(245, 247, 250);
+      doc.roundedRect(14, 25, 182, 14, 2, 2, "FD");
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Venue / Center: ${vName}`, 18, 31);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Candidates: ${vRows.length}`, 18, 36);
+
+      // Table Content
+      const tableData = vRows.map((r, idx) => [
+        idx + 1,
+        String(r[regNoCol] || ""),
+        String(r[nameCol] || ""),
+        String(r[courseCodeCol] || ""),
+        String(r[courseTitleCol] || ""),
+        String(r[sessionCol] || ""),
+        "" // Signature box column
+      ]);
+
+      doc.autoTable({
+        startY: 42,
+        head: [["#", "Register No", "Candidate Name", "Course", "Title", "Session", "Candidate Signature"]],
+        body: tableData,
+        theme: "grid",
+        headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 9, fontStyle: "bold" },
+        bodyStyles: { fontSize: 8.5, cellPadding: 3 },
+        columnStyles: {
+          0: { cellWidth: 10, halign: "center" },
+          1: { cellWidth: 28, fontStyle: "bold" },
+          2: { cellWidth: 42 },
+          3: { cellWidth: 20 },
+          4: { cellWidth: 38 },
+          5: { cellWidth: 16, halign: "center" },
+          6: { cellWidth: 28 }
+        },
+        didDrawPage: (data) => {
+          doc.setFontSize(8);
+          doc.setTextColor(100);
+          doc.text(`Page ${doc.internal.getNumberOfPages()}`, 105, 290, { align: "center" });
         }
-        
-        // Course detail column (Course Code - Course Title)
-        const courseStr = course.code ? `${course.code} - ${course.title}` : course.title;
-        row.push({ content: courseStr, styles: { valign: 'top', halign: tableColumns[3].align } });
-        
-        // Remark column
-        if (index === 0) {
-          row.push({ content: '', rowSpan: courseCount, styles: { valign: 'middle', halign: tableColumns[4].align } });
-        }
-
-        tableBody.push(row);
       });
-      slNo += 1;
     });
 
-    // Extract dynamic headers configured by the user
-    const headLabels = tableColumns.map(col => col.label);
-
-    // Map column styles dynamically
-    const colStyles = {};
-    tableColumns.forEach((col, idx) => {
-      colStyles[idx] = { 
-        cellWidth: col.width,
-        halign: col.align,
-        fontSize: col.fontSize
-      };
-    });
-
-    // 4. Generate Autotable
-    autoTable(doc, {
-      startY: 145,
-      head: [headLabels],
-      body: tableBody,
-      theme: 'grid',
-      margin: { left: 40, right: 40, bottom: 40 },
-      styles: {
-        fontSize: 9,
-        cellPadding: 6,
-        lineColor: [180, 180, 180],
-        lineWidth: 0.5,
-        textColor: [30, 30, 30]
-      },
-      headStyles: {
-        fillColor: [240, 240, 240],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold',
-        halign: 'center',
-        lineWidth: 1
-      },
-      columnStyles: colStyles
-    });
-
-    return doc;
+    const outName = targetVenue ? `Nominal_Roll_${targetVenue.replace(/[^a-zA-Z0-9]/g, "_")}.pdf` : `Master_Nominal_Roll_All_Venues.pdf`;
+    doc.save(outName);
   };
 
-  // Download single combination PDF
-  const downloadSinglePDF = (comboKey) => {
-    const group = comboGroups[comboKey];
-    if (!group) return;
-    const doc = generateVenuePDF(group.programme, group.venue, group.students);
-    const safeProg = String(group.programme).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
-    const safeVenue = String(group.venue).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
-    doc.save(`${safeProg}_${safeVenue}.pdf`);
+  // EXPORT: Multi-Sheet Master Excel
+  const exportMasterExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Summary Sheet
+    const summaryData = [
+      ["VENUE-WISE NOMINAL ROLL SUMMARY"],
+      ["Generated At", new Date().toLocaleString()],
+      ["Total Venues", venueList.length],
+      ["Total Candidates", rows.length],
+      ["Total Courses", courseCount],
+      [""],
+      ["VENUE NAME", "CANDIDATE COUNT"]
+    ];
+
+    venueList.forEach(v => {
+      summaryData.push([v, (venueGroups[v] || []).length]);
+    });
+
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+
+    // Sheet per venue
+    venueList.forEach(v => {
+      const vRows = (venueGroups[v] || []).map((r, idx) => ({
+        "Sl_No": idx + 1,
+        "Register_No": r[regNoCol] || "",
+        "Student_Name": r[nameCol] || "",
+        "Course_Code": r[courseCodeCol] || "",
+        "Course_Title": r[courseTitleCol] || "",
+        "Session": r[sessionCol] || ""
+      }));
+      const ws = XLSX.utils.json_to_sheet(vRows);
+      const sheetName = v.replace(/[/\?%*:|"<>]/g, "_").slice(0, 30);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    XLSX.writeFile(wb, "Master_Venue_Nominal_Roll.xlsx");
   };
 
-  // Batch download all PDFs in a single ZIP
-  const downloadAllAsZip = async () => {
-    const comboKeys = Object.keys(comboGroups);
-    if (comboKeys.length === 0) return;
-
-    setStatus('Creating ZIP archive...', 'normal');
+  // EXPORT: ZIP Archive with individual Venue PDFs
+  const exportZipBundle = async () => {
     const zip = new JSZip();
 
-    try {
-      comboKeys.forEach((comboKey) => {
-        const group = comboGroups[comboKey];
-        const doc = generateVenuePDF(group.programme, group.venue, group.students);
-        
-        // Output PDF to Blob
-        const pdfBlob = doc.output('blob');
-        const safeProg = String(group.programme).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
-        const safeVenue = String(group.venue).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
-        zip.file(`${safeProg}_${safeVenue}.pdf`, pdfBlob);
+    venueList.forEach(vName => {
+      const vDoc = new jsPDF("p", "mm", "a4");
+      const vRows = venueGroups[vName] || [];
+
+      vDoc.setFontSize(13);
+      vDoc.setFont("helvetica", "bold");
+      vDoc.text(examTitle, 105, 15, { align: "center" });
+
+      vDoc.setFontSize(9.5);
+      vDoc.setFont("helvetica", "normal");
+      vDoc.text(subTitle, 105, 21, { align: "center" });
+
+      vDoc.setDrawColor(200, 200, 200);
+      vDoc.setFillColor(245, 247, 250);
+      vDoc.roundedRect(14, 25, 182, 14, 2, 2, "FD");
+
+      vDoc.setFontSize(9.5);
+      vDoc.setFont("helvetica", "bold");
+      vDoc.text(`Venue: ${vName}`, 18, 31);
+      vDoc.setFont("helvetica", "normal");
+      vDoc.text(`Candidate Count: ${vRows.length}`, 18, 36);
+
+      const tableData = vRows.map((r, idx) => [
+        idx + 1,
+        String(r[regNoCol] || ""),
+        String(r[nameCol] || ""),
+        String(r[courseCodeCol] || ""),
+        String(r[courseTitleCol] || ""),
+        String(r[sessionCol] || ""),
+        ""
+      ]);
+
+      vDoc.autoTable({
+        startY: 42,
+        head: [["#", "Register No", "Candidate Name", "Course", "Title", "Session", "Signature"]],
+        body: tableData,
+        theme: "grid",
+        headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5 },
+        bodyStyles: { fontSize: 8, cellPadding: 2.5 }
       });
 
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const downloadUrl = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `Nominal_Rolls_by_Programme_Venue.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
+      const pdfBlob = vDoc.output("blob");
+      const fileName = `Nominal_Roll_${vName.replace(/[/\\?%*:|"<>]/g, "_")}.pdf`;
+      zip.file(fileName, pdfBlob);
+    });
 
-      setStatus(`ZIP archive downloaded successfully!`, 'success');
-    } catch (err) {
-      setStatus(`Failed to generate ZIP: ${err.message}`, 'error');
-    }
-  };
-
-  // Header Rich Text Editor Helper Actions
-  const updateHeaderLine = (index, key, value) => {
-    const updated = [...headerLines];
-    updated[index][key] = value;
-    setHeaderLines(updated);
-  };
-
-  const addHeaderLine = () => {
-    const lastLine = headerLines[headerLines.length - 1];
-    const newY = lastLine ? lastLine.yOffset + 18 : 40;
-    setHeaderLines([...headerLines, { text: '', fontSize: 10, isBold: false, align: 'center', yOffset: newY }]);
-  };
-
-  const removeHeaderLine = (index) => {
-    const updated = headerLines.filter((_, idx) => idx !== index);
-    setHeaderLines(updated);
-  };
-
-  // Table Column Editor Actions
-  const updateTableCol = (index, key, value) => {
-    const updated = [...tableColumns];
-    updated[index][key] = value;
-    setTableColumns(updated);
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Venue_Nominal_Rolls_Bundle.zip";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto', overflowY: 'auto', width: '100%', minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)' }}>
-      {/* Navigation Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <Link to="/" style={{ textDecoration: 'none', color: 'var(--accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          ← Back to Portal
-        </Link>
-        
-        {/* Status Pill */}
-        <div style={{
-          padding: '6px 14px',
-          borderRadius: '20px',
-          fontSize: '13px',
-          fontWeight: 600,
-          background: statusType === 'error' ? 'var(--danger)' : statusType === 'success' ? 'var(--accent-soft)' : 'var(--panel)',
-          color: statusType === 'error' ? 'white' : statusType === 'success' ? 'var(--accent)' : 'var(--muted)',
-          border: '1px solid var(--line)'
-        }}>
-          {statusMsg}
+    <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "24px 20px 80px", fontFamily: "var(--font-family)" }}>
+      
+      {/* Top Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "16px" }}>
+        <div>
+          <Link to="/" style={{ textDecoration: "none", color: "var(--accent)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13.5px", marginBottom: "6px" }}>
+            ← Back to Portal
+          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ background: "var(--accent)", color: "white", padding: "10px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Building2 size={24} />
+            </div>
+            <div>
+              <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 800 }}>Venue-Wise Nominal Roll Generator</h1>
+              <p style={{ margin: "4px 0 0 0", color: "var(--muted)", fontSize: "13.5px" }}>
+                Generate venue-partitioned candidate nominal rolls, attendance signature sheets, and batch exports.
+              </p>
+            </div>
+          </div>
         </div>
+
+        <button 
+          onClick={loadSample}
+          className="button secondary"
+          style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", padding: "8px 16px" }}
+        >
+          <Sparkles size={15} /> Load Sample Data
+        </button>
       </div>
 
-      <h2>Venue-Wise Nominal Roll</h2>
-      <p className="subtitle">Compile nominal roll lists grouped by unique combinations of Programme + Venue. Seat numbers with multiple subjects are automatically merged.</p>
-<p className="subtitle" style={{ marginTop: '8px', color: 'var(--muted)' }}>Upload one or more <strong>Event wise Pre exam data</strong> files (Excel <code>.xlsx</code>, <code>.xls</code>, <code>.xlsm</code>, <code>.csv</code>) or a <code>.zip</code> containing multiple Excel files. If a ZIP is uploaded, all Excel files will be merged before processing.</p>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '32px', marginBottom: '32px' }}>
-        {/* Settings Panel */}
-        <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', margin: 0 }}>
-          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={20} /> Settings</h3>
-          
-          {/* File Picker */}
-          <div style={{ border: '1px dashed var(--line)', padding: '24px', borderRadius: '8px', background: 'var(--bg)', textAlign: 'center', position: 'relative' }}>
-            <strong style={{ display: 'block', marginBottom: '8px' }}>Select Nominal Roll Excel</strong>
-            {selectedFile ? (
-              <div style={{ color: 'var(--accent)', fontWeight: 600 }}>📄 {selectedFile.name}</div>
-            ) : (
-              <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Drag here or click to browse</span>
-            )}
-            <input 
-              type="file" 
-              accept=".xlsx, .xls, .xlsm, .csv, .zip" 
-              onChange={handleFileChange} 
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                opacity: 0,
-                cursor: 'pointer',
-                width: '100%'
-              }} 
-            />
-          </div>
-
-          {/* Configuration Form */}
-          <div className="form-group">
-            <label>Select Sheet</label>
-            <select 
-              value={selectedSheet} 
-              onChange={(e) => setSelectedSheet(e.target.value)} 
-              disabled={sheetNames.length === 0}
-            >
-              {sheetNames.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Column Mappings */}
-          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)' }}>
-            <strong style={{ fontSize: '13px', display: 'block', marginBottom: '12px' }}>Excel Column Mappings</strong>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px' }}>
-              <div className="form-group">
-                <label>Programme Column (A)</label>
-                <select 
-                  value={columnMapping.programme} 
-                  onChange={(e) => setColumnMapping({ ...columnMapping, programme: parseInt(e.target.value) })}
-                  disabled={headers.length === 0}
-                >
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Venue Code Column</label>
-                <select 
-                  value={columnMapping.venueCode} 
-                  onChange={(e) => setColumnMapping({ ...columnMapping, venueCode: parseInt(e.target.value) })}
-                  disabled={headers.length === 0}
-                >
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Venue Name Column</label>
-                <select 
-                  value={columnMapping.venueName} 
-                  onChange={(e) => setColumnMapping({ ...columnMapping, venueName: parseInt(e.target.value) })}
-                  disabled={headers.length === 0}
-                >
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Seat No / Reg No (D)</label>
-                <select 
-                  value={columnMapping.seatNo} 
-                  onChange={(e) => setColumnMapping({ ...columnMapping, seatNo: parseInt(e.target.value) })}
-                  disabled={headers.length === 0}
-                >
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Student Name (C)</label>
-                <select 
-                  value={columnMapping.name} 
-                  onChange={(e) => setColumnMapping({ ...columnMapping, name: parseInt(e.target.value) })}
-                  disabled={headers.length === 0}
-                >
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Course Code (G)</label>
-                <select 
-                  value={columnMapping.courseCode} 
-                  onChange={(e) => setColumnMapping({ ...columnMapping, courseCode: parseInt(e.target.value) })}
-                  disabled={headers.length === 0}
-                >
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Course Title (H)</label>
-                <select 
-                  value={columnMapping.courseTitle} 
-                  onChange={(e) => setColumnMapping({ ...columnMapping, courseTitle: parseInt(e.target.value) })}
-                  disabled={headers.length === 0}
-                >
-                  {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i+1})</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Structured PDF Header Rich Text Style Manager */}
-          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: '13px' }}>PDF Header Layout Editor</strong>
-              <button 
-                onClick={addHeaderLine} 
-                className="secondary" 
-                style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <Plus size={12} /> Add Line
-              </button>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {headerLines.map((line, idx) => (
-                <div key={idx} style={{ borderBottom: '1px solid var(--line)', paddingBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--muted)', width: '45px' }}>Line {idx+1}</span>
-                    <input 
-                      type="text" 
-                      value={line.text} 
-                      onChange={(e) => updateHeaderLine(idx, 'text', e.target.value)} 
-                      placeholder={`Header Line Text ${idx+1}`}
-                      style={{ flex: 1, padding: '6px' }}
-                    />
-                    <button 
-                      onClick={() => removeHeaderLine(idx)} 
-                      style={{ padding: '6px', background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}
-                      disabled={headerLines.length <= 1}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-
-                  {/* Inline formatting controls */}
-                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', paddingLeft: '53px' }}>
-                    {/* Size selector */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Size:</span>
-                      <input 
-                        type="number" 
-                        value={line.fontSize} 
-                        onChange={(e) => updateHeaderLine(idx, 'fontSize', parseInt(e.target.value) || 10)} 
-                        style={{ width: '45px', padding: '3px 4px', fontSize: '11px' }}
-                        min="6"
-                        max="32"
-                      />
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>pt</span>
-                    </div>
-
-                    {/* Bold Toggle */}
-                    <button
-                      onClick={() => updateHeaderLine(idx, 'isBold', !line.isBold)}
-                      style={{
-                        padding: '4px 8px',
-                        background: line.isBold ? 'var(--accent)' : 'var(--panel)',
-                        color: line.isBold ? 'white' : 'var(--ink)',
-                        border: '1px solid var(--line)',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '2px',
-                        fontSize: '11px'
-                      }}
-                    >
-                      <Bold size={11} /> {line.isBold ? 'Bold' : 'Normal'}
-                    </button>
-
-                    {/* Alignment */}
-                    <div style={{ display: 'flex', gap: '2px', border: '1px solid var(--line)', borderRadius: '4px', overflow: 'hidden' }}>
-                      <button
-                        onClick={() => updateHeaderLine(idx, 'align', 'left')}
-                        style={{ padding: '4px 8px', background: line.align === 'left' ? 'var(--accent)' : 'var(--panel)', color: line.align === 'left' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
-                      >
-                        <AlignLeft size={11} />
-                      </button>
-                      <button
-                        onClick={() => updateHeaderLine(idx, 'align', 'center')}
-                        style={{ padding: '4px 8px', background: line.align === 'center' ? 'var(--accent)' : 'var(--panel)', color: line.align === 'center' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
-                      >
-                        <AlignCenter size={11} />
-                      </button>
-                      <button
-                        onClick={() => updateHeaderLine(idx, 'align', 'right')}
-                        style={{ padding: '4px 8px', background: line.align === 'right' ? 'var(--accent)' : 'var(--panel)', color: line.align === 'right' ? 'white' : 'white', border: 'none', cursor: 'pointer' }}
-                      >
-                        <AlignRight size={11} />
-                      </button>
-                    </div>
-
-                    {/* Vertical Position Offset slider */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Pos-Y:</span>
-                      <input 
-                        type="range" 
-                        value={line.yOffset} 
-                        onChange={(e) => updateHeaderLine(idx, 'yOffset', parseInt(e.target.value))} 
-                        min="20"
-                        max="140"
-                        style={{ flex: 1, height: '4px', cursor: 'pointer' }}
-                      />
-                      <span style={{ fontSize: '11px', color: 'var(--muted)', width: '25px', textAlign: 'right' }}>{line.yOffset}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Table Grid Columns Rich Text Editor */}
-          <div style={{ border: '1px solid var(--line)', padding: '16px', borderRadius: '8px', background: 'var(--bg)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <strong style={{ fontSize: '13px' }}>Table Column & Layout Editor</strong>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {tableColumns.map((col, idx) => (
-                <div key={col.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--muted)', width: '60px' }}>Col {idx+1}:</span>
-                    <input 
-                      type="text" 
-                      value={col.label} 
-                      onChange={(e) => updateTableCol(idx, 'label', e.target.value)} 
-                      placeholder="Header Label"
-                      style={{ flex: 2, padding: '6px', fontSize: '11px' }}
-                    />
-                    
-                    {/* Width setting */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                      <span style={{ fontSize: '10px', color: 'var(--muted)' }}>Width:</span>
-                      <input 
-                        type="number" 
-                        value={col.width} 
-                        onChange={(e) => updateTableCol(idx, 'width', parseInt(e.target.value) || 20)} 
-                        style={{ width: '45px', padding: '4px', fontSize: '11px' }}
-                        min="10"
-                        max="300"
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', paddingLeft: '68px' }}>
-                    {/* Font size */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '10px', color: 'var(--muted)' }}>Font Size:</span>
-                      <input 
-                        type="number" 
-                        value={col.fontSize} 
-                        onChange={(e) => updateTableCol(idx, 'fontSize', parseFloat(e.target.value) || 8)} 
-                        style={{ width: '45px', padding: '3px 4px', fontSize: '11px' }}
-                        step="0.5"
-                        min="6"
-                        max="16"
-                      />
-                      <span style={{ fontSize: '10px', color: 'var(--muted)' }}>pt</span>
-                    </div>
-
-                    {/* Alignment */}
-                    <div style={{ display: 'flex', gap: '2px', border: '1px solid var(--line)', borderRadius: '4px', overflow: 'hidden' }}>
-                      <button
-                        onClick={() => updateTableCol(idx, 'align', 'left')}
-                        style={{ padding: '3px 6px', background: col.align === 'left' ? 'var(--accent)' : 'var(--panel)', color: col.align === 'left' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
-                      >
-                        <AlignLeft size={10} />
-                      </button>
-                      <button
-                        onClick={() => updateTableCol(idx, 'align', 'center')}
-                        style={{ padding: '3px 6px', background: col.align === 'center' ? 'var(--accent)' : 'var(--panel)', color: col.align === 'center' ? 'white' : 'var(--ink)', border: 'none', cursor: 'pointer' }}
-                      >
-                        <AlignCenter size={10} />
-                      </button>
-                      <button
-                        onClick={() => updateTableCol(idx, 'align', 'right')}
-                        style={{ padding: '3px 6px', background: col.align === 'right' ? 'var(--accent)' : 'var(--panel)', color: col.align === 'right' ? 'white' : 'white', border: 'none', cursor: 'pointer' }}
-                      >
-                        <AlignRight size={10} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button 
-            onClick={processNominalRoll} 
-            disabled={isProcessing || !workbook} 
-            style={{ width: '100%', padding: '14px', fontSize: '15px' }}
+      {/* 4-Step Stepper Header */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "28px" }}>
+        {[
+          { step: 1, label: "1. Upload Data", icon: <Upload size={16} />, active: currentStep === 1, done: rows.length > 0 },
+          { step: 2, label: "2. Column Mapping", icon: <Settings2 size={16} />, active: currentStep === 2, done: !!(venueCol && regNoCol && nameCol) },
+          { step: 3, label: "3. Venue Preview", icon: <Eye size={16} />, active: currentStep === 3, done: currentStep > 3 },
+          { step: 4, label: "4. Export Studio", icon: <Download size={16} />, active: currentStep === 4, done: false }
+        ].map(s => (
+          <div
+            key={s.step}
+            onClick={() => rows.length > 0 && setCurrentStep(s.step)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px 14px",
+              borderRadius: "10px",
+              background: s.active ? "var(--accent)" : "var(--panel)",
+              color: s.active ? "white" : s.done ? "var(--ink)" : "var(--muted)",
+              border: s.active ? "1.5px solid var(--accent)" : "1px solid var(--line)",
+              cursor: rows.length > 0 ? "pointer" : "default",
+              fontWeight: 700,
+              fontSize: "13px",
+              transition: "all 0.15s ease"
+            }}
           >
-            {isProcessing ? "Processing Data..." : "Run Split & Layout Process"}
-          </button>
-        </div>
-
-        {/* Live Preview Panel */}
-        <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', margin: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Eye size={20} /> Live Preview</h3>
-            {Object.keys(comboGroups).length > 0 && (
-              <button 
-                onClick={downloadAllAsZip} 
-                className="secondary" 
-                style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', borderColor: 'var(--accent)', color: 'var(--accent)' }}
-              >
-                <Download size={16} /> Download All (ZIP)
-              </button>
-            )}
+            {s.done && !s.active ? <CheckCircle2 size={16} color="#10b981" /> : s.icon}
+            <span>{s.label}</span>
           </div>
+        ))}
+      </div>
 
-          {Object.keys(comboGroups).length > 0 ? (
-            <>
-              {/* Tab Selector */}
-              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '1px solid var(--line)' }}>
-                {Object.keys(comboGroups).map((comboKey) => (
-                  <button
-                    key={comboKey}
-                    onClick={() => setActiveComboTab(comboKey)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--line)',
-                      background: activeComboTab === comboKey ? 'var(--accent)' : 'var(--panel)',
-                      color: activeComboTab === comboKey ? 'white' : 'var(--ink)',
-                      whiteSpace: 'nowrap',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      fontWeight: activeComboTab === comboKey ? 600 : 400
-                    }}
-                  >
-                    {comboKey} ({comboGroups[comboKey].students.length} Studs)
-                  </button>
-                ))}
+      {/* STEP 1: UPLOAD DATA */}
+      {currentStep === 1 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          
+          <div className="card" style={{ padding: "28px" }}>
+            <div style={{ border: "2px dashed var(--line)", borderRadius: "12px", padding: "36px", textAlign: "center", background: "var(--bg)" }}>
+              <Upload size={36} color="var(--accent)" style={{ margin: "0 auto 12px", opacity: 0.8 }} />
+              <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "6px" }}>
+                {fileName ? fileName : "Upload Nominal Roll Spreadsheet (.xlsx, .xls, .csv, .zip)"}
               </div>
+              <p style={{ color: "var(--muted)", fontSize: "13px", margin: "0 0 18px 0" }}>
+                Supports university exam rosters, multi-file collections, and auto-extracting ZIP archives
+              </p>
+              <label className="button" style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "10px 22px", fontSize: "14px" }}>
+                Browse File
+                <input type="file" accept=".xlsx, .xls, .csv, .zip" onChange={handleFileUpload} style={{ display: "none" }} />
+              </label>
+            </div>
 
-              {/* Active Venue Layout Preview */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h4 style={{ margin: 0, color: 'var(--accent)' }}>{comboGroups[activeComboTab].programme}</h4>
-                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Venue: {comboGroups[activeComboTab].venue}</span>
-                  </div>
-                  <button 
-                    onClick={() => downloadSinglePDF(activeComboTab)} 
-                    style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <FileText size={14} /> Download PDF
-                  </button>
+            {columns.length > 0 && (
+              <div style={{ marginTop: "24px" }}>
+                <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", marginBottom: "10px" }}>
+                  Detected Columns ({columns.length})
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "20px" }}>
+                  {columns.map(c => (
+                    <span key={c} style={{ fontSize: "12px", background: "var(--bg)", border: "1px solid var(--line)", padding: "4px 10px", borderRadius: "6px", fontWeight: 600 }}>
+                      {c}
+                    </span>
+                  ))}
                 </div>
 
-                {/* Simulated Sheet Table Grid */}
-                <div style={{ flex: 1, overflowY: 'auto', maxHeight: '400px', border: '1px solid var(--line)', borderRadius: '6px' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left', background: 'var(--bg)' }}>
+                <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", marginBottom: "10px" }}>
+                  Data Preview (First 5 Rows)
+                </div>
+                <div style={{ overflowX: "auto", border: "1px solid var(--line)", borderRadius: "8px", maxHeight: "200px" }}>
+                  <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}>
                     <thead>
-                      <tr style={{ background: 'var(--panel)', borderBottom: '2px solid var(--line)', color: 'var(--ink)' }}>
-                        {tableColumns.map((col, idx) => (
-                          <th 
-                            key={col.id}
-                            style={{ 
-                              padding: '10px 8px', 
-                              borderRight: idx < tableColumns.length - 1 ? '1px solid var(--line)' : 'none', 
-                              textAlign: col.align, 
-                              width: `${col.width}px` 
-                            }}
-                          >
-                            {col.label}
-                          </th>
-                        ))}
+                      <tr style={{ background: "var(--bg)", borderBottom: "1px solid var(--line)" }}>
+                        {columns.slice(0, 6).map(c => <th key={c} style={{ padding: "8px 10px", textAlign: "left" }}>{c}</th>)}
                       </tr>
                     </thead>
                     <tbody>
-                      {comboGroups[activeComboTab].students.map((student, sIdx) => {
-                        return student.courses.map((course, cIdx) => {
-                          const isFirst = cIdx === 0;
-                          return (
-                            <tr key={`${sIdx}-${cIdx}`} style={{ borderBottom: '1px solid var(--line)' }}>
-                              {isFirst ? (
-                                <>
-                                  <td 
-                                    rowSpan={student.courses.length} 
-                                    style={{ 
-                                      padding: '8px', 
-                                      borderRight: '1px solid var(--line)', 
-                                      textAlign: tableColumns[0].align, 
-                                      verticalAlign: 'middle', 
-                                      background: 'rgba(255,255,255,0.01)',
-                                      fontSize: `${tableColumns[0].fontSize}px`
-                                    }}
-                                  >
-                                    {sIdx + 1}
-                                  </td>
-                                  <td 
-                                    rowSpan={student.courses.length} 
-                                    style={{ 
-                                      padding: '8px', 
-                                      borderRight: '1px solid var(--line)', 
-                                      textAlign: tableColumns[1].align, 
-                                      verticalAlign: 'middle', 
-                                      fontWeight: 600,
-                                      fontSize: `${tableColumns[1].fontSize}px`
-                                    }}
-                                  >
-                                    {student.seatNo}
-                                  </td>
-                                  <td 
-                                    rowSpan={student.courses.length} 
-                                    style={{ 
-                                      padding: '8px', 
-                                      borderRight: '1px solid var(--line)', 
-                                      verticalAlign: 'middle',
-                                      textAlign: tableColumns[2].align,
-                                      fontSize: `${tableColumns[2].fontSize}px`
-                                    }}
-                                  >
-                                    {student.name}
-                                  </td>
-                                </>
-                              ) : null}
-                              <td 
-                                style={{ 
-                                  padding: '8px', 
-                                  borderRight: '1px solid var(--line)', 
-                                  color: 'var(--ink)',
-                                  textAlign: tableColumns[3].align,
-                                  fontSize: `${tableColumns[3].fontSize}px`
-                                }}
-                              >
-                                <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{course.code}</span>
-                                {course.code && course.title ? ' - ' : ''}
-                                <span>{course.title}</span>
-                              </td>
-                              {isFirst ? (
-                                <td 
-                                  rowSpan={student.courses.length} 
-                                  style={{ 
-                                    padding: '8px', 
-                                    verticalAlign: 'middle',
-                                    textAlign: tableColumns[4].align,
-                                    fontSize: `${tableColumns[4].fontSize}px`
-                                  }}
-                                >
-                                  {/* Remark Column */}
-                                </td>
-                              ) : null}
-                            </tr>
-                          );
-                        });
-                      })}
+                      {rows.slice(0, 5).map((r, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid var(--line)" }}>
+                          {columns.slice(0, 6).map(c => <td key={c} style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{String(r[c] || "")}</td>)}
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
               </div>
-            </>
-          ) : (
-            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--line)', borderRadius: '8px', padding: '60px', color: 'var(--muted)', fontSize: '14px', textAlign: 'center' }}>
-              No split run processed yet. Upload your nominal roll Excel sheet, review your column mappings, and click "Run Split & Layout Process".
+            )}
+          </div>
+
+          {rows.length > 0 && (
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button 
+                onClick={() => setCurrentStep(2)}
+                style={{ padding: "12px 28px", fontSize: "14px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                Proceed to Column Mapping →
+              </button>
             </div>
           )}
+
         </div>
-      </div>
+      )}
+
+      {/* STEP 2: COLUMN MAPPING */}
+      {currentStep === 2 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="card" style={{ padding: "28px" }}>
+            <h3 style={{ margin: "0 0 6px 0", fontSize: "18px", fontWeight: 800 }}>Map Dataset Attributes</h3>
+            <p style={{ margin: "0 0 20px 0", color: "var(--muted)", fontSize: "13.5px" }}>
+              Confirm which columns correspond to the venue, candidate register number, student name, and course details.
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "18px" }}>
+              
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+                  Venue / Center Column <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <select value={venueCol} onChange={(e) => setVenueCol(e.target.value)} style={{ width: "100%", padding: "10px", fontSize: "13.5px" }}>
+                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+                  Register No / Candidate ID <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <select value={regNoCol} onChange={(e) => setRegNoCol(e.target.value)} style={{ width: "100%", padding: "10px", fontSize: "13.5px" }}>
+                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+                  Candidate / Student Name <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <select value={nameCol} onChange={(e) => setNameCol(e.target.value)} style={{ width: "100%", padding: "10px", fontSize: "13.5px" }}>
+                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+                  Course / Subject Code
+                </label>
+                <select value={courseCodeCol} onChange={(e) => setCourseCodeCol(e.target.value)} style={{ width: "100%", padding: "10px", fontSize: "13.5px" }}>
+                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+                  Course Title / Name (Optional)
+                </label>
+                <select value={courseTitleCol} onChange={(e) => setCourseTitleCol(e.target.value)} style={{ width: "100%", padding: "10px", fontSize: "13.5px" }}>
+                  <option value="">-- None / Blank --</option>
+                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, marginBottom: "6px" }}>
+                  Exam Session / Date (Optional)
+                </label>
+                <select value={sessionCol} onChange={(e) => setSessionCol(e.target.value)} style={{ width: "100%", padding: "10px", fontSize: "13.5px" }}>
+                  <option value="">-- None / Blank --</option>
+                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <button className="secondary" onClick={() => setCurrentStep(1)}>
+              ← Back to Upload
+            </button>
+            <button onClick={() => setCurrentStep(3)} style={{ padding: "12px 28px", fontSize: "14px", fontWeight: 700 }}>
+              Proceed to Venue Selection & Preview →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 3: VENUE SELECTION & PREVIEW */}
+      {currentStep === 3 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          
+          {/* KPI Cards Row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+            <div className="card" style={{ padding: "20px", display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{ background: "rgba(23, 107, 135, 0.12)", color: "var(--accent)", padding: "12px", borderRadius: "10px" }}>
+                <Building2 size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: 600 }}>Total Venues</div>
+                <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--ink)" }}>{venueList.length}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "20px", display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{ background: "rgba(16, 185, 129, 0.12)", color: "#10b981", padding: "12px", borderRadius: "10px" }}>
+                <Users size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: 600 }}>Total Candidates</div>
+                <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--ink)" }}>{rows.length}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "20px", display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{ background: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6", padding: "12px", borderRadius: "10px" }}>
+                <BookOpen size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: 600 }}>Total Courses</div>
+                <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--ink)" }}>{courseCount}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "20px", display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{ background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b", padding: "12px", borderRadius: "10px" }}>
+                <GraduationCap size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: 600 }}>Active Venue Candidates</div>
+                <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--ink)" }}>{displayedRows.length}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter & Venue Selector Card */}
+          <div className="card" style={{ padding: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", marginBottom: "20px" }}>
+              
+              {/* Venue Dropdown */}
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: "280px" }}>
+                <span style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap" }}>
+                  Filter Venue:
+                </span>
+                <select 
+                  value={selectedVenue} 
+                  onChange={(e) => setSelectedVenue(e.target.value)}
+                  style={{ flex: 1, padding: "9px 14px", borderRadius: "8px", fontSize: "13.5px", fontWeight: 600 }}
+                >
+                  <option value="all">🌟 All Venues / Centers ({venueList.length})</option>
+                  {venueList.map(v => (
+                    <option key={v} value={v}>
+                      🏛️ {v} ({(venueGroups[v] || []).length} Candidates)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Search Box */}
+              <div style={{ position: "relative", minWidth: "240px" }}>
+                <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+                <input 
+                  type="text" 
+                  placeholder="Search candidate, reg no..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: "100%", paddingLeft: "36px", fontSize: "13px" }}
+                />
+              </div>
+
+            </div>
+
+            {/* Candidate Table Grid */}
+            <div style={{ overflowX: "auto", maxHeight: "450px", border: "1px solid var(--line)", borderRadius: "8px" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+                <thead>
+                  <tr style={{ background: "var(--bg)", borderBottom: "2px solid var(--line)", position: "sticky", top: 0 }}>
+                    <th style={{ padding: "10px 12px", width: "40px", textAlign: "center" }}>#</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left" }}>Register No</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left" }}>Candidate Name</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left" }}>Course Code & Title</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left" }}>Venue / Center</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center" }}>Session</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedRows.length > 0 ? (
+                    displayedRows.map((r, idx) => (
+                      <tr key={idx} style={{ borderBottom: "1px solid var(--line)" }}>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)" }}>{idx + 1}</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 700, color: "var(--accent)" }}>{String(r[regNoCol] || "")}</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 600 }}>{String(r[nameCol] || "")}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div><strong>{String(r[courseCodeCol] || "")}</strong></div>
+                          {courseTitleCol && <div style={{ fontSize: "11px", color: "var(--muted)" }}>{String(r[courseTitleCol] || "")}</div>}
+                        </td>
+                        <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{String(r[venueCol] || "")}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                          <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "10px", background: "var(--bg)", border: "1px solid var(--line)", fontWeight: 600 }}>
+                            {String(r[sessionCol] || "FN")}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: "center", padding: "30px", color: "var(--muted)" }}>
+                        No records match the current filter and search query.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <button className="secondary" onClick={() => setCurrentStep(2)}>
+              ← Back to Mapping
+            </button>
+            <button onClick={() => setCurrentStep(4)} style={{ padding: "12px 28px", fontSize: "14px", fontWeight: 700 }}>
+              Proceed to Export Studio →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 4: EXPORT STUDIO */}
+      {currentStep === 4 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          
+          {/* Header Title Config */}
+          <div className="card" style={{ padding: "24px" }}>
+            <h3 style={{ margin: "0 0 14px 0", fontSize: "17px", fontWeight: 800 }}>Document Header Customization</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, marginBottom: "4px" }}>Institution / University Header:</label>
+                <input type="text" value={examTitle} onChange={(e) => setExamTitle(e.target.value)} style={{ width: "100%", fontSize: "13px" }} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, marginBottom: "4px" }}>Report Subtitle / Heading:</label>
+                <input type="text" value={subTitle} onChange={(e) => setSubTitle(e.target.value)} style={{ width: "100%", fontSize: "13px" }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Export Options Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "20px" }}>
+            
+            {/* Consolidated PDF */}
+            <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", justifyContent: "space-between", border: "1.5px solid var(--accent)" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <div style={{ background: "var(--accent)", color: "white", padding: "8px", borderRadius: "8px" }}>
+                    <FileText size={20} />
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800 }}>Master PDF Nominal Roll</h3>
+                </div>
+                <p style={{ color: "var(--muted)", fontSize: "13px", lineHeight: "1.4" }}>
+                  Generates an all-in-one PDF document with a dedicated nominal roll page and candidate signature box for every venue.
+                </p>
+              </div>
+              <button onClick={() => exportPdf()} style={{ width: "100%", padding: "10px", fontSize: "13.5px", fontWeight: 700, marginTop: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                <Download size={16} /> Download Master PDF
+              </button>
+            </div>
+
+            {/* Master Excel */}
+            <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <div style={{ background: "rgba(16, 185, 129, 0.12)", color: "#10b981", padding: "8px", borderRadius: "8px" }}>
+                    <FileSpreadsheet size={20} />
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800 }}>Multi-Sheet Excel (.xlsx)</h3>
+                </div>
+                <p style={{ color: "var(--muted)", fontSize: "13px", lineHeight: "1.4" }}>
+                  Generates a master Excel workbook containing a Summary dashboard sheet and a separate tab for each venue.
+                </p>
+              </div>
+              <button onClick={exportMasterExcel} className="secondary" style={{ width: "100%", padding: "10px", fontSize: "13.5px", fontWeight: 700, marginTop: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                <FileSpreadsheet size={16} /> Download Master Excel
+              </button>
+            </div>
+
+            {/* ZIP Bundle */}
+            <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <div style={{ background: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6", padding: "8px", borderRadius: "8px" }}>
+                    <FileArchive size={20} />
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800 }}>Individual Venue PDFs (.zip)</h3>
+                </div>
+                <p style={{ color: "var(--muted)", fontSize: "13px", lineHeight: "1.4" }}>
+                  Packages separate PDF nominal roll documents for each venue bundled neatly into a single ZIP archive.
+                </p>
+              </div>
+              <button onClick={exportZipBundle} className="secondary" style={{ width: "100%", padding: "10px", fontSize: "13.5px", fontWeight: 700, marginTop: "16px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                <FileArchive size={16} /> Download ZIP Bundle
+              </button>
+            </div>
+
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
+            <button className="secondary" onClick={() => setCurrentStep(3)}>
+              ← Back to Venue Preview
+            </button>
+            <button 
+              className="secondary" 
+              onClick={() => {
+                setCurrentStep(1);
+                setRows([]);
+              }}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              <RotateCcw size={15} /> Start New Nominal Roll
+            </button>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 };
