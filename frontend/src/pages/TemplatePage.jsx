@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
@@ -16,17 +16,36 @@ import {
   Sparkles, 
   Layers, 
   ChevronLeft, 
-  ChevronRight
+  ChevronRight,
+  Plus,
+  Trash2,
+  Image as ImageIcon,
+  Bold,
+  Italic,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { logoBase64 } from '../assets/logoBase64';
 import { TEMPLATE_ARCHETYPES, autoDetectDatasetColumns, suggestArchetype } from '../utils/templateEngine';
 
+const hexToRgb = (hex) => {
+  let c = hex.replace(/^#/, '');
+  if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  const num = parseInt(c, 16);
+  if (isNaN(num)) return [0, 0, 0];
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+};
+
 const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) => {
   const { user } = useAuth();
+  const fileInputRef = useRef(null);
   
-  // Selected Archetype / Mode: 'NOMINAL_ROLL' | 'QP_STATEMENT' | 'QP_COVER_LABEL' | 'CUSTOM_TABULAR'
+  // Selected Archetype
   const [activeArchetype, setActiveArchetype] = useState(() => {
     if (initialTemplate?.archetype) return initialTemplate.archetype;
     if (dataset?.columns?.length > 0) {
@@ -39,10 +58,10 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
   // Archetype Configurations
   const [archetypeConfigs, setArchetypeConfigs] = useState(() => {
     return {
-      NOMINAL_ROLL: { ...TEMPLATE_ARCHETYPES.NOMINAL_ROLL.defaultConfig },
-      QP_STATEMENT: { ...TEMPLATE_ARCHETYPES.QP_STATEMENT.defaultConfig },
-      QP_COVER_LABEL: { ...TEMPLATE_ARCHETYPES.QP_COVER_LABEL.defaultConfig },
-      CUSTOM_TABULAR: { ...TEMPLATE_ARCHETYPES.CUSTOM_TABULAR.defaultConfig }
+      NOMINAL_ROLL: JSON.parse(JSON.stringify(TEMPLATE_ARCHETYPES.NOMINAL_ROLL.defaultConfig)),
+      QP_STATEMENT: JSON.parse(JSON.stringify(TEMPLATE_ARCHETYPES.QP_STATEMENT.defaultConfig)),
+      QP_COVER_LABEL: JSON.parse(JSON.stringify(TEMPLATE_ARCHETYPES.QP_COVER_LABEL.defaultConfig)),
+      CUSTOM_TABULAR: JSON.parse(JSON.stringify(TEMPLATE_ARCHETYPES.CUSTOM_TABULAR.defaultConfig))
     };
   });
 
@@ -52,8 +71,10 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
   const [isSidebarOpen, _setIsSidebarOpen] = useState(true);
   const [templateName, setTemplateName] = useState(initialTemplate?.name || 'My Custom University Report');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [_statusMsg, setStatusMsg] = useState('Ready');
   const [activePreviewIndex, setActivePreviewIndex] = useState(0);
+
+  // Active Tool Tab: 'headers' | 'data' | 'page' | 'styling'
+  const [activeToolTab, setActiveToolTab] = useState('headers');
 
   // Update column detection when dataset changes
   useEffect(() => {
@@ -65,12 +86,15 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       if (detected.session && dataset.rows?.length > 0) {
         const sampleSess = dataset.rows.find(r => r[detected.session])?.[detected.session];
         if (sampleSess && typeof sampleSess === 'string' && sampleSess.trim()) {
-          setArchetypeConfigs(prev => ({
-            ...prev,
-            NOMINAL_ROLL: { ...prev.NOMINAL_ROLL, sessionName: sampleSess.trim() },
-            QP_STATEMENT: { ...prev.QP_STATEMENT, sessionName: sampleSess.trim() },
-            QP_COVER_LABEL: { ...prev.QP_COVER_LABEL, examTitle: `Fourth Semester Degree (Private Registration) Regular Examinations ${sampleSess.trim()}` }
-          }));
+          setArchetypeConfigs(prev => {
+            const copy = JSON.parse(JSON.stringify(prev));
+            ['NOMINAL_ROLL', 'QP_STATEMENT'].forEach(arch => {
+              if (copy[arch]?.headersList?.length >= 4) {
+                copy[arch].headersList[3].text = sampleSess.trim();
+              }
+            });
+            return copy;
+          });
         }
       }
     }
@@ -107,6 +131,60 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         ...updates
       }
     }));
+  };
+
+  // Header Management Helpers
+  const addHeaderLine = () => {
+    const newHeader = {
+      id: `h_${Date.now()}`,
+      text: 'New Header Line',
+      size: 11,
+      bold: true,
+      italic: false,
+      align: 'center',
+      color: '#000000',
+      font: 'helvetica'
+    };
+    updateCurrentConfig({
+      headersList: [...(currentConfig.headersList || []), newHeader]
+    });
+  };
+
+  const updateHeaderLine = (id, updates) => {
+    const list = (currentConfig.headersList || []).map(h => h.id === id ? { ...h, ...updates } : h);
+    updateCurrentConfig({ headersList: list });
+  };
+
+  const removeHeaderLine = (id) => {
+    const list = (currentConfig.headersList || []).filter(h => h.id !== id);
+    updateCurrentConfig({ headersList: list });
+  };
+
+  const moveHeaderLine = (index, direction) => {
+    const list = [...(currentConfig.headersList || [])];
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[index];
+    list[index] = list[targetIdx];
+    list[targetIdx] = temp;
+    updateCurrentConfig({ headersList: list });
+  };
+
+  // Logo Upload Handler
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      updateCurrentConfig({
+        logo: {
+          ...currentConfig.logo,
+          show: true,
+          src: evt.target.result
+        }
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   // --- DATA GROUPING AND STRUCTURING ENGINE --- //
@@ -167,7 +245,6 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
           }
 
           const display = codeStr && titleStr ? `${codeStr} - ${titleStr}` : (codeStr || titleStr);
-          // Deduplicate courses
           if (!groups[groupKey].candidatesMap[seatNo].courses.some(c => c.display === display)) {
             groups[groupKey].candidatesMap[seatNo].courses.push({ code: codeStr, title: titleStr, display });
           }
@@ -224,7 +301,6 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
           };
         }
 
-        // Aggregate same date & course or push
         const existing = groups[groupKey].items.find(it => it.date === examDate && it.courseDisplay === courseDisplay);
         if (existing) {
           existing.studentCount += countVal;
@@ -239,7 +315,6 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         }
       });
 
-      // Sort items by date
       Object.keys(groups).forEach(k => {
         groups[k].items.sort((a, b) => a.date.localeCompare(b.date));
       });
@@ -249,7 +324,6 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     }
 
     if (activeArchetype === 'QP_COVER_LABEL') {
-      // Each unique Venue + Date + Course combination generates 1 Label
       const labels = [];
       const seen = new Set();
 
@@ -292,39 +366,77 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       return { groups: { allLabels: labels }, groupKeys: ['allLabels'], totalCount: labels.length };
     }
 
-    // CUSTOM_TABULAR
     return { groups: { default: rows }, groupKeys: ['default'], totalCount: rows.length };
   }, [dataset, activeArchetype, currentConfig, columnMappings]);
 
-  // Current Active Preview Data
   const effectiveGroupKey = processedData.groupKeys[activePreviewIndex] || processedData.groupKeys[0] || '';
   const currentPreviewGroup = processedData.groups[effectiveGroupKey];
 
+  // Helper to draw headers on PDF dynamically
+  const drawDynamicHeaders = (doc, pageWidth) => {
+    let startY = 12;
+
+    // 1. Draw Logo if enabled
+    if (currentConfig.logo?.show && currentConfig.logo?.src) {
+      try {
+        const logoW = currentConfig.logo.width || 18;
+        const logoH = logoW;
+        let logoX = (pageWidth / 2) - (logoW / 2);
+
+        if (currentConfig.logo.position === 'left') {
+          logoX = 16;
+        } else if (currentConfig.logo.position === 'right') {
+          logoX = pageWidth - 16 - logoW;
+        }
+
+        doc.addImage(currentConfig.logo.src, 'PNG', logoX, startY, logoW, logoH);
+        if (currentConfig.logo.position === 'top' || currentConfig.logo.position === 'center') {
+          startY += logoH + 3;
+        }
+      } catch (e) {
+        console.warn('Could not draw logo:', e);
+      }
+    }
+
+    // 2. Draw Each Custom Header Line
+    (currentConfig.headersList || []).forEach(h => {
+      if (!h.text || !h.text.trim()) return;
+
+      doc.setFont(h.font || 'helvetica', h.bold ? (h.italic ? 'bolditalic' : 'bold') : (h.italic ? 'italic' : 'normal'));
+      doc.setFontSize(h.size || 11);
+
+      const [r, g, b] = hexToRgb(h.color || '#000000');
+      doc.setTextColor(r, g, b);
+
+      let textX = pageWidth / 2;
+      let alignOption = 'center';
+      if (h.align === 'left') {
+        textX = 16;
+        alignOption = 'left';
+      } else if (h.align === 'right') {
+        textX = pageWidth - 16;
+        alignOption = 'right';
+      }
+
+      const lines = doc.splitTextToSize(h.text, pageWidth - 32);
+      doc.text(lines, textX, startY + (h.size * 0.35), { align: alignOption });
+      startY += lines.length * (h.size * 0.42) + 2;
+    });
+
+    return startY + 4;
+  };
+
   // --- PDF GENERATION ENGINE --- //
   const generatePdfForArchetype = (groupData, targetDoc = null) => {
-    const doc = targetDoc || new jsPDF('p', 'mm', 'a4');
+    const isLandscape = currentConfig.orientation === 'landscape';
+    const doc = targetDoc || new jsPDF(isLandscape ? 'l' : 'p', 'mm', (currentConfig.pageSize || 'a4').toLowerCase());
+    const pageWidth = doc.internal.pageSize.getWidth();
 
     if (activeArchetype === 'NOMINAL_ROLL') {
       const g = groupData;
       if (!g) return doc;
 
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text(currentConfig.universityName, 105, 14, { align: 'center' });
-
-      doc.setFontSize(10.5);
-      doc.setFont('helvetica', 'bold');
-      doc.text(currentConfig.branchName, 105, 19.5, { align: 'center' });
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text(currentConfig.examTitle, 105, 25, { align: 'center' });
-
-      if (currentConfig.sessionName) {
-        doc.setFontSize(9.5);
-        doc.setFont('helvetica', 'normal');
-        doc.text(currentConfig.sessionName, 105, 30, { align: 'center' });
-      }
+      const headerEndY = drawDynamicHeaders(doc, pageWidth);
 
       const progText = `Programme: ${g.programme || 'N/A'}`;
       const venueText = `Venue: ${g.venueLabel || 'N/A'}`;
@@ -332,15 +444,16 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       
-      const progLines = doc.splitTextToSize(progText, 172);
-      const venueLines = doc.splitTextToSize(venueText, 172);
+      const boxW = pageWidth - 28;
+      const progLines = doc.splitTextToSize(progText, boxW - 10);
+      const venueLines = doc.splitTextToSize(venueText, boxW - 10);
       const boxHeight = Math.max(13, (progLines.length + venueLines.length) * 4.2 + 4);
 
       doc.setDrawColor(180, 180, 180);
       doc.setFillColor(248, 249, 250);
-      doc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
+      doc.roundedRect(14, headerEndY, boxW, boxHeight, 2, 2, 'FD');
 
-      let textY = 38;
+      let textY = headerEndY + 4;
       doc.setTextColor(20, 20, 20);
       doc.text(progLines, 18, textY);
       textY += progLines.length * 4.2;
@@ -378,19 +491,23 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         }
       });
 
+      const [hBgR, hBgG, hBgB] = hexToRgb(currentConfig.tableTheme?.headerBg || '#f1f5f9');
+      const [hTxtR, hTxtG, hTxtB] = hexToRgb(currentConfig.tableTheme?.headerColor || '#000000');
+      const [bdrR, bdrG, bdrB] = hexToRgb(currentConfig.tableTheme?.borderColor || '#64748b');
+
       autoTable(doc, {
-        startY: 34 + boxHeight + 4,
+        startY: headerEndY + boxHeight + 4,
         head: [[currentConfig.headers.slNo, currentConfig.headers.regNo, currentConfig.headers.name, currentConfig.headers.courses, currentConfig.headers.remarks]],
         body: tableBody,
         theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8, valign: 'middle', cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, minCellHeight: 5, textColor: [0, 0, 0], lineColor: [100, 100, 100], lineWidth: 0.18 },
-        headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontSize: 8.5, fontStyle: 'bold', halign: 'center', valign: 'middle', cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 }, lineColor: [100, 100, 100], lineWidth: 0.18 },
+        styles: { font: 'helvetica', fontSize: currentConfig.tableTheme?.fontSize || 8, valign: 'middle', cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, minCellHeight: 5, textColor: [0, 0, 0], lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.18 },
+        headStyles: { fillColor: [hBgR, hBgG, hBgB], textColor: [hTxtR, hTxtG, hTxtB], fontSize: 8.5, fontStyle: 'bold', halign: 'center', valign: 'middle', cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 }, lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.18 },
         columnStyles: {
-          0: { cellWidth: currentConfig.columnStyles.slNo, halign: 'center', valign: 'middle' },
-          1: { cellWidth: currentConfig.columnStyles.regNo, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-          2: { cellWidth: currentConfig.columnStyles.name, fontStyle: 'bold', valign: 'middle' },
-          3: { cellWidth: currentConfig.columnStyles.courses, valign: 'middle' },
-          4: { cellWidth: currentConfig.columnStyles.remarks, valign: 'middle' }
+          0: { cellWidth: isLandscape ? 14 : currentConfig.columnStyles.slNo, halign: 'center', valign: 'middle' },
+          1: { cellWidth: isLandscape ? 40 : currentConfig.columnStyles.regNo, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+          2: { cellWidth: isLandscape ? 60 : currentConfig.columnStyles.name, fontStyle: 'bold', valign: 'middle' },
+          3: { cellWidth: isLandscape ? 120 : currentConfig.columnStyles.courses, valign: 'middle' },
+          4: { cellWidth: isLandscape ? 35 : currentConfig.columnStyles.remarks, valign: 'middle' }
         }
       });
       return doc;
@@ -400,27 +517,12 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       const g = groupData;
       if (!g) return doc;
 
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text(currentConfig.universityName, 105, 14, { align: 'center' });
-
-      doc.setFontSize(10.5);
-      doc.setFont('helvetica', 'bold');
-      doc.text(currentConfig.branchName, 105, 19.5, { align: 'center' });
-
-      doc.setFontSize(9.5);
-      doc.setFont('helvetica', 'bold');
-      doc.text(currentConfig.examTitle, 105, 25, { align: 'center' });
-
-      if (currentConfig.sessionName) {
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.text(currentConfig.sessionName, 105, 30, { align: 'center' });
-      }
+      const headerEndY = drawDynamicHeaders(doc, pageWidth);
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${currentConfig.centerPrefix} ${g.venueLabel}`, 105, 36, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      doc.text(`${currentConfig.centerPrefix} ${g.venueLabel}`, pageWidth / 2, headerEndY, { align: 'center' });
 
       const tableBody = g.items.map((it, idx) => [
         idx + 1,
@@ -431,20 +533,24 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         ''
       ]);
 
+      const [hBgR, hBgG, hBgB] = hexToRgb(currentConfig.tableTheme?.headerBg || '#f1f5f9');
+      const [hTxtR, hTxtG, hTxtB] = hexToRgb(currentConfig.tableTheme?.headerColor || '#000000');
+      const [bdrR, bdrG, bdrB] = hexToRgb(currentConfig.tableTheme?.borderColor || '#000000');
+
       autoTable(doc, {
-        startY: 42,
+        startY: headerEndY + 6,
         head: [[currentConfig.headers.slNo, currentConfig.headers.date, currentConfig.headers.course, currentConfig.headers.count, currentConfig.headers.qp, currentConfig.headers.lp]],
         body: tableBody,
         theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8.5, valign: 'middle', cellPadding: 3, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.2 },
-        headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center', valign: 'middle', fontSize: 9, lineColor: [0, 0, 0], lineWidth: 0.3 },
+        styles: { font: 'helvetica', fontSize: currentConfig.tableTheme?.fontSize || 8.5, valign: 'middle', cellPadding: 3, textColor: [0, 0, 0], lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.2 },
+        headStyles: { fillColor: [hBgR, hBgG, hBgB], textColor: [hTxtR, hTxtG, hTxtB], fontStyle: 'bold', halign: 'center', valign: 'middle', fontSize: 9, lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.3 },
         columnStyles: {
-          0: { halign: 'center', cellWidth: currentConfig.columnStyles.slNo },
-          1: { halign: 'left', cellWidth: currentConfig.columnStyles.date },
-          2: { halign: 'left', cellWidth: currentConfig.columnStyles.course },
-          3: { halign: 'center', cellWidth: currentConfig.columnStyles.count, fontStyle: 'bold' },
-          4: { halign: 'center', cellWidth: currentConfig.columnStyles.qp },
-          5: { halign: 'center', cellWidth: currentConfig.columnStyles.lp }
+          0: { halign: 'center', cellWidth: isLandscape ? 16 : currentConfig.columnStyles.slNo },
+          1: { halign: 'left', cellWidth: isLandscape ? 50 : currentConfig.columnStyles.date },
+          2: { halign: 'left', cellWidth: isLandscape ? 135 : currentConfig.columnStyles.course },
+          3: { halign: 'center', cellWidth: isLandscape ? 22 : currentConfig.columnStyles.count, fontStyle: 'bold' },
+          4: { halign: 'center', cellWidth: isLandscape ? 24 : currentConfig.columnStyles.qp },
+          5: { halign: 'center', cellWidth: isLandscape ? 24 : currentConfig.columnStyles.lp }
         }
       });
       return doc;
@@ -454,37 +560,8 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       const lbl = groupData;
       if (!lbl) return doc;
 
-      // University Header with Crest
-      if (currentConfig.showLogo && logoBase64) {
-        try {
-          doc.addImage(logoBase64, 'PNG', 32, 12, 18, 18);
-        } catch (e) {
-          console.warn('Could not add logo:', e);
-        }
-      }
+      const headerEndY = drawDynamicHeaders(doc, pageWidth);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14.5);
-      doc.setTextColor(200, 16, 46); // Red header
-      doc.text(currentConfig.universityName, 105, 17, { align: 'center' });
-
-      doc.setFontSize(11);
-      doc.setTextColor(200, 16, 46);
-      doc.text(currentConfig.malayalamTitle, 105, 23, { align: 'center' });
-
-      doc.setFontSize(8.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(70, 80, 95);
-      doc.text(currentConfig.addressLine, 105, 28, { align: 'center' });
-      doc.text(currentConfig.naacRating, 105, 32.5, { align: 'center' });
-
-      doc.setFontSize(9.5);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      doc.text(currentConfig.branchName, 105, 38.5, { align: 'center' });
-      doc.text(currentConfig.examTitle, 105, 43.5, { align: 'center' });
-
-      // Table Box with borders matching Image 3
       const boxBody = [
         [
           { content: currentConfig.centerPrefix, styles: { fontStyle: 'bold', cellWidth: 42 } },
@@ -512,7 +589,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       ];
 
       autoTable(doc, {
-        startY: 48,
+        startY: headerEndY + 2,
         body: boxBody,
         theme: 'grid',
         styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 3, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.35, valign: 'middle' },
@@ -521,29 +598,27 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         }
       });
 
-      // Certificate Section
       const finalY = doc.lastAutoTable.finalY || 100;
       doc.setLineDashPattern([2, 2], 0);
       doc.setDrawColor(120, 120, 120);
-      doc.line(14, finalY + 5, 196, finalY + 5);
-      doc.line(14, finalY + 7, 196, finalY + 7);
+      doc.line(14, finalY + 5, pageWidth - 14, finalY + 5);
+      doc.line(14, finalY + 7, pageWidth - 14, finalY + 7);
       doc.setLineDashPattern([], 0);
 
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text('CERTIFICATE', 105, finalY + 16, { align: 'center' });
+      doc.text('CERTIFICATE', pageWidth / 2, finalY + 16, { align: 'center' });
 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      const certLines = doc.splitTextToSize(currentConfig.certificateText, 175);
+      const certLines = doc.splitTextToSize(currentConfig.certificateText, pageWidth - 32);
       doc.text(certLines, 16, finalY + 24);
 
-      // Signatures
       let sigY = finalY + 44;
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'bold');
       doc.text('INVIGILATOR', 16, sigY);
-      doc.text('ADDL.CHIEF SUPERINTENDENT', 140, sigY);
+      doc.text('ADDL.CHIEF SUPERINTENDENT', pageWidth - 70, sigY);
 
       sigY += 9;
       doc.setFont('helvetica', 'normal');
@@ -556,7 +631,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       doc.text('PLACE:', 16, sigY);
       sigY += 7;
       doc.text('DATE:', 16, sigY);
-      doc.text('CHIEF SUPERINTENDENT', 150, sigY);
+      doc.text('CHIEF SUPERINTENDENT', pageWidth - 65, sigY);
 
       return doc;
     }
@@ -578,11 +653,11 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
 
   const handleDownloadConsolidatedPdf = () => {
     if (!processedData.groupKeys.length) return;
-    setStatusMsg('Generating consolidated PDF...');
     setIsProcessing(true);
 
     try {
-      const doc = new jsPDF('p', 'mm', 'a4');
+      const isLandscape = currentConfig.orientation === 'landscape';
+      const doc = new jsPDF(isLandscape ? 'l' : 'p', 'mm', (currentConfig.pageSize || 'a4').toLowerCase());
 
       if (activeArchetype === 'QP_COVER_LABEL') {
         const labels = processedData.groups.allLabels || [];
@@ -599,10 +674,9 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
 
       const safeName = templateName.replace(/[^a-zA-Z0-9_-]/g, '_');
       doc.save(`Master_Consolidated_${safeName}.pdf`);
-      setStatusMsg('Consolidated Master PDF downloaded successfully!');
     } catch (err) {
       console.error(err);
-      setStatusMsg(`Error: ${err.message}`);
+      alert(`Error: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -610,7 +684,6 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
 
   const handleDownloadZip = async () => {
     if (!processedData.groupKeys.length) return;
-    setStatusMsg('Generating ZIP archive with individual PDFs...');
     setIsProcessing(true);
 
     try {
@@ -652,17 +725,14 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       a.download = `${templateName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Individual_PDFs.zip`;
       a.click();
       URL.revokeObjectURL(url);
-
-      setStatusMsg(`Exported ZIP with ${processedData.totalCount} individual PDF files!`);
     } catch (err) {
       console.error(err);
-      setStatusMsg(`Error creating ZIP: ${err.message}`);
+      alert(`Error creating ZIP: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Save Template Configuration to Supabase Cloud / Local Library
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) return alert('Please enter a template name.');
     
@@ -699,7 +769,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             <Sparkles size={24} color="var(--accent)" /> Report Template Studio
           </h1>
           <p style={{ margin: '4px 0 0 0', color: 'var(--muted)', fontSize: '13.5px' }}>
-            Design and generate customizable reports (Nominal Roll, QP Statement, Exam Envelope Cover Labels) dynamically from your uploaded Excel data.
+            Create and customize report templates with Rich Text headers, logo uploads, portrait/landscape orientation, and dynamic Excel column binding.
           </p>
         </div>
 
@@ -768,332 +838,694 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       </div>
 
       {/* Main Studio Two-Column Grid: Config Controls (Left) + WYSIWYG A4 Preview (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: isSidebarOpen ? '380px 1fr' : '0px 1fr', gap: isSidebarOpen ? '24px' : '0px', transition: 'all 0.3s ease' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isSidebarOpen ? '420px 1fr' : '0px 1fr', gap: isSidebarOpen ? '24px' : '0px', transition: 'all 0.3s ease' }}>
         
-        {/* LEFT COLUMN: Template Customization & Column Binding Form */}
+        {/* LEFT COLUMN: Customization Panels with Tabbed Controls */}
         <div style={{ display: isSidebarOpen ? 'block' : 'none' }}>
           
-          <div className="card" style={{ padding: '24px', marginBottom: '20px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)' }}>
-              <Sliders size={18} /> 1. Header & Branding
-            </h3>
+          {/* Sub-Tab Navigation for Studio Controls */}
+          <div style={{ display: 'flex', background: 'var(--panel)', borderRadius: '8px', padding: '4px', marginBottom: '16px', gap: '4px', border: '1px solid var(--line)' }}>
+            <button
+              onClick={() => setActiveToolTab('headers')}
+              style={{
+                flex: 1,
+                padding: '8px 4px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: activeToolTab === 'headers' ? 'var(--accent)' : 'transparent',
+                color: activeToolTab === 'headers' ? 'white' : 'var(--ink)'
+              }}
+            >
+              Headers & Text
+            </button>
+            <button
+              onClick={() => setActiveToolTab('page')}
+              style={{
+                flex: 1,
+                padding: '8px 4px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: activeToolTab === 'page' ? 'var(--accent)' : 'transparent',
+                color: activeToolTab === 'page' ? 'white' : 'var(--ink)'
+              }}
+            >
+              Page & Logo
+            </button>
+            <button
+              onClick={() => setActiveToolTab('data')}
+              style={{
+                flex: 1,
+                padding: '8px 4px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: activeToolTab === 'data' ? 'var(--accent)' : 'transparent',
+                color: activeToolTab === 'data' ? 'white' : 'var(--ink)'
+              }}
+            >
+              Data Binding
+            </button>
+            <button
+              onClick={() => setActiveToolTab('styling')}
+              style={{
+                flex: 1,
+                padding: '8px 4px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: activeToolTab === 'styling' ? 'var(--accent)' : 'transparent',
+                color: activeToolTab === 'styling' ? 'white' : 'var(--ink)'
+              }}
+            >
+              Table Style
+            </button>
+          </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>University Name (Header 1):</label>
-                <input 
-                  type="text" 
-                  value={currentConfig.universityName || ''} 
-                  onChange={(e) => updateCurrentConfig({ universityName: e.target.value })}
-                  style={{ width: '100%', fontSize: '13px' }} 
-                />
+          {/* TAB 1: DYNAMIC HEADERS & RICH TEXT BUILDER */}
+          {activeToolTab === 'headers' && (
+            <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Edit3 size={16} /> Rich Text Headers ({currentConfig.headersList?.length || 0})
+                </h3>
+                <button
+                  className="button"
+                  onClick={addHeaderLine}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '5px 10px' }}
+                >
+                  <Plus size={14} /> Add Line
+                </button>
               </div>
 
-              {activeArchetype === 'QP_COVER_LABEL' && (
-                <>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Malayalam / Regional Title:</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.malayalamTitle || ''} 
-                      onChange={(e) => updateCurrentConfig({ malayalamTitle: e.target.value })}
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Address & Location Line:</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.addressLine || ''} 
-                      onChange={(e) => updateCurrentConfig({ addressLine: e.target.value })}
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>NAAC Accreditation Grade:</label>
-                    <input 
-                      type="text" 
-                      value={currentConfig.naacRating || ''} 
-                      onChange={(e) => updateCurrentConfig({ naacRating: e.target.value })}
-                      style={{ width: '100%', fontSize: '13px' }} 
-                    />
-                  </div>
-                </>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '550px', overflowY: 'auto', paddingRight: '4px' }}>
+                {(currentConfig.headersList || []).map((h, idx) => (
+                  <div 
+                    key={h.id} 
+                    style={{ 
+                      padding: '12px', 
+                      background: 'var(--bg)', 
+                      borderRadius: '8px', 
+                      border: '1px solid var(--line)' 
+                    }}
+                  >
+                    {/* Top Row: Line Label & Move/Delete */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                        Header #{idx + 1}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button 
+                          disabled={idx === 0} 
+                          onClick={() => moveHeaderLine(idx, -1)} 
+                          style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? '#ccc' : 'var(--ink)', padding: '2px' }}
+                          title="Move Up"
+                        >
+                          <ArrowUp size={14} />
+                        </button>
+                        <button 
+                          disabled={idx === currentConfig.headersList.length - 1} 
+                          onClick={() => moveHeaderLine(idx, 1)} 
+                          style={{ background: 'none', border: 'none', cursor: idx === currentConfig.headersList.length - 1 ? 'default' : 'pointer', color: idx === currentConfig.headersList.length - 1 ? '#ccc' : 'var(--ink)', padding: '2px' }}
+                          title="Move Down"
+                        >
+                          <ArrowDown size={14} />
+                        </button>
+                        <button 
+                          onClick={() => removeHeaderLine(h.id)} 
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '2px', marginLeft: '4px' }}
+                          title="Delete Line"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Branch / Sub-title:</label>
-                <input 
-                  type="text" 
-                  value={currentConfig.branchName || ''} 
-                  onChange={(e) => updateCurrentConfig({ branchName: e.target.value })}
-                  style={{ width: '100%', fontSize: '13px' }} 
-                />
+                    {/* Text Input */}
+                    <input 
+                      type="text"
+                      value={h.text || ''}
+                      onChange={(e) => updateHeaderLine(h.id, { text: e.target.value })}
+                      placeholder="Header text..."
+                      style={{ width: '100%', fontSize: '13px', fontWeight: h.bold ? 700 : 400, fontStyle: h.italic ? 'italic' : 'normal', marginBottom: '8px' }}
+                    />
+
+                    {/* Styling Controls Toolbar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      
+                      {/* Font Size */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Size:</span>
+                        <input 
+                          type="number"
+                          min="8"
+                          max="32"
+                          value={h.size || 11}
+                          onChange={(e) => updateHeaderLine(h.id, { size: parseFloat(e.target.value) || 11 })}
+                          style={{ width: '52px', padding: '4px 6px', fontSize: '12px', textAlign: 'center' }}
+                        />
+                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>pt</span>
+                      </div>
+
+                      {/* Color Picker */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Color:</span>
+                        <input 
+                          type="color"
+                          value={h.color || '#000000'}
+                          onChange={(e) => updateHeaderLine(h.id, { color: e.target.value })}
+                          style={{ width: '28px', height: '28px', border: 'none', borderRadius: '4px', cursor: 'pointer', background: 'transparent' }}
+                        />
+                      </div>
+
+                      {/* Bold / Italic Toggles */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={() => updateHeaderLine(h.id, { bold: !h.bold })}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--line)',
+                            background: h.bold ? 'var(--accent)' : 'white',
+                            color: h.bold ? 'white' : 'var(--ink)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Bold size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateHeaderLine(h.id, { italic: !h.italic })}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--line)',
+                            background: h.italic ? 'var(--accent)' : 'white',
+                            color: h.italic ? 'white' : 'var(--ink)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Italic size={13} />
+                        </button>
+                      </div>
+
+                      {/* Alignment */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={() => updateHeaderLine(h.id, { align: 'left' })}
+                          style={{
+                            padding: '4px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--line)',
+                            background: h.align === 'left' ? 'var(--accent)' : 'white',
+                            color: h.align === 'left' ? 'white' : 'var(--ink)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <AlignLeft size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateHeaderLine(h.id, { align: 'center' })}
+                          style={{
+                            padding: '4px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--line)',
+                            background: h.align === 'center' || !h.align ? 'var(--accent)' : 'white',
+                            color: h.align === 'center' || !h.align ? 'white' : 'var(--ink)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <AlignCenter size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateHeaderLine(h.id, { align: 'right' })}
+                          style={{
+                            padding: '4px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--line)',
+                            background: h.align === 'right' ? 'var(--accent)' : 'white',
+                            color: h.align === 'right' ? 'white' : 'var(--ink)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <AlignRight size={13} />
+                        </button>
+                      </div>
+
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: PAGE ORIENTATION & LOGO CONTROLS */}
+          {activeToolTab === 'page' && (
+            <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sliders size={16} /> Page Orientation & Custom Logo
+              </h3>
+
+              {/* Orientation Buttons */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>Page Orientation:</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentConfig({ orientation: 'portrait' })}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: currentConfig.orientation === 'portrait' || !currentConfig.orientation ? '2px solid var(--accent)' : '1px solid var(--line)',
+                      background: currentConfig.orientation === 'portrait' || !currentConfig.orientation ? 'var(--accent-soft)' : 'white',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      color: currentConfig.orientation === 'portrait' || !currentConfig.orientation ? 'var(--accent)' : 'var(--ink)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    📄 Portrait
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentConfig({ orientation: 'landscape' })}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: currentConfig.orientation === 'landscape' ? '2px solid var(--accent)' : '1px solid var(--line)',
+                      background: currentConfig.orientation === 'landscape' ? 'var(--accent-soft)' : 'white',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      color: currentConfig.orientation === 'landscape' ? 'var(--accent)' : 'var(--ink)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    📜 Landscape
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Exam Title / Event:</label>
-                <input 
-                  type="text" 
-                  value={currentConfig.examTitle || ''} 
-                  onChange={(e) => updateCurrentConfig({ examTitle: e.target.value })}
-                  style={{ width: '100%', fontSize: '13px' }} 
-                />
+              {/* Page Size */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>Page Standard Size:</label>
+                <select
+                  value={currentConfig.pageSize || 'A4'}
+                  onChange={(e) => updateCurrentConfig({ pageSize: e.target.value })}
+                  style={{ width: '100%', fontSize: '13px' }}
+                >
+                  <option value="A4">A4 (210 × 297 mm)</option>
+                  <option value="A3">A3 (297 × 420 mm)</option>
+                  <option value="Letter">US Letter (8.5 × 11 in)</option>
+                </select>
               </div>
 
-              {activeArchetype !== 'QP_COVER_LABEL' && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Session / Month Year:</label>
+              {/* Logo Upload & Positioning */}
+              <div style={{ padding: '14px', background: 'var(--bg)', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, marginBottom: '10px' }}>
                   <input 
-                    type="text" 
-                    value={currentConfig.sessionName || ''} 
-                    onChange={(e) => updateCurrentConfig({ sessionName: e.target.value })}
-                    style={{ width: '100%', fontSize: '13px' }} 
+                    type="checkbox"
+                    checked={!!currentConfig.logo?.show}
+                    onChange={(e) => updateCurrentConfig({ logo: { ...currentConfig.logo, show: e.target.checked } })}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
                   />
+                  Show Logo / Crest on Page
+                </label>
+
+                {currentConfig.logo?.show && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                    
+                    {/* Upload button */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
+                      >
+                        <ImageIcon size={14} /> Upload Custom Logo
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        accept="image/*" 
+                        onChange={handleLogoUpload} 
+                        style={{ display: 'none' }} 
+                      />
+
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => updateCurrentConfig({ logo: { ...currentConfig.logo, src: logoBase64 } })}
+                        style={{ fontSize: '11px', padding: '6px 10px' }}
+                        title="Reset to default Kannur University Crest"
+                      >
+                        Default Crest
+                      </button>
+                    </div>
+
+                    {/* Logo Position */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600 }}>Position:</span>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {['left', 'center', 'right', 'top'].map(pos => (
+                          <button
+                            key={pos}
+                            type="button"
+                            onClick={() => updateCurrentConfig({ logo: { ...currentConfig.logo, position: pos } })}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '11px',
+                              textTransform: 'capitalize',
+                              borderRadius: '4px',
+                              border: '1px solid var(--line)',
+                              background: currentConfig.logo?.position === pos ? 'var(--accent)' : 'white',
+                              color: currentConfig.logo?.position === pos ? 'white' : 'var(--ink)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {pos}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Logo Width */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600 }}>Size (Width):</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input 
+                          type="range"
+                          min="10"
+                          max="40"
+                          value={currentConfig.logo?.width || 18}
+                          onChange={(e) => updateCurrentConfig({ logo: { ...currentConfig.logo, width: parseInt(e.target.value, 10) } })}
+                          style={{ width: '90px' }}
+                        />
+                        <span style={{ fontSize: '11px', fontWeight: 700 }}>{currentConfig.logo?.width || 18} mm</span>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 3: DYNAMIC EXCEL DATA BINDING */}
+          {activeToolTab === 'data' && (
+            <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Layers size={16} /> Excel Spreadsheet Column Binding
+              </h3>
+
+              {dataset.columns.length === 0 ? (
+                <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '13px', color: 'var(--muted)' }}>
+                  Upload an Excel file in Report Config to bind your actual spreadsheet columns.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  
+                  {activeArchetype === 'NOMINAL_ROLL' && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Register / Seat Number:</label>
+                        <select 
+                          value={columnMappings.seatNo || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, seatNo: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Candidate Name:</label>
+                        <select 
+                          value={columnMappings.name || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, name: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Code (Paper Code):</label>
+                        <select 
+                          value={columnMappings.courseCode || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, courseCode: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Title (Paper Name):</label>
+                        <select 
+                          value={columnMappings.courseTitle || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Programme Name:</label>
+                        <select 
+                          value={columnMappings.programme || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, programme: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Venue Name / Code:</label>
+                        <select 
+                          value={columnMappings.venueName || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {activeArchetype === 'QP_STATEMENT' && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Examination Date:</label>
+                        <select 
+                          value={columnMappings.examDate || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, examDate: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course / Subject Code:</label>
+                        <select 
+                          value={columnMappings.courseCode || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, courseCode: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Title:</label>
+                        <select 
+                          value={columnMappings.courseTitle || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Candidate Count (NC):</label>
+                        <select 
+                          value={columnMappings.count || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, count: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Venue / Centre:</label>
+                        <select 
+                          value={columnMappings.venueName || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {activeArchetype === 'QP_COVER_LABEL' && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Centre Code:</label>
+                        <select 
+                          value={columnMappings.venueCode || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, venueCode: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Centre Name:</label>
+                        <select 
+                          value={columnMappings.venueName || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Exam Date:</label>
+                        <select 
+                          value={columnMappings.examDate || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, examDate: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Subject / Paper:</label>
+                        <select 
+                          value={columnMappings.courseTitle || columnMappings.courseCode || ''} 
+                          onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
+                          style={{ width: '100%', fontSize: '13px' }}
+                        >
+                          <option value="">-- Select Column --</option>
+                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
                 </div>
               )}
             </div>
-          </div>
+          )}
 
-          {/* SECTION 2: Dynamic Excel Column Binding */}
-          <div className="card" style={{ padding: '24px', marginBottom: '20px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)' }}>
-              <Layers size={18} /> 2. Excel Column Data Binding
-            </h3>
+          {/* TAB 4: TABLE STYLING & FORMATTING */}
+          {activeToolTab === 'styling' && (
+            <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sliders size={16} /> Table & Text Formatting
+              </h3>
 
-            {dataset.columns.length === 0 ? (
-              <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '13px', color: 'var(--muted)' }}>
-                Upload an Excel file in Report Config to bind your actual spreadsheet columns.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 
-                {activeArchetype === 'NOMINAL_ROLL' && (
-                  <>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Register / Seat Number:</label>
-                      <select 
-                        value={columnMappings.seatNo || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, seatNo: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Candidate Name:</label>
-                      <select 
-                        value={columnMappings.name || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, name: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Code (Paper Code):</label>
-                      <select 
-                        value={columnMappings.courseCode || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, courseCode: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Title (Paper Name):</label>
-                      <select 
-                        value={columnMappings.courseTitle || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Programme Name:</label>
-                      <select 
-                        value={columnMappings.programme || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, programme: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Venue Name / Code:</label>
-                      <select 
-                        value={columnMappings.venueName || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {activeArchetype === 'QP_STATEMENT' && (
-                  <>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Examination Date:</label>
-                      <select 
-                        value={columnMappings.examDate || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, examDate: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course / Subject Code:</label>
-                      <select 
-                        value={columnMappings.courseCode || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, courseCode: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Title:</label>
-                      <select 
-                        value={columnMappings.courseTitle || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Candidate Count (NC):</label>
-                      <select 
-                        value={columnMappings.count || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, count: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Venue / Centre:</label>
-                      <select 
-                        value={columnMappings.venueName || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {activeArchetype === 'QP_COVER_LABEL' && (
-                  <>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Centre Code:</label>
-                      <select 
-                        value={columnMappings.venueCode || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, venueCode: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Centre Name:</label>
-                      <select 
-                        value={columnMappings.venueName || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Exam Date:</label>
-                      <select 
-                        value={columnMappings.examDate || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, examDate: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Subject / Paper:</label>
-                      <select 
-                        value={columnMappings.courseTitle || columnMappings.courseCode || ''} 
-                        onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
-                        style={{ width: '100%', fontSize: '13px' }}
-                      >
-                        <option value="">-- Select Column --</option>
-                        {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-              </div>
-            )}
-          </div>
-
-          {/* SECTION 3: Formatting & Toggles */}
-          <div className="card" style={{ padding: '24px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)' }}>
-              <Edit3 size={18} /> 3. Layout & Style Controls
-            </h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
-                <input 
-                  type="checkbox"
-                  checked={!!currentConfig.formatCodeDotNameDot}
-                  onChange={(e) => updateCurrentConfig({ formatCodeDotNameDot: e.target.checked })}
-                  style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
-                />
-                Format: CODE. - NAME. (with trailing dots)
-              </label>
-
-              {activeArchetype === 'QP_COVER_LABEL' && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
                   <input 
                     type="checkbox"
-                    checked={!!currentConfig.showLogo}
-                    onChange={(e) => updateCurrentConfig({ showLogo: e.target.checked })}
+                    checked={!!currentConfig.formatCodeDotNameDot}
+                    onChange={(e) => updateCurrentConfig({ formatCodeDotNameDot: e.target.checked })}
                     style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
                   />
-                  Include University Crest Logo
+                  Format: CODE. - NAME. (with trailing dots)
                 </label>
-              )}
+
+                {/* Table Header Color */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600 }}>Table Header Background:</span>
+                  <input 
+                    type="color"
+                    value={currentConfig.tableTheme?.headerBg || '#f1f5f9'}
+                    onChange={(e) => updateCurrentConfig({ tableTheme: { ...currentConfig.tableTheme, headerBg: e.target.value } })}
+                    style={{ width: '32px', height: '32px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                {/* Table Header Text Color */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600 }}>Table Header Text Color:</span>
+                  <input 
+                    type="color"
+                    value={currentConfig.tableTheme?.headerColor || '#000000'}
+                    onChange={(e) => updateCurrentConfig({ tableTheme: { ...currentConfig.tableTheme, headerColor: e.target.value } })}
+                    style={{ width: '32px', height: '32px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                {/* Table Font Size */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600 }}>Table Content Font Size:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input 
+                      type="number"
+                      min="7"
+                      max="14"
+                      step="0.5"
+                      value={currentConfig.tableTheme?.fontSize || 8}
+                      onChange={(e) => updateCurrentConfig({ tableTheme: { ...currentConfig.tableTheme, fontSize: parseFloat(e.target.value) || 8 } })}
+                      style={{ width: '56px', padding: '4px 6px', fontSize: '12px', textAlign: 'center' }}
+                    />
+                    <span style={{ fontSize: '11px', color: 'var(--muted)' }}>pt</span>
+                  </div>
+                </div>
+
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
 
@@ -1164,29 +1596,69 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
 
           </div>
 
-          {/* Rendered Live Paper Display (1:1 with Output PDF) */}
-          <div className="card print-container" style={{ padding: '40px 48px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 8px 30px rgba(0,0,0,0.08)', minHeight: '800px' }}>
+          {/* Rendered Live Paper Display (Adapts to Portrait or Landscape) */}
+          <div 
+            className="card print-container" 
+            style={{ 
+              padding: currentConfig.orientation === 'landscape' ? '32px 40px' : '40px 48px', 
+              background: 'white', 
+              border: '1px solid #cbd5e1', 
+              borderRadius: '8px', 
+              boxShadow: '0 8px 30px rgba(0,0,0,0.08)', 
+              minHeight: '750px',
+              maxWidth: currentConfig.orientation === 'landscape' ? '1123px' : '794px',
+              margin: '0 auto',
+              width: '100%',
+              transition: 'all 0.3s ease'
+            }}
+          >
             
+            {/* DYNAMIC HEADER RENDERING ON LIVE PAPER */}
+            <div style={{ textAlign: 'center', marginBottom: '20px', position: 'relative' }}>
+              
+              {/* Optional Logo */}
+              {currentConfig.logo?.show && currentConfig.logo?.src && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: currentConfig.logo.position === 'left' ? 'flex-start' : currentConfig.logo.position === 'right' ? 'flex-end' : 'center',
+                  marginBottom: '10px'
+                }}>
+                  <img 
+                    src={currentConfig.logo.src} 
+                    alt="Logo" 
+                    style={{ height: `${(currentConfig.logo.width || 18) * 3}px`, objectFit: 'contain' }} 
+                  />
+                </div>
+              )}
+
+              {/* Dynamic Headers List */}
+              {(currentConfig.headersList || []).map((h, idx) => (
+                <div 
+                  key={h.id || idx}
+                  style={{
+                    fontSize: `${h.size || 11}pt`,
+                    fontWeight: h.bold ? 800 : 400,
+                    fontStyle: h.italic ? 'italic' : 'normal',
+                    color: h.color || '#000000',
+                    textAlign: h.align || 'center',
+                    marginBottom: '4px',
+                    lineHeight: '1.3'
+                  }}
+                >
+                  {h.text}
+                </div>
+              ))}
+
+              {activeArchetype === 'QP_STATEMENT' && currentPreviewGroup && (
+                <div style={{ fontSize: '12pt', fontWeight: 800, color: '#000', marginTop: '6px' }}>
+                  {currentConfig.centerPrefix} {effectiveGroupKey}
+                </div>
+              )}
+            </div>
+
             {/* ARCHETYPE 1: NOMINAL ROLL LIVE VIEW */}
             {activeArchetype === 'NOMINAL_ROLL' && (
               <div>
-                <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '16px' }}>
-                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#000', marginBottom: '4px' }}>
-                    {currentConfig.universityName}
-                  </div>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#111', marginBottom: '6px' }}>
-                    {currentConfig.branchName}
-                  </div>
-                  <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#111', marginBottom: '4px' }}>
-                    {currentConfig.examTitle}
-                  </div>
-                  {currentConfig.sessionName && (
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#222', marginBottom: '6px' }}>
-                      {currentConfig.sessionName}
-                    </div>
-                  )}
-                </div>
-
                 {currentPreviewGroup && (
                   <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px 18px', marginBottom: '20px' }}>
                     <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>
@@ -1198,31 +1670,31 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                   </div>
                 )}
 
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8}pt` }}>
                   <thead>
-                    <tr style={{ background: '#f1f5f9', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      <th style={{ border: '1px solid #000', padding: '8px 4px', width: '45px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.slNo}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 6px', width: '140px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.regNo}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 10px', width: '180px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.name}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 10px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.courses}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 6px', width: '90px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.remarks}</th>
+                    <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 4px', width: '45px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.slNo}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 6px', width: '140px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.regNo}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 10px', width: '180px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.name}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 10px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.courses}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 6px', width: '90px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.remarks}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {currentPreviewGroup?.candidates?.map((cand, candIdx) => {
                       const courses = cand.courses || [];
                       return courses.map((crs, crsIdx) => (
-                        <tr key={`${candIdx}_${crsIdx}`} style={{ borderBottom: '1px solid #000' }}>
+                        <tr key={`${candIdx}_${crsIdx}`} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}` }}>
                           {crsIdx === 0 && (
                             <>
-                              <td rowSpan={courses.length} style={{ border: '1px solid #000', padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle' }}>{candIdx + 1}</td>
-                              <td rowSpan={courses.length} style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700 }}>{cand.seatNo}</td>
-                              <td rowSpan={courses.length} style={{ border: '1px solid #000', padding: '6px 10px', verticalAlign: 'middle', fontWeight: 700 }}>{cand.studentName}</td>
+                              <td rowSpan={courses.length} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle' }}>{candIdx + 1}</td>
+                              <td rowSpan={courses.length} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700 }}>{cand.seatNo}</td>
+                              <td rowSpan={courses.length} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 10px', verticalAlign: 'middle', fontWeight: 700 }}>{cand.studentName}</td>
                             </>
                           )}
-                          <td style={{ border: '1px solid #000', padding: '5px 8px', verticalAlign: 'middle' }}>{crs.display}</td>
+                          <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '5px 8px', verticalAlign: 'middle' }}>{crs.display}</td>
                           {crsIdx === 0 && (
-                            <td rowSpan={courses.length} style={{ border: '1px solid #000', padding: '6px', textAlign: 'center', verticalAlign: 'middle' }}></td>
+                            <td rowSpan={courses.length} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px', textAlign: 'center', verticalAlign: 'middle' }}></td>
                           )}
                         </tr>
                       ));
@@ -1235,46 +1707,26 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             {/* ARCHETYPE 2: QP STATEMENT LIVE VIEW */}
             {activeArchetype === 'QP_STATEMENT' && (
               <div>
-                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#000', marginBottom: '4px' }}>
-                    {currentConfig.universityName}
-                  </div>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#111', marginBottom: '6px' }}>
-                    {currentConfig.branchName}
-                  </div>
-                  <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#111', marginBottom: '4px' }}>
-                    {currentConfig.examTitle}
-                  </div>
-                  {currentConfig.sessionName && (
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#222', marginBottom: '6px' }}>
-                      {currentConfig.sessionName}
-                    </div>
-                  )}
-                  <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#000', marginTop: '6px' }}>
-                    {currentConfig.centerPrefix} {effectiveGroupKey}
-                  </div>
-                </div>
-
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8.5}pt` }}>
                   <thead>
-                    <tr style={{ background: '#f1f5f9', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      <th style={{ border: '1px solid #000', padding: '8px 4px', width: '50px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.slNo}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 8px', width: '160px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.date}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.course}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 6px', width: '65px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.count}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 6px', width: '70px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.qp}</th>
-                      <th style={{ border: '1px solid #000', padding: '8px 6px', width: '70px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.lp}</th>
+                    <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 4px', width: '50px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.slNo}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 8px', width: '160px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.date}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>{currentConfig.headers.course}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 6px', width: '65px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.count}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 6px', width: '70px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.qp}</th>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 6px', width: '70px', textAlign: 'center', fontWeight: 700 }}>{currentConfig.headers.lp}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {currentPreviewGroup?.items?.map((it, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #000' }}>
-                        <td style={{ border: '1px solid #000', padding: '6px 4px', textAlign: 'center' }}>{idx + 1}</td>
-                        <td style={{ border: '1px solid #000', padding: '6px 8px' }}>{it.date}</td>
-                        <td style={{ border: '1px solid #000', padding: '6px 12px' }}>{it.courseDisplay}</td>
-                        <td style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'center', fontWeight: 700 }}>{it.studentCount}</td>
-                        <td style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'center' }}></td>
-                        <td style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'center' }}></td>
+                      <tr key={idx} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}` }}>
+                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 4px', textAlign: 'center' }}>{idx + 1}</td>
+                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 8px' }}>{it.date}</td>
+                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 12px' }}>{it.courseDisplay}</td>
+                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 6px', textAlign: 'center', fontWeight: 700 }}>{it.studentCount}</td>
+                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 6px', textAlign: 'center' }}></td>
+                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 6px', textAlign: 'center' }}></td>
                       </tr>
                     ))}
                   </tbody>
@@ -1297,36 +1749,6 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
 
               return (
                 <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-                  {/* Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '14px' }}>
-                    {currentConfig.showLogo && logoBase64 && (
-                      <img src={logoBase64} alt="Crest" style={{ height: '60px' }} />
-                    )}
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#c8102e', letterSpacing: '0.3px' }}>
-                        {currentConfig.universityName}
-                      </div>
-                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#c8102e' }}>
-                        {currentConfig.malayalamTitle}
-                      </div>
-                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>
-                        {currentConfig.addressLine}
-                      </div>
-                      <div style={{ fontSize: '12.5px', color: '#475569' }}>
-                        {currentConfig.naacRating}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                    <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#000' }}>
-                      {currentConfig.branchName}
-                    </div>
-                    <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#000' }}>
-                      {currentConfig.examTitle}
-                    </div>
-                  </div>
-
                   {/* Border Table Box */}
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', border: '1.5px solid #000', marginBottom: '20px' }}>
                     <tbody>
@@ -1395,33 +1817,21 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             {/* ARCHETYPE 4: CUSTOM TABULAR LIVE VIEW */}
             {activeArchetype === 'CUSTOM_TABULAR' && (
               <div>
-                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#000', marginBottom: '4px' }}>
-                    {currentConfig.universityName}
-                  </div>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#111', marginBottom: '6px' }}>
-                    {currentConfig.branchName}
-                  </div>
-                  <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#111', marginBottom: '4px' }}>
-                    {currentConfig.examTitle}
-                  </div>
-                </div>
-
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8.5}pt` }}>
                   <thead>
-                    <tr style={{ background: '#f1f5f9', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      <th style={{ border: '1px solid #000', padding: '8px 4px', width: '45px', textAlign: 'center' }}>SL No</th>
+                    <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                      <th style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 4px', width: '45px', textAlign: 'center' }}>SL No</th>
                       {dataset.columns.slice(0, 6).map(c => (
-                        <th key={c} style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'left' }}>{c}</th>
+                        <th key={c} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 6px', textAlign: 'left' }}>{c}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {dataset.rows.slice(0, 25).map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #000' }}>
-                        <td style={{ border: '1px solid #000', padding: '6px 4px', textAlign: 'center' }}>{idx + 1}</td>
+                      <tr key={idx} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}` }}>
+                        <td style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 4px', textAlign: 'center' }}>{idx + 1}</td>
                         {dataset.columns.slice(0, 6).map(c => (
-                          <td key={c} style={{ border: '1px solid #000', padding: '6px' }}>{row[c]}</td>
+                          <td key={c} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px' }}>{row[c]}</td>
                         ))}
                       </tr>
                     ))}
