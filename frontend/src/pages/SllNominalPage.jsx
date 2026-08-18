@@ -344,31 +344,27 @@ const SllNominalPage = () => {
     // Venue & Programme Info Box (Stacked with auto-wrapping for long names)
     const progText = `Programme: ${gData.programme || 'N/A'}`;
     const venueText = `Venue: ${gData.venueLabel || 'N/A'}`;
-    const candCountText = `Total Candidates: ${gData.totalCandidates}`;
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     
     // Auto-wrap long lines so they never truncate or overflow
-    const progLines = doc.splitTextToSize(progText, 136);
-    const venueLines = doc.splitTextToSize(venueText, 136);
+    const progLines = doc.splitTextToSize(progText, 172);
+    const venueLines = doc.splitTextToSize(venueText, 172);
     
-    const boxHeight = Math.max(16, (progLines.length + venueLines.length) * 4.5 + 5);
+    const boxHeight = Math.max(13, (progLines.length + venueLines.length) * 4.2 + 4);
 
     doc.setDrawColor(180, 180, 180);
     doc.setFillColor(248, 249, 250);
     doc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
 
-    let textY = 38.5;
+    let textY = 38;
     doc.setTextColor(20, 20, 20);
     doc.text(progLines, 18, textY);
-    textY += progLines.length * 4.5;
+    textY += progLines.length * 4.2;
     
     doc.setTextColor(23, 107, 135);
     doc.text(venueLines, 18, textY);
-    
-    doc.setTextColor(20, 20, 20);
-    doc.text(candCountText, 150, 39);
 
     // Table Content with rowSpan for individual course divider lines
     const tableBody = [];
@@ -410,9 +406,10 @@ const SllNominalPage = () => {
       theme: 'grid',
       styles: { 
         font: 'helvetica',
-        fontSize: 8.5, 
+        fontSize: 8, 
         valign: 'middle',
-        cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+        cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, 
+        minCellHeight: 5,
         textColor: [0, 0, 0],
         lineColor: [100, 100, 100],
         lineWidth: 0.18,
@@ -421,19 +418,19 @@ const SllNominalPage = () => {
       headStyles: { 
         fillColor: [240, 240, 240], 
         textColor: [0, 0, 0], 
-        fontSize: 9, 
+        fontSize: 8.5, 
         fontStyle: 'bold',
         halign: 'center',
         valign: 'middle',
-        cellPadding: { top: 4, bottom: 4, left: 2, right: 2 },
+        cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 },
         lineColor: [100, 100, 100],
         lineWidth: 0.18
       },
       columnStyles: {
-        0: { cellWidth: 12, halign: 'center', valign: 'middle' },
-        1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+        0: { cellWidth: 10, halign: 'center', valign: 'middle' },
+        1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
         2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
-        3: { cellWidth: 72, valign: 'middle' },
+        3: { cellWidth: 76, valign: 'middle' },
         4: { cellWidth: 24, valign: 'middle' }
       },
       didDrawPage: (data) => {
@@ -481,30 +478,26 @@ const SllNominalPage = () => {
 
         const progText = `Programme: ${gData.programme || 'N/A'}`;
         const venueText = `Venue: ${gData.venueLabel || 'N/A'}`;
-        const candCountText = `Candidates: ${gData.totalCandidates}`;
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         
-        const progLines = doc.splitTextToSize(progText, 136);
-        const venueLines = doc.splitTextToSize(venueText, 136);
+        const progLines = doc.splitTextToSize(progText, 172);
+        const venueLines = doc.splitTextToSize(venueText, 172);
         
-        const boxHeight = Math.max(16, (progLines.length + venueLines.length) * 4.5 + 5);
+        const boxHeight = Math.max(13, (progLines.length + venueLines.length) * 4.2 + 4);
 
         doc.setDrawColor(180, 180, 180);
         doc.setFillColor(248, 249, 250);
         doc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
 
-        let textY = 38.5;
+        let textY = 38;
         doc.setTextColor(20, 20, 20);
         doc.text(progLines, 18, textY);
-        textY += progLines.length * 4.5;
+        textY += progLines.length * 4.2;
         
         doc.setTextColor(23, 107, 135);
         doc.text(venueLines, 18, textY);
-        
-        doc.setTextColor(20, 20, 20);
-        doc.text(candCountText, 150, 39);
 
         const tableBody = [];
         gData.candidates.forEach((cand, candIdx) => {
@@ -545,9 +538,10 @@ const SllNominalPage = () => {
           theme: 'grid',
           styles: { 
             font: 'helvetica',
-            fontSize: 8.5, 
+            fontSize: 8, 
             valign: 'middle',
-            cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+            cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, 
+            minCellHeight: 5,
             textColor: [0, 0, 0],
             lineColor: [100, 100, 100],
             lineWidth: 0.18,
@@ -556,19 +550,19 @@ const SllNominalPage = () => {
           headStyles: { 
             fillColor: [240, 240, 240], 
             textColor: [0, 0, 0], 
-            fontSize: 9, 
+            fontSize: 8.5, 
             fontStyle: 'bold',
             halign: 'center',
             valign: 'middle',
-            cellPadding: { top: 4, bottom: 4, left: 2, right: 2 },
+            cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 },
             lineColor: [100, 100, 100],
             lineWidth: 0.18
           },
           columnStyles: {
-            0: { cellWidth: 12, halign: 'center', valign: 'middle' },
-            1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+            0: { cellWidth: 10, halign: 'center', valign: 'middle' },
+            1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
             2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
-            3: { cellWidth: 72, valign: 'middle' },
+            3: { cellWidth: 76, valign: 'middle' },
             4: { cellWidth: 24, valign: 'middle' }
           }
         });
@@ -620,30 +614,26 @@ const SllNominalPage = () => {
 
           const progText = `Programme: ${gData.programme || 'N/A'}`;
           const venueText = `Venue: ${gData.venueLabel || 'N/A'}`;
-          const candCountText = `Candidates: ${gData.totalCandidates}`;
 
           targetDoc.setFontSize(9);
           targetDoc.setFont('helvetica', 'bold');
           
-          const progLines = targetDoc.splitTextToSize(progText, 136);
-          const venueLines = targetDoc.splitTextToSize(venueText, 136);
+          const progLines = targetDoc.splitTextToSize(progText, 172);
+          const venueLines = targetDoc.splitTextToSize(venueText, 172);
           
-          const boxHeight = Math.max(16, (progLines.length + venueLines.length) * 4.5 + 5);
+          const boxHeight = Math.max(13, (progLines.length + venueLines.length) * 4.2 + 4);
 
           targetDoc.setDrawColor(180, 180, 180);
           targetDoc.setFillColor(248, 249, 250);
           targetDoc.roundedRect(14, 34, 182, boxHeight, 2, 2, 'FD');
 
-          let textY = 38.5;
+          let textY = 38;
           targetDoc.setTextColor(20, 20, 20);
           targetDoc.text(progLines, 18, textY);
-          textY += progLines.length * 4.5;
+          textY += progLines.length * 4.2;
           
           targetDoc.setTextColor(23, 107, 135);
           targetDoc.text(venueLines, 18, textY);
-          
-          targetDoc.setTextColor(20, 20, 20);
-          targetDoc.text(candCountText, 150, 39);
 
           const tableBody = [];
           gData.candidates.forEach((cand, candIdx) => {
@@ -684,9 +674,10 @@ const SllNominalPage = () => {
             theme: 'grid',
             styles: { 
               font: 'helvetica',
-              fontSize: 8.5, 
+              fontSize: 8, 
               valign: 'middle',
-              cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
+              cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, 
+              minCellHeight: 5,
               textColor: [0, 0, 0],
               lineColor: [100, 100, 100],
               lineWidth: 0.18,
@@ -695,19 +686,19 @@ const SllNominalPage = () => {
             headStyles: { 
               fillColor: [240, 240, 240], 
               textColor: [0, 0, 0], 
-              fontSize: 9, 
+              fontSize: 8.5, 
               fontStyle: 'bold',
               halign: 'center',
               valign: 'middle',
-              cellPadding: { top: 4, bottom: 4, left: 2, right: 2 },
+              cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 },
               lineColor: [100, 100, 100],
               lineWidth: 0.18
             },
             columnStyles: {
-              0: { cellWidth: 12, halign: 'center', valign: 'middle' },
-              1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+              0: { cellWidth: 10, halign: 'center', valign: 'middle' },
+              1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
               2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
-              3: { cellWidth: 72, valign: 'middle' },
+              3: { cellWidth: 76, valign: 'middle' },
               4: { cellWidth: 24, valign: 'middle' }
             }
           });
