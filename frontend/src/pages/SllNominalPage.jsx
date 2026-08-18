@@ -337,23 +337,23 @@ const SllNominalPage = () => {
         c.seatNo,
         c.studentName,
         coursesStr || '—',
-        '' // Signature Box
+        '' // Blank Remarks
       ];
     });
 
     autoTable(doc, {
       startY: 51,
-      head: [['Sl No', 'Seat No', 'Candidate Name', 'Registered Courses', 'Signature / Remark']],
+      head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5, fontStyle: 'bold' },
       bodyStyles: { fontSize: 8.5, cellPadding: 3, textColor: [20, 20, 20] },
       columnStyles: {
         0: { cellWidth: 12, halign: 'center' },
-        1: { cellWidth: 26, fontStyle: 'bold', halign: 'center' },
+        1: { cellWidth: 30, fontStyle: 'bold', halign: 'center' },
         2: { cellWidth: 46 },
-        3: { cellWidth: 68 },
-        4: { cellWidth: 30 }
+        3: { cellWidth: 66 },
+        4: { cellWidth: 28 }
       },
       didDrawPage: (data) => {
         doc.setFontSize(8);
@@ -414,11 +414,18 @@ const SllNominalPage = () => {
 
         autoTable(doc, {
           startY: 51,
-          head: [['Sl No', 'Seat No', 'Candidate Name', 'Registered Courses', 'Signature / Remark']],
+          head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
           body: tableData,
           theme: 'grid',
           headStyles: { fillColor: [23, 107, 135], textColor: 255, fontSize: 8.5 },
-          bodyStyles: { fontSize: 8, cellPadding: 2.5 }
+          bodyStyles: { fontSize: 8, cellPadding: 2.5 },
+          columnStyles: {
+            0: { cellWidth: 12, halign: 'center' },
+            1: { cellWidth: 30, fontStyle: 'bold', halign: 'center' },
+            2: { cellWidth: 46 },
+            3: { cellWidth: 66 },
+            4: { cellWidth: 28 }
+          }
         });
 
         const pdfBlob = doc.output('blob');
@@ -472,9 +479,10 @@ const SllNominalPage = () => {
       const g = processedGroups[gKey];
       const rowsData = g.candidates.map((c, cIdx) => ({
         'Sl_No': cIdx + 1,
-        'Seat_No': c.seatNo,
-        'Student_Name': c.studentName,
-        'Registered_Courses': c.courses.map(crs => crs.display).join('; '),
+        'Register_Number': c.seatNo,
+        'Candidate_Name': c.studentName,
+        'Courses': c.courses.map(crs => crs.display).join('; '),
+        'Remarks': '',
         'Programme': g.programme,
         'Venue': g.venueLabel
       }));
@@ -654,7 +662,7 @@ const SllNominalPage = () => {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Seat No / Reg No Column</label>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Register Number Column</label>
               <select value={columnMapping.seatNo} onChange={(e) => setColumnMapping({ ...columnMapping, seatNo: parseInt(e.target.value, 10) })} style={{ width: '100%', fontSize: '13px' }}>
                 <option value="-1">-- Auto / Unspecified --</option>
                 {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
@@ -846,10 +854,10 @@ const SllNominalPage = () => {
                 <thead>
                   <tr style={{ background: '#f2f2f2', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
                     <th style={{ border: '1px solid #000', padding: '8px 6px', width: '50px', textAlign: 'center', fontWeight: 700 }}>SL<br/>No</th>
-                    <th style={{ border: '1px solid #000', padding: '8px 10px', width: '100px', textAlign: 'center', fontWeight: 700 }}>Seat No</th>
+                    <th style={{ border: '1px solid #000', padding: '8px 10px', width: '120px', textAlign: 'center', fontWeight: 700 }}>Register Number</th>
                     <th style={{ border: '1px solid #000', padding: '8px 12px', width: '220px', textAlign: 'left', fontWeight: 700 }}>Candidate Name</th>
-                    <th style={{ border: '1px solid #000', padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Registered Courses</th>
-                    <th style={{ border: '1px solid #000', padding: '8px 8px', width: '140px', textAlign: 'center', fontWeight: 700 }}>Candidate Signature</th>
+                    <th style={{ border: '1px solid #000', padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Courses</th>
+                    <th style={{ border: '1px solid #000', padding: '8px 8px', width: '110px', textAlign: 'center', fontWeight: 700 }}>Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -864,7 +872,7 @@ const SllNominalPage = () => {
                             <ul style={{ margin: 0, paddingLeft: '18px' }}>
                               {cand.courses.map((crs, cIdx) => (
                                 <li key={cIdx}>
-                                  <strong>{crs.code}</strong> {crs.title && `— ${crs.title}`} {crs.session && <span style={{ fontSize: '11px', color: '#666' }}>({crs.session})</span>}
+                                  <strong>{crs.code}</strong> {crs.title && `— ${crs.title}`}
                                 </li>
                               ))}
                             </ul>
@@ -872,8 +880,8 @@ const SllNominalPage = () => {
                             <span style={{ color: '#888' }}>—</span>
                           )}
                         </td>
-                        <td style={{ border: '1px solid #000', padding: '8px 8px', textAlign: 'center' }}>
-                          <div style={{ height: '32px', borderBottom: '1px dotted #999', margin: '0 8px' }} />
+                        <td style={{ border: '1px solid #000', padding: '8px 8px' }}>
+                          {/* Blank for Remarks */}
                         </td>
                       </tr>
                     ))
