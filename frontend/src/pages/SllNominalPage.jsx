@@ -10,6 +10,7 @@ import {
   FileSpreadsheet, 
   Archive, 
   FileText,
+  Printer,
   Search, 
   BookOpen, 
   Users,
@@ -388,6 +389,17 @@ const SllNominalPage = () => {
       head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
       body: tableData,
       theme: 'grid',
+      styles: { 
+        font: 'helvetica',
+        fontSize: 8.5, 
+        lineHeightFactor: 1.4,
+        valign: 'middle',
+        cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, 
+        textColor: [15, 23, 42],
+        lineColor: [200, 205, 215],
+        lineWidth: 0.2,
+        overflow: 'linebreak'
+      },
       headStyles: { 
         fillColor: [23, 107, 135], 
         textColor: 255, 
@@ -395,21 +407,13 @@ const SllNominalPage = () => {
         fontStyle: 'bold',
         halign: 'center',
         valign: 'middle',
-        cellPadding: { top: 3.5, bottom: 3.5, left: 2, right: 2 }
-      },
-      bodyStyles: { 
-        fontSize: 8.5, 
-        cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
-        textColor: [15, 23, 42],
-        valign: 'middle',
-        lineColor: [200, 205, 215],
-        lineWidth: 0.2
+        cellPadding: { top: 4, bottom: 4, left: 2, right: 2 }
       },
       columnStyles: {
-        0: { cellWidth: 12, halign: 'center', valign: 'middle' },
-        1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
-        3: { cellWidth: 72, valign: 'middle', cellPadding: { top: 3, bottom: 3, left: 3, right: 2 } },
+        0: { cellWidth: 10, halign: 'center', valign: 'middle' },
+        1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+        2: { cellWidth: 40, fontStyle: 'bold', valign: 'middle' },
+        3: { cellWidth: 78, valign: 'middle', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 2 } },
         4: { cellWidth: 24, valign: 'middle' }
       },
       didDrawPage: (data) => {
@@ -494,6 +498,17 @@ const SllNominalPage = () => {
           head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
           body: tableData,
           theme: 'grid',
+          styles: { 
+            font: 'helvetica',
+            fontSize: 8.5, 
+            lineHeightFactor: 1.4,
+            valign: 'middle',
+            cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, 
+            textColor: [15, 23, 42],
+            lineColor: [200, 205, 215],
+            lineWidth: 0.2,
+            overflow: 'linebreak'
+          },
           headStyles: { 
             fillColor: [23, 107, 135], 
             textColor: 255, 
@@ -501,21 +516,13 @@ const SllNominalPage = () => {
             fontStyle: 'bold',
             halign: 'center',
             valign: 'middle',
-            cellPadding: { top: 3.5, bottom: 3.5, left: 2, right: 2 }
-          },
-          bodyStyles: { 
-            fontSize: 8.5, 
-            cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
-            textColor: [15, 23, 42],
-            valign: 'middle',
-            lineColor: [200, 205, 215],
-            lineWidth: 0.2
+            cellPadding: { top: 4, bottom: 4, left: 2, right: 2 }
           },
           columnStyles: {
-            0: { cellWidth: 12, halign: 'center', valign: 'middle' },
-            1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-            2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
-            3: { cellWidth: 72, valign: 'middle', cellPadding: { top: 3, bottom: 3, left: 3, right: 2 } },
+            0: { cellWidth: 10, halign: 'center', valign: 'middle' },
+            1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+            2: { cellWidth: 40, fontStyle: 'bold', valign: 'middle' },
+            3: { cellWidth: 78, valign: 'middle', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 2 } },
             4: { cellWidth: 24, valign: 'middle' }
           }
         });
@@ -604,6 +611,17 @@ const SllNominalPage = () => {
             head: [['Sl No', 'Register Number', 'Candidate Name', 'Courses', 'Remarks']],
             body: tableData,
             theme: 'grid',
+            styles: { 
+              font: 'helvetica',
+              fontSize: 8.5, 
+              lineHeightFactor: 1.4,
+              valign: 'middle',
+              cellPadding: { top: 4, bottom: 4, left: 3, right: 3 }, 
+              textColor: [15, 23, 42],
+              lineColor: [200, 205, 215],
+              lineWidth: 0.2,
+              overflow: 'linebreak'
+            },
             headStyles: { 
               fillColor: [23, 107, 135], 
               textColor: 255, 
@@ -611,21 +629,13 @@ const SllNominalPage = () => {
               fontStyle: 'bold',
               halign: 'center',
               valign: 'middle',
-              cellPadding: { top: 3.5, bottom: 3.5, left: 2, right: 2 }
-            },
-            bodyStyles: { 
-              fontSize: 8.5, 
-              cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, 
-              textColor: [15, 23, 42],
-              valign: 'middle',
-              lineColor: [200, 205, 215],
-              lineWidth: 0.2
+              cellPadding: { top: 4, bottom: 4, left: 2, right: 2 }
             },
             columnStyles: {
-              0: { cellWidth: 12, halign: 'center', valign: 'middle' },
-              1: { cellWidth: 32, fontStyle: 'bold', halign: 'center', valign: 'middle' },
-              2: { cellWidth: 42, fontStyle: 'bold', valign: 'middle' },
-              3: { cellWidth: 72, valign: 'middle', cellPadding: { top: 3, bottom: 3, left: 3, right: 2 } },
+              0: { cellWidth: 10, halign: 'center', valign: 'middle' },
+              1: { cellWidth: 30, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+              2: { cellWidth: 40, fontStyle: 'bold', valign: 'middle' },
+              3: { cellWidth: 78, valign: 'middle', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 2 } },
               4: { cellWidth: 24, valign: 'middle' }
             }
           });
@@ -1109,6 +1119,15 @@ const SllNominalPage = () => {
                 </button>
 
                 <button
+                  className="button secondary"
+                  onClick={() => window.print()}
+                  title="Direct Print A4 from browser"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '7px 14px' }}
+                >
+                  <Printer size={15} /> Print A4
+                </button>
+
+                <button
                   className="button"
                   onClick={exportAllGroupsZip}
                   disabled={isProcessing}
@@ -1122,7 +1141,7 @@ const SllNominalPage = () => {
           </div>
 
           {/* Live Preview Paper Display (Matches PDF Layout 1:1) */}
-          <div className="card" style={{ padding: '36px 40px', background: 'white', border: '1px solid var(--line)', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+          <div className="card print-container" style={{ padding: '36px 40px', background: 'white', border: '1px solid var(--line)', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
             
             {/* Rendered Header inside Paper */}
             <div style={{ textAlign: 'center', marginBottom: '24px', borderBottom: '1px solid #eee', paddingBottom: '16px' }}>
