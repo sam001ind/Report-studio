@@ -1,11 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { useAuth } from '../context/AuthContext';
 import { TEMPLATE_ARCHETYPES } from '../utils/templateEngine';
 import { Sparkles, FileText, CalendarRange, Tag, TableProperties, ArrowRight } from 'lucide-react';
 
 const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
-  const { user } = useAuth();
   const [configs, setConfigs] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,33 +11,65 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
   const fetchLibrary = useCallback(async () => {
     setLoading(true);
     
-    // Fetch Configs
-    const { data: configsData, error: configsErr } = await supabase
-      .from('configs')
-      .select('id, name, created_at, config_data')
-      .not('config_data->>isDataset', 'eq', 'true')
-      .eq('user_id', user?.id);
-
-    if (configsErr) {
-      console.error('Error fetching configs:', configsErr);
-    } else {
-      setConfigs(configsData || []);
+    let authUserId = null;
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id) {
+        authUserId = authData.user.id;
+      }
+    } catch {
+      // not logged in
     }
 
-    // Fetch Templates
-    const { data: templatesData, error: templatesErr } = await supabase
-      .from('templates')
-      .select('*')
-      .eq('user_id', user?.id);
+    let cloudConfigs = [];
+    let cloudTemplates = [];
 
-    if (templatesErr) {
-      console.error('Error fetching templates:', templatesErr);
-    } else {
-      setTemplates(templatesData || []);
+    if (authUserId) {
+      // Fetch Configs
+      const { data: configsData } = await supabase
+        .from('configs')
+        .select('id, name, created_at, config_data')
+        .not('config_data->>isDataset', 'eq', 'true')
+        .eq('user_id', authUserId);
+      if (configsData) cloudConfigs = configsData;
+
+      // Fetch Templates
+      const { data: templatesData } = await supabase
+        .from('templates')
+        .select('*')
+        .eq('user_id', authUserId);
+      if (templatesData) cloudTemplates = templatesData;
     }
 
+    // Load Local Storage configs & templates
+    let localConfigs = [];
+    let localTemplates = [];
+    try {
+      localConfigs = JSON.parse(localStorage.getItem('saved_configs') || '[]');
+      localTemplates = JSON.parse(localStorage.getItem('saved_templates') || '[]');
+    } catch (e) {
+      console.warn(e);
+    }
+
+    // Merge without duplicates
+    const combinedConfigs = [...cloudConfigs];
+    localConfigs.forEach(lc => {
+      if (!combinedConfigs.some(c => c.name === lc.name || c.id === lc.id)) {
+        combinedConfigs.push(lc);
+      }
+    });
+
+    const combinedTemplates = [...cloudTemplates];
+    localTemplates.forEach(lt => {
+      if (!combinedTemplates.some(t => t.name === lt.name || t.id === lt.id)) {
+        combinedTemplates.push(lt);
+      }
+    });
+
+    setConfigs(combinedConfigs);
+    setTemplates(combinedTemplates);
     setLoading(false);
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => {
     fetchLibrary();
@@ -48,12 +78,22 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
   const deleteItem = async (table, id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (error) {
-      alert('Error deleting item: ' + error.message);
-    } else {
-      fetchLibrary();
+    try {
+      await supabase.from(table).delete().eq('id', id);
+    } catch (e) {
+      console.warn(e);
     }
+
+    try {
+      const storageKey = table === 'configs' ? 'saved_configs' : 'saved_templates';
+      const items = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const updated = items.filter(it => it.id !== id);
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    fetchLibrary();
   };
 
   return (

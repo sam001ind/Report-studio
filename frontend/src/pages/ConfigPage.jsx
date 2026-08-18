@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { useAuth } from '../context/AuthContext';
 import { readSpreadsheetFile } from '../utils/excelParser';
 import { autoDetectDatasetColumns, suggestArchetype, TEMPLATE_ARCHETYPES } from '../utils/templateEngine';
 import { 
@@ -19,8 +18,7 @@ import {
   Eye
 } from 'lucide-react';
 
-const ConfigPage = ({ dataset, setDataset, setStats, initialConfig, onNavigateToTemplate }) => {
-  const { user } = useAuth();
+const ConfigPage = ({ _onDataLoaded, dataset = { columns: [], rows: [] }, setDataset, setStats, initialConfig, onNavigateToTemplate }) => {
   const [uploadStatus, setUploadStatus] = useState('Click or Drag to Upload Spreadsheet (.xlsx, .xls, .csv, .zip)');
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -315,18 +313,43 @@ const ConfigPage = ({ dataset, setDataset, setStats, initialConfig, onNavigateTo
       pipeline: pipelineSteps,
       createdAt: new Date().toISOString()
     };
-    
-    const { error } = await supabase
-      .from('configs')
-      .insert([
-        { name: configName, config_data: configData, user_id: user.id }
-      ]);
-      
-    if (error) {
-      console.error(error);
-      alert('Error saving config to Supabase: ' + error.message);
+
+    let authUserId = null;
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id) {
+        authUserId = authData.user.id;
+      }
+    } catch {
+      // not logged in with real auth
+    }
+
+    let savedToCloud = false;
+    if (authUserId) {
+      const { error } = await supabase
+        .from('configs')
+        .insert([
+          { name: configName, config_data: configData, user_id: authUserId }
+        ]);
+      if (!error) {
+        savedToCloud = true;
+      }
+    }
+
+    // Always persist to local workspace / storage
+    try {
+      const localConfigs = JSON.parse(localStorage.getItem('saved_configs') || '[]');
+      const newConfig = { id: `cfg_${Date.now()}`, name: configName, config_data: configData, created_at: new Date().toISOString() };
+      const updated = [newConfig, ...localConfigs.filter(c => c.name !== configName)];
+      localStorage.setItem('saved_configs', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('LocalStorage error:', e);
+    }
+
+    if (savedToCloud) {
+      alert('Configuration Saved to Cloud and Workspace!');
     } else {
-      alert('Configuration Saved to Cloud!');
+      alert('Configuration Saved Successfully to your Workspace!');
     }
   };
 

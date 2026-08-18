@@ -31,7 +31,6 @@ import {
   ArrowRight as ArrowRightIcon
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { useAuth } from '../context/AuthContext';
 import { logoBase64 } from '../assets/logoBase64';
 import { TEMPLATE_ARCHETYPES, autoDetectDatasetColumns, suggestArchetype } from '../utils/templateEngine';
 
@@ -44,7 +43,6 @@ const hexToRgb = (hex) => {
 };
 
 const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) => {
-  const { user } = useAuth();
   const fileInputRef = useRef(null);
   
   // Selected Archetype
@@ -917,18 +915,40 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       createdAt: new Date().toISOString()
     };
 
-    if (user?.id) {
+    let authUserId = null;
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id) {
+        authUserId = authData.user.id;
+      }
+    } catch {
+      // not logged in
+    }
+
+    let savedToCloud = false;
+    if (authUserId) {
       const { error } = await supabase
         .from('templates')
-        .insert([{ name: templateName, layout_data: templateData, user_id: user.id }]);
-      if (error) {
-        alert('Saved locally. Cloud save error: ' + error.message);
-      } else {
-        alert('Template saved to Cloud Library successfully!');
+        .insert([{ name: templateName, layout_data: templateData, user_id: authUserId }]);
+      if (!error) {
+        savedToCloud = true;
       }
+    }
+
+    // Always persist to local workspace / storage
+    try {
+      const localTemplates = JSON.parse(localStorage.getItem('saved_templates') || '[]');
+      const newTemplate = { id: `tpl_${Date.now()}`, name: templateName, layout_data: templateData, created_at: new Date().toISOString() };
+      const updated = [newTemplate, ...localTemplates.filter(t => t.name !== templateName)];
+      localStorage.setItem('saved_templates', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('LocalStorage error:', e);
+    }
+
+    if (savedToCloud) {
+      alert('Template saved to Cloud and Local Workspace successfully!');
     } else {
-      localStorage.setItem(`template_${Date.now()}`, JSON.stringify(templateData));
-      alert('Template saved to your local workspace!');
+      alert('Template saved successfully to your Local Workspace!');
     }
   };
 
