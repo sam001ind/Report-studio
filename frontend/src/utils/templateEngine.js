@@ -1,161 +1,46 @@
 import { logoBase64 } from '../assets/logoBase64';
 
+export const DEFAULT_REPORT_TEMPLATE = {
+  pageSize: 'A4',
+  orientation: 'portrait',
+  logo: {
+    show: false,
+    src: logoBase64,
+    position: 'center',
+    width: 18
+  },
+  headersList: [
+    { id: 'h1', text: 'Kannur University', size: 15, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' },
+    { id: 'h2', text: '(Examination Branch)', size: 11, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
+    { id: 'h3', text: 'Custom Examination Consolidated Report', size: 10, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
+    { id: 'h4', text: 'Academic Session 2024 - 2026', size: 9.5, bold: false, italic: false, align: 'center', color: '#222222', font: 'helvetica' }
+  ],
+  tableColumns: [
+    { id: 'c1', label: 'Sl No', field: 'slNo', width: 12, align: 'center' },
+    { id: 'c2', label: 'Register Number', field: 'seatNo', width: 35, align: 'center', bold: true },
+    { id: 'c3', label: 'Candidate Name', field: 'name', width: 45, align: 'left', bold: true },
+    { id: 'c4', label: 'Course / Paper', field: 'course', width: 65, align: 'left' },
+    { id: 'c5', label: 'Remarks / Status', field: 'remarks', width: 25, align: 'center' }
+  ],
+  tableTheme: {
+    headerBg: '#f1f5f9',
+    headerColor: '#000000',
+    fontSize: 8.5,
+    borderColor: '#64748b'
+  },
+  groupBy: 'none',
+  showTotalCount: true,
+  formatCodeDotNameDot: false
+};
+
 export const TEMPLATE_ARCHETYPES = {
-  NOMINAL_ROLL: {
-    id: 'NOMINAL_ROLL',
-    name: 'Venue-Wise Nominal Roll',
-    description: 'Multi-course nested sub-row table grouped by Programme + Venue with candidate registration merging (Image 1 style).',
-    category: 'Roster / Student Roll',
-    icon: 'FileText',
-    defaultConfig: {
-      pageSize: 'A4',
-      orientation: 'portrait',
-      logo: {
-        show: false,
-        src: logoBase64,
-        position: 'center',
-        width: 18
-      },
-      headersList: [
-        { id: 'h1', text: 'Kannur University', size: 15, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' },
-        { id: 'h2', text: '(Examination Branch)', size: 11, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
-        { id: 'h3', text: 'IV Semester Private Registration 2024 -2027 Admission', size: 10, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
-        { id: 'h4', text: 'April 2026', size: 9.5, bold: false, italic: false, align: 'center', color: '#222222', font: 'helvetica' }
-      ],
-      tableColumns: [
-        { id: 'c1', label: 'Sl No', field: 'slNo', width: 10, align: 'center', isSpan: true },
-        { id: 'c2', label: 'Register Number', field: 'seatNo', width: 30, align: 'center', isSpan: true, bold: true },
-        { id: 'c3', label: 'Candidate Name', field: 'name', width: 42, align: 'left', isSpan: true, bold: true },
-        { id: 'c4', label: 'Courses', field: 'courses', width: 76, align: 'left', isSpan: false },
-        { id: 'c5', label: 'Remarks', field: 'remarks', width: 24, align: 'center', isSpan: true }
-      ],
-      tableTheme: {
-        headerBg: '#f1f5f9',
-        headerColor: '#000000',
-        fontSize: 8,
-        borderColor: '#64748b'
-      },
-      groupBy: 'programme_venue',
-      showGroupBox: true,
-      formatCodeDotNameDot: true
-    }
-  },
-  QP_STATEMENT: {
-    id: 'QP_STATEMENT',
-    name: 'QP Statement Report (Venue-Wise)',
-    description: 'Daily exam schedule and question paper requirement matrix table per venue with blank QP/LP columns (Image 2 style).',
-    category: 'Examination Matrix',
-    icon: 'CalendarRange',
-    defaultConfig: {
-      pageSize: 'A4',
-      orientation: 'portrait',
-      logo: {
-        show: false,
-        src: logoBase64,
-        position: 'center',
-        width: 18
-      },
-      headersList: [
-        { id: 'h1', text: 'Kannur University', size: 15, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' },
-        { id: 'h2', text: '(Examination Branch)', size: 11, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
-        { id: 'h3', text: 'QP Statement for 4th Semester Degree Private Registration Regular Examination', size: 10, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
-        { id: 'h4', text: 'April 2026', size: 9.5, bold: false, italic: false, align: 'center', color: '#222222', font: 'helvetica' }
-      ],
-      tableColumns: [
-        { id: 'c1', label: 'SL No', field: 'slNo', width: 12, align: 'center' },
-        { id: 'c2', label: 'Date', field: 'date', width: 35, align: 'left' },
-        { id: 'c3', label: 'Course', field: 'course', width: 85, align: 'left' },
-        { id: 'c4', label: 'NC', field: 'count', width: 16, align: 'center', bold: true },
-        { id: 'c5', label: 'QP', field: 'qp', width: 17, align: 'center' },
-        { id: 'c6', label: 'LP', field: 'lp', width: 17, align: 'center' }
-      ],
-      tableTheme: {
-        headerBg: '#f1f5f9',
-        headerColor: '#000000',
-        fontSize: 8.5,
-        borderColor: '#000000'
-      },
-      centerPrefix: 'Center Name :',
-      groupBy: 'venue',
-      formatCodeDotNameDot: false
-    }
-  },
-  QP_COVER_LABEL: {
-    id: 'QP_COVER_LABEL',
-    name: 'QP Cover Label & Certificate',
-    description: 'Bilingual header with university crest, key-value exam details box, certificate statement, and signature lines (Image 3 style).',
-    category: 'Packaging Envelope / Certificate',
-    icon: 'Tag',
-    defaultConfig: {
-      pageSize: 'A4',
-      orientation: 'portrait',
-      logo: {
-        show: true,
-        src: logoBase64,
-        position: 'left',
-        width: 18
-      },
-      headersList: [
-        { id: 'h1', text: 'Kannur University', size: 15, bold: true, italic: false, align: 'center', color: '#c8102e', font: 'helvetica' },
-        { id: 'h2', text: 'കണ്ണൂർ സർവകലാശാല', size: 11.5, bold: true, italic: false, align: 'center', color: '#c8102e', font: 'helvetica' },
-        { id: 'h3', text: 'Thavakkara,Civil Station P.O, Kannur', size: 8.5, bold: false, italic: false, align: 'center', color: '#475569', font: 'helvetica' },
-        { id: 'h4', text: "Reaccredited by NAAC with 'B++' Grade", size: 8.5, bold: false, italic: false, align: 'center', color: '#475569', font: 'helvetica' },
-        { id: 'h5', text: '(Examination Branch)', size: 9.5, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' },
-        { id: 'h6', text: 'Fourth Semester Degree (Private Registration) Regular Examinations April 2026', size: 9.5, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' }
-      ],
-      tableTheme: {
-        headerBg: '#ffffff',
-        headerColor: '#000000',
-        fontSize: 8.5,
-        borderColor: '#000000'
-      },
-      centerPrefix: 'CENTRE CODE AND NAME',
-      certificateText: 'We hereby certify that we have examined this cover and satisfied ourselves that the seals are intact and that it was opened at ____________________________________ A.M/P.M in our presence.',
-      signatures: {
-        invigilatorLabel: 'INVIGILATOR',
-        invigilatorCount: 2,
-        addlChiefLabel: 'ADDL.CHIEF SUPERINTENDENT',
-        chiefLabel: 'CHIEF SUPERINTENDENT',
-        showPlaceDate: true
-      }
-    }
-  },
   CUSTOM_TABULAR: {
     id: 'CUSTOM_TABULAR',
     name: 'Custom Tabular Data Report',
-    description: 'Dynamic multi-column grid report with customizable headers, groupings, subtotals, and column styles.',
+    description: 'Dynamic multi-column report builder with customizable headers, logo, table columns, grouping, and multi-format exports.',
     category: 'Custom General Report',
     icon: 'TableProperties',
-    defaultConfig: {
-      pageSize: 'A4',
-      orientation: 'portrait',
-      logo: {
-        show: false,
-        src: logoBase64,
-        position: 'center',
-        width: 18
-      },
-      headersList: [
-        { id: 'h1', text: 'Kannur University', size: 15, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' },
-        { id: 'h2', text: 'Institutional Examination Report', size: 11, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
-        { id: 'h3', text: 'Consolidated Statement', size: 10, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' }
-      ],
-      tableColumns: [
-        { id: 'c1', label: 'Sl No', field: 'slNo', width: 10, align: 'center' },
-        { id: 'c2', label: 'Register Number', field: 'seatNo', width: 35, align: 'center', bold: true },
-        { id: 'c3', label: 'Candidate Name', field: 'name', width: 50, align: 'left', bold: true },
-        { id: 'c4', label: 'Course / Paper', field: 'course', width: 65, align: 'left' },
-        { id: 'c5', label: 'Status', field: 'remarks', width: 25, align: 'center' }
-      ],
-      tableTheme: {
-        headerBg: '#f1f5f9',
-        headerColor: '#000000',
-        fontSize: 8.5,
-        borderColor: '#64748b'
-      },
-      groupBy: 'none',
-      showTotalCount: true
-    }
+    defaultConfig: DEFAULT_REPORT_TEMPLATE
   }
 };
 
@@ -194,18 +79,6 @@ export function autoDetectDatasetColumns(headers = []) {
   };
 }
 
-/**
- * Suggest best matching archetype based on uploaded columns
- */
-export function suggestArchetype(detectedCols) {
-  if (detectedCols.seatNo && (detectedCols.courseCode || detectedCols.courseTitle)) {
-    return 'NOMINAL_ROLL';
-  }
-  if (detectedCols.examDate && (detectedCols.courseCode || detectedCols.courseTitle)) {
-    return 'QP_STATEMENT';
-  }
-  if (detectedCols.venueName && (detectedCols.courseCode || detectedCols.courseTitle) && detectedCols.examDate) {
-    return 'QP_COVER_LABEL';
-  }
+export function suggestArchetype(_detectedCols) {
   return 'CUSTOM_TABULAR';
 }

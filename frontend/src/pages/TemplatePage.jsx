@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { 
   FileText, 
-  CalendarRange, 
-  Tag, 
   TableProperties, 
   Edit3, 
   Sliders, 
@@ -28,11 +27,12 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowLeft,
-  ArrowRight as ArrowRightIcon
+  ArrowRight as ArrowRightIcon,
+  FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { logoBase64 } from '../assets/logoBase64';
-import { TEMPLATE_ARCHETYPES, autoDetectDatasetColumns, suggestArchetype } from '../utils/templateEngine';
+import { DEFAULT_REPORT_TEMPLATE, autoDetectDatasetColumns } from '../utils/templateEngine';
 
 const hexToRgb = (hex) => {
   let c = String(hex || '#000000').replace(/^#/, '');
@@ -44,73 +44,58 @@ const hexToRgb = (hex) => {
 
 const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) => {
   const fileInputRef = useRef(null);
-  
-  // Selected Archetype
-  const [activeArchetype, setActiveArchetype] = useState(() => {
-    if (initialTemplate?.archetype) return initialTemplate.archetype;
-    if (dataset?.columns?.length > 0) {
-      const detected = autoDetectDatasetColumns(dataset.columns);
-      return suggestArchetype(detected);
+
+  // Template Configuration
+  const [templateConfig, setTemplateConfig] = useState(() => {
+    if (initialTemplate?.config) {
+      return JSON.parse(JSON.stringify(initialTemplate.config));
     }
-    return 'NOMINAL_ROLL';
+    return JSON.parse(JSON.stringify(DEFAULT_REPORT_TEMPLATE));
   });
 
-  // Archetype Configurations
-  const [archetypeConfigs, setArchetypeConfigs] = useState(() => {
-    return {
-      NOMINAL_ROLL: JSON.parse(JSON.stringify(TEMPLATE_ARCHETYPES.NOMINAL_ROLL.defaultConfig)),
-      QP_STATEMENT: JSON.parse(JSON.stringify(TEMPLATE_ARCHETYPES.QP_STATEMENT.defaultConfig)),
-      QP_COVER_LABEL: JSON.parse(JSON.stringify(TEMPLATE_ARCHETYPES.QP_COVER_LABEL.defaultConfig)),
-      CUSTOM_TABULAR: JSON.parse(JSON.stringify(TEMPLATE_ARCHETYPES.CUSTOM_TABULAR.defaultConfig))
-    };
-  });
-
-  // Column Mappings
   const [columnMappings, setColumnMappings] = useState(() => autoDetectDatasetColumns(dataset?.columns || []));
-
-  const [isSidebarOpen, _setIsSidebarOpen] = useState(true);
-  const [templateName, setTemplateName] = useState(initialTemplate?.name || 'My Custom University Report');
+  const [templateName, setTemplateName] = useState(initialTemplate?.name || 'Custom Tabular Report');
   const [isProcessing, setIsProcessing] = useState(false);
   const [activePreviewIndex, setActivePreviewIndex] = useState(0);
 
-  // Active Tool Tab: 'headers' | 'columns' | 'data' | 'page' | 'styling'
+  // Active Tool Tab: 'columns' | 'headers' | 'page' | 'grouping' | 'styling'
   const [activeToolTab, setActiveToolTab] = useState('columns');
 
-  // Update column detection when dataset changes
+  // Auto-detect columns and optionally build initial tableColumns when dataset changes
   useEffect(() => {
     if (dataset?.columns?.length > 0) {
       const detected = autoDetectDatasetColumns(dataset.columns);
       setColumnMappings(detected);
-      
-      // Auto-populate session name if found
-      if (detected.session && dataset.rows?.length > 0) {
-        const sampleSess = dataset.rows.find(r => r[detected.session])?.[detected.session];
-        if (sampleSess && typeof sampleSess === 'string' && sampleSess.trim()) {
-          setArchetypeConfigs(prev => {
-            const copy = JSON.parse(JSON.stringify(prev));
-            ['NOMINAL_ROLL', 'QP_STATEMENT'].forEach(arch => {
-              if (copy[arch]?.headersList?.length >= 4) {
-                copy[arch].headersList[3].text = sampleSess.trim();
-              }
-            });
-            return copy;
-          });
+
+      // If templateColumns is empty or only default, populate from dataset columns
+      setTemplateConfig(prev => {
+        if (!prev.tableColumns || prev.tableColumns.length === 0) {
+          const autoCols = dataset.columns.slice(0, 8).map((colName, idx) => ({
+            id: `col_${Date.now()}_${idx}`,
+            label: colName,
+            field: colName,
+            width: 30,
+            align: idx === 0 ? 'center' : 'left',
+            bold: idx === 0
+          }));
+          return {
+            ...prev,
+            tableColumns: [
+              { id: `col_slno_${Date.now()}`, label: 'Sl No', field: 'slNo', width: 12, align: 'center', bold: true },
+              ...autoCols
+            ]
+          };
         }
-      }
+        return prev;
+      });
     }
   }, [dataset]);
 
   // Load from initialTemplate
   useEffect(() => {
     if (initialTemplate) {
-      if (initialTemplate.archetype) {
-        setActiveArchetype(initialTemplate.archetype);
-      }
       if (initialTemplate.config) {
-        setArchetypeConfigs(prev => ({
-          ...prev,
-          [initialTemplate.archetype || 'NOMINAL_ROLL']: initialTemplate.config
-        }));
+        setTemplateConfig(initialTemplate.config);
       }
       if (initialTemplate.columnMappings) {
         setColumnMappings(initialTemplate.columnMappings);
@@ -121,15 +106,10 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     }
   }, [initialTemplate]);
 
-  const currentConfig = archetypeConfigs[activeArchetype] || archetypeConfigs.NOMINAL_ROLL;
-
-  const updateCurrentConfig = (updates) => {
-    setArchetypeConfigs(prev => ({
+  const updateConfig = (updates) => {
+    setTemplateConfig(prev => ({
       ...prev,
-      [activeArchetype]: {
-        ...prev[activeArchetype],
-        ...updates
-      }
+      ...updates
     }));
   };
 
@@ -137,7 +117,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
   const addHeaderLine = () => {
     const newHeader = {
       id: `h_${Date.now()}`,
-      text: 'New Header Line',
+      text: 'New Institutional Header Line',
       size: 11,
       bold: true,
       italic: false,
@@ -145,63 +125,79 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       color: '#000000',
       font: 'helvetica'
     };
-    updateCurrentConfig({
-      headersList: [...(currentConfig.headersList || []), newHeader]
+    updateConfig({
+      headersList: [...(templateConfig.headersList || []), newHeader]
     });
   };
 
   const updateHeaderLine = (id, updates) => {
-    const list = (currentConfig.headersList || []).map(h => h.id === id ? { ...h, ...updates } : h);
-    updateCurrentConfig({ headersList: list });
+    const list = (templateConfig.headersList || []).map(h => h.id === id ? { ...h, ...updates } : h);
+    updateConfig({ headersList: list });
   };
 
   const removeHeaderLine = (id) => {
-    const list = (currentConfig.headersList || []).filter(h => h.id !== id);
-    updateCurrentConfig({ headersList: list });
+    const list = (templateConfig.headersList || []).filter(h => h.id !== id);
+    updateConfig({ headersList: list });
   };
 
   const moveHeaderLine = (index, direction) => {
-    const list = [...(currentConfig.headersList || [])];
+    const list = [...(templateConfig.headersList || [])];
     const targetIdx = index + direction;
     if (targetIdx < 0 || targetIdx >= list.length) return;
     const temp = list[index];
     list[index] = list[targetIdx];
     list[targetIdx] = temp;
-    updateCurrentConfig({ headersList: list });
+    updateConfig({ headersList: list });
   };
 
-  // Table Column Headers Helpers
+  // Table Columns Helpers
   const addTableColumn = () => {
-    const cols = currentConfig.tableColumns || [];
+    const cols = templateConfig.tableColumns || [];
     const newCol = {
       id: `col_${Date.now()}`,
       label: `Column ${cols.length + 1}`,
-      field: 'blank',
-      width: 25,
-      align: 'center',
-      isSpan: true
+      field: dataset?.columns?.[0] || 'blank',
+      width: 30,
+      align: 'left',
+      bold: false
     };
-    updateCurrentConfig({ tableColumns: [...cols, newCol] });
+    updateConfig({ tableColumns: [...cols, newCol] });
+  };
+
+  const importAllDatasetColumns = () => {
+    if (!dataset?.columns?.length) return alert('Please upload an Excel spreadsheet in Report Config first.');
+    const imported = [
+      { id: `col_slno_${Date.now()}`, label: 'Sl No', field: 'slNo', width: 12, align: 'center', bold: true },
+      ...dataset.columns.map((colName, idx) => ({
+        id: `col_${Date.now()}_${idx}`,
+        label: colName,
+        field: colName,
+        width: 30,
+        align: 'left',
+        bold: false
+      }))
+    ];
+    updateConfig({ tableColumns: imported });
   };
 
   const updateTableColumn = (id, updates) => {
-    const cols = (currentConfig.tableColumns || []).map(c => c.id === id ? { ...c, ...updates } : c);
-    updateCurrentConfig({ tableColumns: cols });
+    const cols = (templateConfig.tableColumns || []).map(c => c.id === id ? { ...c, ...updates } : c);
+    updateConfig({ tableColumns: cols });
   };
 
   const removeTableColumn = (id) => {
-    const cols = (currentConfig.tableColumns || []).filter(c => c.id !== id);
-    updateCurrentConfig({ tableColumns: cols });
+    const cols = (templateConfig.tableColumns || []).filter(c => c.id !== id);
+    updateConfig({ tableColumns: cols });
   };
 
   const moveTableColumn = (index, direction) => {
-    const cols = [...(currentConfig.tableColumns || [])];
+    const cols = [...(templateConfig.tableColumns || [])];
     const targetIdx = index + direction;
     if (targetIdx < 0 || targetIdx >= cols.length) return;
     const temp = cols[index];
     cols[index] = cols[targetIdx];
     cols[targetIdx] = temp;
-    updateCurrentConfig({ tableColumns: cols });
+    updateConfig({ tableColumns: cols });
   };
 
   // Logo Upload Handler
@@ -210,9 +206,9 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
-      updateCurrentConfig({
+      updateConfig({
         logo: {
-          ...currentConfig.logo,
+          ...templateConfig.logo,
           show: true,
           src: evt.target.result
         }
@@ -221,336 +217,72 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     reader.readAsDataURL(file);
   };
 
-  // Mock Fallback Data Generator when no dataset is loaded
-  const getMockDataForArchetype = useCallback((archetype, formatDots = false) => {
-    if (archetype === 'NOMINAL_ROLL') {
-      const prog = 'Bachelor of Business Administration (BBA)';
-      const venueLabel = 'GA - Sree Narayana Guru College of Advanced Studies, Thottada';
-      const c1 = formatDots ? 'KU4VACBBA200. - Disaster Management.' : 'KU4VACBBA200 - Disaster Management';
-      const c2 = formatDots ? 'KU4SECBBA201. - Soft Skills & Personality Development.' : 'KU4SECBBA201 - Soft Skills & Personality Development';
-      const c3 = formatDots ? 'KU4MDCBBA202. - Digital Marketing & E-Commerce.' : 'KU4MDCBBA202 - Digital Marketing & E-Commerce';
-      const c4 = formatDots ? 'KU4AECBBA203. - Business Ethics & Corporate Governance.' : 'KU4AECBBA203 - Business Ethics & Corporate Governance';
-
-      const groupKey = `${prog} • ${venueLabel}`;
-      return {
-        groups: {
-          [groupKey]: {
-            programme: prog,
-            venueCode: 'GA',
-            venueName: 'Sree Narayana Guru College of Advanced Studies, Thottada',
-            venueLabel,
-            candidates: [
-              {
-                seatNo: '4PR24BB001',
-                studentName: 'ADITHYA K',
-                rawRow: {},
-                courses: [
-                  { display: c1 },
-                  { display: c2 },
-                  { display: c3 },
-                  { display: c4 }
-                ]
-              },
-              {
-                seatNo: '4PR24BB002',
-                studentName: 'ANANYA RAJEEV',
-                rawRow: {},
-                courses: [
-                  { display: c1 },
-                  { display: c2 },
-                  { display: c3 }
-                ]
-              },
-              {
-                seatNo: '4PR24BB003',
-                studentName: 'FARHAN MOHAMMED',
-                rawRow: {},
-                courses: [
-                  { display: c1 },
-                  { display: c3 },
-                  { display: c4 }
-                ]
-              }
-            ],
-            totalCandidates: 3
-          }
-        },
-        groupKeys: [groupKey],
-        totalCount: 1
-      };
-    }
-
-    if (archetype === 'QP_STATEMENT') {
-      const venueLabel = 'GA - Sree Narayana Guru College of Advanced Studies, Thottada';
-      return {
-        groups: {
-          [venueLabel]: {
-            venueLabel,
-            items: [
-              { date: '2026-09-09', courseDisplay: 'KU4VACBBA200 - Disaster Management', studentCount: 28 },
-              { date: '2026-09-11', courseDisplay: 'KU4SECBBA201 - Soft Skills & Personality Development', studentCount: 28 },
-              { date: '2026-09-15', courseDisplay: 'KU4MDCBBA202 - Digital Marketing & E-Commerce', studentCount: 25 },
-              { date: '2026-09-18', courseDisplay: 'KU4AECBBA203 - Business Ethics & Corporate Governance', studentCount: 28 }
-            ]
-          }
-        },
-        groupKeys: [venueLabel],
-        totalCount: 1
-      };
-    }
-
-    if (archetype === 'QP_COVER_LABEL') {
-      const labels = [
-        {
-          venueCode: 'GA',
-          venueName: 'Sree Narayana Guru College of Advanced Studies, Thottada',
-          day: 'Wednesday',
-          date: '2026-09-09',
-          timeRange: '01:30 PM - 03:00 PM',
-          subject: 'KU4VACBBA200 - Disaster Management',
-          studentCount: '28',
-          coverNumber: '1'
-        },
-        {
-          venueCode: 'GA',
-          venueName: 'Sree Narayana Guru College of Advanced Studies, Thottada',
-          day: 'Friday',
-          date: '2026-09-11',
-          timeRange: '01:30 PM - 03:00 PM',
-          subject: 'KU4SECBBA201 - Soft Skills & Personality Development',
-          studentCount: '28',
-          coverNumber: '2'
-        }
-      ];
-      return {
-        groups: { allLabels: labels },
-        groupKeys: ['allLabels'],
-        totalCount: labels.length
-      };
-    }
-
-    return {
-      groups: {
-        default: [
-          { 'Sl No': 1, 'Register No': '4PR24BB001', 'Candidate Name': 'ADITHYA K', 'Course': 'Disaster Management', 'Status': 'Registered' },
-          { 'Sl No': 2, 'Register No': '4PR24BB002', 'Candidate Name': 'ANANYA RAJEEV', 'Course': 'Disaster Management', 'Status': 'Registered' }
-        ]
-      },
-      groupKeys: ['default'],
-      totalCount: 1
-    };
+  // Realistic Mock Fallback when no dataset is loaded
+  const sampleRows = useMemo(() => {
+    return [
+      { 'slNo': 1, 'seatNo': '4PR24BB001', 'name': 'ADITHYA K', 'course': 'KU4VACBBA200 - Disaster Management', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Sree Narayana Guru College, Thottada' },
+      { 'slNo': 2, 'seatNo': '4PR24BB002', 'name': 'ANANYA RAJEEV', 'course': 'KU4SECBBA201 - Soft Skills & Personality', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Sree Narayana Guru College, Thottada' },
+      { 'slNo': 3, 'seatNo': '4PR24BB003', 'name': 'FARHAN MOHAMMED', 'course': 'KU4MDCBBA202 - Digital Marketing & E-Commerce', 'status': 'Registered', 'Department': 'Commerce', 'Venue': 'Govt. Brennen College, Thalassery' },
+      { 'slNo': 4, 'seatNo': '4PR24BB004', 'name': 'GAYATHRI S', 'course': 'KU4AECBBA203 - Business Ethics', 'status': 'Registered', 'Department': 'Commerce', 'Venue': 'Govt. Brennen College, Thalassery' },
+      { 'slNo': 5, 'seatNo': '4PR24BB005', 'name': 'HARIKRISHNAN P', 'course': 'KU4VACBBA200 - Disaster Management', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Sree Narayana Guru College, Thottada' }
+    ];
   }, []);
 
-  // --- DATA GROUPING AND STRUCTURING ENGINE --- //
+  // Processed Data & Grouping Engine
   const processedData = useMemo(() => {
-    const rows = dataset?.rows || [];
-    if (!rows.length) {
-      return getMockDataForArchetype(activeArchetype, currentConfig.formatCodeDotNameDot);
+    const rawRows = dataset?.rows?.length ? dataset.rows : sampleRows;
+    const groupByCol = templateConfig.groupBy;
+
+    if (!groupByCol || groupByCol === 'none') {
+      return {
+        groups: { 'All Records': rawRows },
+        groupKeys: ['All Records'],
+        totalCount: 1,
+        totalRows: rawRows.length
+      };
     }
 
-    const getVal = (row, colKey, fallback = '') => {
-      if (colKey && row[colKey] !== undefined && row[colKey] !== null) return String(row[colKey]).trim();
-      return fallback;
+    const groups = {};
+    rawRows.forEach(row => {
+      const gVal = String(row[groupByCol] !== undefined && row[groupByCol] !== null ? row[groupByCol] : 'Unassigned').trim();
+      if (!groups[gVal]) {
+        groups[gVal] = [];
+      }
+      groups[gVal].push(row);
+    });
+
+    const groupKeys = Object.keys(groups).sort();
+    return {
+      groups,
+      groupKeys,
+      totalCount: groupKeys.length,
+      totalRows: rawRows.length
     };
+  }, [dataset, sampleRows, templateConfig.groupBy]);
 
-    if (activeArchetype === 'NOMINAL_ROLL') {
-      const groups = {};
-      const formatDots = currentConfig.formatCodeDotNameDot;
+  const effectiveGroupKey = processedData.groupKeys[activePreviewIndex] || processedData.groupKeys[0] || 'All Records';
+  const currentPreviewRows = processedData.groups[effectiveGroupKey] || [];
+  const activeCols = templateConfig.tableColumns || DEFAULT_REPORT_TEMPLATE.tableColumns;
 
-      rows.forEach(row => {
-        const prog = getVal(row, columnMappings.programme, 'General Programme');
-        const vCode = getVal(row, columnMappings.venueCode, '');
-        const vName = getVal(row, columnMappings.venueName, 'Unassigned Venue');
-        const seatNo = getVal(row, columnMappings.seatNo, 'N/A');
-        const candName = getVal(row, columnMappings.name, 'Candidate');
-        const cCode = getVal(row, columnMappings.courseCode, '');
-        const cTitle = getVal(row, columnMappings.courseTitle, '');
-
-        const venueLabel = vCode ? `${vCode} - ${vName}` : vName;
-        const groupKey = currentConfig.groupBy === 'venue' ? venueLabel : `${prog} • ${venueLabel}`;
-
-        if (!groups[groupKey]) {
-          groups[groupKey] = {
-            programme: prog,
-            venueCode: vCode,
-            venueName: vName,
-            venueLabel,
-            candidatesMap: {}
-          };
-        }
-
-        if (!groups[groupKey].candidatesMap[seatNo]) {
-          groups[groupKey].candidatesMap[seatNo] = {
-            seatNo,
-            studentName: candName,
-            rawRow: row,
-            courses: []
-          };
-        }
-
-        if (cCode || cTitle) {
-          let codeStr = cCode;
-          let titleStr = cTitle;
-          if (formatDots) {
-            codeStr = codeStr.replace(/\.+$/, '').trim();
-            titleStr = titleStr.replace(/\.+$/, '').trim();
-            if (codeStr) codeStr += '.';
-            if (titleStr) titleStr += '.';
-          } else {
-            codeStr = codeStr.replace(/\.+$/, '').trim();
-            titleStr = titleStr.replace(/\.+$/, '').trim();
-          }
-
-          const display = codeStr && titleStr ? `${codeStr} - ${titleStr}` : (codeStr || titleStr);
-          if (!groups[groupKey].candidatesMap[seatNo].courses.some(c => c.display === display)) {
-            groups[groupKey].candidatesMap[seatNo].courses.push({ code: codeStr, title: titleStr, display });
-          }
-        }
-      });
-
-      const finalized = {};
-      Object.keys(groups).sort().forEach(gKey => {
-        const g = groups[gKey];
-        const candidateList = Object.values(g.candidatesMap).map(cand => ({
-          ...cand,
-          courses: cand.courses && cand.courses.length > 0 ? cand.courses : [{ display: '—' }]
-        })).sort((a, b) => 
-          a.seatNo.localeCompare(b.seatNo, undefined, { numeric: true, sensitivity: 'base' })
-        );
-        finalized[gKey] = {
-          ...g,
-          candidates: candidateList,
-          totalCandidates: candidateList.length
-        };
-      });
-
-      const groupKeys = Object.keys(finalized);
-      return { groups: finalized, groupKeys, totalCount: groupKeys.length };
-    }
-
-    if (activeArchetype === 'QP_STATEMENT') {
-      const groups = {};
-      const formatDots = currentConfig.formatCodeDotNameDot;
-
-      rows.forEach(row => {
-        const vCode = getVal(row, columnMappings.venueCode, '');
-        const vName = getVal(row, columnMappings.venueName, 'Unassigned Venue');
-        const venueLabel = vCode ? `${vCode} - ${vName}` : vName;
-        const examDate = getVal(row, columnMappings.examDate, 'N/A');
-        let cCode = getVal(row, columnMappings.courseCode, '');
-        let cTitle = getVal(row, columnMappings.courseTitle, '');
-        const countVal = parseInt(getVal(row, columnMappings.count, '1'), 10) || 1;
-
-        if (formatDots) {
-          cCode = cCode.replace(/\.+$/, '').trim();
-          cTitle = cTitle.replace(/\.+$/, '').trim();
-          if (cCode) cCode += '.';
-          if (cTitle) cTitle += '.';
-        } else {
-          cCode = cCode.replace(/\.+$/, '').trim();
-          cTitle = cTitle.replace(/\.+$/, '').trim();
-        }
-
-        const courseDisplay = cCode && cTitle ? `${cCode} - ${cTitle}` : (cCode || cTitle || 'Course');
-        const groupKey = venueLabel;
-
-        if (!groups[groupKey]) {
-          groups[groupKey] = {
-            venueLabel,
-            items: []
-          };
-        }
-
-        const existing = groups[groupKey].items.find(it => it.date === examDate && it.courseDisplay === courseDisplay);
-        if (existing) {
-          existing.studentCount += countVal;
-        } else {
-          groups[groupKey].items.push({
-            date: examDate,
-            courseCode: cCode,
-            courseTitle: cTitle,
-            courseDisplay,
-            studentCount: countVal
-          });
-        }
-      });
-
-      Object.keys(groups).forEach(k => {
-        groups[k].items.sort((a, b) => a.date.localeCompare(b.date));
-      });
-
-      const groupKeys = Object.keys(groups).sort();
-      return { groups, groupKeys, totalCount: groupKeys.length };
-    }
-
-    if (activeArchetype === 'QP_COVER_LABEL') {
-      const labels = [];
-      const seen = new Set();
-
-      rows.forEach(row => {
-        const vCode = getVal(row, columnMappings.venueCode, 'GA');
-        const vName = getVal(row, columnMappings.venueName, 'Examination Centre');
-        const examDate = getVal(row, columnMappings.examDate, '2026-09-09');
-        let cCode = getVal(row, columnMappings.courseCode, 'COURSE01');
-        let cTitle = getVal(row, columnMappings.courseTitle, 'Course Name');
-        const sTime = getVal(row, columnMappings.startTime, '01:30 PM');
-        const eTime = getVal(row, columnMappings.endTime, '03:00 PM');
-        const countVal = getVal(row, columnMappings.count, '');
-
-        let dayName = 'Wednesday';
-        if (examDate && examDate !== 'N/A') {
-          const d = new Date(examDate);
-          if (!isNaN(d.getTime())) {
-            dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
-          }
-        }
-
-        const subjectStr = cCode && cTitle ? `${cCode} - ${cTitle}` : (cCode || cTitle);
-        const dedupeKey = `${vCode}|${vName}|${examDate}|${subjectStr}`;
-
-        if (!seen.has(dedupeKey)) {
-          seen.add(dedupeKey);
-          labels.push({
-            venueCode: vCode,
-            venueName: vName,
-            day: dayName,
-            date: examDate,
-            timeRange: sTime && eTime ? `${sTime} - ${eTime}` : (sTime || eTime || '01:30 PM - 03:00 PM'),
-            subject: subjectStr,
-            studentCount: countVal,
-            coverNumber: ''
-          });
-        }
-      });
-
-      return { groups: { allLabels: labels }, groupKeys: ['allLabels'], totalCount: labels.length };
-    }
-
-    return { groups: { default: rows }, groupKeys: ['default'], totalCount: rows.length };
-  }, [dataset, activeArchetype, currentConfig, columnMappings, getMockDataForArchetype]);
-
-  const effectiveGroupKey = processedData.groupKeys[activePreviewIndex] || processedData.groupKeys[0] || '';
-  const currentPreviewGroup = processedData.groups[effectiveGroupKey];
-
-  // Helper to draw headers on PDF dynamically
+  // Draw Dynamic Headers on PDF
   const drawDynamicHeaders = (doc, pageWidth) => {
     let startY = 12;
 
     // 1. Draw Logo if enabled
-    if (currentConfig.logo?.show && currentConfig.logo?.src) {
+    if (templateConfig.logo?.show && templateConfig.logo?.src) {
       try {
-        const logoW = currentConfig.logo.width || 18;
+        const logoW = templateConfig.logo.width || 18;
         const logoH = logoW;
         let logoX = (pageWidth / 2) - (logoW / 2);
 
-        if (currentConfig.logo.position === 'left') {
+        if (templateConfig.logo.position === 'left') {
           logoX = 16;
-        } else if (currentConfig.logo.position === 'right') {
+        } else if (templateConfig.logo.position === 'right') {
           logoX = pageWidth - 16 - logoW;
         }
 
-        doc.addImage(currentConfig.logo.src, 'PNG', logoX, startY, logoW, logoH);
-        if (currentConfig.logo.position === 'top' || currentConfig.logo.position === 'center') {
+        doc.addImage(templateConfig.logo.src, 'PNG', logoX, startY, logoW, logoH);
+        if (templateConfig.logo.position === 'top' || templateConfig.logo.position === 'center') {
           startY += logoH + 3;
         }
       } catch (e) {
@@ -558,8 +290,8 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
       }
     }
 
-    // 2. Draw Each Custom Header Line
-    (currentConfig.headersList || []).forEach(h => {
+    // 2. Draw Header Lines
+    (templateConfig.headersList || []).forEach(h => {
       if (!h.text || !h.text.trim()) return;
 
       doc.setFont(h.font || 'helvetica', h.bold ? (h.italic ? 'bolditalic' : 'bold') : (h.italic ? 'italic' : 'normal'));
@@ -586,314 +318,101 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     return startY + 4;
   };
 
-  // --- PDF GENERATION ENGINE --- //
-  const generatePdfForArchetype = (groupData, targetDoc = null) => {
-    const isLandscape = currentConfig.orientation === 'landscape';
-    const doc = targetDoc || new jsPDF(isLandscape ? 'l' : 'p', 'mm', (currentConfig.pageSize || 'a4').toLowerCase());
+  // Generate Vector PDF for any dataset group
+  const generatePdfForGroup = (groupRows, groupTitle, targetDoc = null) => {
+    const isLandscape = templateConfig.orientation === 'landscape';
+    const doc = targetDoc || new jsPDF(isLandscape ? 'l' : 'p', 'mm', (templateConfig.pageSize || 'a4').toLowerCase());
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    if (activeArchetype === 'NOMINAL_ROLL') {
-      const g = groupData;
-      if (!g) return doc;
+    let startY = drawDynamicHeaders(doc, pageWidth);
 
-      const headerEndY = drawDynamicHeaders(doc, pageWidth);
-
-      const progText = `Programme: ${g.programme || 'N/A'}`;
-      const venueText = `Venue: ${g.venueLabel || 'N/A'}`;
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      
-      const boxW = pageWidth - 28;
-      const progLines = doc.splitTextToSize(progText, boxW - 10);
-      const venueLines = doc.splitTextToSize(venueText, boxW - 10);
-      const boxHeight = Math.max(13, (progLines.length + venueLines.length) * 4.2 + 4);
-
-      doc.setDrawColor(180, 180, 180);
-      doc.setFillColor(248, 249, 250);
-      doc.roundedRect(14, headerEndY, boxW, boxHeight, 2, 2, 'FD');
-
-      let textY = headerEndY + 4;
-      doc.setTextColor(20, 20, 20);
-      doc.text(progLines, 18, textY);
-      textY += progLines.length * 4.2;
-      
-      doc.setTextColor(23, 107, 135);
-      doc.text(venueLines, 18, textY);
-
-      const cols = currentConfig.tableColumns || TEMPLATE_ARCHETYPES.NOMINAL_ROLL.defaultConfig.tableColumns;
-      const tableBody = [];
-
-      g.candidates.forEach((cand, candIdx) => {
-        const cCount = Math.max(1, cand.courses.length);
-        cand.courses.forEach((crs, crsIdx) => {
-          const rowCells = [];
-          cols.forEach(col => {
-            let content = '';
-            const styles = { halign: col.align || 'left', valign: 'middle' };
-            if (col.bold) styles.fontStyle = 'bold';
-
-            if (col.field === 'slNo') content = String(candIdx + 1);
-            else if (col.field === 'seatNo') content = cand.seatNo;
-            else if (col.field === 'name') content = cand.studentName;
-            else if (col.field === 'courses') content = crs.display;
-            else if (col.field === 'remarks' || col.field === 'blank') content = '';
-            else if (cand.rawRow && cand.rawRow[col.field]) content = String(cand.rawRow[col.field]);
-
-            if (col.field === 'courses' || !col.isSpan) {
-              rowCells.push({ content, styles });
-            } else {
-              if (crsIdx === 0) {
-                rowCells.push({ content, rowSpan: cCount, styles });
-              }
-            }
-          });
-          tableBody.push(rowCells);
-        });
-      });
-
-      const [hBgR, hBgG, hBgB] = hexToRgb(currentConfig.tableTheme?.headerBg || '#f1f5f9');
-      const [hTxtR, hTxtG, hTxtB] = hexToRgb(currentConfig.tableTheme?.headerColor || '#000000');
-      const [bdrR, bdrG, bdrB] = hexToRgb(currentConfig.tableTheme?.borderColor || '#64748b');
-
-      const colStylesObj = {};
-      cols.forEach((c, i) => {
-        colStylesObj[i] = {
-          cellWidth: isLandscape ? Math.round(c.width * 1.3) : c.width,
-          halign: c.align || 'left',
-          valign: 'middle'
-        };
-        if (c.bold) colStylesObj[i].fontStyle = 'bold';
-      });
-
-      autoTable(doc, {
-        startY: headerEndY + boxHeight + 4,
-        head: [cols.map(c => c.label)],
-        body: tableBody,
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: currentConfig.tableTheme?.fontSize || 8, valign: 'middle', cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 }, minCellHeight: 5, textColor: [0, 0, 0], lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.18 },
-        headStyles: { fillColor: [hBgR, hBgG, hBgB], textColor: [hTxtR, hTxtG, hTxtB], fontSize: 8.5, fontStyle: 'bold', halign: 'center', valign: 'middle', cellPadding: { top: 2.5, bottom: 2.5, left: 2, right: 2 }, lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.18 },
-        columnStyles: colStylesObj
-      });
-      return doc;
-    }
-
-    if (activeArchetype === 'QP_STATEMENT') {
-      const g = groupData;
-      if (!g) return doc;
-
-      const headerEndY = drawDynamicHeaders(doc, pageWidth);
-
+    // Optional Group Header Banner
+    if (templateConfig.groupBy && templateConfig.groupBy !== 'none' && groupTitle) {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      doc.text(`${currentConfig.centerPrefix} ${g.venueLabel}`, pageWidth / 2, headerEndY, { align: 'center' });
-
-      const cols = currentConfig.tableColumns || TEMPLATE_ARCHETYPES.QP_STATEMENT.defaultConfig.tableColumns;
-      const tableBody = g.items.map((it, idx) => {
-        return cols.map(col => {
-          if (col.field === 'slNo') return idx + 1;
-          if (col.field === 'date') return it.date;
-          if (col.field === 'course') return it.courseDisplay;
-          if (col.field === 'count') return it.studentCount;
-          if (col.field === 'qp' || col.field === 'lp' || col.field === 'blank') return '';
-          return it[col.field] || '';
-        });
-      });
-
-      const [hBgR, hBgG, hBgB] = hexToRgb(currentConfig.tableTheme?.headerBg || '#f1f5f9');
-      const [hTxtR, hTxtG, hTxtB] = hexToRgb(currentConfig.tableTheme?.headerColor || '#000000');
-      const [bdrR, bdrG, bdrB] = hexToRgb(currentConfig.tableTheme?.borderColor || '#000000');
-
-      const colStylesObj = {};
-      cols.forEach((c, i) => {
-        colStylesObj[i] = {
-          cellWidth: isLandscape ? Math.round(c.width * 1.3) : c.width,
-          halign: c.align || 'left',
-          valign: 'middle'
-        };
-        if (c.bold) colStylesObj[i].fontStyle = 'bold';
-      });
-
-      autoTable(doc, {
-        startY: headerEndY + 6,
-        head: [cols.map(c => c.label)],
-        body: tableBody,
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: currentConfig.tableTheme?.fontSize || 8.5, valign: 'middle', cellPadding: 3, textColor: [0, 0, 0], lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.2 },
-        headStyles: { fillColor: [hBgR, hBgG, hBgB], textColor: [hTxtR, hTxtG, hTxtB], fontStyle: 'bold', halign: 'center', valign: 'middle', fontSize: 9, lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.3 },
-        columnStyles: colStylesObj
-      });
-      return doc;
+      doc.setTextColor(23, 107, 135);
+      doc.text(`${templateConfig.groupBy}: ${groupTitle}`, 16, startY);
+      startY += 6;
     }
 
-    if (activeArchetype === 'QP_COVER_LABEL') {
-      const lbl = groupData;
-      if (!lbl) return doc;
-
-      const headerEndY = drawDynamicHeaders(doc, pageWidth);
-
-      const boxBody = [
-        [
-          { content: currentConfig.centerPrefix, styles: { fontStyle: 'bold', cellWidth: 42 } },
-          { content: lbl.venueCode || '', styles: { fontStyle: 'bold', halign: 'center', cellWidth: 16 } },
-          { content: lbl.venueName || '', colSpan: 4, styles: { fontStyle: 'bold' } }
-        ],
-        [
-          { content: 'DAY', styles: { fontStyle: 'bold', cellWidth: 20 } },
-          { content: lbl.day || '', styles: { cellWidth: 32 } },
-          { content: 'DATE', styles: { fontStyle: 'bold', cellWidth: 18 } },
-          { content: lbl.date || '', styles: { cellWidth: 36 } },
-          { content: 'TIME', styles: { fontStyle: 'bold', cellWidth: 16 } },
-          { content: lbl.timeRange || '', styles: { cellWidth: 48 } }
-        ],
-        [
-          { content: 'SUBJECT', styles: { fontStyle: 'bold', cellWidth: 20 } },
-          { content: lbl.subject || '', colSpan: 5, styles: { fontStyle: 'bold' } }
-        ],
-        [
-          { content: 'NO. OF COPIES', styles: { fontStyle: 'bold', cellWidth: 42 } },
-          { content: lbl.studentCount || '', colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } },
-          { content: 'COVER NUMBER', styles: { fontStyle: 'bold', cellWidth: 42 } },
-          { content: lbl.coverNumber || '', colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } }
-        ]
-      ];
-
-      autoTable(doc, {
-        startY: headerEndY + 2,
-        body: boxBody,
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 3, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.35, valign: 'middle' },
-        columnStyles: {
-          0: { fontStyle: 'bold' }
-        }
+    const cols = templateConfig.tableColumns || DEFAULT_REPORT_TEMPLATE.tableColumns;
+    const tableBody = groupRows.map((row, idx) => {
+      return cols.map(col => {
+        if (col.field === 'slNo') return idx + 1;
+        if (col.field === 'blank') return '';
+        if (col.field === 'seatNo') return row[columnMappings.seatNo] || row['seatNo'] || row['Register Number'] || row['Register No'] || '';
+        if (col.field === 'name') return row[columnMappings.name] || row['name'] || row['Candidate Name'] || '';
+        return row[col.field] !== undefined ? row[col.field] : (row[col.label] || '');
       });
+    });
 
-      const finalY = doc.lastAutoTable.finalY || 100;
-      doc.setLineDashPattern([2, 2], 0);
-      doc.setDrawColor(120, 120, 120);
-      doc.line(14, finalY + 5, pageWidth - 14, finalY + 5);
-      doc.line(14, finalY + 7, pageWidth - 14, finalY + 7);
-      doc.setLineDashPattern([], 0);
+    const [hBgR, hBgG, hBgB] = hexToRgb(templateConfig.tableTheme?.headerBg || '#f1f5f9');
+    const [hTxtR, hTxtG, hTxtB] = hexToRgb(templateConfig.tableTheme?.headerColor || '#000000');
+    const [bdrR, bdrG, bdrB] = hexToRgb(templateConfig.tableTheme?.borderColor || '#64748b');
 
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('CERTIFICATE', pageWidth / 2, finalY + 16, { align: 'center' });
+    const colStylesObj = {};
+    cols.forEach((c, i) => {
+      colStylesObj[i] = {
+        cellWidth: isLandscape ? Math.round((c.width || 25) * 1.3) : (c.width || 25),
+        halign: c.align || 'left',
+        valign: 'middle'
+      };
+      if (c.bold) colStylesObj[i].fontStyle = 'bold';
+    });
 
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      const certLines = doc.splitTextToSize(currentConfig.certificateText, pageWidth - 32);
-      doc.text(certLines, 16, finalY + 24);
-
-      let sigY = finalY + 44;
-      doc.setFontSize(8.5);
-      doc.setFont('helvetica', 'bold');
-      doc.text('INVIGILATOR', 16, sigY);
-      doc.text('ADDL.CHIEF SUPERINTENDENT', pageWidth - 70, sigY);
-
-      sigY += 9;
-      doc.setFont('helvetica', 'normal');
-      doc.text('(1) ___________________________________', 16, sigY);
-      sigY += 7;
-      doc.text('(2) ___________________________________', 16, sigY);
-
-      sigY += 12;
-      doc.setFont('helvetica', 'bold');
-      doc.text('PLACE:', 16, sigY);
-      sigY += 7;
-      doc.text('DATE:', 16, sigY);
-      doc.text('CHIEF SUPERINTENDENT', pageWidth - 65, sigY);
-
-      return doc;
-    }
-
-    if (activeArchetype === 'CUSTOM_TABULAR') {
-      const rows = Array.isArray(groupData) ? groupData : (groupData?.default || dataset.rows || []);
-      const headerEndY = drawDynamicHeaders(doc, pageWidth);
-      const cols = currentConfig.tableColumns || TEMPLATE_ARCHETYPES.CUSTOM_TABULAR.defaultConfig.tableColumns;
-      
-      const tableBody = rows.map((row, idx) => {
-        return cols.map(col => {
-          if (col.field === 'slNo') return idx + 1;
-          if (col.field === 'seatNo') return row[columnMappings.seatNo] || row['seatNo'] || row['Register No'] || '';
-          if (col.field === 'name') return row[columnMappings.name] || row['name'] || row['Candidate Name'] || '';
-          if (col.field === 'blank') return '';
-          return row[col.field] !== undefined ? row[col.field] : (row[col.label] || '');
-        });
-      });
-
-      const [hBgR, hBgG, hBgB] = hexToRgb(currentConfig.tableTheme?.headerBg || '#f1f5f9');
-      const [hTxtR, hTxtG, hTxtB] = hexToRgb(currentConfig.tableTheme?.headerColor || '#000000');
-      const [bdrR, bdrG, bdrB] = hexToRgb(currentConfig.tableTheme?.borderColor || '#64748b');
-
-      const colStylesObj = {};
-      cols.forEach((c, i) => {
-        colStylesObj[i] = {
-          cellWidth: isLandscape ? Math.round((c.width || 25) * 1.3) : (c.width || 25),
-          halign: c.align || 'left',
-          valign: 'middle'
-        };
-        if (c.bold) colStylesObj[i].fontStyle = 'bold';
-      });
-
-      autoTable(doc, {
-        startY: headerEndY + 4,
-        head: [cols.map(c => c.label)],
-        body: tableBody,
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: currentConfig.tableTheme?.fontSize || 8.5, valign: 'middle', cellPadding: 2.5, textColor: [0, 0, 0], lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.2 },
-        headStyles: { fillColor: [hBgR, hBgG, hBgB], textColor: [hTxtR, hTxtG, hTxtB], fontStyle: 'bold', halign: 'center', valign: 'middle', fontSize: 9, lineColor: [bdrR, bdrG, bdrB], lineWidth: 0.25 },
-        columnStyles: colStylesObj
-      });
-
-      return doc;
-    }
+    autoTable(doc, {
+      startY,
+      head: [cols.map(c => c.label)],
+      body: tableBody,
+      theme: 'grid',
+      styles: { 
+        font: 'helvetica', 
+        fontSize: templateConfig.tableTheme?.fontSize || 8.5, 
+        valign: 'middle', 
+        cellPadding: 2.5, 
+        textColor: [0, 0, 0], 
+        lineColor: [bdrR, bdrG, bdrB], 
+        lineWidth: 0.2 
+      },
+      headStyles: { 
+        fillColor: [hBgR, hBgG, hBgB], 
+        textColor: [hTxtR, hTxtG, hTxtB], 
+        fontStyle: 'bold', 
+        halign: 'center', 
+        valign: 'middle', 
+        fontSize: 9, 
+        lineColor: [bdrR, bdrG, bdrB], 
+        lineWidth: 0.25 
+      },
+      columnStyles: colStylesObj
+    });
 
     return doc;
   };
 
-  // --- EXPORT HANDLERS --- //
-  const handleDownloadSinglePdf = () => {
-    let dataToRender;
-    if (activeArchetype === 'QP_COVER_LABEL') {
-      dataToRender = processedData.groups.allLabels?.[activePreviewIndex] || processedData.groups.allLabels?.[0];
-    } else if (activeArchetype === 'CUSTOM_TABULAR') {
-      dataToRender = processedData.groups.default || dataset.rows || [];
-    } else {
-      const key = processedData.groupKeys[activePreviewIndex] || processedData.groupKeys[0];
-      dataToRender = processedData.groups[key];
-    }
+  // --- MULTI-FORMAT EXPORT HANDLERS --- //
 
-    if (!dataToRender) return alert('No preview data available to export.');
-    const doc = generatePdfForArchetype(dataToRender);
+  // 1. Single Page Vector PDF
+  const handleDownloadSinglePdf = () => {
+    if (!currentPreviewRows.length) return alert('No data available to export.');
+    const doc = generatePdfForGroup(currentPreviewRows, effectiveGroupKey);
     const safeName = templateName.replace(/[^a-zA-Z0-9_-]/g, '_');
     doc.save(`${safeName}_Page_${activePreviewIndex + 1}.pdf`);
   };
 
+  // 2. Master Consolidated Vector PDF
   const handleDownloadConsolidatedPdf = () => {
+    if (!processedData.groupKeys.length) return alert('No records found to export.');
     setIsProcessing(true);
 
     try {
-      const isLandscape = currentConfig.orientation === 'landscape';
-      const doc = new jsPDF(isLandscape ? 'l' : 'p', 'mm', (currentConfig.pageSize || 'a4').toLowerCase());
+      const isLandscape = templateConfig.orientation === 'landscape';
+      const doc = new jsPDF(isLandscape ? 'l' : 'p', 'mm', (templateConfig.pageSize || 'a4').toLowerCase());
 
-      if (activeArchetype === 'QP_COVER_LABEL') {
-        const labels = processedData.groups.allLabels || [];
-        if (!labels.length) return alert('No labels found to export.');
-        labels.forEach((lbl, idx) => {
-          if (idx > 0) doc.addPage();
-          generatePdfForArchetype(lbl, doc);
-        });
-      } else if (activeArchetype === 'CUSTOM_TABULAR') {
-        generatePdfForArchetype(processedData.groups.default || dataset.rows || [], doc);
-      } else {
-        const keys = processedData.groupKeys || [];
-        if (!keys.length) return alert('No records found to export.');
-        keys.forEach((gKey, idx) => {
-          if (idx > 0) doc.addPage();
-          generatePdfForArchetype(processedData.groups[gKey], doc);
-        });
-      }
+      processedData.groupKeys.forEach((gKey, idx) => {
+        if (idx > 0) doc.addPage();
+        generatePdfForGroup(processedData.groups[gKey], gKey, doc);
+      });
 
       const safeName = templateName.replace(/[^a-zA-Z0-9_-]/g, '_');
       doc.save(`Master_Consolidated_${safeName}.pdf`);
@@ -905,44 +424,111 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     }
   };
 
+  // 3. Export Styled Excel Spreadsheet (.xlsx)
+  const handleExportExcel = () => {
+    const rawRows = dataset?.rows?.length ? dataset.rows : sampleRows;
+    if (!rawRows.length) return alert('No data to export to Excel.');
+
+    try {
+      const wb = XLSX.utils.book_new();
+      const cols = templateConfig.tableColumns || DEFAULT_REPORT_TEMPLATE.tableColumns;
+
+      const appendSheetForGroup = (sheetRows, sheetTitle) => {
+        const sheetData = [];
+
+        // 1. Top Header Rows
+        (templateConfig.headersList || []).forEach(h => {
+          if (h.text && h.text.trim()) {
+            sheetData.push([h.text.trim()]);
+          }
+        });
+        if (templateConfig.groupBy && templateConfig.groupBy !== 'none' && sheetTitle) {
+          sheetData.push([`${templateConfig.groupBy}: ${sheetTitle}`]);
+        }
+        sheetData.push([]); // blank row
+
+        // 2. Column Headers
+        sheetData.push(cols.map(c => c.label));
+
+        // 3. Data Rows
+        sheetRows.forEach((row, idx) => {
+          const rowData = cols.map(c => {
+            if (c.field === 'slNo') return idx + 1;
+            if (c.field === 'blank') return '';
+            if (c.field === 'seatNo') return row[columnMappings.seatNo] || row['seatNo'] || row['Register Number'] || row['Register No'] || '';
+            if (c.field === 'name') return row[columnMappings.name] || row['name'] || row['Candidate Name'] || '';
+            return row[c.field] !== undefined ? row[c.field] : (row[c.label] || '');
+          });
+          sheetData.push(rowData);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(sheetData);
+        ws['!cols'] = cols.map(c => ({ wch: Math.max(String(c.label).length + 4, 16) }));
+        const safeSheetName = (sheetTitle || 'Report Data').replace(/[/\\?%*:|"<>]/g, '_').slice(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+      };
+
+      if (templateConfig.groupBy && templateConfig.groupBy !== 'none') {
+        processedData.groupKeys.forEach(gKey => {
+          appendSheetForGroup(processedData.groups[gKey], gKey);
+        });
+      } else {
+        appendSheetForGroup(rawRows, 'Report Data');
+      }
+
+      const safeName = templateName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      XLSX.writeFile(wb, `${safeName}_Report.xlsx`);
+    } catch (err) {
+      console.error(err);
+      alert(`Error exporting Excel: ${err.message}`);
+    }
+  };
+
+  // 4. Export CSV (.csv)
+  const handleExportCsv = () => {
+    const rawRows = dataset?.rows?.length ? dataset.rows : sampleRows;
+    if (!rawRows.length) return alert('No data to export.');
+    const cols = templateConfig.tableColumns || DEFAULT_REPORT_TEMPLATE.tableColumns;
+    
+    const headerRow = cols.map(c => `"${c.label.replace(/"/g, '""')}"`).join(',');
+    const dataRows = rawRows.map((row, idx) => {
+      return cols.map(c => {
+        let val;
+        if (c.field === 'slNo') val = idx + 1;
+        else if (c.field === 'blank') val = '';
+        else if (c.field === 'seatNo') val = row[columnMappings.seatNo] || row['seatNo'] || '';
+        else if (c.field === 'name') val = row[columnMappings.name] || row['name'] || '';
+        else val = row[c.field] !== undefined ? row[c.field] : (row[c.label] || '');
+        return `"${String(val).replace(/"/g, '""')}"`;
+      }).join(',');
+    }).join('\n');
+
+    const csvContent = `${headerRow}\n${dataRows}`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${templateName.replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 5. Individual Files in ZIP (PDFs & Excel files per group)
   const handleDownloadZip = async () => {
+    if (!processedData.groupKeys.length) return alert('No data to export.');
     setIsProcessing(true);
 
     try {
       const zip = new JSZip();
       const sanitize = (str) => String(str || '').replace(/[/\\?%*:|"<>•]/g, '_').replace(/\s+/g, ' ').trim();
 
-      if (activeArchetype === 'QP_COVER_LABEL') {
-        const labels = processedData.groups.allLabels || [];
-        labels.forEach((lbl, idx) => {
-          const doc = generatePdfForArchetype(lbl);
-          const pdfBlob = doc.output('blob');
-          const safeVenue = sanitize(lbl.venueName || 'Venue').slice(0, 40);
-          const safeSubject = sanitize(lbl.subject || 'Subject').slice(0, 40);
-          zip.file(`QP_Cover_Labels/${safeVenue}/${lbl.date}_${safeSubject}_Label_${idx + 1}.pdf`, pdfBlob);
-        });
-      } else if (activeArchetype === 'NOMINAL_ROLL') {
-        (processedData.groupKeys || []).forEach((gKey) => {
-          const g = processedData.groups[gKey];
-          const doc = generatePdfForArchetype(g);
-          const pdfBlob = doc.output('blob');
-          const safeProg = sanitize(g.programme || 'Programme').slice(0, 50);
-          const safeVenue = sanitize(g.venueLabel || 'Venue').slice(0, 60);
-          zip.file(`Individual_PDFs/${safeProg}/${safeVenue}_Nominal_Roll.pdf`, pdfBlob);
-        });
-      } else if (activeArchetype === 'QP_STATEMENT') {
-        (processedData.groupKeys || []).forEach((gKey) => {
-          const g = processedData.groups[gKey];
-          const doc = generatePdfForArchetype(g);
-          const pdfBlob = doc.output('blob');
-          const safeVenue = sanitize(g.venueLabel || gKey || 'Venue').slice(0, 60);
-          zip.file(`Statements/${safeVenue}_Statement.pdf`, pdfBlob);
-        });
-      } else {
-        const doc = generatePdfForArchetype(processedData.groups.default || dataset.rows || []);
+      processedData.groupKeys.forEach((gKey) => {
+        const groupRows = processedData.groups[gKey];
+        const doc = generatePdfForGroup(groupRows, gKey);
         const pdfBlob = doc.output('blob');
-        zip.file(`Report_Data.pdf`, pdfBlob);
-      }
+        const safeGroup = sanitize(gKey).slice(0, 50);
+        zip.file(`PDF_Reports/${safeGroup}_Report.pdf`, pdfBlob);
+      });
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(zipBlob);
@@ -959,13 +545,14 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     }
   };
 
+  // Save Template to Cloud and Local Workspace
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) return alert('Please enter a template name.');
     
     const templateData = {
       name: templateName,
-      archetype: activeArchetype,
-      config: currentConfig,
+      archetype: 'CUSTOM_TABULAR',
+      config: templateConfig,
       columnMappings,
       createdAt: new Date().toISOString()
     };
@@ -1007,19 +594,17 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
     }
   };
 
-  const activeCols = currentConfig.tableColumns || TEMPLATE_ARCHETYPES[activeArchetype]?.defaultConfig?.tableColumns || [];
-
   return (
     <div style={{ padding: '24px 32px 80px', maxWidth: '1600px', margin: '0 auto', fontFamily: 'var(--font-family)' }}>
       
-      {/* Top Title & Archetype Switcher Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+      {/* Top Title & Save Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Sparkles size={24} color="var(--accent)" /> Report Template Studio
           </h1>
           <p style={{ margin: '4px 0 0 0', color: 'var(--muted)', fontSize: '13.5px' }}>
-            Create and customize report templates with Rich Text headers, customizable table columns, logo upload, and dynamic Excel column binding.
+            Design custom reports for any Excel spreadsheet with rich headers, customizable columns, grouping, and multi-format exports (.pdf, .xlsx, .csv).
           </p>
         </div>
 
@@ -1029,7 +614,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             value={templateName}
             onChange={(e) => setTemplateName(e.target.value)}
             placeholder="Template Name..."
-            style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, borderRadius: '8px', border: '1.5px solid var(--line)', width: '240px' }}
+            style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, borderRadius: '8px', border: '1.5px solid var(--line)', width: '260px' }}
           />
           <button 
             className="button"
@@ -1041,59 +626,13 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         </div>
       </div>
 
-      {/* Preset Archetypes Selector Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px', marginBottom: '24px' }}>
-        {Object.values(TEMPLATE_ARCHETYPES).map((arch) => {
-          const isSelected = activeArchetype === arch.id;
-          return (
-            <div
-              key={arch.id}
-              onClick={() => {
-                setActiveArchetype(arch.id);
-                setActivePreviewIndex(0);
-              }}
-              style={{
-                padding: '16px',
-                borderRadius: '10px',
-                border: isSelected ? '2px solid var(--accent)' : '1px solid var(--line)',
-                background: isSelected ? 'var(--accent-soft)' : 'var(--panel)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: isSelected ? '0 4px 12px rgba(23,107,135,0.12)' : 'none'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ 
-                  background: isSelected ? 'var(--accent)' : '#e2e8f0', 
-                  color: isSelected ? 'white' : '#475569', 
-                  padding: '6px', 
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  {arch.id === 'NOMINAL_ROLL' && <FileText size={18} />}
-                  {arch.id === 'QP_STATEMENT' && <CalendarRange size={18} />}
-                  {arch.id === 'QP_COVER_LABEL' && <Tag size={18} />}
-                  {arch.id === 'CUSTOM_TABULAR' && <TableProperties size={18} />}
-                </div>
-                <strong style={{ fontSize: '14.5px', color: isSelected ? 'var(--accent)' : 'var(--ink)' }}>{arch.name}</strong>
-              </div>
-              <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)', lineHeight: '1.4' }}>
-                {arch.description}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
       {/* Main Studio Two-Column Grid: Config Controls (Left) + WYSIWYG A4 Preview (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: isSidebarOpen ? '440px 1fr' : '0px 1fr', gap: isSidebarOpen ? '24px' : '0px', transition: 'all 0.3s ease' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '460px 1fr', gap: '24px' }}>
         
-        {/* LEFT COLUMN: Customization Panels with Tabbed Controls */}
-        <div style={{ display: isSidebarOpen ? 'block' : 'none' }}>
+        {/* LEFT COLUMN: Customization Sub-Tabs */}
+        <div>
           
-          {/* Sub-Tab Navigation for Studio Controls */}
+          {/* Sub-Tab Navigation Bar */}
           <div style={{ display: 'flex', background: 'var(--panel)', borderRadius: '8px', padding: '4px', marginBottom: '16px', gap: '4px', border: '1px solid var(--line)', flexWrap: 'wrap' }}>
             <button
               onClick={() => setActiveToolTab('columns')}
@@ -1101,7 +640,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 flex: 1,
                 minWidth: '80px',
                 padding: '8px 4px',
-                fontSize: '11px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1118,7 +657,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 flex: 1,
                 minWidth: '80px',
                 padding: '8px 4px',
-                fontSize: '11px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1130,29 +669,12 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               📑 Page Headers
             </button>
             <button
-              onClick={() => setActiveToolTab('data')}
-              style={{
-                flex: 1,
-                minWidth: '80px',
-                padding: '8px 4px',
-                fontSize: '11px',
-                fontWeight: 700,
-                borderRadius: '6px',
-                border: 'none',
-                cursor: 'pointer',
-                background: activeToolTab === 'data' ? 'var(--accent)' : 'transparent',
-                color: activeToolTab === 'data' ? 'white' : 'var(--ink)'
-              }}
-            >
-              🔗 Data Binding
-            </button>
-            <button
               onClick={() => setActiveToolTab('page')}
               style={{
                 flex: 1,
                 minWidth: '80px',
                 padding: '8px 4px',
-                fontSize: '11px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1164,12 +686,29 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               🖼️ Page & Logo
             </button>
             <button
+              onClick={() => setActiveToolTab('grouping')}
+              style={{
+                flex: 1,
+                minWidth: '80px',
+                padding: '8px 4px',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: activeToolTab === 'grouping' ? 'var(--accent)' : 'transparent',
+                color: activeToolTab === 'grouping' ? 'white' : 'var(--ink)'
+              }}
+            >
+              🗂️ Grouping
+            </button>
+            <button
               onClick={() => setActiveToolTab('styling')}
               style={{
                 flex: 1,
                 minWidth: '80px',
                 padding: '8px 4px',
-                fontSize: '11px',
+                fontSize: '11.5px',
                 fontWeight: 700,
                 borderRadius: '6px',
                 border: 'none',
@@ -1182,28 +721,40 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             </button>
           </div>
 
-          {/* TAB: TABLE COLUMN HEADERS & LABELS (ADD / REMOVE / REORDER) */}
+          {/* TAB 1: TABLE COLUMN HEADERS & LABELS (ADD / REMOVE / REORDER) */}
           {activeToolTab === 'columns' && (
             <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <TableProperties size={16} /> Table Columns ({activeCols.length})
                   </h3>
                   <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--muted)' }}>
-                    Add, remove, reorder, and rename columns printed in the report table.
+                    Customize the columns and headers printed in the report table.
                   </p>
                 </div>
-                <button
-                  className="button"
-                  onClick={addTableColumn}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '5px 10px' }}
-                >
-                  <Plus size={14} /> Add Column
-                </button>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {dataset?.columns?.length > 0 && (
+                    <button
+                      className="button secondary"
+                      onClick={importAllDatasetColumns}
+                      style={{ fontSize: '11.5px', padding: '5px 8px' }}
+                      title="Import all columns from uploaded Excel"
+                    >
+                      Import All
+                    </button>
+                  )}
+                  <button
+                    className="button"
+                    onClick={addTableColumn}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '5px 10px' }}
+                  >
+                    <Plus size={14} /> Add Column
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '550px', overflowY: 'auto', paddingRight: '4px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '560px', overflowY: 'auto', paddingRight: '4px' }}>
                 {activeCols.map((col, idx) => (
                   <div key={col.id || idx} style={{ padding: '12px', background: 'var(--bg)', borderRadius: '8px', border: '1px solid var(--line)' }}>
                     
@@ -1252,7 +803,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                     </div>
 
                     {/* Field Binding & Alignment */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px', marginBottom: '8px' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, marginBottom: '3px' }}>Data Content:</label>
                         <select
@@ -1262,17 +813,20 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                         >
                           <optgroup label="Standard Fields">
                             <option value="slNo">Serial No (1, 2, 3...)</option>
-                            <option value="seatNo">Register / Seat No</option>
-                            <option value="name">Candidate Name</option>
-                            <option value="courses">Merged Courses (Sub-rows)</option>
-                            <option value="date">Exam Date</option>
-                            <option value="course">Course Name</option>
-                            <option value="count">Candidate Count</option>
                             <option value="blank">Blank / Signature Box</option>
                           </optgroup>
-                          {dataset.columns?.length > 0 && (
+                          {dataset.columns?.length > 0 ? (
                             <optgroup label="Excel Columns">
                               {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </optgroup>
+                          ) : (
+                            <optgroup label="Sample Columns">
+                              <option value="seatNo">Register Number</option>
+                              <option value="name">Candidate Name</option>
+                              <option value="course">Course / Subject</option>
+                              <option value="status">Status</option>
+                              <option value="Department">Department</option>
+                              <option value="Venue">Venue</option>
                             </optgroup>
                           )}
                         </select>
@@ -1305,22 +859,48 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                       </div>
                     </div>
 
+                    {/* Width & Bold Controls */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Width:</span>
+                        <input 
+                          type="number"
+                          min="10"
+                          max="150"
+                          value={col.width || 30}
+                          onChange={(e) => updateTableColumn(col.id, { width: parseInt(e.target.value, 10) || 30 })}
+                          style={{ width: '56px', padding: '3px 6px', fontSize: '11.5px', textAlign: 'center' }}
+                        />
+                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>mm</span>
+                      </div>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox"
+                          checked={!!col.bold}
+                          onChange={(e) => updateTableColumn(col.id, { bold: e.target.checked })}
+                          style={{ accentColor: 'var(--accent)' }}
+                        />
+                        Bold Text
+                      </label>
+                    </div>
+
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* TAB 1: DYNAMIC PAGE HEADERS & RICH TEXT BUILDER */}
+          {/* TAB 2: PAGE TITLE & INSTITUTIONAL HEADERS */}
           {activeToolTab === 'headers' && (
             <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Edit3 size={16} /> Page Title & Sub-Headers ({currentConfig.headersList?.length || 0})
+                    <Edit3 size={16} /> Page Title & Sub-Headers ({templateConfig.headersList?.length || 0})
                   </h3>
                   <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--muted)' }}>
-                    Add, remove, reorder, and style institutional headers at the top of the report.
+                    Add, remove, reorder, and format institutional headers at the top of the report.
                   </p>
                 </div>
                 <button
@@ -1333,7 +913,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '550px', overflowY: 'auto', paddingRight: '4px' }}>
-                {(currentConfig.headersList || []).map((h, idx) => (
+                {(templateConfig.headersList || []).map((h, idx) => (
                   <div 
                     key={h.id} 
                     style={{ 
@@ -1358,9 +938,9 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                           <ArrowUp size={14} />
                         </button>
                         <button 
-                          disabled={idx === currentConfig.headersList.length - 1} 
+                          disabled={idx === templateConfig.headersList.length - 1} 
                           onClick={() => moveHeaderLine(idx, 1)} 
-                          style={{ background: 'none', border: 'none', cursor: idx === currentConfig.headersList.length - 1 ? 'default' : 'pointer', color: idx === currentConfig.headersList.length - 1 ? '#ccc' : 'var(--ink)', padding: '2px' }}
+                          style={{ background: 'none', border: 'none', cursor: idx === templateConfig.headersList.length - 1 ? 'default' : 'pointer', color: idx === templateConfig.headersList.length - 1 ? '#ccc' : 'var(--ink)', padding: '2px' }}
                           title="Move Down"
                         >
                           <ArrowDown size={14} />
@@ -1498,7 +1078,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             </div>
           )}
 
-          {/* TAB 2: PAGE ORIENTATION & LOGO CONTROLS */}
+          {/* TAB 3: PAGE ORIENTATION & LOGO CONTROLS */}
           {activeToolTab === 'page' && (
             <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1511,15 +1091,15 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <button
                     type="button"
-                    onClick={() => updateCurrentConfig({ orientation: 'portrait' })}
+                    onClick={() => updateConfig({ orientation: 'portrait' })}
                     style={{
                       padding: '10px',
                       borderRadius: '8px',
-                      border: currentConfig.orientation === 'portrait' || !currentConfig.orientation ? '2px solid var(--accent)' : '1px solid var(--line)',
-                      background: currentConfig.orientation === 'portrait' || !currentConfig.orientation ? 'var(--accent-soft)' : 'white',
+                      border: templateConfig.orientation === 'portrait' || !templateConfig.orientation ? '2px solid var(--accent)' : '1px solid var(--line)',
+                      background: templateConfig.orientation === 'portrait' || !templateConfig.orientation ? 'var(--accent-soft)' : 'white',
                       fontWeight: 700,
                       fontSize: '13px',
-                      color: currentConfig.orientation === 'portrait' || !currentConfig.orientation ? 'var(--accent)' : 'var(--ink)',
+                      color: templateConfig.orientation === 'portrait' || !templateConfig.orientation ? 'var(--accent)' : 'var(--ink)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -1531,15 +1111,15 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                   </button>
                   <button
                     type="button"
-                    onClick={() => updateCurrentConfig({ orientation: 'landscape' })}
+                    onClick={() => updateConfig({ orientation: 'landscape' })}
                     style={{
                       padding: '10px',
                       borderRadius: '8px',
-                      border: currentConfig.orientation === 'landscape' ? '2px solid var(--accent)' : '1px solid var(--line)',
-                      background: currentConfig.orientation === 'landscape' ? 'var(--accent-soft)' : 'white',
+                      border: templateConfig.orientation === 'landscape' ? '2px solid var(--accent)' : '1px solid var(--line)',
+                      background: templateConfig.orientation === 'landscape' ? 'var(--accent-soft)' : 'white',
                       fontWeight: 700,
                       fontSize: '13px',
-                      color: currentConfig.orientation === 'landscape' ? 'var(--accent)' : 'var(--ink)',
+                      color: templateConfig.orientation === 'landscape' ? 'var(--accent)' : 'var(--ink)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -1556,8 +1136,8 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               <div style={{ marginBottom: '18px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>Page Standard Size:</label>
                 <select
-                  value={currentConfig.pageSize || 'A4'}
-                  onChange={(e) => updateCurrentConfig({ pageSize: e.target.value })}
+                  value={templateConfig.pageSize || 'A4'}
+                  onChange={(e) => updateConfig({ pageSize: e.target.value })}
                   style={{ width: '100%', fontSize: '13px' }}
                 >
                   <option value="A4">A4 (210 × 297 mm)</option>
@@ -1571,14 +1151,14 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, marginBottom: '10px' }}>
                   <input 
                     type="checkbox"
-                    checked={!!currentConfig.logo?.show}
-                    onChange={(e) => updateCurrentConfig({ logo: { ...currentConfig.logo, show: e.target.checked } })}
+                    checked={!!templateConfig.logo?.show}
+                    onChange={(e) => updateConfig({ logo: { ...templateConfig.logo, show: e.target.checked } })}
                     style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
                   />
                   Show Logo / Crest on Page
                 </label>
 
-                {currentConfig.logo?.show && (
+                {templateConfig.logo?.show && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
                     
                     {/* Upload button */}
@@ -1602,9 +1182,9 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                       <button
                         type="button"
                         className="button secondary"
-                        onClick={() => updateCurrentConfig({ logo: { ...currentConfig.logo, src: logoBase64 } })}
+                        onClick={() => updateConfig({ logo: { ...templateConfig.logo, src: logoBase64 } })}
                         style={{ fontSize: '11px', padding: '6px 10px' }}
-                        title="Reset to default Kannur University Crest"
+                        title="Reset to default Crest"
                       >
                         Default Crest
                       </button>
@@ -1618,15 +1198,15 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                           <button
                             key={pos}
                             type="button"
-                            onClick={() => updateCurrentConfig({ logo: { ...currentConfig.logo, position: pos } })}
+                            onClick={() => updateConfig({ logo: { ...templateConfig.logo, position: pos } })}
                             style={{
                               padding: '4px 8px',
                               fontSize: '11px',
                               textTransform: 'capitalize',
                               borderRadius: '4px',
                               border: '1px solid var(--line)',
-                              background: currentConfig.logo?.position === pos ? 'var(--accent)' : 'white',
-                              color: currentConfig.logo?.position === pos ? 'white' : 'var(--ink)',
+                              background: templateConfig.logo?.position === pos ? 'var(--accent)' : 'white',
+                              color: templateConfig.logo?.position === pos ? 'white' : 'var(--ink)',
                               cursor: 'pointer'
                             }}
                           >
@@ -1644,11 +1224,11 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                           type="range"
                           min="10"
                           max="40"
-                          value={currentConfig.logo?.width || 18}
-                          onChange={(e) => updateCurrentConfig({ logo: { ...currentConfig.logo, width: parseInt(e.target.value, 10) } })}
+                          value={templateConfig.logo?.width || 18}
+                          onChange={(e) => updateConfig({ logo: { ...templateConfig.logo, width: parseInt(e.target.value, 10) } })}
                           style={{ width: '90px' }}
                         />
-                        <span style={{ fontSize: '11px', fontWeight: 700 }}>{currentConfig.logo?.width || 18} mm</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700 }}>{templateConfig.logo?.width || 18} mm</span>
                       </div>
                     </div>
 
@@ -1659,243 +1239,68 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             </div>
           )}
 
-          {/* TAB 3: DYNAMIC EXCEL DATA BINDING */}
-          {activeToolTab === 'data' && (
+          {/* TAB 4: GROUPING & TOTALS */}
+          {activeToolTab === 'grouping' && (
             <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Layers size={16} /> Excel Spreadsheet Column Binding
+                <Layers size={16} /> Grouping & Page Break Rules
               </h3>
 
-              {dataset.columns.length === 0 ? (
-                <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '13px', color: 'var(--muted)' }}>
-                  Upload an Excel file in Report Config to bind your actual spreadsheet columns.
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>Group Records By Column:</label>
+                  <select
+                    value={templateConfig.groupBy || 'none'}
+                    onChange={(e) => {
+                      updateConfig({ groupBy: e.target.value });
+                      setActivePreviewIndex(0);
+                    }}
+                    style={{ width: '100%', fontSize: '13px' }}
+                  >
+                    <option value="none">No Grouping (Single Continuous Table)</option>
+                    {dataset.columns?.length > 0 ? (
+                      dataset.columns.map(c => <option key={c} value={c}>Group by: {c}</option>)
+                    ) : (
+                      <>
+                        <option value="Department">Group by: Department</option>
+                        <option value="Venue">Group by: Venue</option>
+                      </>
+                    )}
+                  </select>
+                  <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: 'var(--muted)' }}>
+                    When grouping is enabled, separate pages and sub-files are generated for each unique group value.
+                  </p>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  
-                  {activeArchetype === 'NOMINAL_ROLL' && (
-                    <>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Register / Seat Number:</label>
-                        <select 
-                          value={columnMappings.seatNo || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, seatNo: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
 
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Candidate Name:</label>
-                        <select 
-                          value={columnMappings.name || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, name: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Code (Paper Code):</label>
-                        <select 
-                          value={columnMappings.courseCode || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, courseCode: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Title (Paper Name):</label>
-                        <select 
-                          value={columnMappings.courseTitle || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Programme Name:</label>
-                        <select 
-                          value={columnMappings.programme || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, programme: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Venue Name / Code:</label>
-                        <select 
-                          value={columnMappings.venueName || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  {activeArchetype === 'QP_STATEMENT' && (
-                    <>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Examination Date:</label>
-                        <select 
-                          value={columnMappings.examDate || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, examDate: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course / Subject Code:</label>
-                        <select 
-                          value={columnMappings.courseCode || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, courseCode: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Course Title:</label>
-                        <select 
-                          value={columnMappings.courseTitle || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Candidate Count (NC):</label>
-                        <select 
-                          value={columnMappings.count || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, count: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Venue / Centre:</label>
-                        <select 
-                          value={columnMappings.venueName || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  {activeArchetype === 'QP_COVER_LABEL' && (
-                    <>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Centre Code:</label>
-                        <select 
-                          value={columnMappings.venueCode || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, venueCode: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Centre Name:</label>
-                        <select 
-                          value={columnMappings.venueName || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, venueName: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Exam Date:</label>
-                        <select 
-                          value={columnMappings.examDate || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, examDate: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>Subject / Paper:</label>
-                        <select 
-                          value={columnMappings.courseTitle || columnMappings.courseCode || ''} 
-                          onChange={(e) => setColumnMappings(p => ({ ...p, courseTitle: e.target.value }))}
-                          style={{ width: '100%', fontSize: '13px' }}
-                        >
-                          <option value="">-- Select Column --</option>
-                          {dataset.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                </div>
-              )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                  <input 
+                    type="checkbox"
+                    checked={!!templateConfig.showTotalCount}
+                    onChange={(e) => updateConfig({ showTotalCount: e.target.checked })}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+                  />
+                  Show Total Record Count Footer
+                </label>
+              </div>
             </div>
           )}
 
-          {/* TAB 4: TABLE STYLING & FORMATTING */}
+          {/* TAB 5: TABLE STYLING & COLORS */}
           {activeToolTab === 'styling' && (
             <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sliders size={16} /> Table & Text Formatting
+                <Sliders size={16} /> Table Colors & Font Size
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
-                  <input 
-                    type="checkbox"
-                    checked={!!currentConfig.formatCodeDotNameDot}
-                    onChange={(e) => updateCurrentConfig({ formatCodeDotNameDot: e.target.checked })}
-                    style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
-                  />
-                  Format: CODE. - NAME. (with trailing dots)
-                </label>
-
                 {/* Table Header Color */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '12px', fontWeight: 600 }}>Table Header Background:</span>
                   <input 
                     type="color"
-                    value={currentConfig.tableTheme?.headerBg || '#f1f5f9'}
-                    onChange={(e) => updateCurrentConfig({ tableTheme: { ...currentConfig.tableTheme, headerBg: e.target.value } })}
+                    value={templateConfig.tableTheme?.headerBg || '#f1f5f9'}
+                    onChange={(e) => updateConfig({ tableTheme: { ...templateConfig.tableTheme, headerBg: e.target.value } })}
                     style={{ width: '32px', height: '32px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                   />
                 </div>
@@ -1905,8 +1310,19 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                   <span style={{ fontSize: '12px', fontWeight: 600 }}>Table Header Text Color:</span>
                   <input 
                     type="color"
-                    value={currentConfig.tableTheme?.headerColor || '#000000'}
-                    onChange={(e) => updateCurrentConfig({ tableTheme: { ...currentConfig.tableTheme, headerColor: e.target.value } })}
+                    value={templateConfig.tableTheme?.headerColor || '#000000'}
+                    onChange={(e) => updateConfig({ tableTheme: { ...templateConfig.tableTheme, headerColor: e.target.value } })}
+                    style={{ width: '32px', height: '32px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                {/* Table Border Color */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600 }}>Table Border Color:</span>
+                  <input 
+                    type="color"
+                    value={templateConfig.tableTheme?.borderColor || '#64748b'}
+                    onChange={(e) => updateConfig({ tableTheme: { ...templateConfig.tableTheme, borderColor: e.target.value } })}
                     style={{ width: '32px', height: '32px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                   />
                 </div>
@@ -1920,8 +1336,8 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                       min="7"
                       max="14"
                       step="0.5"
-                      value={currentConfig.tableTheme?.fontSize || 8}
-                      onChange={(e) => updateCurrentConfig({ tableTheme: { ...currentConfig.tableTheme, fontSize: parseFloat(e.target.value) || 8 } })}
+                      value={templateConfig.tableTheme?.fontSize || 8.5}
+                      onChange={(e) => updateConfig({ tableTheme: { ...templateConfig.tableTheme, fontSize: parseFloat(e.target.value) || 8.5 } })}
                       style={{ width: '56px', padding: '4px 6px', fontSize: '12px', textAlign: 'center' }}
                     />
                     <span style={{ fontSize: '11px', color: 'var(--muted)' }}>pt</span>
@@ -1937,9 +1353,10 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
         {/* RIGHT COLUMN: Live WYSIWYG A4 Preview and Export Toolbar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
-          {/* Navigation & Export Toolbar */}
+          {/* Multi-Format Export Toolbar */}
           <div className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             
+            {/* Page Navigator when Grouping */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button 
                 className="button secondary"
@@ -1962,41 +1379,65 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
               </button>
             </div>
 
+            {/* Export Buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              
               <button 
                 className="button secondary"
                 onClick={handleDownloadSinglePdf}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', padding: '7px 14px' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '7px 12px' }}
+                title="Download active page vector PDF"
               >
-                <Download size={15} /> Page PDF
+                <Download size={14} /> Page PDF
               </button>
 
               <button 
                 className="button secondary"
                 onClick={handleDownloadConsolidatedPdf}
                 disabled={isProcessing}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', padding: '7px 14px' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '7px 12px' }}
+                title="Download consolidated all-pages vector PDF"
               >
-                <FileText size={15} /> Master PDF
+                <FileText size={14} /> Master PDF
               </button>
 
               <button 
                 className="button"
+                onClick={handleExportExcel}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '7px 14px', background: '#107c41', borderColor: '#107c41' }}
+                title="Download formatted Excel Spreadsheet (.xlsx) with header rows and custom columns"
+              >
+                <FileSpreadsheet size={15} /> Export Excel (.xlsx)
+              </button>
+
+              <button 
+                className="button secondary"
+                onClick={handleExportCsv}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '7px 12px' }}
+                title="Export clean CSV data"
+              >
+                <Download size={14} /> CSV
+              </button>
+
+              <button 
+                className="button secondary"
                 onClick={handleDownloadZip}
                 disabled={isProcessing}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', padding: '7px 16px' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '7px 12px' }}
+                title="Download group-wise split PDFs in ZIP"
               >
-                <Archive size={15} /> Individual PDFs (.zip)
+                <Archive size={14} /> ZIP
               </button>
 
               <button 
                 className="button secondary"
                 onClick={() => window.print()}
                 title="Direct Print A4"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', padding: '7px 14px' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '7px 12px' }}
               >
-                <Printer size={15} /> Print A4
+                <Printer size={14} /> Print
               </button>
+
             </div>
 
           </div>
@@ -2005,13 +1446,13 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
           <div 
             className="card print-container" 
             style={{ 
-              padding: currentConfig.orientation === 'landscape' ? '32px 40px' : '40px 48px', 
+              padding: templateConfig.orientation === 'landscape' ? '32px 40px' : '40px 48px', 
               background: 'white', 
               border: '1px solid #cbd5e1', 
               borderRadius: '8px', 
               boxShadow: '0 8px 30px rgba(0,0,0,0.08)', 
               minHeight: '750px',
-              maxWidth: currentConfig.orientation === 'landscape' ? '1123px' : '794px',
+              maxWidth: templateConfig.orientation === 'landscape' ? '1123px' : '794px',
               margin: '0 auto',
               width: '100%',
               transition: 'all 0.3s ease'
@@ -2022,22 +1463,22 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
             <div style={{ textAlign: 'center', marginBottom: '20px', position: 'relative' }}>
               
               {/* Optional Logo */}
-              {currentConfig.logo?.show && currentConfig.logo?.src && (
+              {templateConfig.logo?.show && templateConfig.logo?.src && (
                 <div style={{
                   display: 'flex',
-                  justifyContent: currentConfig.logo.position === 'left' ? 'flex-start' : currentConfig.logo.position === 'right' ? 'flex-end' : 'center',
+                  justifyContent: templateConfig.logo.position === 'left' ? 'flex-start' : templateConfig.logo.position === 'right' ? 'flex-end' : 'center',
                   marginBottom: '10px'
                 }}>
                   <img 
-                    src={currentConfig.logo.src} 
+                    src={templateConfig.logo.src} 
                     alt="Logo" 
-                    style={{ height: `${(currentConfig.logo.width || 18) * 3}px`, objectFit: 'contain' }} 
+                    style={{ height: `${(templateConfig.logo.width || 18) * 3}px`, objectFit: 'contain' }} 
                   />
                 </div>
               )}
 
               {/* Dynamic Headers List */}
-              {(currentConfig.headersList || []).map((h, idx) => (
+              {(templateConfig.headersList || []).map((h, idx) => (
                 <div 
                   key={h.id || idx}
                   style={{
@@ -2054,257 +1495,81 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                 </div>
               ))}
 
-              {activeArchetype === 'QP_STATEMENT' && currentPreviewGroup && (
-                <div style={{ fontSize: '12pt', fontWeight: 800, color: '#000', marginTop: '6px' }}>
-                  {currentConfig.centerPrefix} {effectiveGroupKey}
+              {/* Optional Group Title Banner */}
+              {templateConfig.groupBy && templateConfig.groupBy !== 'none' && (
+                <div style={{ 
+                  marginTop: '12px', 
+                  padding: '6px 12px', 
+                  background: 'var(--accent-soft)', 
+                  color: 'var(--accent)', 
+                  fontWeight: 800, 
+                  borderRadius: '6px', 
+                  fontSize: '13px',
+                  display: 'inline-block'
+                }}>
+                  {templateConfig.groupBy}: {effectiveGroupKey}
+                </div>
+              )}
+
+            </div>
+
+            {/* LIVE CUSTOM TABULAR REPORT TABLE */}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${templateConfig.tableTheme?.fontSize || 8.5}pt` }}>
+                <thead>
+                  <tr style={{ background: templateConfig.tableTheme?.headerBg || '#f1f5f9', color: templateConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                    {activeCols.map(c => (
+                      <th 
+                        key={c.id} 
+                        style={{ 
+                          border: `1px solid ${templateConfig.tableTheme?.borderColor || '#64748b'}`, 
+                          padding: '8px 6px', 
+                          textAlign: c.align || 'left', 
+                          fontWeight: 700 
+                        }}
+                      >
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentPreviewRows.map((row, idx) => (
+                    <tr key={idx} style={{ borderBottom: `1px solid ${templateConfig.tableTheme?.borderColor || '#64748b'}` }}>
+                      {activeCols.map(col => {
+                        let content;
+                        if (col.field === 'slNo') content = idx + 1;
+                        else if (col.field === 'blank') content = '';
+                        else if (col.field === 'seatNo') content = row[columnMappings.seatNo] || row['seatNo'] || row['Register Number'] || row['Register No'] || '';
+                        else if (col.field === 'name') content = row[columnMappings.name] || row['name'] || row['Candidate Name'] || '';
+                        else content = row[col.field] !== undefined ? row[col.field] : (row[col.label] || '');
+
+                        return (
+                          <td 
+                            key={col.id} 
+                            style={{ 
+                              border: `1px solid ${templateConfig.tableTheme?.borderColor || '#64748b'}`, 
+                              padding: '6px 8px', 
+                              textAlign: col.align || 'left', 
+                              fontWeight: col.bold ? 700 : 400 
+                            }}
+                          >
+                            {content}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Optional Record Count Footer */}
+              {templateConfig.showTotalCount && (
+                <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>
+                  Total Records: {currentPreviewRows.length} {templateConfig.groupBy !== 'none' ? `(in this group)` : ''}
                 </div>
               )}
             </div>
-
-            {/* ARCHETYPE 1: NOMINAL ROLL LIVE VIEW */}
-            {activeArchetype === 'NOMINAL_ROLL' && (
-              <div>
-                {currentPreviewGroup && (
-                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px 18px', marginBottom: '20px' }}>
-                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>
-                      Programme: {currentPreviewGroup.programme || 'General Programme'}
-                    </div>
-                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0284c7' }}>
-                      Venue: {currentPreviewGroup.venueLabel || 'Examination Venue'}
-                    </div>
-                  </div>
-                )}
-
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8}pt` }}>
-                  <thead>
-                    <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      {activeCols.map(c => (
-                        <th 
-                          key={c.id} 
-                          style={{ 
-                            border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, 
-                            padding: '8px 6px', 
-                            textAlign: c.align || 'left', 
-                            fontWeight: 700 
-                          }}
-                        >
-                          {c.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentPreviewGroup?.candidates?.map((cand, candIdx) => {
-                      const courses = cand.courses || [];
-                      return courses.map((crs, crsIdx) => (
-                        <tr key={`${candIdx}_${crsIdx}`} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}` }}>
-                          {activeCols.map(col => {
-                            let content = '';
-                            if (col.field === 'slNo') content = candIdx + 1;
-                            else if (col.field === 'seatNo') content = cand.seatNo;
-                            else if (col.field === 'name') content = cand.studentName;
-                            else if (col.field === 'courses') content = crs.display;
-                            else if (col.field === 'remarks' || col.field === 'blank') content = '';
-                            else if (cand.rawRow && cand.rawRow[col.field]) content = cand.rawRow[col.field];
-
-                            if (col.field === 'courses' || !col.isSpan) {
-                              return (
-                                <td 
-                                  key={col.id} 
-                                  style={{ 
-                                    border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, 
-                                    padding: '5px 8px', 
-                                    verticalAlign: 'middle',
-                                    textAlign: col.align || 'left',
-                                    fontWeight: col.bold ? 700 : 400
-                                  }}
-                                >
-                                  {content}
-                                </td>
-                              );
-                            } else {
-                              if (crsIdx === 0) {
-                                return (
-                                  <td 
-                                    key={col.id} 
-                                    rowSpan={courses.length} 
-                                    style={{ 
-                                      border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, 
-                                      padding: '6px 8px', 
-                                      textAlign: col.align || 'left', 
-                                      verticalAlign: 'middle', 
-                                      fontWeight: col.bold || col.field === 'seatNo' || col.field === 'name' ? 700 : 400 
-                                    }}
-                                  >
-                                    {content}
-                                  </td>
-                                );
-                              }
-                              return null;
-                            }
-                          })}
-                        </tr>
-                      ));
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* ARCHETYPE 2: QP STATEMENT LIVE VIEW */}
-            {activeArchetype === 'QP_STATEMENT' && (
-              <div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8.5}pt` }}>
-                  <thead>
-                    <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      {activeCols.map(c => (
-                        <th key={c.id} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '8px 6px', textAlign: c.align || 'left', fontWeight: 700 }}>
-                          {c.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentPreviewGroup?.items?.map((it, idx) => (
-                      <tr key={idx} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}` }}>
-                        {activeCols.map(col => {
-                          let content;
-                          if (col.field === 'slNo') content = idx + 1;
-                          else if (col.field === 'date') content = it.date;
-                          else if (col.field === 'course') content = it.courseDisplay;
-                          else if (col.field === 'count') content = it.studentCount;
-                          else if (col.field === 'qp' || col.field === 'lp' || col.field === 'blank') content = '';
-                          else content = it[col.field] || '';
-
-                          return (
-                            <td key={col.id} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#000000'}`, padding: '6px 8px', textAlign: col.align || 'left', fontWeight: col.bold || col.field === 'count' ? 700 : 400 }}>
-                              {content}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* ARCHETYPE 3: QP COVER ENVELOPE LABEL LIVE VIEW */}
-            {activeArchetype === 'QP_COVER_LABEL' && (() => {
-              const lbl = processedData.groups.allLabels?.[activePreviewIndex] || {
-                venueCode: 'GA',
-                venueName: 'Sree Narayana Guru College of Advanced Studies, Thottada',
-                day: 'Wednesday',
-                date: '2026-09-09',
-                timeRange: '01:30 PM - 03:00 PM',
-                subject: 'KU4VACBBA200 - Disaster Management',
-                studentCount: '',
-                coverNumber: ''
-              };
-
-              return (
-                <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-                  {/* Border Table Box */}
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', border: '1.5px solid #000', marginBottom: '20px' }}>
-                    <tbody>
-                      <tr style={{ borderBottom: '1px solid #000' }}>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px', fontWeight: 800, width: '180px' }}>{currentConfig.centerPrefix}</td>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px', fontWeight: 800, textAlign: 'center', width: '60px' }}>{lbl.venueCode}</td>
-                        <td colSpan={4} style={{ padding: '8px 12px', fontWeight: 800 }}>{lbl.venueName}</td>
-                      </tr>
-                      <tr style={{ borderBottom: '1px solid #000' }}>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px', fontWeight: 800 }}>DAY</td>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px' }}>{lbl.day}</td>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px', fontWeight: 800, width: '60px' }}>DATE</td>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px' }}>{lbl.date}</td>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px', fontWeight: 800, width: '60px' }}>TIME</td>
-                        <td style={{ padding: '8px 10px' }}>{lbl.timeRange}</td>
-                      </tr>
-                      <tr style={{ borderBottom: '1px solid #000' }}>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px', fontWeight: 800 }}>SUBJECT</td>
-                        <td colSpan={5} style={{ padding: '8px 12px', fontWeight: 800 }}>{lbl.subject}</td>
-                      </tr>
-                      <tr>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px', fontWeight: 800 }}>NO. OF COPIES</td>
-                        <td colSpan={2} style={{ borderRight: '1px solid #000', padding: '8px 10px', textAlign: 'center', fontWeight: 700 }}>{lbl.studentCount}</td>
-                        <td style={{ borderRight: '1px solid #000', padding: '8px 10px', fontWeight: 800 }}>COVER NUMBER</td>
-                        <td colSpan={2} style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700 }}>{lbl.coverNumber}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  {/* Certificate Section */}
-                  <div style={{ borderTop: '2px dashed #94a3b8', paddingTop: '16px', textAlign: 'center', marginBottom: '14px' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#000', letterSpacing: '1px', marginBottom: '12px' }}>
-                      CERTIFICATE
-                    </div>
-                    <p style={{ fontSize: '13px', lineHeight: '1.6', textAlign: 'left', margin: '0 0 30px 0', color: '#111' }}>
-                      {currentConfig.certificateText}
-                    </p>
-                  </div>
-
-                  {/* Signatures Row */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontSize: '12.5px', fontWeight: 700, color: '#000', marginTop: '20px' }}>
-                    <div>
-                      <div style={{ marginBottom: '10px' }}>INVIGILATOR</div>
-                      <div style={{ fontWeight: 500, marginBottom: '6px' }}>(1) ____________________________________</div>
-                      <div style={{ fontWeight: 500 }}>(2) ____________________________________</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div>ADDL.CHIEF SUPERINTENDENT</div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '12.5px', fontWeight: 700, color: '#000', marginTop: '30px' }}>
-                    <div>
-                      <div style={{ marginBottom: '6px' }}>PLACE:</div>
-                      <div>DATE:</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div>CHIEF SUPERINTENDENT</div>
-                    </div>
-                  </div>
-
-                </div>
-              );
-            })()}
-
-            {/* ARCHETYPE 4: CUSTOM TABULAR LIVE VIEW */}
-            {activeArchetype === 'CUSTOM_TABULAR' && (
-              <div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: `${currentConfig.tableTheme?.fontSize || 8.5}pt` }}>
-                  <thead>
-                    <tr style={{ background: currentConfig.tableTheme?.headerBg || '#f1f5f9', color: currentConfig.tableTheme?.headerColor || '#000000', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
-                      {activeCols.map(c => (
-                        <th key={c.id} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '8px 6px', textAlign: c.align || 'left' }}>
-                          {c.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dataset.rows.slice(0, 25).map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}` }}>
-                        {activeCols.map(col => {
-                          let content;
-                          if (col.field === 'slNo') content = idx + 1;
-                          else if (col.field === 'seatNo') content = row[columnMappings.seatNo] || row['seatNo'] || '';
-                          else if (col.field === 'name') content = row[columnMappings.name] || row['name'] || '';
-                          else if (col.field === 'blank') content = '';
-                          else content = row[col.field] || '';
-
-                          return (
-                            <td key={col.id} style={{ border: `1px solid ${currentConfig.tableTheme?.borderColor || '#64748b'}`, padding: '6px 8px', textAlign: col.align || 'left' }}>
-                              {content}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
           </div>
 

@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { TEMPLATE_ARCHETYPES } from '../utils/templateEngine';
-import { Sparkles, FileText, CalendarRange, Tag, TableProperties, ArrowRight } from 'lucide-react';
+import { Sparkles, TableProperties, Plus, ArrowRight, FileText, Trash2, FolderOpen } from 'lucide-react';
 
 const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
   const [configs, setConfigs] = useState([]);
@@ -97,58 +96,46 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
   };
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto', width: '100%', overflowY: 'auto' }}>
-      <h2>Report Template Library & Starter Archetypes</h2>
-      <p className="subtitle">Choose from standard university examination templates or manage your saved custom report designs.</p>
+    <div style={{ padding: '32px 40px', maxWidth: '1400px', margin: '0 auto', width: '100%', overflowY: 'auto', fontFamily: 'var(--font-family)' }}>
+      
+      {/* Page Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <FolderOpen size={24} color="var(--accent)" /> Report Template & Pipeline Library
+          </h2>
+          <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: '13.5px' }}>
+            Manage your saved custom report designs, institutional headers, column bindings, and data transformation pipelines.
+          </p>
+        </div>
 
-      {/* STARTER PRESET ARCHETYPES */}
-      <div className="card" style={{ padding: '28px', marginBottom: '32px', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), #fff)', border: '1.5px solid var(--accent)' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)' }}>
-          <Sparkles size={20} /> Built-in Examination & Report Archetypes
-        </h3>
-        <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '20px' }}>
-          Select an archetype to launch directly into the Template Studio with customizable headers, columns, and A4 layouts:
-        </p>
+        <button 
+          className="button"
+          onClick={() => onLoadTemplate({ name: 'New Custom Tabular Report' })}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', padding: '9px 18px' }}
+        >
+          <Plus size={16} /> Create New Custom Report Template
+        </button>
+      </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
-          {Object.values(TEMPLATE_ARCHETYPES).map(arch => (
-            <div 
-              key={arch.id}
-              onClick={() => onLoadTemplate({ archetype: arch.id, name: arch.name, config: arch.defaultConfig })}
-              style={{
-                padding: '18px',
-                borderRadius: '10px',
-                border: '1px solid var(--line)',
-                background: 'white',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  {arch.id === 'NOMINAL_ROLL' && <FileText size={20} color="var(--accent)" />}
-                  {arch.id === 'QP_STATEMENT' && <CalendarRange size={20} color="var(--accent)" />}
-                  {arch.id === 'QP_COVER_LABEL' && <Tag size={20} color="var(--accent)" />}
-                  {arch.id === 'CUSTOM_TABULAR' && <TableProperties size={20} color="var(--accent)" />}
-                  <strong style={{ fontSize: '14.5px' }}>{arch.name}</strong>
-                </div>
-                <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: 'var(--muted)', lineHeight: '1.4' }}>
-                  {arch.description}
-                </p>
-              </div>
-
-              <button 
-                className="button"
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12.5px', padding: '7px 12px', width: '100%' }}
-              >
-                Customize Template <ArrowRight size={14} />
-              </button>
-            </div>
-          ))}
+      {/* Hero Action Card */}
+      <div className="card" style={{ padding: '24px 28px', marginBottom: '32px', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), #fff)', border: '1.5px solid var(--accent)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h3 style={{ margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)', fontSize: '16px' }}>
+              <TableProperties size={20} /> Custom Tabular Data & Report Studio
+            </h3>
+            <p style={{ margin: 0, color: 'var(--muted)', fontSize: '13px', maxWidth: '750px', lineHeight: '1.4' }}>
+              Upload any spreadsheet format (.xlsx, .csv, .tsv) to customize table column headers, institutional titles, page orientation, logo, styling, and multi-format exports (.pdf, .xlsx, .csv, .zip).
+            </p>
+          </div>
+          <button 
+            className="button"
+            onClick={() => onLoadTemplate({ name: 'New Custom Tabular Report' })}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '8px 16px' }}
+          >
+            Launch Template Studio <ArrowRight size={15} />
+          </button>
         </div>
       </div>
 
@@ -157,35 +144,35 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px' }}>
           
-          {/* CONFIGS LIST */}
-          <div className="card" style={{ padding: '32px' }}>
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="icon">📄</span> Saved Configurations
+          {/* SAVED CUSTOM TEMPLATES */}
+          <div className="card" style={{ padding: '28px' }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+              <Sparkles size={18} color="var(--accent)" /> Saved Custom Templates ({templates.length})
             </h3>
-            <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '24px' }}>
-              Configurations contain your data pipeline rules (Filters, Advanced Calculations). To edit a config, you must upload your original dataset again.
+            <p style={{ color: 'var(--muted)', fontSize: '12.5px', marginBottom: '20px' }}>
+              Your saved custom report templates with customized headers, column mappings, page orientation, and styles.
             </p>
             
-            {configs.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', background: '#f9fafb', borderRadius: '8px', color: 'var(--muted)' }}>
-                No configurations saved yet.
+            {templates.length === 0 ? (
+              <div style={{ padding: '28px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed var(--line)', color: 'var(--muted)' }}>
+                No custom report templates saved yet. Click &quot;Create New Custom Report Template&quot; to build your first template.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {configs.map(c => (
-                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
+                {templates.map(t => (
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
                     <div>
-                      <strong style={{ display: 'block', marginBottom: '4px' }}>{c.name}</strong>
-                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                        {c.config_data?.createdAt ? new Date(c.config_data.createdAt).toLocaleString() : 'Date Unknown'}
+                      <strong style={{ display: 'block', marginBottom: '3px', fontSize: '13.5px' }}>{t.name}</strong>
+                      <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                        {t.layout_data?.createdAt ? new Date(t.layout_data.createdAt).toLocaleDateString() : 'Recent'} • Custom Tabular
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="secondary" onClick={() => onLoadConfig(c)} style={{ padding: '6px 12px', fontSize: '12px', borderColor: 'var(--accent)', color: 'var(--accent)' }}>
-                        Edit Rules
+                      <button className="button secondary" onClick={() => onLoadTemplate(t.layout_data ? { ...t.layout_data, name: t.name } : t)} style={{ padding: '6px 12px', fontSize: '12px', borderColor: 'var(--accent)', color: 'var(--accent)' }}>
+                        Open in Studio
                       </button>
-                      <button className="danger" onClick={() => deleteItem('configs', c.id)} style={{ padding: '6px 12px', fontSize: '12px' }}>
-                        Delete
+                      <button className="button danger" onClick={() => deleteItem('templates', t.id)} style={{ padding: '6px 10px', fontSize: '12px' }}>
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </div>
@@ -194,35 +181,35 @@ const LibraryPage = ({ onLoadConfig, onLoadTemplate }) => {
             )}
           </div>
 
-          {/* TEMPLATES LIST */}
-          <div className="card" style={{ padding: '32px' }}>
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="icon">🎨</span> Saved Custom Templates
+          {/* SAVED DATA CONFIGURATIONS */}
+          <div className="card" style={{ padding: '28px' }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+              <FileText size={18} color="var(--accent)" /> Saved Data Pipeline Configurations ({configs.length})
             </h3>
-            <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '24px' }}>
-              Your saved custom templates with bound fields and tailored header information.
+            <p style={{ color: 'var(--muted)', fontSize: '12.5px', marginBottom: '20px' }}>
+              Configurations contain your data pipeline transformation rules (Filter conditions, Concatenations, Advanced Calculations).
             </p>
             
-            {templates.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', background: '#f9fafb', borderRadius: '8px', color: 'var(--muted)' }}>
-                No custom templates saved yet.
+            {configs.length === 0 ? (
+              <div style={{ padding: '28px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed var(--line)', color: 'var(--muted)' }}>
+                No data pipeline configurations saved yet.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {templates.map(t => (
-                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
+                {configs.map(c => (
+                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px' }}>
                     <div>
-                      <strong style={{ display: 'block', marginBottom: '4px' }}>{t.name}</strong>
-                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                        {t.layout_data?.archetype || 'Custom'} • {t.layout_data?.createdAt ? new Date(t.layout_data.createdAt).toLocaleString() : 'Date Unknown'}
+                      <strong style={{ display: 'block', marginBottom: '3px', fontSize: '13.5px' }}>{c.name}</strong>
+                      <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                        {c.config_data?.createdAt ? new Date(c.config_data.createdAt).toLocaleDateString() : 'Recent'}
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="secondary" onClick={() => onLoadTemplate(t.layout_data ? { ...t.layout_data, name: t.name } : t)} style={{ padding: '6px 12px', fontSize: '12px', borderColor: 'var(--accent)', color: 'var(--accent)' }}>
-                        Open in Studio
+                      <button className="button secondary" onClick={() => onLoadConfig(c)} style={{ padding: '6px 12px', fontSize: '12px', borderColor: 'var(--accent)', color: 'var(--accent)' }}>
+                        Edit Rules
                       </button>
-                      <button className="danger" onClick={() => deleteItem('templates', t.id)} style={{ padding: '6px 12px', fontSize: '12px' }}>
-                        Delete
+                      <button className="button danger" onClick={() => deleteItem('configs', c.id)} style={{ padding: '6px 10px', fontSize: '12px' }}>
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </div>
