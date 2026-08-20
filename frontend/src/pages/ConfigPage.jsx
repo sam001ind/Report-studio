@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { readSpreadsheetFile } from '../utils/excelParser';
 import { autoDetectDatasetColumns, suggestArchetype, TEMPLATE_ARCHETYPES } from '../utils/templateEngine';
@@ -32,6 +33,8 @@ const ConfigPage = ({ _onDataLoaded, dataset = { columns: [], rows: [] }, setDat
   
   const [configName, setConfigName] = useState('');
   const [showAddStep, setShowAddStep] = useState(false);
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pastedText, setPastedText] = useState('');
 
   const detectedArchetype = sourceCols.length > 0 ? suggestArchetype(autoDetectDatasetColumns(sourceCols)) : 'NOMINAL_ROLL';
 
@@ -259,6 +262,29 @@ const ConfigPage = ({ _onDataLoaded, dataset = { columns: [], rows: [] }, setDat
     if (e.dataTransfer.files?.length > 0) processFile(e.dataTransfer.files[0]); 
   };
 
+  const handlePasteDataSubmit = () => {
+    if (!pastedText.trim()) return alert('Please paste your spreadsheet text.');
+    try {
+      const wb = XLSX.read(pastedText, { type: 'string', raw: true, dense: true });
+      if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        if (json && json.length > 0) {
+          const cols = Object.keys(json[0]);
+          setUploadStatus(`Loaded from Pasted Text (${json.length} rows, ${cols.length} columns)`);
+          setSourceCols(cols);
+          setSourceRows(json);
+          setShowPasteModal(false);
+          setPastedText('');
+          return;
+        }
+      }
+      alert('Could not parse valid tabular data from pasted text. Please verify the header row.');
+    } catch (err) {
+      alert('Error parsing text: ' + err.message);
+    }
+  };
+
   const addStep = (type) => {
     const newStep = { id: Date.now(), type };
 
@@ -377,7 +403,17 @@ const ConfigPage = ({ _onDataLoaded, dataset = { columns: [], rows: [] }, setDat
 
       {/* STEP 1: UPLOAD DATASET */}
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Step 1: Upload Excel / Spreadsheet Data</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{ margin: 0 }}>Step 1: Upload Excel / Spreadsheet Data</h3>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => setShowPasteModal(true)}
+            style={{ fontSize: '12.5px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            📋 Paste Raw Text (TSV / CSV)
+          </button>
+        </div>
         
         {initialConfig && sourceRows.length === 0 && (
           <div style={{ padding: '16px', background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: '8px', marginBottom: '16px', fontWeight: 600 }}>
@@ -411,6 +447,66 @@ const ConfigPage = ({ _onDataLoaded, dataset = { columns: [], rows: [] }, setDat
             disabled={isProcessing}
           />
         </div>
+
+        {/* PASTE TEXT DATA MODAL */}
+        {showPasteModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}>
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              maxWidth: '800px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.2)'
+            }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 800 }}>Paste Raw TSV / CSV / Excel Data</h3>
+              <p style={{ margin: '0 0 14px 0', fontSize: '13px', color: 'var(--muted)' }}>
+                Paste raw tab-separated or comma-separated text copied from Excel, Google Sheets, or ERP export files:
+              </p>
+              <textarea
+                rows={12}
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                placeholder="Paste tabular rows here (including header row)..."
+                style={{
+                  width: '100%',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid var(--line)',
+                  marginBottom: '16px',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => setShowPasteModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={handlePasteDataSubmit}
+                >
+                  Load Data
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* RECOMMENDED REPORT TEMPLATES BANNER */}
