@@ -46,6 +46,7 @@ export const TEMPLATE_ARCHETYPES = {
 
 /**
  * Intelligent column detector for uploaded Excel columns
+ * Fully supports Kannur University, SLL Private Registration, and General University datasets
  */
 export function autoDetectDatasetColumns(headers = []) {
   const norm = headers.map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -66,16 +67,16 @@ export function autoDetectDatasetColumns(headers = []) {
   return {
     seatNo: findBest(['seatnumber', 'seatno', 'registerno', 'registernumber', 'regno', 'candidatecode', 'prn', n => n.includes('seat') || n.includes('reg')]),
     name: findBest(['fullname', 'studentname', 'candidatename', n => (n.includes('name') || n.includes('candidate')) && !n.includes('father') && !n.includes('venue') && !n.includes('college') && !n.includes('program') && !n.includes('course') && !n.includes('paper') && !n.includes('regional'), 'name']),
-    venueCode: findBest(['venuecode', 'examcentercode', 'centercode', 'centrecode', n => (n.includes('venue') || n.includes('center') || n.includes('centre')) && n.includes('code') && !n.includes('regional')]),
-    venueName: findBest(['venuename', 'examcentername', 'centername', 'centrename', n => (n.includes('venue') || n.includes('center') || n.includes('centre')) && (n.includes('name') || n.includes('title')) && !n.includes('regional')]),
+    venueCode: findBest(['venuecode', 'examcentercode', 'centercode', 'centrecode', 'collegeorstudycentercode', n => (n.includes('venue') || n.includes('center') || n.includes('centre') || n.includes('college')) && n.includes('code') && !n.includes('regional')]),
+    venueName: findBest(['venuename', 'examcentername', 'centername', 'centrename', 'collegeorstudycentername', n => (n.includes('venue') || n.includes('center') || n.includes('centre') || n.includes('college')) && (n.includes('name') || n.includes('title')) && !n.includes('regional')]),
     courseCode: findBest(['papercode', 'coursecode', 'subjectcode', 'qpcode', n => (n.includes('paper') || n.includes('course') || n.includes('subject') || n.includes('qp')) && n.includes('code')]),
     courseTitle: findBest(['papername', 'coursetitle', 'subjectname', 'coursename', 'papertitle', n => (n.includes('paper') || n.includes('course') || n.includes('subject')) && (n.includes('name') || n.includes('title')) && !n.includes('code')]),
-    programme: findBest(['programmename', 'programname', 'branch', 'programfullname', 'programmefullname', n => n.includes('program') && n.includes('name') && !n.includes('term') && !n.includes('code')]),
+    programme: findBest(['programmename', 'programfullname', 'programname', 'branch', 'programmecode', n => n.includes('program') && n.includes('name') && !n.includes('term') && !n.includes('code')]),
     examDate: findBest(['examdate', 'date', 'examinationdate', n => n.includes('date') && !n.includes('birth')]),
     startTime: findBest(['coursestarttime', 'starttime', 'start', n => n.includes('start') && n.includes('time')]),
     endTime: findBest(['courseendtime', 'endtime', 'end', n => n.includes('end') && n.includes('time')]),
     count: findBest(['studentcount', 'count', 'nc', 'candidatecount', 'candidates', n => (n.includes('student') || n.includes('candidate') || n.includes('total')) && n.includes('count')]),
-    session: findBest(['eventname', 'programterm', 'examsession', 'session', n => n.includes('event') && n.includes('name')])
+    session: findBest(['eventname', 'programterm', 'termcode', 'examsession', 'session', n => n.includes('event') && n.includes('name')])
   };
 }
 
