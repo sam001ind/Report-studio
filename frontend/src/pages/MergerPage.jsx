@@ -148,6 +148,8 @@ const MergerPage = () => {
 
           if (!rows || rows.length === 0) continue;
 
+          let sheetHeaderFound = false;
+
           for (let rIdx = 0; rIdx < rows.length; rIdx++) {
             if (rIdx < headerIdx) continue;
 
@@ -156,14 +158,16 @@ const MergerPage = () => {
             // Skip empty rows
             if (isBlankRow(rowCells)) continue;
 
-            // Handle Header Row
-            if (rIdx === headerIdx) {
-              if (headerWritten) continue;
+            // First non-empty row in this sheet (at or after headerIdx)
+            if (!sheetHeaderFound) {
+              sheetHeaderFound = true;
 
-              // Write header: prepend "Source File" column
-              mergedRows.push(["Source File", ...rowCells]);
-              targetHeaderLength = rowCells.length + 1;
-              headerWritten = true;
+              if (!headerWritten) {
+                // Write header: prepend "Source File" column
+                mergedRows.push(["Source File", ...rowCells]);
+                targetHeaderLength = rowCells.length + 1;
+                headerWritten = true;
+              }
               continue;
             }
 
