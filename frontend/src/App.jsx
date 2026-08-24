@@ -55,7 +55,17 @@ function App() {
               <SplitterPage />
             </ProtectedRoute>
           } />
+          <Route path="/excel-splitter" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <SplitterPage />
+            </ProtectedRoute>
+          } />
           <Route path="/merger" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <MergerPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/excel-merger" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <MergerPage />
             </ProtectedRoute>
@@ -91,6 +101,7 @@ function App() {
               <SchedulerPage />
             </ProtectedRoute>
           } />
+          <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Router>
         </AuthProvider>
