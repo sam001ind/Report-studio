@@ -89,6 +89,25 @@ const MergerPage = () => {
     return !row || row.every((cell) => cell === null || cell === undefined || cell === "");
   };
 
+  const getActualRange = (sheet) => {
+    if (!sheet) return null;
+    let maxRow = -1, minCol = Infinity, maxCol = -1;
+    
+    for (const key of Object.keys(sheet)) {
+      if (key[0] === '!') continue;
+      const cell = XLSX.utils.decode_cell(key);
+      if (cell.r > maxRow) maxRow = cell.r;
+      if (cell.c < minCol) minCol = cell.c;
+      if (cell.c > maxCol) maxCol = cell.c;
+    }
+
+    if (maxRow === -1) return null;
+    return {
+      s: { r: 0, c: Math.max(0, isFinite(minCol) ? minCol : 0) },
+      e: { r: maxRow, c: maxCol }
+    };
+  };
+
   const executeMerge = async () => {
     if (selectedFiles.length === 0) {
       setStatus('Please select at least one file.', 'error');
@@ -110,19 +129,24 @@ const MergerPage = () => {
       let targetHeaderLength = 0;
 
       for (const file of selectedFiles) {
-        // Read file array buffer directly
-        const workbook = XLSX.read(file.buffer, { type: 'array', cellDates: true });
+        // Read file array buffer directly with dense mode
+        const workbook = XLSX.read(file.buffer, { type: 'array', cellDates: true, dense: true });
         
         for (const sheetName of workbook.SheetNames) {
           const sheet = workbook.Sheets[sheetName];
+          if (!sheet) continue;
+
+          const range = getActualRange(sheet);
+          if (!range) continue;
+
           const rows = XLSX.utils.sheet_to_json(sheet, {
             header: 1,
+            range: range,
             raw: true,
-            defval: null,
-            blankrows: true
+            defval: null
           });
 
-          if (rows.length === 0) continue;
+          if (!rows || rows.length === 0) continue;
 
           for (let rIdx = 0; rIdx < rows.length; rIdx++) {
             if (rIdx < headerIdx) continue;
@@ -138,7 +162,7 @@ const MergerPage = () => {
 
               // Write header: prepend "Source File" column
               mergedRows.push(["Source File", ...rowCells]);
-              targetHeaderLength = rowCells.length;
+              targetHeaderLength = rowCells.length + 1;
               headerWritten = true;
               continue;
             }
@@ -160,7 +184,7 @@ const MergerPage = () => {
       outputSheet["!autofilter"] = {
         ref: XLSX.utils.encode_range({
           s: { r: 0, c: 0 },
-          e: { r: Math.max(mergedRows.length - 1, 0), c: Math.max(targetHeaderLength, 0) }
+          e: { r: Math.max(mergedRows.length - 1, 0), c: Math.max(targetHeaderLength - 1, 0) }
         })
       };
 
@@ -184,6 +208,7 @@ const MergerPage = () => {
 
       setStatus(`Successfully merged ${selectedFiles.length} file(s)!`, 'success');
     } catch (err) {
+      console.error('Merge error details:', err);
       setStatus(`Merge failed: ${err.message}`, 'error');
     } finally {
       setIsProcessing(false);
