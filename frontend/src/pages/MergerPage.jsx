@@ -93,15 +93,50 @@ const MergerPage = () => {
     if (!sheet) return null;
     let maxRow = -1, minCol = Infinity, maxCol = -1;
     
-    for (const key of Object.keys(sheet)) {
+    const keys = Object.keys(sheet);
+    for (const key of keys) {
       if (key[0] === '!') continue;
-      const cell = XLSX.utils.decode_cell(key);
-      if (cell.r > maxRow) maxRow = cell.r;
-      if (cell.c < minCol) minCol = cell.c;
-      if (cell.c > maxCol) maxCol = cell.c;
+
+      if (!isNaN(key)) {
+        const rIdx = parseInt(key, 10);
+        const row = sheet[rIdx];
+        if (Array.isArray(row) && row.length > 0) {
+          for (let cIdx = 0; cIdx < row.length; cIdx++) {
+            if (row[cIdx] !== undefined && row[cIdx] !== null) {
+              if (rIdx > maxRow) maxRow = rIdx;
+              if (cIdx < minCol) minCol = cIdx;
+              if (cIdx > maxCol) maxCol = cIdx;
+            }
+          }
+        }
+        continue;
+      }
+
+      try {
+        const cell = XLSX.utils.decode_cell(key);
+        if (cell.r > maxRow) maxRow = cell.r;
+        if (cell.c < minCol) minCol = cell.c;
+        if (cell.c > maxCol) maxCol = cell.c;
+      } catch (_e) {
+        // Ignore non-cell property keys
+      }
     }
 
-    if (maxRow === -1) return null;
+    if (maxRow === -1) {
+      if (sheet['!ref']) {
+        try {
+          const decoded = XLSX.utils.decode_range(sheet['!ref']);
+          return {
+            s: { r: 0, c: Math.max(0, decoded.s.c) },
+            e: { r: Math.min(decoded.e.r, 200000), c: Math.min(decoded.e.c, 1000) }
+          };
+        } catch (_e) {
+          // Ignore invalid !ref decoding
+        }
+      }
+      return null;
+    }
+
     return {
       s: { r: 0, c: Math.max(0, isFinite(minCol) ? minCol : 0) },
       e: { r: maxRow, c: maxCol }
