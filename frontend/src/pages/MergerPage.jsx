@@ -143,6 +143,40 @@ const MergerPage = () => {
     };
   };
 
+  const denseAoaToSheet = (aoa) => {
+    const ws = { '!dense': true };
+    let maxCol = -1;
+
+    for (let r = 0; r < aoa.length; r++) {
+      const row = aoa[r];
+      if (!row) continue;
+      const denseRow = new Array(row.length);
+      if (row.length > maxCol) maxCol = row.length;
+
+      for (let c = 0; c < row.length; c++) {
+        const val = row[c];
+        if (val === null || val === undefined) continue;
+        if (typeof val === 'number') {
+          denseRow[c] = { v: val, t: 'n' };
+        } else if (typeof val === 'boolean') {
+          denseRow[c] = { v: val, t: 'b' };
+        } else if (val instanceof Date) {
+          denseRow[c] = { v: val, t: 'd' };
+        } else {
+          denseRow[c] = { v: String(val), t: 's' };
+        }
+      }
+      ws[r] = denseRow;
+    }
+
+    ws['!ref'] = XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: Math.max(aoa.length - 1, 0), c: Math.max(maxCol - 1, 0) }
+    });
+
+    return ws;
+  };
+
   const executeMerge = async () => {
     if (selectedFiles.length === 0) {
       setStatus('Please select at least one file.', 'error');
@@ -218,7 +252,7 @@ const MergerPage = () => {
 
       setStatus('Creating output workbook...');
       const outputWorkbook = XLSX.utils.book_new();
-      const outputSheet = XLSX.utils.aoa_to_sheet(mergedRows, { cellDates: true });
+      const outputSheet = denseAoaToSheet(mergedRows);
 
       outputSheet["!autofilter"] = {
         ref: XLSX.utils.encode_range({
@@ -230,7 +264,7 @@ const MergerPage = () => {
       XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, "Merged");
 
       setStatus('Downloading merged workbook...');
-      const outputBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: true });
+      const outputBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", dense: true, compression: true });
       const blob = new Blob([outputBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
       const downloadUrl = URL.createObjectURL(blob);
