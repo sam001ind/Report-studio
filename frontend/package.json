@@ -22,6 +22,12 @@
       "target": [
         "dmg",
         "zip"
+      ],
+      "protocols": [
+        {
+          "name": "Report Studio Protocol",
+          "schemes": ["reportstudio"]
+        }
       ]
     },
     "files": [

@@ -7,6 +7,14 @@ const __dirname = path.dirname(__filename);
 
 let mainWindow;
 
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('reportstudio', process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('reportstudio');
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
