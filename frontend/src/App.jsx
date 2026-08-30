@@ -12,6 +12,7 @@ import QpLabelPage from './pages/QpLabelPage';
 import DataComparisonPage from './pages/DataComparisonPage';
 import UrlShortenerPage from './pages/UrlShortenerPage';
 import ImageToolsPage from './pages/ImageToolsPage';
+import PdfToolsPage from './pages/PdfToolsPage';
 import UrlRedirectHandler from './pages/UrlRedirectHandler';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -104,6 +105,16 @@ function App() {
           <Route path="/images" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <ImageToolsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/pdf-tools" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <PdfToolsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/pdf" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <PdfToolsPage />
             </ProtectedRoute>
           } />
           <Route path="/s/:code" element={<UrlRedirectHandler />} />

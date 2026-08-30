@@ -125,6 +125,15 @@ const LandingPage = () => {
           </div>
 
           <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/pdf-tools')}
+          >
+            <div style={styles.featureIcon}><FileText size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>PDF Tool Studio</h3>
+            <p style={styles.featureText}>Merge, split, compress, watermark, rotate, stamp signatures, add page numbers, and convert images to PDF.</p>
+          </div>
+
+          <div 
             style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
             onClick={() => navigate('/scheduler')}
           >
