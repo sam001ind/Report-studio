@@ -8,7 +8,8 @@ import {
   FileText, 
   CalendarRange,
   GitCompare,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Sparkles
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -112,6 +113,15 @@ const LandingPage = () => {
             <div style={styles.featureIcon}><LinkIcon size={24} color="var(--accent)" /></div>
             <h3 style={styles.featureTitle}>URL Shortener & QR Studio</h3>
             <p style={styles.featureText}>Create short links, custom aliases, high-res QR codes, and batch-shorten entire Excel roster columns.</p>
+          </div>
+
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/image-tools')}
+          >
+            <div style={styles.featureIcon}><Sparkles size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Image Tools & Signature Studio</h3>
+            <p style={styles.featureText}>Clean signatures from paper, compress, resize, crop, upscale, watermark, blur sensitive data, and convert formats locally.</p>
           </div>
 
           <div 
