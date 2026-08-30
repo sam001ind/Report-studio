@@ -21,7 +21,8 @@ import {
   Sliders,
   Plus,
   Trash2,
-  Check
+  Check,
+  FileCheck
 } from 'lucide-react';
 
 const OUTPUT_HEADERS = [
@@ -66,35 +67,30 @@ const OUTPUT_HEADERS = [
 
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-const DEFAULT_GROUP_CONFIG = {
-  DSC: {
-    pattern: 'group_subject', // 'group_subject' ({Group} - {Subject}) | 'group_only' ({Group}) | 'custom'
-    copies: 2,
-    suffixStr: ', .', // Comma-separated suffixes for each repetition (e.g. '', '.')
-    maxCredits: 4,
-    maxMarks: 100,
-    maxCourses: 1,
-    minCourses: 1
-  },
-  MDC: {
-    pattern: 'group_only',
-    copies: 1,
-    suffixStr: '',
-    maxCredits: 3,
-    maxMarks: 75,
-    maxCourses: 1,
-    minCourses: 1
-  },
-  VAC: {
-    pattern: 'group_only',
-    copies: 1,
-    suffixStr: '',
-    maxCredits: 3,
-    maxMarks: 75,
-    maxCourses: 1,
-    minCourses: 1
-  },
-  DEFAULT: {
+const createDefaultConfigForGroup = (groupKey) => {
+  const upper = String(groupKey || '').toUpperCase().trim();
+  if (upper.includes('DSC') || upper.includes('MAJOR')) {
+    return {
+      pattern: 'group_subject', // {Group} - {Subject}
+      copies: 2,
+      suffixStr: ', .', // Default suffixes for repetition 1 & 2
+      maxCredits: 4,
+      maxMarks: 100,
+      maxCourses: 1,
+      minCourses: 1
+    };
+  } else if (upper.includes('MDC') || upper.includes('VAC') || upper.includes('SEC') || upper.includes('AEC')) {
+    return {
+      pattern: 'group_only', // {Group} Only
+      copies: 1,
+      suffixStr: '',
+      maxCredits: 3,
+      maxMarks: 75,
+      maxCourses: 1,
+      minCourses: 1
+    };
+  }
+  return {
     pattern: 'group_only',
     copies: 1,
     suffixStr: '',
@@ -102,14 +98,16 @@ const DEFAULT_GROUP_CONFIG = {
     maxMarks: 0,
     maxCourses: 1,
     minCourses: 1
-  }
+  };
 };
 
 export default function CourseMasterImportPage() {
   const [sourceFile, setSourceFile] = useState(null);
   const [rawRows, setRawRows] = useState([]);
   const [headerMap, setHeaderMap] = useState({});
-  const [groupConfigs, setGroupConfigs] = useState(DEFAULT_GROUP_CONFIG);
+  const [groupConfigs, setGroupConfigs] = useState({}); // Dynamically populated from uploaded file
+  const [customGroupInput, setCustomGroupInput] = useState('');
+  const [showAddGroupInput, setShowAddGroupInput] = useState(false);
   const [exportMode, setExportMode] = useState('zip'); // 'zip' | 'combined' | 'multitab'
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,7 +139,7 @@ export default function CourseMasterImportPage() {
     return isNaN(num) ? 0 : num;
   };
 
-  // Extract all unique group names and subjects present in uploaded data
+  // Extract all unique group names and subjects dynamically from uploaded file
   const { detectedGroups, uniqueSubjects } = useMemo(() => {
     if (!rawRows.length) return { detectedGroups: [], uniqueSubjects: [] };
     const groups = new Set();
@@ -160,84 +158,75 @@ export default function CourseMasterImportPage() {
     };
   }, [rawRows, headerMap]);
 
-  // Synchronize groupConfigs with any newly detected groups
+  // Synchronize dynamic group configurations whenever a new file is uploaded
   useEffect(() => {
     if (!detectedGroups.length) return;
     setGroupConfigs(prev => {
       const next = { ...prev };
       detectedGroups.forEach(g => {
         if (!next[g]) {
-          if (g.startsWith('DSC')) {
-            next[g] = { ...DEFAULT_GROUP_CONFIG.DSC };
-          } else if (g === 'MDC' || g === 'VAC') {
-            next[g] = { ...DEFAULT_GROUP_CONFIG[g] };
-          } else {
-            next[g] = { ...DEFAULT_GROUP_CONFIG.DEFAULT };
-          }
+          next[g] = createDefaultConfigForGroup(g);
         }
       });
       return next;
     });
   }, [detectedGroups]);
 
-  // Apply Presets
+  // Apply Quick Presets to all detected groups
   const applyPreset = (presetKey) => {
+    if (!detectedGroups.length) return;
+    const next = { ...groupConfigs };
+
     if (presetKey === 'fyugp_dot') {
-      // Preset 1: DSC - Subj & DSC - Subj., MDC, VAC
-      const next = { ...groupConfigs };
       detectedGroups.forEach(g => {
-        if (g.startsWith('DSC')) {
+        if (g.includes('DSC') || g.includes('MAJOR')) {
           next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
-        } else if (g === 'MDC' || g === 'VAC') {
+        } else if (g.includes('MDC') || g.includes('VAC') || g.includes('SEC') || g.includes('AEC')) {
           next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
         } else {
           next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 0, maxMarks: 0, maxCourses: 1, minCourses: 1 };
         }
       });
       setGroupConfigs(next);
-      setStatus('Applied Preset: FYUGP Standard (DSC - Subject & DSC - Subject.)', 'success');
+      setStatus('Applied: FYUGP Standard ({Group} - {Subject} & . for DSC, Single for others)', 'success');
     } else if (presetKey === 'numbered_series') {
-      // Preset 2: DSC 1/2, MDC 1/2, VAC 1/2
-      const next = { ...groupConfigs };
-      detectedGroups.forEach(g => {
-        if (g.startsWith('DSC')) {
-          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
-        } else if (g === 'MDC' || g === 'VAC') {
-          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
-        } else {
-          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: 0, maxMarks: 0, maxCourses: 1, minCourses: 1 };
-        }
-      });
-      setGroupConfigs(next);
-      setStatus('Applied Preset: Numbered Series (e.g. DSC 1/2, VAC 1/2, MDC 1/2)', 'success');
-    } else if (presetKey === 'major_minor') {
-      // Preset 3: DSC - Subj M1, DSC - Subj M2
-      const next = { ...groupConfigs };
-      detectedGroups.forEach(g => {
-        if (g.startsWith('DSC')) {
-          next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
-        } else if (g === 'MDC' || g === 'VAC') {
-          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
-        }
-      });
-      setGroupConfigs(next);
-      setStatus('Applied Preset: Major / Minor Multipliers (DSC - Subj M1, DSC - Subj M2)', 'success');
-    } else if (presetKey === 'clean_single') {
-      // Preset 4: Clean Single (No Duplication)
-      const next = { ...groupConfigs };
       detectedGroups.forEach(g => {
         next[g] = {
-          pattern: g.startsWith('DSC') ? 'group_subject' : 'group_only',
-          copies: 1,
-          suffixStr: '',
-          maxCredits: g.startsWith('DSC') ? 4 : (g === 'MDC' || g === 'VAC') ? 3 : 0,
-          maxMarks: g.startsWith('DSC') ? 100 : (g === 'MDC' || g === 'VAC') ? 75 : 0,
+          pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
+          copies: 2,
+          suffixStr: ' 1,  2',
+          maxCredits: g.includes('DSC') ? 4 : (g.includes('MDC') || g.includes('VAC')) ? 3 : 0,
+          maxMarks: g.includes('DSC') ? 100 : (g.includes('MDC') || g.includes('VAC')) ? 75 : 0,
           maxCourses: 1,
           minCourses: 1
         };
       });
       setGroupConfigs(next);
-      setStatus('Applied Preset: Clean Single (No Duplication)', 'success');
+      setStatus('Applied: Numbered Series (1, 2) across all groups', 'success');
+    } else if (presetKey === 'major_minor') {
+      detectedGroups.forEach(g => {
+        if (g.includes('DSC') || g.includes('MAJOR')) {
+          next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+        } else {
+          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: (g.includes('MDC') || g.includes('VAC')) ? 3 : 0, maxMarks: (g.includes('MDC') || g.includes('VAC')) ? 75 : 0, maxCourses: 1, minCourses: 1 };
+        }
+      });
+      setGroupConfigs(next);
+      setStatus('Applied: Major/Minor Multipliers (M1, M2)', 'success');
+    } else if (presetKey === 'clean_single') {
+      detectedGroups.forEach(g => {
+        next[g] = {
+          pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
+          copies: 1,
+          suffixStr: '',
+          maxCredits: g.includes('DSC') ? 4 : (g.includes('MDC') || g.includes('VAC')) ? 3 : 0,
+          maxMarks: g.includes('DSC') ? 100 : (g.includes('MDC') || g.includes('VAC')) ? 75 : 0,
+          maxCourses: 1,
+          minCourses: 1
+        };
+      });
+      setGroupConfigs(next);
+      setStatus('Applied: Clean Single Master (No Duplications)', 'success');
     }
   };
 
@@ -245,10 +234,24 @@ export default function CourseMasterImportPage() {
     setGroupConfigs(prev => ({
       ...prev,
       [group]: {
-        ...(prev[group] || DEFAULT_GROUP_CONFIG.DEFAULT),
+        ...(prev[group] || createDefaultConfigForGroup(group)),
         [field]: value
       }
     }));
+  };
+
+  const handleAddCustomGroup = () => {
+    const trimmed = customGroupInput.trim().toUpperCase();
+    if (!trimmed) return;
+    if (!groupConfigs[trimmed]) {
+      setGroupConfigs(prev => ({
+        ...prev,
+        [trimmed]: createDefaultConfigForGroup(trimmed)
+      }));
+      setStatus(`Added custom group rule for "${trimmed}"`, 'success');
+    }
+    setCustomGroupInput('');
+    setShowAddGroupInput(false);
   };
 
   // Helper to parse comma-separated suffixes into array matching copy count
@@ -261,7 +264,6 @@ export default function CourseMasterImportPage() {
       } else if (i === 0) {
         list.push('');
       } else {
-        // Fallback sequence if fewer suffixes provided than copy count
         list.push(` ${i + 1}`);
       }
     }
@@ -302,8 +304,8 @@ export default function CourseMasterImportPage() {
           combinations.push(['', '']);
         }
 
-        // Fetch user custom configuration for this group
-        const cfg = groupConfigs[groupKey] || (groupKey.startsWith('DSC') ? DEFAULT_GROUP_CONFIG.DSC : DEFAULT_GROUP_CONFIG.DEFAULT);
+        // Fetch user custom configuration for this dynamically detected group
+        const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
         const copies = Math.max(1, Number(cfg.copies) || 1);
         const suffixList = getSuffixList(cfg, copies);
 
@@ -312,12 +314,11 @@ export default function CourseMasterImportPage() {
           const totalMarks = getNumber(row, 'Total Marks', 'totalmarks', 'marks');
           const minMarks = getNumber(row, 'Minimum Passing Marks', 'minimumpassingmarks', 'minpassingmarks', 'minmarks');
 
-          // Generate each repetition copy
+          // Generate each repetition copy with dynamic suffix
           for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
             const newRow = {};
             newRow['UniqueProgramTermCode'] = '';
 
-            // Construct ImmidiateParentGroup with custom pattern and suffix
             let baseGroup = rawGroup || 'General';
             if (cfg.pattern === 'group_subject') {
               baseGroup = `${rawGroup.trim()} - ${subject.trim()}`;
@@ -327,7 +328,6 @@ export default function CourseMasterImportPage() {
             const immidiateParentGroup = `${baseGroup}${currentSuffix}`;
             newRow['ImmidiateParentGroup'] = immidiateParentGroup;
 
-            // Admission Limits
             newRow['GroupMaxCoursesforAdmission'] = Number(cfg.maxCourses) || 1;
             newRow['GroupMinCoursesforAdmission'] = Number(cfg.minCourses) || 1;
             newRow['GroupMaxCreditsforAdmission'] = cfg.maxCredits > 0 ? Number(cfg.maxCredits) : 0;
@@ -412,7 +412,7 @@ export default function CourseMasterImportPage() {
     if (!file) return;
     setSourceFile(file);
     setIsProcessing(true);
-    setStatus('Reading course master spreadsheet...', 'info');
+    setStatus('Reading and detecting Group Names from spreadsheet...', 'info');
 
     try {
       const buffer = await file.arrayBuffer();
@@ -430,7 +430,27 @@ export default function CourseMasterImportPage() {
 
       setHeaderMap(map);
       setRawRows(parsed);
-      setStatus(`Loaded ${parsed.length} course rows across ${workbook.SheetNames.length} sheet(s)!`, 'success');
+
+      // Extract unique group names directly from the file
+      const foundGroups = new Set();
+      parsed.forEach(row => {
+        for (const alias of ['Group Name', 'groupname', 'group', 'parentgroup']) {
+          const actualKey = map[normalizeKey(alias)];
+          if (actualKey && row[actualKey]) {
+            foundGroups.add(String(row[actualKey]).trim().toUpperCase());
+            break;
+          }
+        }
+      });
+
+      const groupArray = Array.from(foundGroups).sort();
+      const initialConfigs = {};
+      groupArray.forEach(g => {
+        initialConfigs[g] = createDefaultConfigForGroup(g);
+      });
+      setGroupConfigs(initialConfigs);
+
+      setStatus(`Detected ${groupArray.length} unique Group Name(s) (${groupArray.join(', ')}) across ${parsed.length} rows!`, 'success');
     } catch (err) {
       console.error('Course Master Ingestion Error:', err);
       setStatus(`Upload failed: ${err.message}`, 'error');
@@ -548,7 +568,9 @@ export default function CourseMasterImportPage() {
           <div style={{ height: '18px', width: '1px', background: 'var(--line)' }} />
           <h2 style={{ fontSize: '16px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BookOpen size={18} color="var(--accent)" /> Course Master Import & Dynamic Group Rules
-            <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>Customizable</span>
+            <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+              {detectedGroups.length ? `${detectedGroups.length} Groups Found` : 'Dynamic Parser'}
+            </span>
           </h2>
         </div>
 
@@ -596,109 +618,142 @@ export default function CourseMasterImportPage() {
             <label htmlFor="courseMasterFileInput" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={26} color="var(--accent)" />
               <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>Upload Course Master Sheet</strong>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Supports raw syllabus matrix (.xlsx / .csv)</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Automatically extracts Group Names from source file</span>
             </label>
           </div>
 
-          {/* Quick Presets Bar */}
-          <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '11.5px', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={14} color="var(--accent)" /> Quick Configuration Presets
+          {/* Quick Presets Bar (Active only when groups detected) */}
+          {detectedGroups.length > 0 && (
+            <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ fontSize: '11.5px', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Sparkles size={14} color="var(--accent)" /> Quick Presets for Detected Groups
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <button type="button" className="secondary" onClick={() => applyPreset('fyugp_dot')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
+                  ⚡ DSC - Subj & .
+                </button>
+                <button type="button" className="secondary" onClick={() => applyPreset('numbered_series')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
+                  ⚡ Numbers (1, 2)
+                </button>
+                <button type="button" className="secondary" onClick={() => applyPreset('major_minor')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
+                  ⚡ Multiplier (M1, M2)
+                </button>
+                <button type="button" className="secondary" onClick={() => applyPreset('clean_single')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
+                  ⚡ Single (No Dup)
+                </button>
+              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-              <button type="button" className="secondary" onClick={() => applyPreset('fyugp_dot')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
-                ⚡ DSC - Subj & .
-              </button>
-              <button type="button" className="secondary" onClick={() => applyPreset('numbered_series')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
-                ⚡ Numbers (1, 2)
-              </button>
-              <button type="button" className="secondary" onClick={() => applyPreset('major_minor')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
-                ⚡ Multiplier (M1, M2)
-              </button>
-              <button type="button" className="secondary" onClick={() => applyPreset('clean_single')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
-                ⚡ Single (No Dup)
-              </button>
-            </div>
-          </div>
+          )}
 
-          {/* Group Duplication & Suffix Rules Builder */}
+          {/* Dynamic Group Rules Builder */}
           <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                <Sliders size={15} color="var(--accent)" /> Group Duplication & Suffixes
+                <Sliders size={15} color="var(--accent)" /> Detected Group Rules
               </h3>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{detectedGroups.length || 3} Group(s)</span>
+              <button 
+                type="button" 
+                className="secondary" 
+                onClick={() => setShowAddGroupInput(!showAddGroupInput)}
+                style={{ padding: '2px 6px', fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Plus size={11} /> Add Group
+              </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {(detectedGroups.length ? detectedGroups : ['DSC', 'MDC', 'VAC']).map(groupKey => {
-                const cfg = groupConfigs[groupKey] || (groupKey.startsWith('DSC') ? DEFAULT_GROUP_CONFIG.DSC : DEFAULT_GROUP_CONFIG.DEFAULT);
-                return (
-                  <div 
-                    key={groupKey} 
-                    style={{ 
-                      padding: '10px', 
-                      background: 'var(--bg)', 
-                      border: '1px solid var(--line)', 
-                      borderRadius: '6px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: '12.5px', color: 'var(--accent)' }}>Group: {groupKey}</strong>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Copies:</span>
-                        <input 
-                          type="number" 
-                          min={1} 
-                          max={10} 
-                          value={cfg.copies || 1} 
-                          onChange={(e) => updateGroupConfig(groupKey, 'copies', Math.max(1, parseInt(e.target.value, 10) || 1))}
-                          style={{ width: '48px', padding: '2px 4px', fontSize: '11px', textAlign: 'center' }} 
-                        />
+            {/* Optional Manual Add Group Bar */}
+            {showAddGroupInput && (
+              <div style={{ display: 'flex', gap: '6px', padding: '6px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
+                <input 
+                  type="text" 
+                  placeholder="e.g. DSE or AEC" 
+                  value={customGroupInput} 
+                  onChange={(e) => setCustomGroupInput(e.target.value)} 
+                  style={{ flex: 1, padding: '4px 6px', fontSize: '11.5px' }} 
+                />
+                <button type="button" onClick={handleAddCustomGroup} style={{ padding: '4px 8px', fontSize: '11px' }}>
+                  Add
+                </button>
+              </div>
+            )}
+
+            {/* If no file uploaded yet */}
+            {detectedGroups.length === 0 && Object.keys(groupConfigs).length === 0 ? (
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: '6px', border: '1px dashed var(--line)', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
+                <FileCheck size={24} style={{ opacity: 0.4, margin: '0 auto 6px' }} />
+                <span>Upload an Excel spreadsheet to automatically extract Group Names (e.g. DSC, MDC, SEC, VAC) from the source file.</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {Object.keys(groupConfigs).map(groupKey => {
+                  const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
+                  return (
+                    <div 
+                      key={groupKey} 
+                      style={{ 
+                        padding: '10px', 
+                        background: 'var(--bg)', 
+                        border: '1px solid var(--line)', 
+                        borderRadius: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '12.5px', color: 'var(--accent)' }}>Group: {groupKey}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Copies:</span>
+                          <input 
+                            type="number" 
+                            min={1} 
+                            max={10} 
+                            value={cfg.copies || 1} 
+                            onChange={(e) => updateGroupConfig(groupKey, 'copies', Math.max(1, parseInt(e.target.value, 10) || 1))}
+                            style={{ width: '48px', padding: '2px 4px', fontSize: '11px', textAlign: 'center' }} 
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '6px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label style={{ fontSize: '10.5px' }}>Base Pattern</label>
+                          <select 
+                            value={cfg.pattern || 'group_only'} 
+                            onChange={(e) => updateGroupConfig(groupKey, 'pattern', e.target.value)}
+                            style={{ fontSize: '11px', padding: '3px 6px' }}
+                          >
+                            <option value="group_subject">{groupKey} - Subject</option>
+                            <option value="group_only">{groupKey} Only</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label style={{ fontSize: '10.5px' }}>Suffixes (comma-separated)</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. , . or 1, 2" 
+                            value={cfg.suffixStr !== undefined ? cfg.suffixStr : ''} 
+                            onChange={(e) => updateGroupConfig(groupKey, 'suffixStr', e.target.value)}
+                            style={{ fontSize: '11px', padding: '3px 6px' }} 
+                          />
+                        </div>
+                      </div>
+
+                      {/* Preview Generated Suffixes */}
+                      <div style={{ fontSize: '10.5px', color: 'var(--muted)', background: 'var(--panel)', padding: '4px 6px', borderRadius: '4px' }}>
+                        Preview: {getSuffixList(cfg, cfg.copies).map((sfx, idx) => (
+                          <span key={idx} style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                            {idx > 0 && ' | '}
+                            {cfg.pattern === 'group_subject' ? `${groupKey} - Subj${sfx}` : `${groupKey}${sfx}`}
+                          </span>
+                        ))}
                       </div>
                     </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '6px' }}>
-                      <div className="form-group" style={{ margin: 0 }}>
-                        <label style={{ fontSize: '10.5px' }}>Base Pattern</label>
-                        <select 
-                          value={cfg.pattern || 'group_only'} 
-                          onChange={(e) => updateGroupConfig(groupKey, 'pattern', e.target.value)}
-                          style={{ fontSize: '11px', padding: '3px 6px' }}
-                        >
-                          <option value="group_subject">{groupKey} - Subject</option>
-                          <option value="group_only">{groupKey} Only</option>
-                        </select>
-                      </div>
-
-                      <div className="form-group" style={{ margin: 0 }}>
-                        <label style={{ fontSize: '10.5px' }}>Suffixes (comma-separated)</label>
-                        <input 
-                          type="text" 
-                          placeholder="e.g. , . or 1, 2" 
-                          value={cfg.suffixStr !== undefined ? cfg.suffixStr : ''} 
-                          onChange={(e) => updateGroupConfig(groupKey, 'suffixStr', e.target.value)}
-                          style={{ fontSize: '11px', padding: '3px 6px' }} 
-                        />
-                      </div>
-                    </div>
-
-                    {/* Preview Generated Suffixes */}
-                    <div style={{ fontSize: '10.5px', color: 'var(--muted)', background: 'var(--panel)', padding: '4px 6px', borderRadius: '4px' }}>
-                      Preview: {getSuffixList(cfg, cfg.copies).map((sfx, idx) => (
-                        <span key={idx} style={{ fontWeight: 600, color: 'var(--ink)' }}>
-                          {idx > 0 && ' | '}
-                          {cfg.pattern === 'group_subject' ? `${groupKey} - Subj${sfx}` : `${groupKey}${sfx}`}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Export Output Package Format */}
@@ -783,7 +838,7 @@ export default function CourseMasterImportPage() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', gap: '8px' }}>
                 <FileSpreadsheet size={40} style={{ opacity: 0.3 }} />
                 <strong style={{ fontSize: '14px', color: 'var(--ink)' }}>No Course Master File Uploaded</strong>
-                <span style={{ fontSize: '12px' }}>Upload your raw syllabus / course master spreadsheet on the left to transform.</span>
+                <span style={{ fontSize: '12px' }}>Upload your raw syllabus / course master spreadsheet on the left to extract Group Names and transform.</span>
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px', whiteSpace: 'nowrap' }}>
@@ -841,8 +896,8 @@ export default function CourseMasterImportPage() {
           {/* Footer Info */}
           {rawRows.length > 0 && (
             <div style={{ padding: '8px 16px', background: 'var(--bg)', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
-              <span>Showing {pagedRows.length} of {previewRows.length} rows across {uniqueSubjects.length} subjects</span>
-              <span>All 37 master columns formatted with live custom group rules</span>
+              <span>Showing {pagedRows.length} of {previewRows.length} rows across {uniqueSubjects.length} subjects • {detectedGroups.length} detected group rule(s)</span>
+              <span>All 37 master columns formatted with dynamic source Group Names</span>
             </div>
           )}
 
