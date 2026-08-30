@@ -176,6 +176,108 @@ export default function CourseMasterImportPage() {
     });
   }, [detectedGroups]);
 
+  // Apply Quick Presets to all detected groups
+  const applyPreset = (presetKey) => {
+    if (!detectedGroups.length) return;
+    const next = { ...groupConfigs };
+
+    if (presetKey === 'fyugp_dot') {
+      setUseDuplication(true);
+      detectedGroups.forEach(g => {
+        if (g.includes('DSC') || g.includes('MAJOR')) {
+          next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+        } else if (g.includes('MDC') || g.includes('VAC') || g.includes('SEC') || g.includes('AEC')) {
+          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
+        } else {
+          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 0, maxMarks: 0, maxCourses: 1, minCourses: 1 };
+        }
+      });
+      setGroupConfigs(next);
+      setStatus('Applied: FYUGP Standard ({Group} - {Subject} & . for DSC, Single for others)', 'success');
+    } else if (presetKey === 'numbered_series') {
+      setUseDuplication(true);
+      detectedGroups.forEach(g => {
+        next[g] = {
+          pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
+          copies: 2,
+          suffixStr: ' 1,  2',
+          maxCredits: g.includes('DSC') ? 4 : (g.includes('MDC') || g.includes('VAC')) ? 3 : 0,
+          maxMarks: g.includes('DSC') ? 100 : (g.includes('MDC') || g.includes('VAC')) ? 75 : 0,
+          maxCourses: 1,
+          minCourses: 1
+        };
+      });
+      setGroupConfigs(next);
+      setStatus('Applied: Numbered Series (1, 2) across all groups', 'success');
+    } else if (presetKey === 'major_minor') {
+      setUseDuplication(true);
+      detectedGroups.forEach(g => {
+        if (g.includes('DSC') || g.includes('MAJOR')) {
+          next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+        } else {
+          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: (g.includes('MDC') || g.includes('VAC')) ? 3 : 0, maxMarks: (g.includes('MDC') || g.includes('VAC')) ? 75 : 0, maxCourses: 1, minCourses: 1 };
+        }
+      });
+      setGroupConfigs(next);
+      setStatus('Applied: Major/Minor Multipliers (M1, M2)', 'success');
+    } else if (presetKey === 'clean_single') {
+      setUseDuplication(false);
+      detectedGroups.forEach(g => {
+        next[g] = {
+          pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
+          copies: 1,
+          suffixStr: '',
+          maxCredits: g.includes('DSC') ? 4 : (g.includes('MDC') || g.includes('VAC')) ? 3 : 0,
+          maxMarks: g.includes('DSC') ? 100 : (g.includes('MDC') || g.includes('VAC')) ? 75 : 0,
+          maxCourses: 1,
+          minCourses: 1
+        };
+      });
+      setGroupConfigs(next);
+      setStatus('Applied: Clean Single Master (No Duplications)', 'success');
+    }
+  };
+
+  const updateGroupConfig = (group, field, value) => {
+    setGroupConfigs(prev => ({
+      ...prev,
+      [group]: {
+        ...(prev[group] || createDefaultConfigForGroup(group)),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleAddCustomGroup = () => {
+    const trimmed = customGroupInput.trim().toUpperCase();
+    if (!trimmed) return;
+    if (!groupConfigs[trimmed]) {
+      setGroupConfigs(prev => ({
+        ...prev,
+        [trimmed]: createDefaultConfigForGroup(trimmed)
+      }));
+      setStatus(`Added custom group rule for "${trimmed}"`, 'success');
+    }
+    setCustomGroupInput('');
+    setShowAddGroupInput(false);
+  };
+
+  // Helper to parse comma-separated suffixes into array matching copy count
+  const getSuffixList = (cfg, count) => {
+    const rawParts = (cfg?.suffixStr || '').split(',').map(s => s.trim());
+    const list = [];
+    for (let i = 0; i < count; i++) {
+      if (rawParts[i] !== undefined && rawParts[i] !== '') {
+        list.push(rawParts[i]);
+      } else if (i === 0) {
+        list.push('');
+      } else {
+        list.push(` ${i + 1}`);
+      }
+    }
+    return list;
+  };
+
   // Master transformation pipeline supporting dual subject & group filtering
   const generateProcessedRows = (forSubject = null, forGroup = null) => {
     if (!rawRows.length) return [];
