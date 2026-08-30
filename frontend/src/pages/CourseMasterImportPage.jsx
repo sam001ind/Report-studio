@@ -146,14 +146,11 @@ export default function CourseMasterImportPage() {
 
           newRow['UniqueProgramTermCode'] = '';
 
-          // Conditional logic for 'ImmidiateParentGroup' based on Group Name
+          // Logic for 'ImmidiateParentGroup' based on Group Name
           let immidiateParentGroup;
-          if (groupName === 'DSC') {
-            if (fileSubject && subject === fileSubject) {
-              immidiateParentGroup = 'DSC 1';
-            } else {
-              immidiateParentGroup = `DSC - ${subject}`;
-            }
+          const isDsc = groupName.trim().toUpperCase().startsWith('DSC');
+          if (isDsc) {
+            immidiateParentGroup = `${groupName.trim()} - ${subject.trim()}`;
           } else {
             immidiateParentGroup = groupName || 'General';
           }
@@ -238,22 +235,17 @@ export default function CourseMasterImportPage() {
           rowsForSubject.push(newRow);
 
           // Duplication Logic (if enabled)
-          if (useDuplication) {
-            if (immidiateParentGroup === 'DSC 1') {
-              const duplicatedRow = { ...newRow, ImmidiateParentGroup: 'DSC 2' };
-              rowsForSubject.push(duplicatedRow);
-            } else if (groupName === 'DSC' && immidiateParentGroup !== 'DSC 1') {
-              const duplicatedRow = {
-                ...newRow,
-                ImmidiateParentGroup: `${immidiateParentGroup}.`,
-                GroupMaxCoursesforAdmission: 1,
-                GroupMinCoursesforAdmission: 1,
-                GroupMaxCreditsforAdmission: 4,
-                GroupMaxCredits: 4,
-                GroupMaxMarks: 100
-              };
-              rowsForSubject.push(duplicatedRow);
-            }
+          if (useDuplication && isDsc) {
+            const duplicatedRow = {
+              ...newRow,
+              ImmidiateParentGroup: `${immidiateParentGroup}.`,
+              GroupMaxCoursesforAdmission: 1,
+              GroupMinCoursesforAdmission: 1,
+              GroupMaxCreditsforAdmission: 4,
+              GroupMaxCredits: 4,
+              GroupMaxMarks: 100
+            };
+            rowsForSubject.push(duplicatedRow);
           }
         });
       });
