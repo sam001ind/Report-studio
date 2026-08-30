@@ -32,17 +32,6 @@ const LandingPage = () => {
       </nav>
 
       <main style={styles.main}>
-        <section style={styles.hero}>
-          <div style={styles.heroBadge}>✨ Unified Toolkit</div>
-          <h1 style={styles.title}>
-            Operational Efficiency,<br/>
-            <span style={styles.gradientText}>Report Studio.</span>
-          </h1>
-          <p style={styles.subtitle}>
-            Access all available modules and services below to manage reports, schedule timetables, and automate your workflow.
-          </p>
-        </section>
-
         <section style={styles.features}>
           <div 
             style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
@@ -166,59 +155,32 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '24px 48px',
-    borderBottom: '1px solid rgba(255,255,255,0.5)',
+    padding: '16px 32px',
+    borderBottom: '1px solid var(--line)',
+    background: 'rgba(255, 255, 255, 0.7)',
     backdropFilter: 'blur(10px)'
   },
   logo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px'
+    gap: '10px'
   },
   logoMark: {
     backgroundColor: 'var(--accent)',
     color: 'white',
-    width: '36px',
-    height: '36px',
-    borderRadius: '8px',
+    width: '32px',
+    height: '32px',
+    borderRadius: '6px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 800,
-    fontSize: '16px',
+    fontSize: '14px',
   },
   logoText: {
-    fontSize: '20px',
+    fontSize: '18px',
     fontWeight: 700,
     color: 'var(--ink)'
-  },
-  primaryBtn: {
-    backgroundColor: 'var(--accent)',
-    color: 'white',
-    border: 'none',
-    padding: '10px 20px',
-    borderRadius: '8px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    transition: 'opacity 0.2s, transform 0.2s',
-    boxShadow: '0 4px 12px rgba(23, 107, 135, 0.2)'
-  },
-  secondaryBtn: {
-    backgroundColor: 'transparent',
-    color: 'var(--ink)',
-    border: '1px solid var(--line)',
-    padding: '15px 32px',
-    borderRadius: '8px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    textDecoration: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'background 0.2s',
   },
   main: {
     position: 'relative',
@@ -227,90 +189,43 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '60px 24px'
-  },
-  hero: {
-    textAlign: 'center',
-    maxWidth: '800px',
-    marginBottom: '80px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center'
-  },
-  heroBadge: {
-    backgroundColor: 'var(--accent-soft)',
-    color: 'var(--accent)',
-    padding: '6px 16px',
-    borderRadius: '20px',
-    fontSize: '14px',
-    fontWeight: 600,
-    marginBottom: '24px'
-  },
-  title: {
-    fontSize: '64px',
-    fontWeight: 800,
-    lineHeight: 1.1,
-    color: 'var(--ink)',
-    margin: '0 0 24px 0',
-    letterSpacing: '-1px'
-  },
-  gradientText: {
-    background: 'linear-gradient(90deg, var(--accent) 0%, #2f8e9d 100%)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  },
-  subtitle: {
-    fontSize: '20px',
-    color: 'var(--muted)',
-    lineHeight: 1.6,
-    margin: '0 0 40px 0',
-    maxWidth: '600px'
-  },
-  ctaGroup: {
-    display: 'flex',
-    gap: '16px',
-    alignItems: 'center'
+    padding: '24px 32px'
   },
   features: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '32px',
-    maxWidth: '1200px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gap: '16px',
+    maxWidth: '1300px',
     width: '100%'
   },
   featureCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid var(--accent)',
-    borderRadius: '16px',
-    padding: '32px',
-    transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
-    boxShadow: 'var(--shadow)',
-    ':hover': {
-      transform: 'translateY(-5px)',
-      boxShadow: '0 0 30px rgba(0, 240, 255, 0.4)'
-    }
+    backgroundColor: 'var(--panel)',
+    border: '1px solid var(--line)',
+    borderRadius: '12px',
+    padding: '20px',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
   },
   featureIcon: {
     backgroundColor: 'var(--accent-soft)',
-    width: '48px',
-    height: '48px',
-    borderRadius: '12px',
+    width: '40px',
+    height: '40px',
+    borderRadius: '10px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: '20px'
+    marginBottom: '14px'
   },
   featureTitle: {
-    fontSize: '20px',
+    fontSize: '17px',
     fontWeight: 700,
-    margin: '0 0 12px 0',
+    margin: '0 0 6px 0',
     color: 'var(--ink)'
   },
   featureText: {
-    fontSize: '15px',
+    fontSize: '13px',
     color: 'var(--muted)',
-    lineHeight: 1.6,
+    lineHeight: 1.5,
     margin: 0
   }
 };
