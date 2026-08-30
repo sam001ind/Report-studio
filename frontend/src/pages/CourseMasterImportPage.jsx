@@ -13,16 +13,18 @@ import {
   BookOpen, 
   Layers, 
   Copy, 
-  FolderArchive,
-  RefreshCw,
-  HelpCircle,
-  Sparkles,
-  Settings2,
-  Sliders,
-  Plus,
-  Trash2,
-  Check,
-  FileCheck
+  FolderArchive, 
+  RefreshCw, 
+  HelpCircle, 
+  Sparkles, 
+  Settings2, 
+  Sliders, 
+  Plus, 
+  Trash2, 
+  Check, 
+  FileCheck,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 
 const OUTPUT_HEADERS = [
@@ -105,6 +107,7 @@ export default function CourseMasterImportPage() {
   const [sourceFile, setSourceFile] = useState(null);
   const [rawRows, setRawRows] = useState([]);
   const [headerMap, setHeaderMap] = useState({});
+  const [useDuplication, setUseDuplication] = useState(true); // MASTER DUPLICATION TOGGLE
   const [groupConfigs, setGroupConfigs] = useState({}); // Dynamically populated from uploaded file
   const [customGroupInput, setCustomGroupInput] = useState('');
   const [showAddGroupInput, setShowAddGroupInput] = useState(false);
@@ -178,6 +181,7 @@ export default function CourseMasterImportPage() {
     const next = { ...groupConfigs };
 
     if (presetKey === 'fyugp_dot') {
+      setUseDuplication(true);
       detectedGroups.forEach(g => {
         if (g.includes('DSC') || g.includes('MAJOR')) {
           next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
@@ -190,6 +194,7 @@ export default function CourseMasterImportPage() {
       setGroupConfigs(next);
       setStatus('Applied: FYUGP Standard ({Group} - {Subject} & . for DSC, Single for others)', 'success');
     } else if (presetKey === 'numbered_series') {
+      setUseDuplication(true);
       detectedGroups.forEach(g => {
         next[g] = {
           pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
@@ -204,6 +209,7 @@ export default function CourseMasterImportPage() {
       setGroupConfigs(next);
       setStatus('Applied: Numbered Series (1, 2) across all groups', 'success');
     } else if (presetKey === 'major_minor') {
+      setUseDuplication(true);
       detectedGroups.forEach(g => {
         if (g.includes('DSC') || g.includes('MAJOR')) {
           next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
@@ -214,6 +220,7 @@ export default function CourseMasterImportPage() {
       setGroupConfigs(next);
       setStatus('Applied: Major/Minor Multipliers (M1, M2)', 'success');
     } else if (presetKey === 'clean_single') {
+      setUseDuplication(false);
       detectedGroups.forEach(g => {
         next[g] = {
           pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
@@ -306,8 +313,9 @@ export default function CourseMasterImportPage() {
 
         // Fetch user custom configuration for this dynamically detected group
         const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
-        const copies = Math.max(1, Number(cfg.copies) || 1);
-        const suffixList = getSuffixList(cfg, copies);
+        // If master duplication is disabled, enforce 1 copy without suffixes
+        const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
+        const suffixList = useDuplication ? getSuffixList(cfg, copies) : [''];
 
         combinations.forEach(([amMethod, atType]) => {
           const totalCredits = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
@@ -483,7 +491,7 @@ export default function CourseMasterImportPage() {
         const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Course_Master_Custom_Subjects.zip`;
+        a.download = `Course_Master_${useDuplication ? 'With_Duplication' : 'Standard_NoDup'}_Subjects.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -504,7 +512,7 @@ export default function CourseMasterImportPage() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Course_Master_Custom_All_Tabs.xlsx`;
+        a.download = `Course_Master_${useDuplication ? 'With_Duplication' : 'Standard_NoDup'}_All_Tabs.xlsx`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -524,7 +532,7 @@ export default function CourseMasterImportPage() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Course_Master_Custom_Combined.xlsx`;
+        a.download = `Course_Master_${useDuplication ? 'With_Duplication' : 'Standard_NoDup'}_Combined.xlsx`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -550,7 +558,7 @@ export default function CourseMasterImportPage() {
       String(r.Subject || '').toLowerCase().includes(q) ||
       String(r.ImmidiateParentGroup || '').toLowerCase().includes(q)
     );
-  }, [rawRows, headerMap, groupConfigs, selectedSubjectFilter, searchQuery]);
+  }, [rawRows, headerMap, groupConfigs, useDuplication, selectedSubjectFilter, searchQuery]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
@@ -569,7 +577,7 @@ export default function CourseMasterImportPage() {
           <h2 style={{ fontSize: '16px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BookOpen size={18} color="var(--accent)" /> Course Master Import & Dynamic Group Rules
             <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
-              {detectedGroups.length ? `${detectedGroups.length} Groups Found` : 'Dynamic Parser'}
+              {useDuplication ? '✨ Duplication: ON' : '📄 Duplication: OFF'}
             </span>
           </h2>
         </div>
@@ -604,7 +612,7 @@ export default function CourseMasterImportPage() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: '16px 24px', gap: '16px' }}>
         
         {/* Left Settings Sidebar */}
-        <aside style={{ width: '360px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
+        <aside style={{ width: '370px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
           
           {/* File Upload Dropzone */}
           <div className="card" style={{ padding: '16px', margin: 0, textAlign: 'center', border: '1.5px dashed var(--accent)', background: 'var(--accent-soft)' }}>
@@ -620,6 +628,91 @@ export default function CourseMasterImportPage() {
               <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>Upload Course Master Sheet</strong>
               <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Automatically extracts Group Names from source file</span>
             </label>
+          </div>
+
+          {/* MASTER DUPLICATION MODE SWITCH CARD */}
+          <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '10px', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.05), transparent)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                <Copy size={15} color="var(--accent)" /> Master Duplication Mode
+              </h3>
+              <span style={{ 
+                fontSize: '10.5px', 
+                padding: '2px 8px', 
+                borderRadius: '10px', 
+                fontWeight: 700, 
+                background: useDuplication ? 'var(--accent)' : 'var(--muted)',
+                color: 'white'
+              }}>
+                {useDuplication ? 'DUPLICATION ACTIVE' : 'NO DUPLICATION'}
+              </span>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--muted)' }}>
+              Choose whether to duplicate course rows into multi-choice admission groups or keep single clean entries:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                gap: '8px', 
+                cursor: 'pointer', 
+                fontSize: '11.5px', 
+                padding: '8px 10px', 
+                borderRadius: '6px', 
+                border: '1.5px solid', 
+                borderColor: useDuplication ? 'var(--accent)' : 'var(--line)', 
+                background: useDuplication ? 'var(--accent-soft)' : 'var(--bg)' 
+              }}>
+                <input 
+                  type="radio" 
+                  name="masterDuplicationOption" 
+                  checked={useDuplication} 
+                  onChange={() => {
+                    setUseDuplication(true);
+                    setStatus('Duplication enabled: Generating multi-choice copies and suffix aliases.', 'info');
+                  }} 
+                  style={{ marginTop: '2px' }}
+                />
+                <div>
+                  <strong style={{ display: 'block', color: 'var(--ink)' }}>✨ With Duplication (Recommended)</strong>
+                  <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>
+                    Generates multiple repetition copies per group with custom suffixes (e.g. DSC - Subj & DSC - Subj. or 1, 2).
+                  </span>
+                </div>
+              </label>
+
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                gap: '8px', 
+                cursor: 'pointer', 
+                fontSize: '11.5px', 
+                padding: '8px 10px', 
+                borderRadius: '6px', 
+                border: '1.5px solid', 
+                borderColor: !useDuplication ? 'var(--accent)' : 'var(--line)', 
+                background: !useDuplication ? 'var(--accent-soft)' : 'var(--bg)' 
+              }}>
+                <input 
+                  type="radio" 
+                  name="masterDuplicationOption" 
+                  checked={!useDuplication} 
+                  onChange={() => {
+                    setUseDuplication(false);
+                    setStatus('Duplication disabled: Generating single master rows per course.', 'info');
+                  }} 
+                  style={{ marginTop: '2px' }}
+                />
+                <div>
+                  <strong style={{ display: 'block', color: 'var(--ink)' }}>📄 Without Duplication (Clean Single Master)</strong>
+                  <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>
+                    Exports exactly 1 row per course assessment without creating cloned DSC 2 or alias copies.
+                  </span>
+                </div>
+              </label>
+            </div>
           </div>
 
           {/* Quick Presets Bar (Active only when groups detected) */}
@@ -685,6 +778,12 @@ export default function CourseMasterImportPage() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {!useDuplication && (
+                  <div style={{ padding: '8px 10px', background: 'rgba(22, 163, 74, 0.1)', border: '1px solid rgba(22, 163, 74, 0.25)', borderRadius: '6px', fontSize: '11px', color: '#166534' }}>
+                    ℹ️ Master Duplication is OFF. Single clean copies are generated using each group's Base Pattern.
+                  </div>
+                )}
+
                 {Object.keys(groupConfigs).map(groupKey => {
                   const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
                   return (
@@ -697,25 +796,28 @@ export default function CourseMasterImportPage() {
                         borderRadius: '6px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '8px'
+                        gap: '8px',
+                        opacity: useDuplication ? 1 : 0.85
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <strong style={{ fontSize: '12.5px', color: 'var(--accent)' }}>Group: {groupKey}</strong>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Copies:</span>
-                          <input 
-                            type="number" 
-                            min={1} 
-                            max={10} 
-                            value={cfg.copies || 1} 
-                            onChange={(e) => updateGroupConfig(groupKey, 'copies', Math.max(1, parseInt(e.target.value, 10) || 1))}
-                            style={{ width: '48px', padding: '2px 4px', fontSize: '11px', textAlign: 'center' }} 
-                          />
-                        </div>
+                        {useDuplication && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Copies:</span>
+                            <input 
+                              type="number" 
+                              min={1} 
+                              max={10} 
+                              value={cfg.copies || 1} 
+                              onChange={(e) => updateGroupConfig(groupKey, 'copies', Math.max(1, parseInt(e.target.value, 10) || 1))}
+                              style={{ width: '48px', padding: '2px 4px', fontSize: '11px', textAlign: 'center' }} 
+                            />
+                          </div>
+                        )}
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '6px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: useDuplication ? '1.2fr 1.8fr' : '1fr', gap: '6px' }}>
                         <div className="form-group" style={{ margin: 0 }}>
                           <label style={{ fontSize: '10.5px' }}>Base Pattern</label>
                           <select 
@@ -728,26 +830,34 @@ export default function CourseMasterImportPage() {
                           </select>
                         </div>
 
-                        <div className="form-group" style={{ margin: 0 }}>
-                          <label style={{ fontSize: '10.5px' }}>Suffixes (comma-separated)</label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. , . or 1, 2" 
-                            value={cfg.suffixStr !== undefined ? cfg.suffixStr : ''} 
-                            onChange={(e) => updateGroupConfig(groupKey, 'suffixStr', e.target.value)}
-                            style={{ fontSize: '11px', padding: '3px 6px' }} 
-                          />
-                        </div>
+                        {useDuplication && (
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '10.5px' }}>Suffixes (comma-separated)</label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. , . or 1, 2" 
+                              value={cfg.suffixStr !== undefined ? cfg.suffixStr : ''} 
+                              onChange={(e) => updateGroupConfig(groupKey, 'suffixStr', e.target.value)}
+                              style={{ fontSize: '11px', padding: '3px 6px' }} 
+                            />
+                          </div>
+                        )}
                       </div>
 
                       {/* Preview Generated Suffixes */}
                       <div style={{ fontSize: '10.5px', color: 'var(--muted)', background: 'var(--panel)', padding: '4px 6px', borderRadius: '4px' }}>
-                        Preview: {getSuffixList(cfg, cfg.copies).map((sfx, idx) => (
-                          <span key={idx} style={{ fontWeight: 600, color: 'var(--ink)' }}>
-                            {idx > 0 && ' | '}
-                            {cfg.pattern === 'group_subject' ? `${groupKey} - Subj${sfx}` : `${groupKey}${sfx}`}
+                        Preview: {useDuplication ? (
+                          getSuffixList(cfg, cfg.copies).map((sfx, idx) => (
+                            <span key={idx} style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                              {idx > 0 && ' | '}
+                              {cfg.pattern === 'group_subject' ? `${groupKey} - Subj${sfx}` : `${groupKey}${sfx}`}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                            {cfg.pattern === 'group_subject' ? `${groupKey} - Subj` : `${groupKey}`} (Single Copy)
                           </span>
-                        ))}
+                        )}
                       </div>
                     </div>
                   );
@@ -803,6 +913,40 @@ export default function CourseMasterImportPage() {
                   ))}
                 </select>
               )}
+
+              {/* Quick Mode Toggle on Header Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--panel)', padding: '2px 6px', borderRadius: '14px', border: '1px solid var(--line)' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setUseDuplication(true)}
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: useDuplication ? 'var(--accent)' : 'transparent',
+                    color: useDuplication ? 'white' : 'var(--muted)',
+                    fontWeight: 600
+                  }}
+                >
+                  ✨ With Duplication
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setUseDuplication(false)}
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: !useDuplication ? 'var(--accent)' : 'transparent',
+                    color: !useDuplication ? 'white' : 'var(--muted)',
+                    fontWeight: 600
+                  }}
+                >
+                  📄 No Duplication
+                </button>
+              </div>
 
             </div>
 
@@ -896,7 +1040,7 @@ export default function CourseMasterImportPage() {
           {/* Footer Info */}
           {rawRows.length > 0 && (
             <div style={{ padding: '8px 16px', background: 'var(--bg)', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
-              <span>Showing {pagedRows.length} of {previewRows.length} rows across {uniqueSubjects.length} subjects • {detectedGroups.length} detected group rule(s)</span>
+              <span>Showing {pagedRows.length} of {previewRows.length} rows across {uniqueSubjects.length} subjects • Mode: <strong>{useDuplication ? 'With Duplication' : 'No Duplication'}</strong></span>
               <span>All 37 master columns formatted with dynamic source Group Names</span>
             </div>
           )}
