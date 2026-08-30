@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, screen } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -16,11 +16,14 @@ if (process.defaultApp) {
 }
 
 function createWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 700,
+    width: Math.min(width, 1600),
+    height: Math.min(height, 1000),
+    minWidth: 900,
+    minHeight: 600,
     title: 'Report Studio',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 14 },
@@ -31,6 +34,8 @@ function createWindow() {
       webSecurity: false
     }
   });
+
+  mainWindow.maximize();
 
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {

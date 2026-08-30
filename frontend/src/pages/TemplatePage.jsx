@@ -1534,7 +1534,7 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {currentPreviewRows.map((row, idx) => (
+                  {currentPreviewRows.slice(0, 40).map((row, idx) => (
                     <tr key={idx} style={{ borderBottom: `1px solid ${templateConfig.tableTheme?.borderColor || '#64748b'}` }}>
                       {activeCols.map(col => {
                         let content;
@@ -1565,8 +1565,13 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
 
               {/* Optional Record Count Footer */}
               {templateConfig.showTotalCount && (
-                <div style={{ marginTop: '12px', textAlign: 'right', fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>
-                  Total Records: {currentPreviewRows.length} {templateConfig.groupBy !== 'none' ? `(in this group)` : ''}
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>
+                  <span>
+                    {currentPreviewRows.length > 40 ? `⚡ Showing preview of 40 of ${currentPreviewRows.length} records. (Full ${currentPreviewRows.length} records included in PDF/Excel export)` : ''}
+                  </span>
+                  <span>
+                    Total Records: {currentPreviewRows.length} {templateConfig.groupBy !== 'none' ? `(in this group)` : ''}
+                  </span>
                 </div>
               )}
             </div>
