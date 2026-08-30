@@ -9,7 +9,8 @@ import {
   CalendarRange,
   GitCompare,
   Link as LinkIcon,
-  Sparkles
+  Sparkles,
+  Database
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -131,6 +132,15 @@ const LandingPage = () => {
             <div style={styles.featureIcon}><FileText size={24} color="var(--accent)" /></div>
             <h3 style={styles.featureTitle}>PDF Tool Studio</h3>
             <p style={styles.featureText}>Merge, split, compress, watermark, rotate, stamp signatures, add page numbers, and convert images to PDF.</p>
+          </div>
+
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/admission-import')}
+          >
+            <div style={styles.featureIcon}><Database size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Admission Import</h3>
+            <p style={styles.featureText}>Automate ingestion, sequence-agnostic schema normalization, lookup enrichment, and export to 40-column master XLSX.</p>
           </div>
 
           <div 

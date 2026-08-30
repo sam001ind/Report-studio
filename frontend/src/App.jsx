@@ -13,6 +13,7 @@ import DataComparisonPage from './pages/DataComparisonPage';
 import UrlShortenerPage from './pages/UrlShortenerPage';
 import ImageToolsPage from './pages/ImageToolsPage';
 import PdfToolsPage from './pages/PdfToolsPage';
+import AdmissionImportPage from './pages/AdmissionImportPage';
 import UrlRedirectHandler from './pages/UrlRedirectHandler';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -115,6 +116,16 @@ function App() {
           <Route path="/pdf" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <PdfToolsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admission-import" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <AdmissionImportPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admission" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <AdmissionImportPage />
             </ProtectedRoute>
           } />
           <Route path="/s/:code" element={<UrlRedirectHandler />} />
