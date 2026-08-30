@@ -11,12 +11,14 @@ export const CATEGORY_LOOKUP = {
   'other backward': { id: '10', name: 'OBC' },
   'ezhava': { id: '10', name: 'SEBC' },
   'thiyya': { id: '10', name: 'SEBC' },
+  'thiyyas': { id: '10', name: 'SEBC' },
   'muslim': { id: '10', name: 'SEBC' },
   'mappila': { id: '10', name: 'SEBC' },
   'ews': { id: '8', name: 'Economically Weaker Section' },
   'latin': { id: '10', name: 'SEBC' },
   'latin catholic': { id: '10', name: 'SEBC' },
   'obh': { id: '10', name: 'SEBC' },
+  'vaniya': { id: '10', name: 'SEBC' },
   'dheevara': { id: '10', name: 'SEBC' },
   'viswakarma': { id: '10', name: 'SEBC' },
   'kudumbi': { id: '10', name: 'SEBC' },
@@ -31,6 +33,8 @@ export const CASTE_LOOKUP = {
   'muslim': '323',
   'general': '393',
   'nair': '393',
+  'vaniya': '328',
+  'vanika vaisya': '328',
   'latin catholic': '325',
   'latin': '325',
   'viswakarma': '328',
@@ -44,7 +48,6 @@ export const CASTE_LOOKUP = {
   'kusavan': '332',
   'veluthedathu nair': '333',
   'vilakkithala nair': '334',
-  'vanika vaisya': '335',
   'veera saiva': '336',
   'chetties': '337',
   'maruthuvar': '338',
@@ -63,6 +66,7 @@ export const RELIGION_LOOKUP = {
 };
 
 export const PROGRAM_LOOKUP = {
+  // FYUGP Programs
   'ba history': { code: 'UCAHISGS25', name: 'FYUGP Bachelor of Arts in History', workflowId: '81' },
   'ba english': { code: 'UCAENGGS25', name: 'FYUGP Bachelor of Arts in English', workflowId: '81' },
   'ba economics': { code: 'UCAECONS25', name: 'FYUGP Bachelor of Arts in Economics', workflowId: '81' },
@@ -80,7 +84,17 @@ export const PROGRAM_LOOKUP = {
   'bsc botany': { code: 'UCABOTGS25', name: 'FYUGP Bachelor of Science in Botany', workflowId: '105' },
   'bsc zoology': { code: 'UCAZOOGS25', name: 'FYUGP Bachelor of Science in Zoology', workflowId: '105' },
   'bsc computer science': { code: 'UCACSGS25', name: 'FYUGP Bachelor of Science in Computer Science', workflowId: '122' },
-  'bca': { code: 'UCBCARGS25', name: 'FYUGP Bachelor of Computer Applications', workflowId: '122' }
+  'bca': { code: 'UCBCARGS25', name: 'FYUGP Bachelor of Computer Applications', workflowId: '122' },
+
+  // FYIMP / IMPES (Five Year Integrated Masters Programmes)
+  'integrated physics': { code: 'UCSIPHGS25', name: 'FYIMP Integrated Master of Science in Physics', workflowId: '122' },
+  'integrated chemistry': { code: 'UCSICHEM25', name: 'FYIMP Integrated Master of Science in Chemistry', workflowId: '122' },
+  'integrated biology': { code: 'UCSIBIO25', name: 'FYIMP Integrated Master of Science in Biosciences', workflowId: '122' },
+  'integrated economics': { code: 'UCIMAEC25', name: 'FYIMP Integrated Master of Arts in Economics', workflowId: '96' },
+  'integrated geology': { code: 'UCSGEGGS25', name: 'FYIMP Integrated Master of Science in Geology', workflowId: '122' },
+  'integrated computer science': { code: 'UCSICOMP25', name: 'FYIMP Integrated Master of Science in Computer Science', workflowId: '122' },
+  'fyimp': { code: 'UCSGEGGS25', name: 'Five Year Integrated Masters Programme', workflowId: '122' },
+  'impes': { code: 'UCSGEGGS25', name: 'Integrated Masters Programme in Environmental Science', workflowId: '122' }
 };
 
 export const COLLEGE_LOOKUP = {
@@ -89,10 +103,13 @@ export const COLLEGE_LOOKUP = {
   '397': { code: '397', name: 'Government Brennen College Dharmadam' },
   '351': { code: '351', name: 'Government College Kasaragod' },
   '404': { code: '404', name: 'Government Victoria College Palakkad' },
+  '447': { code: '447', name: 'University Campus Study Center' },
+  '304': { code: '304', name: 'Government College Mananthavady' },
   'madappally': { code: '347', name: 'Government College Madappally' },
   'brennen': { code: '397', name: 'Government Brennen College Dharmadam' },
   'kasaragod': { code: '351', name: 'Government College Kasaragod' },
-  'victoria': { code: '404', name: 'Government Victoria College Palakkad' }
+  'victoria': { code: '404', name: 'Government Victoria College Palakkad' },
+  'calicut': { code: '358', name: 'Government Arts & Science College Calicut' }
 };
 
 export const TARGET_COLUMNS = [

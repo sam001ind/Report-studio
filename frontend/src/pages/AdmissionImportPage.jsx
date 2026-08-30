@@ -28,6 +28,34 @@ import {
 
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+const cleanEscapeArtifacts = (val) => {
+  if (val === null || val === undefined) return '';
+  const str = String(val).trim();
+  if (str === '\\N' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined' || str.toLowerCase() === 'nan') {
+    return '';
+  }
+  return str;
+};
+
+const parseExcelDate = (val) => {
+  const clean = cleanEscapeArtifacts(val);
+  if (!clean) return '';
+  if (/^\d{4,5}$/.test(clean)) {
+    const serial = parseInt(clean, 10);
+    if (serial > 10000 && serial < 60000) {
+      const d = new Date((serial - 25569) * 86400 * 1000);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split('T')[0];
+      }
+    }
+  }
+  const d = new Date(clean);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().split('T')[0];
+  }
+  return clean;
+};
+
 export default function AdmissionImportPage() {
   const [sourceFile, setSourceFile] = useState(null);
   const [normalizedRows, setNormalizedRows] = useState([]);
@@ -52,8 +80,11 @@ export default function AdmissionImportPage() {
         const norm = normalizeKey(k);
         const actualKey = headerMap[norm];
         if (actualKey && rawRow[actualKey] !== undefined && rawRow[actualKey] !== null) {
-          const val = String(rawRow[actualKey]).trim();
-          if (val) return val;
+          const val = cleanEscapeArtifacts(rawRow[actualKey]);
+          // Strip literal header artifacts (e.g. literal 'CollegeId' in data cell)
+          if (val && normalizeKey(val) !== norm) {
+            return val;
+          }
         }
       }
       return '';
@@ -69,7 +100,7 @@ export default function AdmissionImportPage() {
     else if (rawGender.toLowerCase().startsWith('m')) gender = 'Male';
     else if (rawGender) gender = 'Other';
 
-    // 3. Mobile
+    // 3. Mobile (Strip whitespace, country prefixes like +91)
     const rawMobile = getVal('mobile', 'mobilenumber', 'contact', 'contactnumber', 'phone');
     const mobile = rawMobile.replace(/\D/g, '').slice(-10);
 
@@ -80,15 +111,9 @@ export default function AdmissionImportPage() {
     // 5. Username (Application ID / Registration Number)
     const username = getVal('username', 'applicationnumber', 'appno', 'regno', 'prn', 'candidateid');
 
-    // 6. Date of Birth
+    // 6. Date of Birth (Handles Excel Serial Dates like 38302, 39067)
     const rawDob = getVal('dob', 'dateofbirth', 'birthdate');
-    let dob = rawDob;
-    if (rawDob) {
-      const d = new Date(rawDob);
-      if (!isNaN(d.getTime())) {
-        dob = d.toISOString().split('T')[0];
-      }
-    }
+    const dob = parseExcelDate(rawDob);
 
     // 7. AadhaarNumber
     const rawAadhaar = getVal('aadhaarnumber', 'aadhaar', 'adharnumber', 'adhar');
@@ -108,7 +133,7 @@ export default function AdmissionImportPage() {
 
     // 13. Address, City, Pin
     const corrAddress = getVal('corraddress', 'address', 'communicationaddress', 'permaddress');
-    const corrCity = getVal('corrcity', 'city', 'town', 'place', 'district');
+    let corrCity = getVal('corrcity', 'city', 'town', 'place', 'district');
     const rawPin = getVal('corrpin', 'pincode', 'pin', 'postalcode');
     const corrPin = rawPin.replace(/\D/g, '').slice(0, 6);
 
@@ -132,7 +157,7 @@ export default function AdmissionImportPage() {
     const religionId = getVal('religionid') || religionLookup.id;
     const religion = rawReligion || religionLookup.name;
 
-    // 22. Program & Workflow
+    // 22. Program & Workflow (FYUGP & FYIMP / IMPES Compatible)
     const rawProgram = getVal('program', 'programname', 'programmname', 'coursename', 'course');
     const normProg = normalizeKey(rawProgram);
     let programMatch = null;
@@ -146,27 +171,27 @@ export default function AdmissionImportPage() {
     const programCode = getVal('programcode', 'coursecode') || (programMatch ? programMatch.code : 'UCAHISGS25');
     const workFlowId = getVal('workflowid') || (programMatch ? programMatch.workflowId : '81');
 
-    // 25. College
+    // 25. College (Handles 447, 304, 347, 358, 397, 351, 404)
     const rawCollegeCode = getVal('collegecode', 'colcode', 'center', 'centercode');
     const rawCollegeName = getVal('collegename', 'college', 'centername');
-    const collegeLookup = COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || { code: rawCollegeCode || '347', name: rawCollegeName || 'University College' };
+    const collegeLookup = COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || { code: rawCollegeCode || '347', name: rawCollegeName || 'Government College Madappally' };
     const collegeCode = collegeLookup.code;
-    const collegeId = collegeCode;
+    const collegeId = collegeCode; // Clears raw 'CollegeId' text artifact
     const collegeName = collegeLookup.name;
 
     // 28. Qualification Faculty
     const rawQual = getVal('qualificationname', 'board', 'qualifyingexam', 'boardname');
     const normQual = normalizeKey(rawQual);
-    let qualificationFacultyId = '2'; // Default HSE / CBSE
-    if (normQual && !normQual.includes('hse') && !normQual.includes('cbse') && !normQual.includes('vhse') && !normQual.includes('kerala')) {
+    let qualificationFacultyId = '2'; // Default HSE, CBSE, VHSE, THSE
+    if (normQual && !normQual.includes('hse') && !normQual.includes('cbse') && !normQual.includes('vhse') && !normQual.includes('thse') && !normQual.includes('kerala')) {
       qualificationFacultyId = '7';
     }
     const qualificationName = rawQual || 'HSE - Kerala';
 
-    // 30. Qualification Specialization & Stream
+    // 30. Qualification Specialization & Stream (Science/Integrated Science -> 1, Commerce -> 2, Humanities -> 3)
     const rawStream = getVal('stream', 'group', 'specialization', 'branch');
     const normStream = normalizeKey(rawStream);
-    let qualificationSpecializationId = '1'; // Science
+    let qualificationSpecializationId = '1'; // Science / Integrated Science
     if (normStream.includes('comm')) qualificationSpecializationId = '2';
     else if (normStream.includes('hum') || normStream.includes('art')) qualificationSpecializationId = '3';
     else if (normStream) qualificationSpecializationId = '4';
@@ -201,7 +226,7 @@ export default function AdmissionImportPage() {
     const seatNumber = rawSeat || certificateNumber;
 
     // 39. Result Date & Status
-    const resultDate = getVal('resultdate', 'passeddate') || new Date().toISOString().split('T')[0];
+    const resultDate = parseExcelDate(getVal('resultdate', 'passeddate')) || new Date().toISOString().split('T')[0];
     const resultStatus = getVal('resultstatus', 'status', 'result') || 'Passed';
 
     // Warnings flag
@@ -394,7 +419,7 @@ export default function AdmissionImportPage() {
           <div style={{ height: '18px', width: '1px', background: 'var(--line)' }} />
           <h2 style={{ fontSize: '16px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Database size={18} color="var(--accent)" /> Admission Import & Transformation Engine
-            <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>40 Target Columns</span>
+            <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>FYUGP & FYIMP v1.1</span>
           </h2>
         </div>
 
@@ -441,7 +466,7 @@ export default function AdmissionImportPage() {
             <label htmlFor="admissionFileInput" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={28} color="var(--accent)" />
               <strong style={{ fontSize: '13.5px', color: 'var(--ink)' }}>Upload Allotment Spreadsheet</strong>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Supports raw 38-column allotment files</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Supports FYUGP & FYIMP/IMPES formats</span>
             </label>
           </div>
 
@@ -469,15 +494,15 @@ export default function AdmissionImportPage() {
             </div>
           )}
 
-          {/* Lookup Reference Card */}
+          {/* Sanitization Rules v1.1 Reference Card */}
           <div className="card" style={{ padding: '16px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-            <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>Standard Transformation Rules</h3>
+            <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>Auto-Sanitization Rules (v1.1)</h3>
             <ul style={{ margin: 0, paddingLeft: '16px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px', lineHeight: 1.4 }}>
-              <li><strong>Sequence Agnostic:</strong> Any column order matched.</li>
-              <li><strong>Category & Caste:</strong> Auto-mapped to portal IDs.</li>
-              <li><strong>Programs & College:</strong> Standardized code & workflow expansion.</li>
-              <li><strong>Faculty & Stream:</strong> Derived board & stream codes.</li>
-              <li><strong>SeatNumber:</strong> Auto-replicated from Registration No.</li>
+              <li><strong>Excel Serial Dates:</strong> Converts serial integers (e.g. 38302) to ISO YYYY-MM-DD.</li>
+              <li><strong>Mobile Normalization:</strong> Strips non-digits & prefixes.</li>
+              <li><strong>\N & Null Trapping:</strong> Cleans MySQL export artifacts.</li>
+              <li><strong>Literal Artifacts:</strong> Replaces literal header entries.</li>
+              <li><strong>Multi-Program:</strong> FYUGP & FYIMP / IMPES compatible.</li>
             </ul>
           </div>
         </aside>
