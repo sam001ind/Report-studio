@@ -282,15 +282,16 @@ export default function CourseMasterImportPage() {
     if (!rawRows.length) return [];
     const rowsForSubject = [];
 
-    const subjectsToProcess = forSubject ? [forSubject] : (uniqueSubjects.length ? uniqueSubjects : [null]);
+    const targetRows = forSubject 
+      ? rawRows.filter(r => getCell(r, 'Subject', 'subject').trim().toLowerCase() === forSubject.trim().toLowerCase())
+      : rawRows;
 
-    subjectsToProcess.forEach(fileSubject => {
-      rawRows.forEach(row => {
-        const subject = getCell(row, 'Subject', 'subject');
-        const rawGroup = getCell(row, 'Group Name', 'groupname', 'group', 'parentgroup');
-        const groupKey = rawGroup.trim().toUpperCase();
+    targetRows.forEach(row => {
+      const subject = getCell(row, 'Subject', 'subject');
+      const rawGroup = getCell(row, 'Group Name', 'groupname', 'group', 'parentgroup');
+      const groupKey = rawGroup.trim().toUpperCase();
 
-        if (!subject) return;
+      if (!subject) return;
 
         const eseMaxTh = getNumber(row, 'ESE Max - TH', 'esemaxth', 'eseth', 'esemax_th');
         const ccaMaxTh = getNumber(row, 'CCA Max - TH', 'ccamaxth', 'ccath', 'ccamax_th', 'cemaxth');
@@ -396,7 +397,6 @@ export default function CourseMasterImportPage() {
           }
         });
       });
-    });
 
     // Custom sorting priority
     rowsForSubject.sort((a, b) => {
