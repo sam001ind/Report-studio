@@ -113,6 +113,7 @@ export default function CourseMasterImportPage() {
   const [showAddGroupInput, setShowAddGroupInput] = useState(false);
   const [exportMode, setExportMode] = useState('zip'); // 'zip' | 'combined' | 'multitab'
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('ALL');
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('Ready');
@@ -175,116 +176,18 @@ export default function CourseMasterImportPage() {
     });
   }, [detectedGroups]);
 
-  // Apply Quick Presets to all detected groups
-  const applyPreset = (presetKey) => {
-    if (!detectedGroups.length) return;
-    const next = { ...groupConfigs };
-
-    if (presetKey === 'fyugp_dot') {
-      setUseDuplication(true);
-      detectedGroups.forEach(g => {
-        if (g.includes('DSC') || g.includes('MAJOR')) {
-          next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
-        } else if (g.includes('MDC') || g.includes('VAC') || g.includes('SEC') || g.includes('AEC')) {
-          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
-        } else {
-          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 0, maxMarks: 0, maxCourses: 1, minCourses: 1 };
-        }
-      });
-      setGroupConfigs(next);
-      setStatus('Applied: FYUGP Standard ({Group} - {Subject} & . for DSC, Single for others)', 'success');
-    } else if (presetKey === 'numbered_series') {
-      setUseDuplication(true);
-      detectedGroups.forEach(g => {
-        next[g] = {
-          pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
-          copies: 2,
-          suffixStr: ' 1,  2',
-          maxCredits: g.includes('DSC') ? 4 : (g.includes('MDC') || g.includes('VAC')) ? 3 : 0,
-          maxMarks: g.includes('DSC') ? 100 : (g.includes('MDC') || g.includes('VAC')) ? 75 : 0,
-          maxCourses: 1,
-          minCourses: 1
-        };
-      });
-      setGroupConfigs(next);
-      setStatus('Applied: Numbered Series (1, 2) across all groups', 'success');
-    } else if (presetKey === 'major_minor') {
-      setUseDuplication(true);
-      detectedGroups.forEach(g => {
-        if (g.includes('DSC') || g.includes('MAJOR')) {
-          next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
-        } else {
-          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: (g.includes('MDC') || g.includes('VAC')) ? 3 : 0, maxMarks: (g.includes('MDC') || g.includes('VAC')) ? 75 : 0, maxCourses: 1, minCourses: 1 };
-        }
-      });
-      setGroupConfigs(next);
-      setStatus('Applied: Major/Minor Multipliers (M1, M2)', 'success');
-    } else if (presetKey === 'clean_single') {
-      setUseDuplication(false);
-      detectedGroups.forEach(g => {
-        next[g] = {
-          pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
-          copies: 1,
-          suffixStr: '',
-          maxCredits: g.includes('DSC') ? 4 : (g.includes('MDC') || g.includes('VAC')) ? 3 : 0,
-          maxMarks: g.includes('DSC') ? 100 : (g.includes('MDC') || g.includes('VAC')) ? 75 : 0,
-          maxCourses: 1,
-          minCourses: 1
-        };
-      });
-      setGroupConfigs(next);
-      setStatus('Applied: Clean Single Master (No Duplications)', 'success');
-    }
-  };
-
-  const updateGroupConfig = (group, field, value) => {
-    setGroupConfigs(prev => ({
-      ...prev,
-      [group]: {
-        ...(prev[group] || createDefaultConfigForGroup(group)),
-        [field]: value
-      }
-    }));
-  };
-
-  const handleAddCustomGroup = () => {
-    const trimmed = customGroupInput.trim().toUpperCase();
-    if (!trimmed) return;
-    if (!groupConfigs[trimmed]) {
-      setGroupConfigs(prev => ({
-        ...prev,
-        [trimmed]: createDefaultConfigForGroup(trimmed)
-      }));
-      setStatus(`Added custom group rule for "${trimmed}"`, 'success');
-    }
-    setCustomGroupInput('');
-    setShowAddGroupInput(false);
-  };
-
-  // Helper to parse comma-separated suffixes into array matching copy count
-  const getSuffixList = (cfg, count) => {
-    const rawParts = (cfg.suffixStr || '').split(',').map(s => s.trim());
-    const list = [];
-    for (let i = 0; i < count; i++) {
-      if (rawParts[i] !== undefined && rawParts[i] !== '') {
-        list.push(rawParts[i]);
-      } else if (i === 0) {
-        list.push('');
-      } else {
-        list.push(` ${i + 1}`);
-      }
-    }
-    return list;
-  };
-
-  // Master transformation pipeline
-  const generateProcessedRows = (forSubject = null) => {
+  // Master transformation pipeline supporting dual subject & group filtering
+  const generateProcessedRows = (forSubject = null, forGroup = null) => {
     if (!rawRows.length) return [];
     const rowsForSubject = [];
 
-    const targetRows = forSubject 
-      ? rawRows.filter(r => getCell(r, 'Subject', 'subject').trim().toLowerCase() === forSubject.trim().toLowerCase())
-      : rawRows;
+    const targetRows = rawRows.filter(r => {
+      const s = getCell(r, 'Subject', 'subject').trim().toLowerCase();
+      const g = getCell(r, 'Group Name', 'groupname', 'group', 'parentgroup').trim().toUpperCase();
+      if (forSubject && s !== forSubject.trim().toLowerCase()) return false;
+      if (forGroup && g !== forGroup.trim().toUpperCase()) return false;
+      return true;
+    });
 
     targetRows.forEach(row => {
       const subject = getCell(row, 'Subject', 'subject');
@@ -476,7 +379,7 @@ export default function CourseMasterImportPage() {
       if (exportMode === 'zip') {
         const zip = new JSZip();
         for (const subj of uniqueSubjects) {
-          const rows = generateProcessedRows(subj);
+          const rows = generateProcessedRows(subj, selectedGroupFilter === 'ALL' ? null : selectedGroupFilter);
           const aoa = [OUTPUT_HEADERS, ...rows.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
           const wb = XLSX.utils.book_new();
           const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
@@ -501,7 +404,7 @@ export default function CourseMasterImportPage() {
       } else if (exportMode === 'multitab') {
         const wb = XLSX.utils.book_new();
         for (const subj of uniqueSubjects) {
-          const rows = generateProcessedRows(subj);
+          const rows = generateProcessedRows(subj, selectedGroupFilter === 'ALL' ? null : selectedGroupFilter);
           const aoa = [OUTPUT_HEADERS, ...rows.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
           const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
           ws['!cols'] = OUTPUT_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
@@ -520,7 +423,10 @@ export default function CourseMasterImportPage() {
         setStatus(`Exported multi-tab workbook with ${uniqueSubjects.length} subject tabs!`, 'success');
 
       } else {
-        const allRows = generateProcessedRows(null);
+        const allRows = generateProcessedRows(
+          selectedSubjectFilter === 'ALL' ? null : selectedSubjectFilter,
+          selectedGroupFilter === 'ALL' ? null : selectedGroupFilter
+        );
         const aoa = [OUTPUT_HEADERS, ...allRows.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
@@ -547,9 +453,49 @@ export default function CourseMasterImportPage() {
     }
   };
 
+  // Download ONLY the filtered subset currently shown
+  const exportFilteredSubset = () => {
+    if (!previewRows.length) return alert('No filtered rows to download.');
+    setIsProcessing(true);
+    setStatus('Exporting filtered course subset...', 'info');
+
+    try {
+      const aoa = [OUTPUT_HEADERS, ...previewRows.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: OUTPUT_HEADERS.length - 1 } }) };
+      ws['!cols'] = OUTPUT_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+
+      const sheetTitle = (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : (selectedGroupFilter !== 'ALL' ? selectedGroupFilter : 'Filtered')).slice(0, 31);
+      XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
+
+      const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      const sName = selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter.replace(/\s+/g, '_') : 'AllSubj';
+      const gName = selectedGroupFilter !== 'ALL' ? selectedGroupFilter.replace(/\s+/g, '_') : 'AllGroups';
+      a.download = `Course_${sName}_${gName}_${useDuplication ? 'WithDup' : 'NoDup'}.xlsx`;
+      
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus(`Exported ${previewRows.length} filtered rows (${sName} - ${gName})!`, 'success');
+    } catch (err) {
+      console.error('Filtered Export Error:', err);
+      setStatus(`Export failed: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const previewRows = useMemo(() => {
     const targetSubj = selectedSubjectFilter === 'ALL' ? null : selectedSubjectFilter;
-    const generated = generateProcessedRows(targetSubj);
+    const targetGroup = selectedGroupFilter === 'ALL' ? null : selectedGroupFilter;
+    const generated = generateProcessedRows(targetSubj, targetGroup);
     if (!searchQuery) return generated;
     const q = searchQuery.toLowerCase();
     return generated.filter(r => 
@@ -558,7 +504,7 @@ export default function CourseMasterImportPage() {
       String(r.Subject || '').toLowerCase().includes(q) ||
       String(r.ImmidiateParentGroup || '').toLowerCase().includes(q)
     );
-  }, [rawRows, headerMap, groupConfigs, useDuplication, selectedSubjectFilter, searchQuery]);
+  }, [rawRows, headerMap, groupConfigs, useDuplication, selectedSubjectFilter, selectedGroupFilter, searchQuery]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
@@ -886,10 +832,10 @@ export default function CourseMasterImportPage() {
           
           {/* Table Header Bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--line)', background: 'var(--bg)', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               
               {/* Search Box */}
-              <div style={{ position: 'relative', width: '220px' }}>
+              <div style={{ position: 'relative', width: '180px' }}>
                 <input 
                   type="text" 
                   placeholder="Filter courses, codes..." 
@@ -905,13 +851,65 @@ export default function CourseMasterImportPage() {
                 <select 
                   value={selectedSubjectFilter} 
                   onChange={(e) => { setSelectedSubjectFilter(e.target.value); setPage(0); }}
-                  style={{ padding: '5px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '200px' }}
+                  style={{ padding: '5px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '170px' }}
                 >
                   <option value="ALL">All Subjects ({uniqueSubjects.length})</option>
                   {uniqueSubjects.map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
+              )}
+
+              {/* Group Filter Dropdown */}
+              {detectedGroups.length > 0 && (
+                <select 
+                  value={selectedGroupFilter} 
+                  onChange={(e) => { setSelectedGroupFilter(e.target.value); setPage(0); }}
+                  style={{ padding: '5px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '150px' }}
+                >
+                  <option value="ALL">All Groups ({detectedGroups.length})</option>
+                  {detectedGroups.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              )}
+
+              {/* Reset Filters Link */}
+              {(selectedSubjectFilter !== 'ALL' || selectedGroupFilter !== 'ALL' || searchQuery) && (
+                <button 
+                  type="button" 
+                  className="secondary" 
+                  onClick={() => {
+                    setSelectedSubjectFilter('ALL');
+                    setSelectedGroupFilter('ALL');
+                    setSearchQuery('');
+                    setPage(0);
+                  }}
+                  style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--danger)' }}
+                >
+                  Reset
+                </button>
+              )}
+
+              {/* Direct Download Filtered Subset Button */}
+              {previewRows.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={exportFilteredSubset}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '5px', 
+                    padding: '4px 10px', 
+                    fontSize: '11.5px', 
+                    background: 'var(--accent)', 
+                    color: 'white', 
+                    borderRadius: '4px' 
+                  }}
+                  title="Download only the currently filtered rows"
+                >
+                  <Download size={13} /> Download Filtered ({previewRows.length})
+                </button>
               )}
 
               {/* Quick Mode Toggle on Header Bar */}
