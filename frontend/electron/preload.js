@@ -1,0 +1,6 @@
+import { contextBridge } from 'electron';
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  isDesktop: true,
+  platform: process.platform
+});
