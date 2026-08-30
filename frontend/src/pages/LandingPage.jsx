@@ -10,7 +10,8 @@ import {
   GitCompare,
   Link as LinkIcon,
   Sparkles,
-  Database
+  Database,
+  BookOpen
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -141,6 +142,15 @@ const LandingPage = () => {
             <div style={styles.featureIcon}><Database size={24} color="var(--accent)" /></div>
             <h3 style={styles.featureTitle}>Admission Import</h3>
             <p style={styles.featureText}>Automate ingestion, sequence-agnostic schema normalization, lookup enrichment, and export to 40-column master XLSX.</p>
+          </div>
+
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/course-master-import')}
+          >
+            <div style={styles.featureIcon}><BookOpen size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Course Master Import</h3>
+            <p style={styles.featureText}>Process course syllabus matrices into 37 standardized master columns with optional DSC 1 / 2 duplication and multi-subject exports.</p>
           </div>
 
           <div 
