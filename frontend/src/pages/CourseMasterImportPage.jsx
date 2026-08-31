@@ -157,7 +157,6 @@ export default function CourseMasterImportPage() {
   // Group Master Specific Settings (Connected to duplication logic & semester flexibility)
   const [designatedMajorGroup, setDesignatedMajorGroup] = useState(''); // e.g. 'DSC', 'MAJOR', 'CORE', etc.
   const [selectedMajorSubject, setSelectedMajorSubject] = useState('');
-  const [groupMasterEvalSystem, setGroupMasterEvalSystem] = useState('Marks System');
   const [majorBucketPrefix, setMajorBucketPrefix] = useState('DSC - 1');
 
   // Custom Granular Subject Assignment per Group Bucket (DSC - 1, DSC - 2, DSC - 3, etc.)
@@ -549,7 +548,7 @@ export default function CourseMasterImportPage() {
         SubGroupName: sub,
         ParentGroupMinSubGroups: minSub,
         ParentGroupMaxSubGroups: maxSub,
-        ParentGroupEvaluationSystem: groupMasterEvalSystem,
+        ParentGroupEvaluationSystem: 'Marks System',
         ParentGroupMaxMarks: maxM,
         ParentGroupMinMarks: minM,
         ParentGroupMaxCredits: maxC,
@@ -861,7 +860,7 @@ export default function CourseMasterImportPage() {
         String(r.ImmidiateParentGroup || '').toLowerCase().includes(q)
       );
     }
-  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, selectedMajorSubject, groupMasterEvalSystem, majorBucketPrefix, bucketSubjectOverrides]);
+  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, selectedMajorSubject, majorBucketPrefix, designatedMajorGroup, bucketSubjectOverrides]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
@@ -1220,28 +1219,14 @@ export default function CourseMasterImportPage() {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '10.5px' }}>Major Bucket Name</label>
-                <input 
-                  type="text" 
-                  value={majorBucketPrefix} 
-                  onChange={(e) => setMajorBucketPrefix(e.target.value)}
-                  style={{ fontSize: '11px', padding: '3px 6px' }}
-                />
-              </div>
-
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '10.5px' }}>Evaluation System</label>
-                <select 
-                  value={groupMasterEvalSystem} 
-                  onChange={(e) => setGroupMasterEvalSystem(e.target.value)}
-                  style={{ fontSize: '11px', padding: '3px 6px' }}
-                >
-                  <option value="Marks System">Marks System</option>
-                  <option value="Indirect Grade System">Indirect Grade System</option>
-                </select>
-              </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '10.5px' }}>Major Bucket Name</label>
+              <input 
+                type="text" 
+                value={majorBucketPrefix} 
+                onChange={(e) => setMajorBucketPrefix(e.target.value)}
+                style={{ fontSize: '11px', padding: '3px 6px', width: '100%' }}
+              />
             </div>
 
             {/* Granular Bucket Subject Assignment List */}
