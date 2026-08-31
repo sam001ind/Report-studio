@@ -363,7 +363,7 @@ export default function CourseMasterImportPage() {
         // Generate each repetition copy with dynamic suffix
         for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
           const newRow = {};
-          newRow['UniqueProgramTermCode'] = customTermCode || getCell(row, 'UniqueProgramTermCode', 'termcode') || '';
+          newRow['UniqueProgramTermCode'] = '';
 
           let baseGroup = rawGroup || 'General';
           if (cfg.pattern === 'group_subject') {
@@ -459,7 +459,6 @@ export default function CourseMasterImportPage() {
     
     // Resolve primary major subject
     const majorSubject = forSubject || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : uniqueSubjects[0]) || 'General';
-    const currentTermCode = customTermCode || detectedTermCode || 'BA_KAN_25_Sem1';
 
     // Extract subjects specifically belonging to DSC
     const dscRows = rawRows.filter(r => {
@@ -484,7 +483,7 @@ export default function CourseMasterImportPage() {
 
     const addRow = (parent, sub, maxM = 100, minM = 0, maxC = 4, minC = 0, maxSub = 1, minSub = 1) => {
       result.push({
-        UniqueProgramTermCode: currentTermCode,
+        UniqueProgramTermCode: '',
         ParentGroupName: parent,
         SubGroupName: sub,
         ParentGroupMinSubGroups: minSub,
@@ -972,15 +971,8 @@ export default function CourseMasterImportPage() {
               <GitFork size={15} color="var(--accent)" /> Group Master Hierarchy Config
             </h3>
             
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '10.5px' }}>Unique Program Term Code</label>
-              <input 
-                type="text" 
-                value={customTermCode} 
-                placeholder="e.g. BA_KAN_25_Sem1" 
-                onChange={(e) => setCustomTermCode(e.target.value)}
-                style={{ fontSize: '11.5px', padding: '4px 6px' }}
-              />
+            <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)', fontSize: '11px', color: 'var(--muted)' }}>
+              ℹ️ <strong>UniqueProgramTermCode</strong> is kept completely blank in both Course and Group Master files.
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
