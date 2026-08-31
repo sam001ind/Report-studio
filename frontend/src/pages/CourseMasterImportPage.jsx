@@ -97,21 +97,9 @@ const createDefaultConfigForGroup = (groupKey) => {
       maxCredits: 4,
       maxMarks: 100,
       maxCourses: 1,
-      minCourses: 1,
-      role: 'major' // 'major' | 'minor' | 'general'
+      minCourses: 1
     };
-  } else if (upper.includes('MINOR')) {
-    return {
-      pattern: 'group_subject',
-      copies: 1,
-      suffixStr: '',
-      maxCredits: 4,
-      maxMarks: 100,
-      maxCourses: 1,
-      minCourses: 1,
-      role: 'minor'
-    };
-  } else if (upper.includes('MDC') || upper.includes('VAC') || upper.includes('SEC') || upper.includes('AEC') || upper.includes('OE') || upper.includes('IDC') || upper.includes('SKILL')) {
+  } else {
     return {
       pattern: 'group_only', // {Group} Only
       copies: 1,
@@ -119,20 +107,9 @@ const createDefaultConfigForGroup = (groupKey) => {
       maxCredits: 3,
       maxMarks: 75,
       maxCourses: 1,
-      minCourses: 1,
-      role: 'general'
+      minCourses: 1
     };
   }
-  return {
-    pattern: 'group_only',
-    copies: 1,
-    suffixStr: '',
-    maxCredits: 0,
-    maxMarks: 0,
-    maxCourses: 1,
-    minCourses: 1,
-    role: 'general'
-  };
 };
 
 export default function CourseMasterImportPage() {
@@ -154,14 +131,10 @@ export default function CourseMasterImportPage() {
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
-  // Group Master Specific Settings (Connected to duplication logic & semester flexibility)
-  const [designatedMajorGroup, setDesignatedMajorGroup] = useState(''); // e.g. 'DSC', 'MAJOR', 'CORE', etc.
-  const [selectedMajorSubject, setSelectedMajorSubject] = useState('');
-  const [majorBucketPrefix, setMajorBucketPrefix] = useState('DSC - 1');
-
-  // Custom Granular Subject Assignment per Group Bucket (DSC - 1, DSC - 2, DSC - 3, etc.)
+  // Custom Granular Subject Assignment per Group Bucket (DSC - 1, DSC - 2, VAC - 1, MDC - 1, etc.)
   const [bucketSubjectOverrides, setBucketSubjectOverrides] = useState({}); // { [bucketName]: string[] }
-  const [editingBucket, setEditingBucket] = useState(null); // 'DSC - 1' | 'DSC - 2' | 'DSC - 3' etc.
+  const [editingBucket, setEditingBucket] = useState(null); // 'DSC - 1' | 'DSC - 2' | 'VAC - 1' etc.
+  const [editingBucketGroup, setEditingBucketGroup] = useState(''); // Parent group of editing bucket
   const [bucketModalSearch, setBucketModalSearch] = useState('');
 
   const setStatus = (msg, type = 'info') => {
@@ -186,49 +159,35 @@ export default function CourseMasterImportPage() {
     return isNaN(num) ? 0 : num;
   };
 
-  // Extract all unique group names, subjects, and Major/Minor discipline subjects dynamically
-  const { detectedGroups, uniqueSubjects, dscSubjects } = useMemo(() => {
-    if (!rawRows.length) return { detectedGroups: [], uniqueSubjects: [], dscSubjects: [] };
+  // Extract all unique group names, subjects, and group-to-subjects map dynamically from uploaded file
+  const { detectedGroups, uniqueSubjects, groupToSubjectsMap } = useMemo(() => {
+    if (!rawRows.length) return { detectedGroups: [], uniqueSubjects: [], groupToSubjectsMap: {} };
     const groups = new Set();
     const subjects = new Set();
-    const dscSet = new Set();
+    const map = {};
 
     rawRows.forEach(row => {
       const g = getCell(row, 'Group Name', 'groupname', 'group', 'parentgroup').trim().toUpperCase();
       const s = getCell(row, 'Subject', 'subject').trim();
-      if (g) groups.add(g);
-      if (s) {
-        subjects.add(s);
-        if (g.includes('DSC') || g.includes('MAJOR') || g.includes('CORE') || g.includes('DSE') || g.includes('MINOR')) {
-          dscSet.add(s);
-        }
+      if (g) {
+        groups.add(g);
+        if (!map[g]) map[g] = new Set();
+        if (s) map[g].add(s);
       }
+      if (s) subjects.add(s);
+    });
+
+    const finalMap = {};
+    Object.keys(map).forEach(k => {
+      finalMap[k] = Array.from(map[k]).sort();
     });
 
     return {
       detectedGroups: Array.from(groups).sort(),
       uniqueSubjects: Array.from(subjects).sort(),
-      dscSubjects: Array.from(dscSet.size > 0 ? dscSet : subjects).sort()
+      groupToSubjectsMap: finalMap
     };
   }, [rawRows, headerMap]);
-
-  // Set default designatedMajorGroup whenever detected groups change
-  useEffect(() => {
-    if (detectedGroups.length) {
-      if (!designatedMajorGroup || !detectedGroups.includes(designatedMajorGroup)) {
-        const found = detectedGroups.find(g => g.includes('MAJOR') || g.includes('DSC') || g.includes('CORE') || g.includes('DSE')) || detectedGroups[0];
-        setDesignatedMajorGroup(found);
-        setMajorBucketPrefix(`${found} - 1`);
-      }
-    }
-  }, [detectedGroups]);
-
-  // Set default selectedMajorSubject whenever subjects change
-  useEffect(() => {
-    if (uniqueSubjects.length && !selectedMajorSubject) {
-      setSelectedMajorSubject(uniqueSubjects[0]);
-    }
-  }, [uniqueSubjects]);
 
   // Synchronize dynamic group configurations whenever a new file is uploaded
   useEffect(() => {
@@ -252,25 +211,23 @@ export default function CourseMasterImportPage() {
     if (presetKey === 'fyugp_dot') {
       setUseDuplication(true);
       detectedGroups.forEach(g => {
-        if (g.includes('DSC') || g.includes('MAJOR')) {
+        if (g.includes('DSC') || g.includes('MAJOR') || g.includes('CORE') || g.includes('DSE')) {
           next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
-        } else if (g.includes('MDC') || g.includes('VAC') || g.includes('SEC') || g.includes('AEC')) {
-          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
         } else {
-          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 0, maxMarks: 0, maxCourses: 1, minCourses: 1 };
+          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
         }
       });
       setGroupConfigs(next);
-      setStatus('Applied: FYUGP Standard ({Group} - {Subject} & . for DSC, Single for others)', 'success');
+      setStatus('Applied: Standard Pattern ({Group} - {Subject} & . for DSC/Major, Single for others)', 'success');
     } else if (presetKey === 'numbered_series') {
       setUseDuplication(true);
       detectedGroups.forEach(g => {
         next[g] = {
-          pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
+          pattern: (g.includes('DSC') || g.includes('MAJOR')) ? 'group_subject' : 'group_only',
           copies: 2,
           suffixStr: ' 1,  2',
-          maxCredits: g.includes('DSC') ? 4 : (g.includes('MDC') || g.includes('VAC')) ? 3 : 0,
-          maxMarks: g.includes('DSC') ? 100 : (g.includes('MDC') || g.includes('VAC')) ? 75 : 0,
+          maxCredits: (g.includes('DSC') || g.includes('MAJOR')) ? 4 : 3,
+          maxMarks: (g.includes('DSC') || g.includes('MAJOR')) ? 100 : 75,
           maxCourses: 1,
           minCourses: 1
         };
@@ -283,20 +240,20 @@ export default function CourseMasterImportPage() {
         if (g.includes('DSC') || g.includes('MAJOR')) {
           next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
         } else {
-          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: (g.includes('MDC') || g.includes('VAC')) ? 3 : 0, maxMarks: (g.includes('MDC') || g.includes('VAC')) ? 75 : 0, maxCourses: 1, minCourses: 1 };
+          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
         }
       });
       setGroupConfigs(next);
-      setStatus('Applied: Major/Minor Multipliers (M1, M2)', 'success');
+      setStatus('Applied: Multipliers (M1, M2)', 'success');
     } else if (presetKey === 'clean_single') {
       setUseDuplication(false);
       detectedGroups.forEach(g => {
         next[g] = {
-          pattern: g.includes('DSC') ? 'group_subject' : 'group_only',
+          pattern: (g.includes('DSC') || g.includes('MAJOR')) ? 'group_subject' : 'group_only',
           copies: 1,
           suffixStr: '',
-          maxCredits: g.includes('DSC') ? 4 : (g.includes('MDC') || g.includes('VAC')) ? 3 : 0,
-          maxMarks: g.includes('DSC') ? 100 : (g.includes('MDC') || g.includes('VAC')) ? 75 : 0,
+          maxCredits: (g.includes('DSC') || g.includes('MAJOR')) ? 4 : 3,
+          maxMarks: (g.includes('DSC') || g.includes('MAJOR')) ? 100 : 75,
           maxCourses: 1,
           minCourses: 1
         };
@@ -347,19 +304,22 @@ export default function CourseMasterImportPage() {
   };
 
   // Helper to resolve assigned subjects for any bucket
-  const getAssignedSubjectsForBucket = (bucketName, majorSubj) => {
+  const getAssignedSubjectsForBucket = (bucketName, gKey, currentSubjectContext = null) => {
     if (bucketSubjectOverrides[bucketName]) {
       return bucketSubjectOverrides[bucketName];
     }
-    if (bucketName === majorBucketPrefix || bucketName === 'DSC - 1') {
-      return majorSubj ? [majorSubj] : [];
+    const allGroupSubjs = groupToSubjectsMap[gKey] || uniqueSubjects;
+    const activeSubj = currentSubjectContext || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : allGroupSubjs[0]);
+
+    if (bucketName.endsWith('- 1')) {
+      return activeSubj ? [activeSubj] : (allGroupSubjs.slice(0, 1));
     }
-    // Default for Minor pools: all DSC subjects except the Major subject
-    return dscSubjects.filter(s => s.toLowerCase() !== (majorSubj || '').toLowerCase());
+    // For buckets - 2, - 3 etc., default to all other subjects in this group
+    return allGroupSubjs.filter(s => s.toLowerCase() !== (activeSubj || '').toLowerCase());
   };
 
-  const toggleSubjectInBucket = (bucketName, subj) => {
-    const current = getAssignedSubjectsForBucket(bucketName, selectedMajorSubject);
+  const toggleSubjectInBucket = (bucketName, subj, gKey) => {
+    const current = getAssignedSubjectsForBucket(bucketName, gKey);
     let next;
     if (current.includes(subj)) {
       next = current.filter(s => s !== subj);
@@ -372,10 +332,11 @@ export default function CourseMasterImportPage() {
     }));
   };
 
-  const selectAllForBucket = (bucketName) => {
+  const selectAllForBucket = (bucketName, gKey) => {
+    const allSubjs = groupToSubjectsMap[gKey] || uniqueSubjects;
     setBucketSubjectOverrides(prev => ({
       ...prev,
-      [bucketName]: [...dscSubjects]
+      [bucketName]: [...allSubjs]
     }));
   };
 
@@ -433,7 +394,6 @@ export default function CourseMasterImportPage() {
         combinations.push(['', '']);
       }
 
-      // Fetch user custom configuration for this dynamically detected group
       const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
       const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
       const suffixList = useDuplication ? getSuffixList(cfg, copies) : [''];
@@ -534,11 +494,9 @@ export default function CourseMasterImportPage() {
   };
 
   // 2. GROUP MASTER HIERARCHY TRANSFORMATION PIPELINE (10 COLUMNS)
-  // Directly connected to user duplication configuration and custom bucket subject assignments!
+  // Completely generic from source file group names (DSC - 1, DSC - 2, VAC - 1, MDC - 1, etc.)
   const generateGroupMasterRows = (forSubject = null) => {
     if (!rawRows.length) return [];
-    
-    const majorSubject = forSubject || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : (selectedMajorSubject || uniqueSubjects[0])) || 'General';
     const result = [];
 
     const addRow = (parent, sub, maxM = 100, minM = 0, maxC = 4, minC = 0, maxSub = 1, minSub = 1) => {
@@ -556,47 +514,29 @@ export default function CourseMasterImportPage() {
       });
     };
 
-    // 1. Process Major & Minor Hierarchy dynamically
-    const majorGroupKey = designatedMajorGroup || detectedGroups.find(g => g.includes('MAJOR') || g.includes('DSC') || g.includes('CORE') || g.includes('DSE')) || detectedGroups[0] || 'DSC';
-    const majorGroupCfg = groupConfigs[majorGroupKey] || createDefaultConfigForGroup(majorGroupKey);
-    const copies = useDuplication ? Math.max(1, Number(majorGroupCfg.copies) || 1) : 1;
-    const suffixes = useDuplication ? getSuffixList(majorGroupCfg, copies) : [''];
-
-    // Top Level -> Major Bucket ({MajorGroup} -> {MajorBucketPrefix})
-    const majorBucket = majorBucketPrefix || `${majorGroupKey} - 1`;
-    addRow(majorGroupKey, majorBucket, majorGroupCfg.maxMarks, 0, majorGroupCfg.maxCredits, 0);
-
-    // Get subjects specifically assigned to Major Bucket
-    const assignedMajorSubjects = getAssignedSubjectsForBucket(majorBucket, majorSubject);
-    assignedMajorSubjects.forEach(mSub => {
-      addRow(majorBucket, `${majorGroupKey} - ${mSub}`, majorGroupCfg.maxMarks, 0, majorGroupCfg.maxCredits, 0);
-    });
-
-    // Each Minor Repetition Pool ({MajorGroup} -> {MajorGroup} - 2 -> Minor Subjects, etc.)
-    for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
-      const bucketNum = copyIdx + 2; // e.g. Major - 2, Major - 3 or DSC - 2, DSC - 3...
-      const bucketName = `${majorGroupKey} - ${bucketNum}`;
-      const sfx = suffixes[copyIdx] || '';
-
-      addRow(majorGroupKey, bucketName, majorGroupCfg.maxMarks, 0, majorGroupCfg.maxCredits, 0);
-      
-      const assignedMinorSubjects = getAssignedSubjectsForBucket(bucketName, majorSubject);
-      assignedMinorSubjects.forEach(mSub => {
-        addRow(bucketName, `${majorGroupKey} - ${mSub}${sfx}`, majorGroupCfg.maxMarks, 0, majorGroupCfg.maxCredits, 0);
-      });
-    }
-
-    // 2. Process other elective & general groups (MDC, VAC, SEC, AEC, Minor, OE, IDC, etc.)
     detectedGroups.forEach(gKey => {
-      if (gKey === majorGroupKey) return;
       const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
-      const otherCopies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
-      const otherSuffixes = useDuplication ? getSuffixList(cfg, otherCopies) : [''];
+      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
+      const suffixes = useDuplication ? getSuffixList(cfg, copies) : [''];
 
-      for (let i = 0; i < otherCopies; i++) {
-        const sfx = otherSuffixes[i] || '';
-        const subName = cfg.pattern === 'group_subject' ? `${gKey} - ${majorSubject}${sfx}` : `${gKey}${sfx}`;
-        addRow(gKey, subName, cfg.maxMarks, 0, cfg.maxCredits, 0);
+      if (copies === 1 && cfg.pattern === 'group_only') {
+        addRow(gKey, gKey, cfg.maxMarks, 0, cfg.maxCredits, 0);
+      } else {
+        for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
+          const bucketName = `${gKey} - ${copyIdx + 1}`;
+          const sfx = suffixes[copyIdx] || '';
+
+          addRow(gKey, bucketName, cfg.maxMarks, 0, cfg.maxCredits, 0);
+
+          if (cfg.pattern === 'group_subject') {
+            const assignedSubjects = getAssignedSubjectsForBucket(bucketName, gKey, forSubject);
+            assignedSubjects.forEach(s => {
+              addRow(bucketName, `${gKey} - ${s}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+            });
+          } else {
+            addRow(bucketName, `${gKey}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+          }
+        }
       }
     });
 
@@ -608,7 +548,7 @@ export default function CourseMasterImportPage() {
     if (!file) return;
     setSourceFile(file);
     setIsProcessing(true);
-    setStatus('Reading and detecting Group Names from spreadsheet...', 'info');
+    setStatus('Reading and extracting Group Names from spreadsheet...', 'info');
 
     try {
       const buffer = await file.arrayBuffer();
@@ -646,7 +586,7 @@ export default function CourseMasterImportPage() {
       setGroupConfigs(initialConfigs);
       setBucketSubjectOverrides({}); // Reset overrides on new upload
 
-      setStatus(`Detected ${groupArray.length} unique Group Name(s) (${groupArray.join(', ')}) across ${parsed.length} rows!`, 'success');
+      setStatus(`Detected ${groupArray.length} unique Group(s): [${groupArray.join(', ')}] across ${parsed.length} rows!`, 'success');
     } catch (err) {
       console.error('Course Master Ingestion Error:', err);
       setStatus(`Upload failed: ${err.message}`, 'error');
@@ -728,7 +668,7 @@ export default function CourseMasterImportPage() {
           const rows = generateGroupMasterRows(subj);
           const aoa = [GROUP_MASTER_HEADERS, ...rows.map(r => GROUP_MASTER_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
           const wb = XLSX.utils.book_new();
-          const ws = XLSX.utils.aoa_to_sheet(groupAoa, { dense: true });
+          const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
           ws['!cols'] = GROUP_MASTER_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
           XLSX.utils.book_append_sheet(wb, ws, subj.slice(0, 30));
           const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -746,7 +686,7 @@ export default function CourseMasterImportPage() {
         setStatus(`Exported Group Master ZIP!`, 'success');
 
       } else if (exportMode === 'combined_groups') {
-        const targetSubj = selectedSubjectFilter === 'ALL' ? (selectedMajorSubject || uniqueSubjects[0]) : selectedSubjectFilter;
+        const targetSubj = selectedSubjectFilter === 'ALL' ? uniqueSubjects[0] : selectedSubjectFilter;
         const rows = generateGroupMasterRows(targetSubj);
         const aoa = [GROUP_MASTER_HEADERS, ...rows.map(r => GROUP_MASTER_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
         const wb = XLSX.utils.book_new();
@@ -860,33 +800,33 @@ export default function CourseMasterImportPage() {
         String(r.ImmidiateParentGroup || '').toLowerCase().includes(q)
       );
     }
-  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, selectedMajorSubject, majorBucketPrefix, designatedMajorGroup, bucketSubjectOverrides]);
+  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, bucketSubjectOverrides]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
     return previewRows.slice(start, start + pageSize);
   }, [previewRows, page]);
 
-  // Derive active buckets list for Group Master hierarchy
+  // Derive active buckets dynamically across all groups
   const activeBuckets = useMemo(() => {
-    const majorGroupKey = designatedMajorGroup || detectedGroups.find(g => g.includes('MAJOR') || g.includes('DSC') || g.includes('CORE') || g.includes('DSE')) || detectedGroups[0] || 'DSC';
-    const majorCfg = groupConfigs[majorGroupKey] || createDefaultConfigForGroup(majorGroupKey);
-    const copies = useDuplication ? Math.max(1, Number(majorCfg.copies) || 1) : 1;
+    const list = [];
+    detectedGroups.forEach(gKey => {
+      const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
+      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
 
-    const list = [
-      { name: majorBucketPrefix || `${majorGroupKey} - 1`, type: `Major Discipline Bucket`, defaultRole: 'Major' }
-    ];
-
-    for (let i = 0; i < copies; i++) {
-      list.push({
-        name: `${majorGroupKey} - ${i + 2}`,
-        type: `Minor Pool ${i + 1}`,
-        defaultRole: `Minor Pool ${i + 1}`
-      });
-    }
-
+      if (copies > 1 || cfg.pattern === 'group_subject') {
+        for (let i = 0; i < copies; i++) {
+          list.push({
+            name: `${gKey} - ${i + 1}`,
+            group: gKey,
+            copyIdx: i,
+            pattern: cfg.pattern
+          });
+        }
+      }
+    });
     return list;
-  }, [detectedGroups, groupConfigs, useDuplication, majorBucketPrefix, designatedMajorGroup]);
+  }, [detectedGroups, groupConfigs, useDuplication]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', background: 'var(--bg)', color: 'var(--ink)' }}>
@@ -924,7 +864,7 @@ export default function CourseMasterImportPage() {
                   <ListFilter size={18} color="var(--accent)" /> Assign Subjects to: <span style={{ color: 'var(--accent)' }}>{editingBucket}</span>
                 </h3>
                 <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                  Selected {getAssignedSubjectsForBucket(editingBucket, selectedMajorSubject).length} of {dscSubjects.length} available DSC subjects
+                  Selected {getAssignedSubjectsForBucket(editingBucket, editingBucketGroup).length} of {(groupToSubjectsMap[editingBucketGroup] || uniqueSubjects).length} subjects available in group [{editingBucketGroup}]
                 </span>
               </div>
               <button 
@@ -951,7 +891,7 @@ export default function CourseMasterImportPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '6px' }}>
-                <button type="button" className="secondary" onClick={() => selectAllForBucket(editingBucket)} style={{ fontSize: '11px', padding: '4px 8px' }}>
+                <button type="button" className="secondary" onClick={() => selectAllForBucket(editingBucket, editingBucketGroup)} style={{ fontSize: '11px', padding: '4px 8px' }}>
                   Select All
                 </button>
                 <button type="button" className="secondary" onClick={() => clearAllForBucket(editingBucket)} style={{ fontSize: '11px', padding: '4px 8px' }}>
@@ -965,11 +905,10 @@ export default function CourseMasterImportPage() {
 
             {/* Modal Subject Checkboxes Grid */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              {dscSubjects
+              {(groupToSubjectsMap[editingBucketGroup] || uniqueSubjects)
                 .filter(s => !bucketModalSearch || s.toLowerCase().includes(bucketModalSearch.toLowerCase()))
                 .map(subj => {
-                  const isAssigned = getAssignedSubjectsForBucket(editingBucket, selectedMajorSubject).includes(subj);
-                  const isCurrentMajor = subj.toLowerCase() === (selectedMajorSubject || '').toLowerCase();
+                  const isAssigned = getAssignedSubjectsForBucket(editingBucket, editingBucketGroup).includes(subj);
                   return (
                     <label 
                       key={subj} 
@@ -989,16 +928,11 @@ export default function CourseMasterImportPage() {
                       <input 
                         type="checkbox" 
                         checked={isAssigned} 
-                        onChange={() => toggleSubjectInBucket(editingBucket, subj)} 
+                        onChange={() => toggleSubjectInBucket(editingBucket, subj, editingBucketGroup)} 
                       />
                       <span style={{ flex: 1, color: 'var(--ink)', fontWeight: isAssigned ? 600 : 400 }}>
                         {subj}
                       </span>
-                      {isCurrentMajor && (
-                        <span style={{ fontSize: '9.5px', background: 'var(--accent)', color: 'white', padding: '1px 5px', borderRadius: '4px' }}>
-                          Major
-                        </span>
-                      )}
                     </label>
                   );
                 })}
@@ -1032,7 +966,7 @@ export default function CourseMasterImportPage() {
           <h2 style={{ fontSize: '16px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <BookOpen size={18} color="var(--accent)" /> Course & Group Master Engine
             <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
-              {useDuplication ? '✨ Duplication Linked' : '📄 Single Mode'}
+              {useDuplication ? '✨ Duplication Active' : '📄 Single Mode'}
             </span>
           </h2>
         </div>
@@ -1084,7 +1018,7 @@ export default function CourseMasterImportPage() {
             <label htmlFor="courseMasterFileInput" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={26} color="var(--accent)" />
               <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>Upload Course Master Sheet</strong>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Extracts Course Codes, Groups, and generates Group Master</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Extracts Group Names from file and dynamically creates buckets</span>
             </label>
           </div>
 
@@ -1107,7 +1041,7 @@ export default function CourseMasterImportPage() {
             </div>
 
             <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--muted)' }}>
-              Controls both <strong>Course Master</strong> cloned aliases and <strong>Group Master</strong> hierarchy pools (DSC - 2, DSC - 3...):
+              Controls repetition copies and group buckets (e.g. <code>DSC - 1, DSC - 2, VAC - 1, VAC - 2, MDC - 1, MDC - 2</code>):
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1129,14 +1063,14 @@ export default function CourseMasterImportPage() {
                   checked={useDuplication} 
                   onChange={() => {
                     setUseDuplication(true);
-                    setStatus('Duplication enabled: Generating multi-choice copies, suffix aliases & hierarchy pools.', 'info');
+                    setStatus('Duplication enabled: Generating multiple group buckets and repetition copies.', 'info');
                   }} 
                   style={{ marginTop: '2px' }}
                 />
                 <div>
-                  <strong style={{ display: 'block', color: 'var(--ink)' }}>✨ With Duplication (Recommended)</strong>
+                  <strong style={{ display: 'block', color: 'var(--ink)' }}>✨ With Duplication (Default)</strong>
                   <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>
-                    Generates multiple repetition copies & links Group Master Minor Pools (DSC - 2, DSC - 3 with custom suffixes).
+                    Generates multiple repetition copies (e.g. DSC - 1, DSC - 2, DSC - 3, VAC - 1, VAC - 2).
                   </span>
                 </div>
               </label>
@@ -1164,79 +1098,31 @@ export default function CourseMasterImportPage() {
                   style={{ marginTop: '2px' }}
                 />
                 <div>
-                  <strong style={{ display: 'block', color: 'var(--ink)' }}>📄 Without Duplication (Clean Single Master)</strong>
+                  <strong style={{ display: 'block', color: 'var(--ink)' }}>📄 Without Duplication (Single Mode)</strong>
                   <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>
-                    Single row per course and single Minor pool without duplicate period/number aliases.
+                    Single copy per course and clean single group entries without numbered repetition buckets.
                   </span>
                 </div>
               </label>
             </div>
           </div>
 
-          {/* GROUP MASTER HIERARCHY & CUSTOM SUBJECT ASSIGNMENT CARD */}
-          <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                <GitFork size={15} color="var(--accent)" /> Group Master Hierarchy Config
-              </h3>
-            </div>
-
-            <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)', fontSize: '11px', color: 'var(--muted)' }}>
-              ℹ️ <strong>Semester Group Mapping</strong>: Designate which uploaded group represents the <strong>Major Discipline</strong>. Repetition copies will form the <strong>Minor Pools</strong>.
-            </div>
-
-            {/* Designated Major Group Selector */}
-            {detectedGroups.length > 0 && (
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '10.5px', fontWeight: 600 }}>🎓 Designated Major Discipline Group</label>
-                <select 
-                  value={designatedMajorGroup} 
-                  onChange={(e) => {
-                    setDesignatedMajorGroup(e.target.value);
-                    setMajorBucketPrefix(`${e.target.value} - 1`);
-                  }}
-                  style={{ fontSize: '11.5px', padding: '4px 6px', width: '100%', borderRadius: '4px', border: '1px solid var(--line)', fontWeight: 600, color: 'var(--accent)' }}
-                >
-                  {detectedGroups.map(g => (
-                    <option key={g} value={g}>{g} (Major Discipline)</option>
-                  ))}
-                </select>
+          {/* GRANULAR BUCKET SUBJECT ASSIGNMENTS */}
+          {activeBuckets.length > 0 && (
+            <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                  <GitFork size={15} color="var(--accent)" /> Group Buckets & Subject Assignments
+                </h3>
               </div>
-            )}
 
-            {uniqueSubjects.length > 0 && (
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '10.5px', fontWeight: 600 }}>Default Major Subject (Assigned to {majorBucketPrefix})</label>
-                <select 
-                  value={selectedMajorSubject} 
-                  onChange={(e) => setSelectedMajorSubject(e.target.value)}
-                  style={{ fontSize: '11.5px', padding: '4px 6px', width: '100%', borderRadius: '4px', border: '1px solid var(--line)' }}
-                >
-                  {uniqueSubjects.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+              <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)', fontSize: '11px', color: 'var(--muted)' }}>
+                Customize which subjects are placed in each bucket (e.g. <code>DSC - 1, DSC - 2, VAC - 1, MDC - 1</code>):
               </div>
-            )}
 
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '10.5px' }}>Major Bucket Name</label>
-              <input 
-                type="text" 
-                value={majorBucketPrefix} 
-                onChange={(e) => setMajorBucketPrefix(e.target.value)}
-                style={{ fontSize: '11px', padding: '3px 6px', width: '100%' }}
-              />
-            </div>
-
-            {/* Granular Bucket Subject Assignment List */}
-            {rawRows.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink)' }}>
-                  Granular Subject Assignments per Bucket:
-                </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {activeBuckets.map(b => {
-                  const assignedCount = getAssignedSubjectsForBucket(b.name, selectedMajorSubject).length;
+                  const assignedCount = getAssignedSubjectsForBucket(b.name, b.group).length;
                   const isCustom = !!bucketSubjectOverrides[b.name];
                   return (
                     <div 
@@ -1261,7 +1147,7 @@ export default function CourseMasterImportPage() {
                       <button 
                         type="button" 
                         className="secondary" 
-                        onClick={() => { setEditingBucket(b.name); setBucketModalSearch(''); }}
+                        onClick={() => { setEditingBucket(b.name); setEditingBucketGroup(b.group); setBucketModalSearch(''); }}
                         style={{ padding: '2px 6px', fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
                       >
                         <Edit3 size={11} /> Customize
@@ -1270,8 +1156,8 @@ export default function CourseMasterImportPage() {
                   );
                 })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Quick Presets Bar (Active only when groups detected) */}
           {detectedGroups.length > 0 && (
@@ -1300,7 +1186,7 @@ export default function CourseMasterImportPage() {
           <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                <Sliders size={15} color="var(--accent)" /> Detected Group Rules
+                <Sliders size={15} color="var(--accent)" /> Detected Groups from Source
               </h3>
               <button 
                 type="button" 
@@ -1332,7 +1218,7 @@ export default function CourseMasterImportPage() {
             {detectedGroups.length === 0 && Object.keys(groupConfigs).length === 0 ? (
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: '6px', border: '1px dashed var(--line)', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
                 <FileCheck size={24} style={{ opacity: 0.4, margin: '0 auto 6px' }} />
-                <span>Upload an Excel spreadsheet to automatically extract Group Names (e.g. DSC, MDC, SEC, VAC) from the source file.</span>
+                <span>Upload an Excel spreadsheet to automatically extract Group Names from the source file.</span>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1703,7 +1589,7 @@ export default function CourseMasterImportPage() {
           {rawRows.length > 0 && (
             <div style={{ padding: '8px 16px', background: 'var(--bg)', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
               <span>Showing {pagedRows.length} of {previewRows.length} rows • View: <strong>{activeView === 'group_master' ? 'Group Master (10 cols)' : 'Course Master (37 cols)'}</strong></span>
-              <span>Hierarchy, duplication rules, and custom subject assignments synchronized</span>
+              <span>Dynamic group buckets and subject assignments synchronized</span>
             </div>
           )}
 
