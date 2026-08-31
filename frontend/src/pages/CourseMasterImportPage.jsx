@@ -1261,11 +1261,158 @@ export default function CourseMasterImportPage() {
             </div>
           </div>
 
-          {/* FULLY CUSTOMIZABLE GROUP & SUBGROUP MANAGER */}
+          {/* COURSE MASTER: GROUP RULES & IMMIDIATEPARENTGROUP GENERATOR */}
           <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                <GitFork size={15} color="var(--accent)" /> Group & Sub-Group Manager
+                <Sliders size={15} color="var(--accent)" /> Course Master: ImmidiateParentGroup Rules
+              </h3>
+              <button 
+                type="button" 
+                className="secondary" 
+                onClick={() => setShowAddGroupInput(!showAddGroupInput)}
+                style={{ padding: '2px 6px', fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Plus size={11} /> Add Group
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)' }}>
+              Controls the naming pattern of <code>ImmidiateParentGroup</code> (Col 2 in Course Master):
+            </p>
+
+            {/* Quick Presets Bar */}
+            {detectedGroups.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
+                <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Sparkles size={13} color="var(--accent)" /> Quick ImmidiateParentGroup Presets
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                  <button type="button" className="secondary" onClick={() => applyPreset('fyugp_dot')} style={{ fontSize: '10.5px', padding: '4px 6px', textAlign: 'left' }}>
+                    ⚡ Subj & Dot (DSC - Subj / .)
+                  </button>
+                  <button type="button" className="secondary" onClick={() => applyPreset('numbered_series')} style={{ fontSize: '10.5px', padding: '4px 6px', textAlign: 'left' }}>
+                    ⚡ Numbers (1, 2)
+                  </button>
+                  <button type="button" className="secondary" onClick={() => applyPreset('major_minor')} style={{ fontSize: '10.5px', padding: '4px 6px', textAlign: 'left' }}>
+                    ⚡ Multipliers (M1, M2)
+                  </button>
+                  <button type="button" className="secondary" onClick={() => applyPreset('clean_single')} style={{ fontSize: '10.5px', padding: '4px 6px', textAlign: 'left' }}>
+                    ⚡ Single (No Duplication)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Optional Manual Add Group Input */}
+            {showAddGroupInput && (
+              <div style={{ display: 'flex', gap: '6px', padding: '6px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
+                <input 
+                  type="text" 
+                  placeholder="e.g. DSE or AEC" 
+                  value={customGroupInput} 
+                  onChange={(e) => setCustomGroupInput(e.target.value)} 
+                  style={{ flex: 1, padding: '4px 6px', fontSize: '11.5px' }} 
+                />
+                <button type="button" onClick={handleAddCustomGroup} style={{ padding: '4px 8px', fontSize: '11px' }}>
+                  Add
+                </button>
+              </div>
+            )}
+
+            {/* Detected Group Rules List */}
+            {detectedGroups.length === 0 && Object.keys(groupConfigs).length === 0 ? (
+              <div style={{ padding: '12px', background: 'var(--bg)', borderRadius: '6px', border: '1px dashed var(--line)', textAlign: 'center', color: 'var(--muted)', fontSize: '11.5px' }}>
+                Upload an Excel sheet to extract Group Names from the source file.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {Object.keys(groupConfigs).map(groupKey => {
+                  const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
+                  return (
+                    <div 
+                      key={groupKey} 
+                      style={{ 
+                        padding: '8px 10px', 
+                        background: 'var(--bg)', 
+                        border: '1px solid var(--line)', 
+                        borderRadius: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '12px', color: 'var(--accent)' }}>Group: {groupKey}</strong>
+                        {useDuplication && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>Copies:</span>
+                            <input 
+                              type="number" 
+                              min={1} 
+                              max={10} 
+                              value={cfg.copies || 1} 
+                              onChange={(e) => updateGroupConfig(groupKey, 'copies', Math.max(1, parseInt(e.target.value, 10) || 1))}
+                              style={{ width: '42px', padding: '2px 4px', fontSize: '11px', textAlign: 'center' }} 
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: useDuplication ? '1.2fr 1.8fr' : '1fr', gap: '6px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label style={{ fontSize: '10px' }}>Pattern</label>
+                          <select 
+                            value={cfg.pattern || 'group_only'} 
+                            onChange={(e) => updateGroupConfig(groupKey, 'pattern', e.target.value)}
+                            style={{ fontSize: '11px', padding: '2px 4px' }}
+                          >
+                            <option value="group_subject">{groupKey} - Subject</option>
+                            <option value="group_only">{groupKey} Only</option>
+                          </select>
+                        </div>
+
+                        {useDuplication && (
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '10px' }}>Suffixes (comma-separated)</label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. , ." 
+                              value={cfg.suffixStr !== undefined ? cfg.suffixStr : ''} 
+                              onChange={(e) => updateGroupConfig(groupKey, 'suffixStr', e.target.value)}
+                              style={{ fontSize: '11px', padding: '2px 4px' }} 
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Live Preview of ImmidiateParentGroup */}
+                      <div style={{ fontSize: '10px', color: 'var(--muted)', background: 'var(--panel)', padding: '3px 6px', borderRadius: '4px' }}>
+                        ImmidiateParentGroup: {useDuplication ? (
+                          (cfg.suffixStr || '').split(',').map((s, idx) => (
+                            <span key={idx} style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                              {idx > 0 && ' | '}
+                              {cfg.pattern === 'group_subject' ? `${groupKey} - Subj${s.trim()}` : `${groupKey}${s.trim()}`}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                            {cfg.pattern === 'group_subject' ? `${groupKey} - Subj` : `${groupKey}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* GROUP MASTER (10 COLUMNS): FULLY CUSTOMIZABLE HIERARCHY MANAGER */}
+          <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                <GitFork size={15} color="var(--accent)" /> Group Master: Hierarchy Manager
               </h3>
               <div style={{ display: 'flex', gap: '4px' }}>
                 <button 
@@ -1286,6 +1433,10 @@ export default function CourseMasterImportPage() {
                 </button>
               </div>
             </div>
+
+            <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)' }}>
+              Controls <code>ParentGroupName</code> & <code>SubGroupName</code> (in 10-Col Group Master):
+            </p>
 
             {/* Quick Add Group Input Bar */}
             {showNewGroupModal && (
@@ -1318,13 +1469,13 @@ export default function CourseMasterImportPage() {
             {/* Group Hierarchy Tree */}
             {groupHierarchy.length === 0 ? (
               <div style={{ padding: '14px', background: 'var(--bg)', borderRadius: '6px', border: '1px dashed var(--line)', textAlign: 'center', color: 'var(--muted)', fontSize: '11.5px' }}>
-                <p style={{ margin: '0 0 8px 0' }}>No custom groups added yet (Started blank as requested).</p>
+                <p style={{ margin: '0 0 8px 0' }}>No custom hierarchy defined yet (Starts blank for custom selection).</p>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
                   <button type="button" className="secondary" onClick={() => autoPopulateHierarchy()} style={{ fontSize: '11px', padding: '4px 10px' }}>
                     ⚡ Quick Auto-Fill Standard Groups
                   </button>
                   <button type="button" onClick={() => setShowNewGroupModal(true)} style={{ fontSize: '11px', padding: '4px 10px' }}>
-                    <Plus size={12} style={{ display: 'inline', marginRight: '4px' }} /> Add Custom Group
+                    <Plus size={12} style={{ display: 'inline', marginRight: '4px' }} /> Add Group
                   </button>
                 </div>
               </div>
