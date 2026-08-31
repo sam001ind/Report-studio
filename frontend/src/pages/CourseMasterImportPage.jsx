@@ -1331,29 +1331,6 @@ export default function CourseMasterImportPage() {
               Controls the naming pattern of <code>ImmidiateParentGroup</code> (Col 2 in Course Master):
             </p>
 
-            {/* Quick Presets Bar */}
-            {detectedGroups.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
-                <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Sparkles size={13} color="var(--accent)" /> Quick ImmidiateParentGroup Presets
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                  <button type="button" className="secondary" onClick={() => applyPreset('fyugp_dot')} style={{ fontSize: '10.5px', padding: '4px 6px', textAlign: 'left' }}>
-                    ⚡ Subj & Dot (DSC - Subj / .)
-                  </button>
-                  <button type="button" className="secondary" onClick={() => applyPreset('numbered_series')} style={{ fontSize: '10.5px', padding: '4px 6px', textAlign: 'left' }}>
-                    ⚡ Numbers (1, 2)
-                  </button>
-                  <button type="button" className="secondary" onClick={() => applyPreset('major_minor')} style={{ fontSize: '10.5px', padding: '4px 6px', textAlign: 'left' }}>
-                    ⚡ Multipliers (M1, M2)
-                  </button>
-                  <button type="button" className="secondary" onClick={() => applyPreset('clean_single')} style={{ fontSize: '10.5px', padding: '4px 6px', textAlign: 'left' }}>
-                    ⚡ Single (No Duplication)
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Optional Manual Add Group Input */}
             {showAddGroupInput && (
               <div style={{ display: 'flex', gap: '6px', padding: '6px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
