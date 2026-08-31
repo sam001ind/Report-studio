@@ -139,6 +139,7 @@ export default function CourseMasterImportPage() {
 
   // Group Master Specific Settings (Connected to duplication logic)
   const [customTermCode, setCustomTermCode] = useState('');
+  const [selectedMajorSubject, setSelectedMajorSubject] = useState('');
   const [groupMasterEvalSystem, setGroupMasterEvalSystem] = useState('Marks System');
   const [majorBucketPrefix, setMajorBucketPrefix] = useState('DSC - 1');
 
@@ -187,12 +188,12 @@ export default function CourseMasterImportPage() {
     };
   }, [rawRows, headerMap]);
 
-  // Set default term code if detected
+  // Set default selectedMajorSubject whenever subjects change
   useEffect(() => {
-    if (detectedTermCode && !customTermCode) {
-      setCustomTermCode(detectedTermCode);
+    if (uniqueSubjects.length && !selectedMajorSubject) {
+      setSelectedMajorSubject(uniqueSubjects[0]);
     }
-  }, [detectedTermCode]);
+  }, [uniqueSubjects]);
 
   // Synchronize dynamic group configurations whenever a new file is uploaded
   useEffect(() => {
@@ -458,7 +459,7 @@ export default function CourseMasterImportPage() {
     if (!rawRows.length) return [];
     
     // Resolve primary major subject
-    const majorSubject = forSubject || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : uniqueSubjects[0]) || 'General';
+    const majorSubject = forSubject || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : (selectedMajorSubject || uniqueSubjects[0])) || 'General';
 
     // Extract subjects specifically belonging to DSC
     const dscRows = rawRows.filter(r => {
@@ -974,6 +975,21 @@ export default function CourseMasterImportPage() {
             <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)', fontSize: '11px', color: 'var(--muted)' }}>
               ℹ️ <strong>UniqueProgramTermCode</strong> is kept completely blank in both Course and Group Master files.
             </div>
+
+            {uniqueSubjects.length > 0 && (
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '10.5px', fontWeight: 600 }}>Major Subject (Assigned to {majorBucketPrefix})</label>
+                <select 
+                  value={selectedMajorSubject} 
+                  onChange={(e) => setSelectedMajorSubject(e.target.value)}
+                  style={{ fontSize: '11.5px', padding: '4px 6px', width: '100%', borderRadius: '4px', border: '1px solid var(--line)' }}
+                >
+                  {uniqueSubjects.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <div className="form-group" style={{ margin: 0 }}>
