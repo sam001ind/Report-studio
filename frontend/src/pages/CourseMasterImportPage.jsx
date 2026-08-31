@@ -29,7 +29,9 @@ import {
   TableProperties,
   Edit3,
   X,
-  ListFilter
+  ListFilter,
+  FolderPlus,
+  Trash
 } from 'lucide-react';
 
 const OUTPUT_HEADERS = [
@@ -91,9 +93,9 @@ const createDefaultConfigForGroup = (groupKey) => {
   const upper = String(groupKey || '').toUpperCase().trim();
   if (upper.includes('DSC') || upper.includes('MAJOR') || upper.includes('CORE') || upper.includes('DSE')) {
     return {
-      pattern: 'group_subject', // {Group} - {Subject}
+      pattern: 'group_subject',
       copies: 2,
-      suffixStr: ', .', // Default suffixes for repetition 1 & 2
+      suffixStr: ', .',
       maxCredits: 4,
       maxMarks: 100,
       maxCourses: 1,
@@ -101,7 +103,7 @@ const createDefaultConfigForGroup = (groupKey) => {
     };
   } else {
     return {
-      pattern: 'group_only', // {Group} Only
+      pattern: 'group_only',
       copies: 1,
       suffixStr: '',
       maxCredits: 3,
@@ -118,10 +120,10 @@ export default function CourseMasterImportPage() {
   const [headerMap, setHeaderMap] = useState({});
   const [activeView, setActiveView] = useState('course_master'); // 'course_master' | 'group_master'
   const [useDuplication, setUseDuplication] = useState(true); // MASTER DUPLICATION TOGGLE
-  const [groupConfigs, setGroupConfigs] = useState({}); // Dynamically populated from uploaded file
+  const [groupConfigs, setGroupConfigs] = useState({});
   const [customGroupInput, setCustomGroupInput] = useState('');
   const [showAddGroupInput, setShowAddGroupInput] = useState(false);
-  const [exportMode, setExportMode] = useState('zip_bundle'); // 'zip_bundle' | 'zip_courses' | 'zip_groups' | 'combined_courses' | 'combined_groups' | 'multitab'
+  const [exportMode, setExportMode] = useState('zip_bundle'); // 'zip_bundle' | 'zip_courses' | 'zip_groups' | 'combined_courses' | 'combined_groups'
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('ALL');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -131,11 +133,19 @@ export default function CourseMasterImportPage() {
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
-  // Custom Granular Subject Assignment per Group Bucket (DSC - 1, DSC - 2, VAC - 1, MDC - 1, etc.)
-  const [bucketSubjectOverrides, setBucketSubjectOverrides] = useState({}); // { [bucketName]: string[] }
-  const [editingBucket, setEditingBucket] = useState(null); // 'DSC - 1' | 'DSC - 2' | 'VAC - 1' etc.
-  const [editingBucketGroup, setEditingBucketGroup] = useState(''); // Parent group of editing bucket
-  const [bucketModalSearch, setBucketModalSearch] = useState('');
+  // Fully Customizable User-Controlled Group & Subgroup Hierarchy
+  // Format: [ { id, groupName, subGroups: [ { id, name, pattern, suffix, subjects: [] } ] } ]
+  const [groupHierarchy, setGroupHierarchy] = useState([]);
+  const [newGroupNameInput, setNewGroupNameInput] = useState('');
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [targetGroupIdForSubgroup, setTargetGroupIdForSubgroup] = useState(null);
+  const [newSubgroupNameInput, setNewSubgroupNameInput] = useState('');
+  const [newSubgroupPattern, setNewSubgroupPattern] = useState('group_subject');
+  const [newSubgroupSuffix, setNewSubgroupSuffix] = useState('');
+
+  // Subject Assignment Modal State
+  const [editingSubgroup, setEditingSubgroup] = useState(null); // { groupId, subGroupId, subGroupName, groupName }
+  const [subjectModalSearch, setSubjectModalSearch] = useState('');
 
   const setStatus = (msg, type = 'info') => {
     setStatusMsg(msg);
@@ -203,156 +213,166 @@ export default function CourseMasterImportPage() {
     });
   }, [detectedGroups]);
 
-  // Apply Quick Presets to all detected groups
-  const applyPreset = (presetKey) => {
+  // Helper to build default standard hierarchy automatically
+  const autoPopulateHierarchy = (targetSubj = null) => {
     if (!detectedGroups.length) return;
-    const next = { ...groupConfigs };
+    const activeSubj = targetSubj || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : uniqueSubjects[0]);
+    const nextHierarchy = [];
 
-    if (presetKey === 'fyugp_dot') {
-      setUseDuplication(true);
-      detectedGroups.forEach(g => {
-        if (g.includes('DSC') || g.includes('MAJOR') || g.includes('CORE') || g.includes('DSE')) {
-          next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
-        } else {
-          next[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
-        }
-      });
-      setGroupConfigs(next);
-      setStatus('Applied: Standard Pattern ({Group} - {Subject} & . for DSC/Major, Single for others)', 'success');
-    } else if (presetKey === 'numbered_series') {
-      setUseDuplication(true);
-      detectedGroups.forEach(g => {
-        next[g] = {
-          pattern: (g.includes('DSC') || g.includes('MAJOR')) ? 'group_subject' : 'group_only',
-          copies: 2,
-          suffixStr: ' 1,  2',
-          maxCredits: (g.includes('DSC') || g.includes('MAJOR')) ? 4 : 3,
-          maxMarks: (g.includes('DSC') || g.includes('MAJOR')) ? 100 : 75,
-          maxCourses: 1,
-          minCourses: 1
-        };
-      });
-      setGroupConfigs(next);
-      setStatus('Applied: Numbered Series (1, 2) across all groups', 'success');
-    } else if (presetKey === 'major_minor') {
-      setUseDuplication(true);
-      detectedGroups.forEach(g => {
-        if (g.includes('DSC') || g.includes('MAJOR')) {
-          next[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
-        } else {
-          next[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
-        }
-      });
-      setGroupConfigs(next);
-      setStatus('Applied: Multipliers (M1, M2)', 'success');
-    } else if (presetKey === 'clean_single') {
-      setUseDuplication(false);
-      detectedGroups.forEach(g => {
-        next[g] = {
-          pattern: (g.includes('DSC') || g.includes('MAJOR')) ? 'group_subject' : 'group_only',
-          copies: 1,
-          suffixStr: '',
-          maxCredits: (g.includes('DSC') || g.includes('MAJOR')) ? 4 : 3,
-          maxMarks: (g.includes('DSC') || g.includes('MAJOR')) ? 100 : 75,
-          maxCourses: 1,
-          minCourses: 1
-        };
-      });
-      setGroupConfigs(next);
-      setStatus('Applied: Clean Single Master (No Duplications)', 'success');
-    }
-  };
+    detectedGroups.forEach(gKey => {
+      const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
+      const subjsForThisGroup = groupToSubjectsMap[gKey] || uniqueSubjects;
+      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
+      const suffixes = useDuplication ? (cfg.suffixStr || '').split(',').map(s => s.trim()) : [''];
 
-  const updateGroupConfig = (group, field, value) => {
-    setGroupConfigs(prev => ({
-      ...prev,
-      [group]: {
-        ...(prev[group] || createDefaultConfigForGroup(group)),
-        [field]: value
-      }
-    }));
-  };
+      const subGroups = [];
 
-  const handleAddCustomGroup = () => {
-    const trimmed = customGroupInput.trim().toUpperCase();
-    if (!trimmed) return;
-    if (!groupConfigs[trimmed]) {
-      setGroupConfigs(prev => ({
-        ...prev,
-        [trimmed]: createDefaultConfigForGroup(trimmed)
-      }));
-      setStatus(`Added custom group rule for "${trimmed}"`, 'success');
-    }
-    setCustomGroupInput('');
-    setShowAddGroupInput(false);
-  };
-
-  // Helper to parse comma-separated suffixes into array matching copy count
-  const getSuffixList = (cfg, count) => {
-    const rawParts = (cfg?.suffixStr || '').split(',').map(s => s.trim());
-    const list = [];
-    for (let i = 0; i < count; i++) {
-      if (rawParts[i] !== undefined && rawParts[i] !== '') {
-        list.push(rawParts[i]);
-      } else if (i === 0) {
-        list.push('');
+      if (copies === 1 && cfg.pattern === 'group_only') {
+        subGroups.push({
+          id: `${gKey}_single`,
+          name: gKey,
+          pattern: 'group_only',
+          suffix: '',
+          subjects: []
+        });
       } else {
-        list.push(` ${i + 1}`);
+        // Bucket 1 (Primary / Target Subject)
+        subGroups.push({
+          id: `${gKey}_1`,
+          name: `${gKey} - 1`,
+          pattern: cfg.pattern,
+          suffix: suffixes[0] || '',
+          subjects: activeSubj ? [activeSubj] : (subjsForThisGroup.slice(0, 1))
+        });
+
+        // Repetition buckets (DSC - 2, DSC - 3, etc.)
+        for (let i = 1; i < (copies + 1); i++) {
+          const sfx = suffixes[i - 1] || '';
+          subGroups.push({
+            id: `${gKey}_${i + 1}`,
+            name: `${gKey} - ${i + 1}`,
+            pattern: cfg.pattern,
+            suffix: sfx,
+            subjects: subjsForThisGroup.filter(s => s.toLowerCase() !== (activeSubj || '').toLowerCase())
+          });
+        }
       }
-    }
-    return list;
-  };
 
-  // Helper to resolve assigned subjects for any bucket
-  const getAssignedSubjectsForBucket = (bucketName, gKey, currentSubjectContext = null) => {
-    if (bucketSubjectOverrides[bucketName]) {
-      return bucketSubjectOverrides[bucketName];
-    }
-    const allGroupSubjs = groupToSubjectsMap[gKey] || uniqueSubjects;
-    const activeSubj = currentSubjectContext || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : allGroupSubjs[0]);
-
-    if (bucketName.endsWith('- 1')) {
-      return activeSubj ? [activeSubj] : (allGroupSubjs.slice(0, 1));
-    }
-    // For buckets - 2, - 3 etc., default to all other subjects in this group
-    return allGroupSubjs.filter(s => s.toLowerCase() !== (activeSubj || '').toLowerCase());
-  };
-
-  const toggleSubjectInBucket = (bucketName, subj, gKey) => {
-    const current = getAssignedSubjectsForBucket(bucketName, gKey);
-    let next;
-    if (current.includes(subj)) {
-      next = current.filter(s => s !== subj);
-    } else {
-      next = [...current, subj];
-    }
-    setBucketSubjectOverrides(prev => ({
-      ...prev,
-      [bucketName]: next
-    }));
-  };
-
-  const selectAllForBucket = (bucketName, gKey) => {
-    const allSubjs = groupToSubjectsMap[gKey] || uniqueSubjects;
-    setBucketSubjectOverrides(prev => ({
-      ...prev,
-      [bucketName]: [...allSubjs]
-    }));
-  };
-
-  const clearAllForBucket = (bucketName) => {
-    setBucketSubjectOverrides(prev => ({
-      ...prev,
-      [bucketName]: []
-    }));
-  };
-
-  const resetBucketToDefault = (bucketName) => {
-    setBucketSubjectOverrides(prev => {
-      const next = { ...prev };
-      delete next[bucketName];
-      return next;
+      nextHierarchy.push({
+        id: `g_${gKey}`,
+        groupName: gKey,
+        subGroups
+      });
     });
+
+    setGroupHierarchy(nextHierarchy);
+    setStatus(`Auto-populated ${nextHierarchy.length} group(s) with buckets!`, 'success');
+  };
+
+  // Group Hierarchy Operations
+  const handleAddGroup = () => {
+    const trimmed = newGroupNameInput.trim().toUpperCase();
+    if (!trimmed) return;
+    if (groupHierarchy.some(g => g.groupName === trimmed)) {
+      alert(`Group "${trimmed}" already exists.`);
+      return;
+    }
+    setGroupHierarchy(prev => [
+      ...prev,
+      {
+        id: `g_${Date.now()}`,
+        groupName: trimmed,
+        subGroups: []
+      }
+    ]);
+    setNewGroupNameInput('');
+    setShowNewGroupModal(false);
+    setStatus(`Added group "${trimmed}"`, 'success');
+  };
+
+  const handleRemoveGroup = (groupId) => {
+    setGroupHierarchy(prev => prev.filter(g => g.id !== groupId));
+  };
+
+  const handleAddSubgroup = () => {
+    const trimmed = newSubgroupNameInput.trim();
+    if (!trimmed || !targetGroupIdForSubgroup) return;
+
+    setGroupHierarchy(prev => prev.map(g => {
+      if (g.id !== targetGroupIdForSubgroup) return g;
+      return {
+        ...g,
+        subGroups: [
+          ...g.subGroups,
+          {
+            id: `sg_${Date.now()}`,
+            name: trimmed,
+            pattern: newSubgroupPattern,
+            suffix: newSubgroupSuffix,
+            subjects: []
+          }
+        ]
+      };
+    }));
+
+    setNewSubgroupNameInput('');
+    setNewSubgroupSuffix('');
+    setTargetGroupIdForSubgroup(null);
+    setStatus(`Added sub-group "${trimmed}"`, 'success');
+  };
+
+  const handleRemoveSubgroup = (groupId, subGroupId) => {
+    setGroupHierarchy(prev => prev.map(g => {
+      if (g.id !== groupId) return g;
+      return {
+        ...g,
+        subGroups: g.subGroups.filter(sg => sg.id !== subGroupId)
+      };
+    }));
+  };
+
+  const toggleSubjectInSubgroup = (groupId, subGroupId, subj) => {
+    setGroupHierarchy(prev => prev.map(g => {
+      if (g.id !== groupId) return g;
+      return {
+        ...g,
+        subGroups: g.subGroups.map(sg => {
+          if (sg.id !== subGroupId) return sg;
+          const exists = (sg.subjects || []).includes(subj);
+          return {
+            ...sg,
+            subjects: exists ? sg.subjects.filter(s => s !== subj) : [...(sg.subjects || []), subj]
+          };
+        })
+      };
+    }));
+  };
+
+  const selectAllForSubgroup = (groupId, subGroupId, groupName) => {
+    const allSubjs = groupToSubjectsMap[groupName] || uniqueSubjects;
+    setGroupHierarchy(prev => prev.map(g => {
+      if (g.id !== groupId) return g;
+      return {
+        ...g,
+        subGroups: g.subGroups.map(sg => {
+          if (sg.id !== subGroupId) return sg;
+          return { ...sg, subjects: [...allSubjs] };
+        })
+      };
+    }));
+  };
+
+  const clearAllForSubgroup = (groupId, subGroupId) => {
+    setGroupHierarchy(prev => prev.map(g => {
+      if (g.id !== groupId) return g;
+      return {
+        ...g,
+        subGroups: g.subGroups.map(sg => {
+          if (sg.id !== subGroupId) return sg;
+          return { ...sg, subjects: [] };
+        })
+      };
+    }));
   };
 
   // 1. MASTER COURSE FILE TRANSFORMATION PIPELINE (37 COLUMNS)
@@ -396,7 +416,11 @@ export default function CourseMasterImportPage() {
 
       const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
       const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
-      const suffixList = useDuplication ? getSuffixList(cfg, copies) : [''];
+      const rawSuffixes = (cfg.suffixStr || '').split(',').map(s => s.trim());
+      const suffixList = [];
+      for (let i = 0; i < copies; i++) {
+        suffixList.push(rawSuffixes[i] !== undefined ? rawSuffixes[i] : (i === 0 ? '' : ` ${i + 1}`));
+      }
 
       combinations.forEach(([amMethod, atType]) => {
         const totalCredits = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
@@ -494,7 +518,7 @@ export default function CourseMasterImportPage() {
   };
 
   // 2. GROUP MASTER HIERARCHY TRANSFORMATION PIPELINE (10 COLUMNS)
-  // Completely generic from source file group names (DSC - 1, DSC - 2, VAC - 1, MDC - 1, etc.)
+  // Completely driven by user-defined groupHierarchy state or fallback to dynamic generation
   const generateGroupMasterRows = (forSubject = null) => {
     if (!rawRows.length) return [];
     const result = [];
@@ -514,31 +538,67 @@ export default function CourseMasterImportPage() {
       });
     };
 
-    detectedGroups.forEach(gKey => {
-      const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
-      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
-      const suffixes = useDuplication ? getSuffixList(cfg, copies) : [''];
+    if (groupHierarchy.length > 0) {
+      // Use user-curated groupHierarchy
+      groupHierarchy.forEach(g => {
+        if (!g.subGroups || g.subGroups.length === 0) {
+          addRow(g.groupName, g.groupName);
+        } else {
+          g.subGroups.forEach(sg => {
+            addRow(g.groupName, sg.name);
+            if (sg.pattern === 'group_subject') {
+              let subjectsToRender = sg.subjects || [];
+              if (forSubject) {
+                // If exporting for a specific subject
+                if (sg.name.endsWith('- 1')) {
+                  subjectsToRender = [forSubject];
+                } else {
+                  subjectsToRender = (groupToSubjectsMap[g.groupName] || uniqueSubjects).filter(s => s.toLowerCase() !== forSubject.toLowerCase());
+                }
+              }
+              subjectsToRender.forEach(subj => {
+                addRow(sg.name, `${g.groupName} - ${subj}${sg.suffix || ''}`);
+              });
+            } else {
+              addRow(sg.name, `${sg.name}${sg.suffix || ''}`);
+            }
+          });
+        }
+      });
+    } else {
+      // Fallback: build standard default structure dynamically
+      detectedGroups.forEach(gKey => {
+        const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
+        const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
+        const rawSuffixes = (cfg.suffixStr || '').split(',').map(s => s.trim());
+        const subjsForThisGroup = groupToSubjectsMap[gKey] || uniqueSubjects;
+        const activeSubj = forSubject || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : subjsForThisGroup[0]);
 
-      if (copies === 1 && cfg.pattern === 'group_only') {
-        addRow(gKey, gKey, cfg.maxMarks, 0, cfg.maxCredits, 0);
-      } else {
-        for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
-          const bucketName = `${gKey} - ${copyIdx + 1}`;
-          const sfx = suffixes[copyIdx] || '';
+        if (copies === 1 && cfg.pattern === 'group_only') {
+          addRow(gKey, gKey, cfg.maxMarks, 0, cfg.maxCredits, 0);
+        } else {
+          for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
+            const bucketName = `${gKey} - ${copyIdx + 1}`;
+            const sfx = rawSuffixes[copyIdx] || '';
+            addRow(gKey, bucketName, cfg.maxMarks, 0, cfg.maxCredits, 0);
 
-          addRow(gKey, bucketName, cfg.maxMarks, 0, cfg.maxCredits, 0);
-
-          if (cfg.pattern === 'group_subject') {
-            const assignedSubjects = getAssignedSubjectsForBucket(bucketName, gKey, forSubject);
-            assignedSubjects.forEach(s => {
-              addRow(bucketName, `${gKey} - ${s}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
-            });
-          } else {
-            addRow(bucketName, `${gKey}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+            if (cfg.pattern === 'group_subject') {
+              if (copyIdx === 0) {
+                if (activeSubj) addRow(bucketName, `${gKey} - ${activeSubj}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+              } else {
+                subjsForThisGroup
+                  .filter(s => s.toLowerCase() !== (activeSubj || '').toLowerCase())
+                  .forEach(s => {
+                    addRow(bucketName, `${gKey} - ${s}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+                  });
+              }
+            } else {
+              addRow(bucketName, `${gKey}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     return result;
   };
@@ -584,7 +644,7 @@ export default function CourseMasterImportPage() {
         initialConfigs[g] = createDefaultConfigForGroup(g);
       });
       setGroupConfigs(initialConfigs);
-      setBucketSubjectOverrides({}); // Reset overrides on new upload
+      setGroupHierarchy([]); // Keep it clean / blank as requested!
 
       setStatus(`Detected ${groupArray.length} unique Group(s): [${groupArray.join(', ')}] across ${parsed.length} rows!`, 'success');
     } catch (err) {
@@ -800,39 +860,18 @@ export default function CourseMasterImportPage() {
         String(r.ImmidiateParentGroup || '').toLowerCase().includes(q)
       );
     }
-  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, bucketSubjectOverrides]);
+  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, groupHierarchy]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
     return previewRows.slice(start, start + pageSize);
   }, [previewRows, page]);
 
-  // Derive active buckets dynamically across all groups
-  const activeBuckets = useMemo(() => {
-    const list = [];
-    detectedGroups.forEach(gKey => {
-      const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
-      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
-
-      if (copies > 1 || cfg.pattern === 'group_subject') {
-        for (let i = 0; i < copies; i++) {
-          list.push({
-            name: `${gKey} - ${i + 1}`,
-            group: gKey,
-            copyIdx: i,
-            pattern: cfg.pattern
-          });
-        }
-      }
-    });
-    return list;
-  }, [detectedGroups, groupConfigs, useDuplication]);
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', background: 'var(--bg)', color: 'var(--ink)' }}>
       
-      {/* Subject Assignment Modal for Group Buckets */}
-      {editingBucket && (
+      {/* Subject Assignment Modal for Sub-Groups */}
+      {editingSubgroup && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -861,16 +900,16 @@ export default function CourseMasterImportPage() {
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg)' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ListFilter size={18} color="var(--accent)" /> Assign Subjects to: <span style={{ color: 'var(--accent)' }}>{editingBucket}</span>
+                  <ListFilter size={18} color="var(--accent)" /> Assign Subjects to: <span style={{ color: 'var(--accent)' }}>{editingSubgroup.subGroupName}</span>
                 </h3>
                 <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                  Selected {getAssignedSubjectsForBucket(editingBucket, editingBucketGroup).length} of {(groupToSubjectsMap[editingBucketGroup] || uniqueSubjects).length} subjects available in group [{editingBucketGroup}]
+                  Group: <strong>{editingSubgroup.groupName}</strong> • Pick subjects to include in this bucket
                 </span>
               </div>
               <button 
                 type="button" 
                 className="secondary" 
-                onClick={() => setEditingBucket(null)} 
+                onClick={() => setEditingSubgroup(null)} 
                 style={{ padding: '4px 8px', borderRadius: '50%' }}
               >
                 <X size={16} />
@@ -883,32 +922,31 @@ export default function CourseMasterImportPage() {
                 <input 
                   type="text" 
                   placeholder="Search subjects..." 
-                  value={bucketModalSearch} 
-                  onChange={(e) => setBucketModalSearch(e.target.value)} 
+                  value={subjectModalSearch} 
+                  onChange={(e) => setSubjectModalSearch(e.target.value)} 
                   style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }} 
                 />
                 <Search size={13} color="var(--muted)" style={{ position: 'absolute', left: '8px', top: '7px' }} />
               </div>
 
               <div style={{ display: 'flex', gap: '6px' }}>
-                <button type="button" className="secondary" onClick={() => selectAllForBucket(editingBucket, editingBucketGroup)} style={{ fontSize: '11px', padding: '4px 8px' }}>
+                <button type="button" className="secondary" onClick={() => selectAllForSubgroup(editingSubgroup.groupId, editingSubgroup.subGroupId, editingSubgroup.groupName)} style={{ fontSize: '11px', padding: '4px 8px' }}>
                   Select All
                 </button>
-                <button type="button" className="secondary" onClick={() => clearAllForBucket(editingBucket)} style={{ fontSize: '11px', padding: '4px 8px' }}>
+                <button type="button" className="secondary" onClick={() => clearAllForSubgroup(editingSubgroup.groupId, editingSubgroup.subGroupId)} style={{ fontSize: '11px', padding: '4px 8px' }}>
                   Clear All
-                </button>
-                <button type="button" className="secondary" onClick={() => resetBucketToDefault(editingBucket)} style={{ fontSize: '11px', padding: '4px 8px', color: 'var(--muted)' }}>
-                  Reset Default
                 </button>
               </div>
             </div>
 
             {/* Modal Subject Checkboxes Grid */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              {(groupToSubjectsMap[editingBucketGroup] || uniqueSubjects)
-                .filter(s => !bucketModalSearch || s.toLowerCase().includes(bucketModalSearch.toLowerCase()))
+              {(groupToSubjectsMap[editingSubgroup.groupName] || uniqueSubjects)
+                .filter(s => !subjectModalSearch || s.toLowerCase().includes(subjectModalSearch.toLowerCase()))
                 .map(subj => {
-                  const isAssigned = getAssignedSubjectsForBucket(editingBucket, editingBucketGroup).includes(subj);
+                  const currGroup = groupHierarchy.find(g => g.id === editingSubgroup.groupId);
+                  const currSubgroup = currGroup?.subGroups?.find(sg => sg.id === editingSubgroup.subGroupId);
+                  const isAssigned = (currSubgroup?.subjects || []).includes(subj);
                   return (
                     <label 
                       key={subj} 
@@ -928,7 +966,7 @@ export default function CourseMasterImportPage() {
                       <input 
                         type="checkbox" 
                         checked={isAssigned} 
-                        onChange={() => toggleSubjectInBucket(editingBucket, subj, editingBucketGroup)} 
+                        onChange={() => toggleSubjectInSubgroup(editingSubgroup.groupId, editingSubgroup.subGroupId, subj)} 
                       />
                       <span style={{ flex: 1, color: 'var(--ink)', fontWeight: isAssigned ? 600 : 400 }}>
                         {subj}
@@ -941,11 +979,11 @@ export default function CourseMasterImportPage() {
             {/* Modal Footer */}
             <div style={{ padding: '12px 20px', borderTop: '1px solid var(--line)', background: 'var(--bg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                Changes are applied live to the Group Master Hierarchy table
+                Live updates reflected in Group Master table
               </span>
               <button 
                 type="button" 
-                onClick={() => setEditingBucket(null)}
+                onClick={() => setEditingSubgroup(null)}
                 style={{ padding: '6px 18px', fontSize: '12px' }}
               >
                 Done
@@ -1004,7 +1042,7 @@ export default function CourseMasterImportPage() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: '16px 24px', gap: '16px' }}>
         
         {/* Left Settings Sidebar */}
-        <aside style={{ width: '370px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
+        <aside style={{ width: '380px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
           
           {/* File Upload Dropzone */}
           <div className="card" style={{ padding: '16px', margin: 0, textAlign: 'center', border: '1.5px dashed var(--accent)', background: 'var(--accent-soft)' }}>
@@ -1018,7 +1056,7 @@ export default function CourseMasterImportPage() {
             <label htmlFor="courseMasterFileInput" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={26} color="var(--accent)" />
               <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>Upload Course Master Sheet</strong>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Extracts Group Names from file and dynamically creates buckets</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Extracts Group Names and lets you manage groups & buckets</span>
             </label>
           </div>
 
@@ -1107,73 +1145,263 @@ export default function CourseMasterImportPage() {
             </div>
           </div>
 
-          {/* GRANULAR BUCKET SUBJECT ASSIGNMENTS */}
-          {activeBuckets.length > 0 && (
-            <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                  <GitFork size={15} color="var(--accent)" /> Group Buckets & Subject Assignments
-                </h3>
-              </div>
-
-              <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)', fontSize: '11px', color: 'var(--muted)' }}>
-                Customize which subjects are placed in each bucket (e.g. <code>DSC - 1, DSC - 2, VAC - 1, MDC - 1</code>):
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {activeBuckets.map(b => {
-                  const assignedCount = getAssignedSubjectsForBucket(b.name, b.group).length;
-                  const isCustom = !!bucketSubjectOverrides[b.name];
-                  return (
-                    <div 
-                      key={b.name} 
-                      style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center', 
-                        padding: '6px 8px', 
-                        background: 'var(--bg)', 
-                        border: '1px solid var(--line)', 
-                        borderRadius: '6px',
-                        fontSize: '11px' 
-                      }}
-                    >
-                      <div>
-                        <strong style={{ color: 'var(--accent)' }}>{b.name}</strong>
-                        <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: '4px' }}>
-                          ({assignedCount} subjects {isCustom ? '• Custom' : '• Auto'})
-                        </span>
-                      </div>
-                      <button 
-                        type="button" 
-                        className="secondary" 
-                        onClick={() => { setEditingBucket(b.name); setEditingBucketGroup(b.group); setBucketModalSearch(''); }}
-                        style={{ padding: '2px 6px', fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <Edit3 size={11} /> Customize
-                      </button>
-                    </div>
-                  );
-                })}
+          {/* FULLY CUSTOMIZABLE GROUP & SUBGROUP MANAGER */}
+          <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                <GitFork size={15} color="var(--accent)" /> Group & Sub-Group Manager
+              </h3>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button 
+                  type="button" 
+                  className="secondary" 
+                  onClick={() => autoPopulateHierarchy()}
+                  style={{ padding: '2px 6px', fontSize: '10.5px', color: 'var(--accent)' }}
+                  title="Auto fill standard groups and buckets from uploaded file"
+                >
+                  ⚡ Auto-Fill
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowNewGroupModal(!showNewGroupModal)}
+                  style={{ padding: '2px 8px', fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <Plus size={11} /> Add Group
+                </button>
               </div>
             </div>
-          )}
+
+            {/* Quick Add Group Input Bar */}
+            {showNewGroupModal && (
+              <div style={{ display: 'flex', gap: '6px', padding: '8px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
+                {detectedGroups.length > 0 ? (
+                  <select 
+                    value={newGroupNameInput} 
+                    onChange={(e) => setNewGroupNameInput(e.target.value)}
+                    style={{ flex: 1, padding: '4px 6px', fontSize: '11.5px' }}
+                  >
+                    <option value="">-- Pick from Detected or Type --</option>
+                    {detectedGroups.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                ) : null}
+                <input 
+                  type="text" 
+                  placeholder="e.g. DSC, AEC, MDC" 
+                  value={newGroupNameInput} 
+                  onChange={(e) => setNewGroupNameInput(e.target.value)} 
+                  style={{ flex: 1, padding: '4px 6px', fontSize: '11.5px' }} 
+                />
+                <button type="button" onClick={handleAddGroup} style={{ padding: '4px 8px', fontSize: '11px' }}>
+                  Save
+                </button>
+              </div>
+            )}
+
+            {/* Group Hierarchy Tree */}
+            {groupHierarchy.length === 0 ? (
+              <div style={{ padding: '14px', background: 'var(--bg)', borderRadius: '6px', border: '1px dashed var(--line)', textAlign: 'center', color: 'var(--muted)', fontSize: '11.5px' }}>
+                <p style={{ margin: '0 0 8px 0' }}>No custom groups added yet (Started blank as requested).</p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                  <button type="button" className="secondary" onClick={() => autoPopulateHierarchy()} style={{ fontSize: '11px', padding: '4px 10px' }}>
+                    ⚡ Quick Auto-Fill Standard Groups
+                  </button>
+                  <button type="button" onClick={() => setShowNewGroupModal(true)} style={{ fontSize: '11px', padding: '4px 10px' }}>
+                    <Plus size={12} style={{ display: 'inline', marginRight: '4px' }} /> Add Custom Group
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    Configured {groupHierarchy.length} Group(s):
+                  </span>
+                  <button 
+                    type="button" 
+                    className="secondary" 
+                    onClick={() => setGroupHierarchy([])} 
+                    style={{ fontSize: '10px', padding: '2px 6px', color: 'var(--danger)' }}
+                  >
+                    Clear All
+                  </button>
+                </div>
+
+                {groupHierarchy.map(group => (
+                  <div 
+                    key={group.id} 
+                    style={{ 
+                      background: 'var(--bg)', 
+                      border: '1px solid var(--line)', 
+                      borderRadius: '8px', 
+                      padding: '10px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}
+                  >
+                    {/* Group Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ fontSize: '12.5px', color: 'var(--accent)' }}>
+                        Group: {group.groupName}
+                      </strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button 
+                          type="button" 
+                          className="secondary" 
+                          onClick={() => {
+                            setTargetGroupIdForSubgroup(group.id);
+                            setNewSubgroupNameInput(`${group.groupName} - ${(group.subGroups?.length || 0) + 1}`);
+                          }}
+                          style={{ padding: '2px 6px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '2px' }}
+                        >
+                          <Plus size={10} /> Add Subgroup
+                        </button>
+                        <button 
+                          type="button" 
+                          className="secondary" 
+                          onClick={() => handleRemoveGroup(group.id)}
+                          style={{ padding: '2px 4px', fontSize: '10px', color: 'var(--danger)' }}
+                          title="Delete Group"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Subgroup Add Inline Form */}
+                    {targetGroupIdForSubgroup === group.id && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', background: 'var(--panel)', borderRadius: '6px', border: '1px solid var(--line)' }}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <input 
+                            type="text" 
+                            placeholder="Subgroup name (e.g. DSC - 1, VAC - 1)" 
+                            value={newSubgroupNameInput} 
+                            onChange={(e) => setNewSubgroupNameInput(e.target.value)} 
+                            style={{ flex: 1, padding: '3px 6px', fontSize: '11px' }} 
+                          />
+                          <select 
+                            value={newSubgroupPattern} 
+                            onChange={(e) => setNewSubgroupPattern(e.target.value)}
+                            style={{ padding: '3px 6px', fontSize: '11px' }}
+                          >
+                            <option value="group_subject">Group - Subject</option>
+                            <option value="group_only">Group Only</option>
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <input 
+                            type="text" 
+                            placeholder="Optional suffix (e.g. . or 1)" 
+                            value={newSubgroupSuffix} 
+                            onChange={(e) => setNewSubgroupSuffix(e.target.value)} 
+                            style={{ width: '140px', padding: '3px 6px', fontSize: '11px' }} 
+                          />
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button type="button" className="secondary" onClick={() => setTargetGroupIdForSubgroup(null)} style={{ padding: '2px 6px', fontSize: '10.5px' }}>
+                              Cancel
+                            </button>
+                            <button type="button" onClick={handleAddSubgroup} style={{ padding: '2px 8px', fontSize: '10.5px' }}>
+                              Add
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Subgroups List */}
+                    {(!group.subGroups || group.subGroups.length === 0) ? (
+                      <div style={{ fontSize: '10.5px', color: 'var(--muted)', fontStyle: 'italic', padding: '4px' }}>
+                        No subgroups. Maps directly as <code>{group.groupName}</code> $\rightarrow$ <code>{group.groupName}</code>.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {group.subGroups.map(sg => {
+                          const subjCount = (sg.subjects || []).length;
+                          return (
+                            <div 
+                              key={sg.id} 
+                              style={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center', 
+                                padding: '5px 8px', 
+                                background: 'var(--panel)', 
+                                borderRadius: '4px', 
+                                border: '1px solid var(--line)',
+                                fontSize: '11px' 
+                              }}
+                            >
+                              <div>
+                                <strong style={{ color: 'var(--ink)' }}>{sg.name}</strong>
+                                {sg.pattern === 'group_subject' ? (
+                                  <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: '4px' }}>
+                                    ({subjCount} subjects {sg.suffix ? `• Suffix: "${sg.suffix}"` : ''})
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: '4px' }}>
+                                    (Group Only)
+                                  </span>
+                                )}
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                {sg.pattern === 'group_subject' && (
+                                  <button 
+                                    type="button" 
+                                    className="secondary" 
+                                    onClick={() => {
+                                      setEditingSubgroup({
+                                        groupId: group.id,
+                                        subGroupId: sg.id,
+                                        subGroupName: sg.name,
+                                        groupName: group.groupName
+                                      });
+                                      setSubjectModalSearch('');
+                                    }}
+                                    style={{ padding: '2px 6px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                  >
+                                    <Edit3 size={10} /> Subjects ({subjCount})
+                                  </button>
+                                )}
+                                <button 
+                                  type="button" 
+                                  className="secondary" 
+                                  onClick={() => handleRemoveSubgroup(group.id, sg.id)}
+                                  style={{ padding: '2px 4px', fontSize: '10px', color: 'var(--danger)' }}
+                                  title="Delete Subgroup"
+                                >
+                                  <Trash size={10} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Quick Presets Bar (Active only when groups detected) */}
           {detectedGroups.length > 0 && (
             <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ fontSize: '11.5px', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Sparkles size={14} color="var(--accent)" /> Quick Presets for Detected Groups
+                <Sparkles size={14} color="var(--accent)" /> Quick Group Presets
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                 <button type="button" className="secondary" onClick={() => applyPreset('fyugp_dot')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
-                  ⚡ DSC - Subj & .
+                  ⚡ Standard (Subj & .)
                 </button>
                 <button type="button" className="secondary" onClick={() => applyPreset('numbered_series')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
                   ⚡ Numbers (1, 2)
                 </button>
                 <button type="button" className="secondary" onClick={() => applyPreset('major_minor')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
-                  ⚡ Multiplier (M1, M2)
+                  ⚡ Multipliers (M1, M2)
                 </button>
                 <button type="button" className="secondary" onClick={() => applyPreset('clean_single')} style={{ fontSize: '11px', padding: '5px 8px', textAlign: 'left' }}>
                   ⚡ Single (No Dup)
@@ -1181,134 +1409,6 @@ export default function CourseMasterImportPage() {
               </div>
             </div>
           )}
-
-          {/* Dynamic Group Rules Builder */}
-          <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                <Sliders size={15} color="var(--accent)" /> Detected Groups from Source
-              </h3>
-              <button 
-                type="button" 
-                className="secondary" 
-                onClick={() => setShowAddGroupInput(!showAddGroupInput)}
-                style={{ padding: '2px 6px', fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <Plus size={11} /> Add Group
-              </button>
-            </div>
-
-            {/* Optional Manual Add Group Bar */}
-            {showAddGroupInput && (
-              <div style={{ display: 'flex', gap: '6px', padding: '6px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)' }}>
-                <input 
-                  type="text" 
-                  placeholder="e.g. DSE or AEC" 
-                  value={customGroupInput} 
-                  onChange={(e) => setCustomGroupInput(e.target.value)} 
-                  style={{ flex: 1, padding: '4px 6px', fontSize: '11.5px' }} 
-                />
-                <button type="button" onClick={handleAddCustomGroup} style={{ padding: '4px 8px', fontSize: '11px' }}>
-                  Add
-                </button>
-              </div>
-            )}
-
-            {/* If no file uploaded yet */}
-            {detectedGroups.length === 0 && Object.keys(groupConfigs).length === 0 ? (
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: '6px', border: '1px dashed var(--line)', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
-                <FileCheck size={24} style={{ opacity: 0.4, margin: '0 auto 6px' }} />
-                <span>Upload an Excel spreadsheet to automatically extract Group Names from the source file.</span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {!useDuplication && (
-                  <div style={{ padding: '8px 10px', background: 'rgba(22, 163, 74, 0.1)', border: '1px solid rgba(22, 163, 74, 0.25)', borderRadius: '6px', fontSize: '11px', color: '#166534' }}>
-                    ℹ️ Master Duplication is OFF. Single clean copies are generated using each group's Base Pattern.
-                  </div>
-                )}
-
-                {Object.keys(groupConfigs).map(groupKey => {
-                  const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
-                  return (
-                    <div 
-                      key={groupKey} 
-                      style={{ 
-                        padding: '10px', 
-                        background: 'var(--bg)', 
-                        border: '1px solid var(--line)', 
-                        borderRadius: '6px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                        opacity: useDuplication ? 1 : 0.85
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <strong style={{ fontSize: '12.5px', color: 'var(--accent)' }}>Group: {groupKey}</strong>
-                        {useDuplication && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Copies:</span>
-                            <input 
-                              type="number" 
-                              min={1} 
-                              max={10} 
-                              value={cfg.copies || 1} 
-                              onChange={(e) => updateGroupConfig(groupKey, 'copies', Math.max(1, parseInt(e.target.value, 10) || 1))}
-                              style={{ width: '48px', padding: '2px 4px', fontSize: '11px', textAlign: 'center' }} 
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: useDuplication ? '1.2fr 1.8fr' : '1fr', gap: '6px' }}>
-                        <div className="form-group" style={{ margin: 0 }}>
-                          <label style={{ fontSize: '10.5px' }}>Base Pattern</label>
-                          <select 
-                            value={cfg.pattern || 'group_only'} 
-                            onChange={(e) => updateGroupConfig(groupKey, 'pattern', e.target.value)}
-                            style={{ fontSize: '11px', padding: '3px 6px' }}
-                          >
-                            <option value="group_subject">{groupKey} - Subject</option>
-                            <option value="group_only">{groupKey} Only</option>
-                          </select>
-                        </div>
-
-                        {useDuplication && (
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label style={{ fontSize: '10.5px' }}>Suffixes (comma-separated)</label>
-                            <input 
-                              type="text" 
-                              placeholder="e.g. , . or 1, 2" 
-                              value={cfg.suffixStr !== undefined ? cfg.suffixStr : ''} 
-                              onChange={(e) => updateGroupConfig(groupKey, 'suffixStr', e.target.value)}
-                              style={{ fontSize: '11px', padding: '3px 6px' }} 
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Preview Generated Suffixes */}
-                      <div style={{ fontSize: '10.5px', color: 'var(--muted)', background: 'var(--panel)', padding: '4px 6px', borderRadius: '4px' }}>
-                        Preview: {useDuplication ? (
-                          getSuffixList(cfg, cfg.copies).map((sfx, idx) => (
-                            <span key={idx} style={{ fontWeight: 600, color: 'var(--ink)' }}>
-                              {idx > 0 && ' | '}
-                              {cfg.pattern === 'group_subject' ? `${groupKey} - Subj${sfx}` : `${groupKey}${sfx}`}
-                            </span>
-                          ))
-                        ) : (
-                          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>
-                            {cfg.pattern === 'group_subject' ? `${groupKey} - Subj` : `${groupKey}`} (Single Copy)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
 
           {/* Export Output Package Format */}
           <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1589,7 +1689,7 @@ export default function CourseMasterImportPage() {
           {rawRows.length > 0 && (
             <div style={{ padding: '8px 16px', background: 'var(--bg)', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
               <span>Showing {pagedRows.length} of {previewRows.length} rows • View: <strong>{activeView === 'group_master' ? 'Group Master (10 cols)' : 'Course Master (37 cols)'}</strong></span>
-              <span>Dynamic group buckets and subject assignments synchronized</span>
+              <span>Dynamic group hierarchy and custom subgroups synchronized</span>
             </div>
           )}
 
