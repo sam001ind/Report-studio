@@ -269,6 +269,122 @@ export default function CourseMasterImportPage() {
     setStatus(`Auto-populated ${nextHierarchy.length} group(s) with buckets!`, 'success');
   };
 
+  // Apply Quick Presets to all detected groups and rebuild groupHierarchy
+  const applyPreset = (presetKey) => {
+    if (!detectedGroups.length) return;
+    const nextConfigs = { ...groupConfigs };
+    let dupFlag = true;
+
+    if (presetKey === 'fyugp_dot') {
+      dupFlag = true;
+      setUseDuplication(true);
+      detectedGroups.forEach(g => {
+        if (g.includes('DSC') || g.includes('MAJOR') || g.includes('CORE') || g.includes('DSE')) {
+          nextConfigs[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+        } else {
+          nextConfigs[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
+        }
+      });
+      setGroupConfigs(nextConfigs);
+      setStatus('Applied: Standard Pattern (Subj & .)', 'success');
+    } else if (presetKey === 'numbered_series') {
+      dupFlag = true;
+      setUseDuplication(true);
+      detectedGroups.forEach(g => {
+        nextConfigs[g] = {
+          pattern: (g.includes('DSC') || g.includes('MAJOR')) ? 'group_subject' : 'group_only',
+          copies: 2,
+          suffixStr: ' 1,  2',
+          maxCredits: (g.includes('DSC') || g.includes('MAJOR')) ? 4 : 3,
+          maxMarks: (g.includes('DSC') || g.includes('MAJOR')) ? 100 : 75,
+          maxCourses: 1,
+          minCourses: 1
+        };
+      });
+      setGroupConfigs(nextConfigs);
+      setStatus('Applied: Numbers (1, 2) Series', 'success');
+    } else if (presetKey === 'major_minor') {
+      dupFlag = true;
+      setUseDuplication(true);
+      detectedGroups.forEach(g => {
+        if (g.includes('DSC') || g.includes('MAJOR')) {
+          nextConfigs[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+        } else {
+          nextConfigs[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
+        }
+      });
+      setGroupConfigs(nextConfigs);
+      setStatus('Applied: Multipliers (M1, M2)', 'success');
+    } else if (presetKey === 'clean_single') {
+      dupFlag = false;
+      setUseDuplication(false);
+      detectedGroups.forEach(g => {
+        nextConfigs[g] = {
+          pattern: (g.includes('DSC') || g.includes('MAJOR')) ? 'group_subject' : 'group_only',
+          copies: 1,
+          suffixStr: '',
+          maxCredits: (g.includes('DSC') || g.includes('MAJOR')) ? 4 : 3,
+          maxMarks: (g.includes('DSC') || g.includes('MAJOR')) ? 100 : 75,
+          maxCourses: 1,
+          minCourses: 1
+        };
+      });
+      setGroupConfigs(nextConfigs);
+      setStatus('Applied: Clean Single (No Duplications)', 'success');
+    }
+
+    // Populate groupHierarchy accordingly
+    const activeSubj = selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : uniqueSubjects[0];
+    const nextHierarchy = [];
+
+    detectedGroups.forEach(gKey => {
+      const cfg = nextConfigs[gKey] || createDefaultConfigForGroup(gKey);
+      const subjsForThisGroup = groupToSubjectsMap[gKey] || uniqueSubjects;
+      const copies = dupFlag ? Math.max(1, Number(cfg.copies) || 1) : 1;
+      const suffixes = dupFlag ? (cfg.suffixStr || '').split(',').map(s => s.trim()) : [''];
+      const subGroups = [];
+
+      if (copies === 1 && cfg.pattern === 'group_only') {
+        subGroups.push({
+          id: `${gKey}_single`,
+          name: gKey,
+          pattern: 'group_only',
+          suffix: '',
+          subjects: []
+        });
+      } else {
+        // Bucket 1 (Primary / Target Subject)
+        subGroups.push({
+          id: `${gKey}_1`,
+          name: `${gKey} - 1`,
+          pattern: cfg.pattern,
+          suffix: suffixes[0] || '',
+          subjects: activeSubj ? [activeSubj] : (subjsForThisGroup.slice(0, 1))
+        });
+
+        // Repetition buckets (DSC - 2, DSC - 3, etc.)
+        for (let i = 1; i < (copies + 1); i++) {
+          const sfx = suffixes[i - 1] || '';
+          subGroups.push({
+            id: `${gKey}_${i + 1}`,
+            name: `${gKey} - ${i + 1}`,
+            pattern: cfg.pattern,
+            suffix: sfx,
+            subjects: subjsForThisGroup.filter(s => s.toLowerCase() !== (activeSubj || '').toLowerCase())
+          });
+        }
+      }
+
+      nextHierarchy.push({
+        id: `g_${gKey}`,
+        groupName: gKey,
+        subGroups
+      });
+    });
+
+    setGroupHierarchy(nextHierarchy);
+  };
+
   // Group Hierarchy Operations
   const handleAddGroup = () => {
     const trimmed = newGroupNameInput.trim().toUpperCase();
