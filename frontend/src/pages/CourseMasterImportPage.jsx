@@ -385,6 +385,30 @@ export default function CourseMasterImportPage() {
     setGroupHierarchy(nextHierarchy);
   };
 
+  const updateGroupConfig = (group, field, value) => {
+    setGroupConfigs(prev => ({
+      ...prev,
+      [group]: {
+        ...(prev[group] || createDefaultConfigForGroup(group)),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleAddCustomGroup = () => {
+    const trimmed = customGroupInput.trim().toUpperCase();
+    if (!trimmed) return;
+    if (!groupConfigs[trimmed]) {
+      setGroupConfigs(prev => ({
+        ...prev,
+        [trimmed]: createDefaultConfigForGroup(trimmed)
+      }));
+      setStatus(`Added custom group rule for "${trimmed}"`, 'success');
+    }
+    setCustomGroupInput('');
+    setShowAddGroupInput(false);
+  };
+
   // Group Hierarchy Operations
   const handleAddGroup = () => {
     const trimmed = newGroupNameInput.trim().toUpperCase();
