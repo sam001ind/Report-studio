@@ -213,7 +213,30 @@ export default function CourseMasterImportPage() {
     });
   }, [detectedGroups]);
 
-  // Helper to build default standard hierarchy automatically
+  // Extract all unique ImmidiateParentGroup values produced by Course Master rules
+  const allImmediateParentGroups = useMemo(() => {
+    if (!rawRows.length) return [];
+    const rows = generateProcessedRows(null, null);
+    const set = new Set();
+    rows.forEach(r => {
+      if (r.ImmidiateParentGroup) set.add(r.ImmidiateParentGroup);
+    });
+    return Array.from(set).sort();
+  }, [rawRows, headerMap, groupConfigs, useDuplication]);
+
+  const getImmediateParentGroupsForGroup = (groupName) => {
+    if (!groupName) return allImmediateParentGroups;
+    const upper = groupName.trim().toUpperCase();
+    const matched = allImmediateParentGroups.filter(ipg => 
+      ipg.toUpperCase() === upper ||
+      ipg.toUpperCase().startsWith(`${upper} -`) ||
+      ipg.toUpperCase().startsWith(`${upper} `) ||
+      ipg.toUpperCase().startsWith(`${upper}.`)
+    );
+    return matched.length > 0 ? matched : allImmediateParentGroups;
+  };
+
+  // Helper to build default standard hierarchy automatically using ImmidiateParentGroup
   const autoPopulateHierarchy = (targetSubj = null) => {
     if (!detectedGroups.length) return;
     const activeSubj = targetSubj || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : uniqueSubjects[0]);
@@ -221,9 +244,8 @@ export default function CourseMasterImportPage() {
 
     detectedGroups.forEach(gKey => {
       const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
-      const subjsForThisGroup = groupToSubjectsMap[gKey] || uniqueSubjects;
+      const groupIPGs = getImmediateParentGroupsForGroup(gKey);
       const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
-      const suffixes = useDuplication ? (cfg.suffixStr || '').split(',').map(s => s.trim()) : [''];
 
       const subGroups = [];
 
@@ -233,27 +255,53 @@ export default function CourseMasterImportPage() {
           name: gKey,
           pattern: 'group_only',
           suffix: '',
-          subjects: []
+          subjects: groupIPGs.length ? groupIPGs : [gKey]
         });
       } else {
-        // Bucket 1 (Primary / Target Subject)
+        // Find matching primary IPG for active subject
+        const primaryMatch = groupIPGs.find(ipg => 
+          ipg.toLowerCase().includes(activeSubj.toLowerCase()) && 
+          !ipg.endsWith('.') && 
+          !ipg.endsWith(' 2')
+        ) || groupIPGs[0] || `${gKey} - ${activeSubj}`;
+
+        // Bucket 1 (Primary / Target Subject IPG)
         subGroups.push({
           id: `${gKey}_1`,
           name: `${gKey} - 1`,
           pattern: cfg.pattern,
-          suffix: suffixes[0] || '',
-          subjects: activeSubj ? [activeSubj] : (subjsForThisGroup.slice(0, 1))
+          suffix: '',
+          subjects: [primaryMatch]
         });
 
         // Repetition buckets (DSC - 2, DSC - 3, etc.)
         for (let i = 1; i < (copies + 1); i++) {
-          const sfx = suffixes[i - 1] || '';
+          let bucketIPGs = [];
+          if (i === 1) {
+            // DSC - 2: Minor subjects (no dot / 1st repetition)
+            bucketIPGs = groupIPGs.filter(ipg => 
+              ipg !== primaryMatch && 
+              !ipg.endsWith('.') && 
+              !ipg.endsWith(' 2') && 
+              !ipg.endsWith(' M2')
+            );
+          } else if (i === 2) {
+            // DSC - 3: Minor subjects with dot / 2nd repetition
+            bucketIPGs = groupIPGs.filter(ipg => 
+              ipg.endsWith('.') || 
+              ipg.endsWith(' 2') || 
+              ipg.endsWith(' M2')
+            );
+          } else {
+            bucketIPGs = groupIPGs.filter(ipg => ipg !== primaryMatch);
+          }
+
           subGroups.push({
             id: `${gKey}_${i + 1}`,
             name: `${gKey} - ${i + 1}`,
             pattern: cfg.pattern,
-            suffix: sfx,
-            subjects: subjsForThisGroup.filter(s => s.toLowerCase() !== (activeSubj || '').toLowerCase())
+            suffix: '',
+            subjects: bucketIPGs
           });
         }
       }
@@ -266,7 +314,7 @@ export default function CourseMasterImportPage() {
     });
 
     setGroupHierarchy(nextHierarchy);
-    setStatus(`Auto-populated ${nextHierarchy.length} group(s) with buckets!`, 'success');
+    setStatus(`Auto-populated ${nextHierarchy.length} group(s) with ImmidiateParentGroups!`, 'success');
   };
 
   // Apply Quick Presets to all detected groups and rebuild groupHierarchy
@@ -497,17 +545,17 @@ export default function CourseMasterImportPage() {
     }));
   };
 
-  const toggleSubjectInSubgroup = (groupId, subGroupId, subj) => {
+  const toggleSubjectInSubgroup = (groupId, subGroupId, ipgName) => {
     setGroupHierarchy(prev => prev.map(g => {
       if (g.id !== groupId) return g;
       return {
         ...g,
         subGroups: g.subGroups.map(sg => {
           if (sg.id !== subGroupId) return sg;
-          const exists = (sg.subjects || []).includes(subj);
+          const exists = (sg.subjects || []).includes(ipgName);
           return {
             ...sg,
-            subjects: exists ? sg.subjects.filter(s => s !== subj) : [...(sg.subjects || []), subj]
+            subjects: exists ? sg.subjects.filter(s => s !== ipgName) : [...(sg.subjects || []), ipgName]
           };
         })
       };
@@ -515,14 +563,14 @@ export default function CourseMasterImportPage() {
   };
 
   const selectAllForSubgroup = (groupId, subGroupId, groupName) => {
-    const allSubjs = groupToSubjectsMap[groupName] || uniqueSubjects;
+    const allIPGs = getImmediateParentGroupsForGroup(groupName);
     setGroupHierarchy(prev => prev.map(g => {
       if (g.id !== groupId) return g;
       return {
         ...g,
         subGroups: g.subGroups.map(sg => {
           if (sg.id !== subGroupId) return sg;
-          return { ...sg, subjects: [...allSubjs] };
+          return { ...sg, subjects: [...allIPGs] };
         })
       };
     }));
@@ -712,22 +760,27 @@ export default function CourseMasterImportPage() {
         } else {
           g.subGroups.forEach(sg => {
             addRow(g.groupName, sg.name);
-            if (sg.pattern === 'group_subject') {
-              let subjectsToRender = sg.subjects || [];
-              if (forSubject) {
-                // If exporting for a specific subject
-                if (sg.name.endsWith('- 1')) {
-                  subjectsToRender = [forSubject];
-                } else {
-                  subjectsToRender = (groupToSubjectsMap[g.groupName] || uniqueSubjects).filter(s => s.toLowerCase() !== forSubject.toLowerCase());
-                }
+            let itemsToRender = sg.subjects || [];
+            if (forSubject) {
+              if (sg.name.endsWith('- 1')) {
+                // Find matching primary IPG for this subject
+                const primaryMatch = allImmediateParentGroups.find(ipg => 
+                  ipg.toLowerCase().includes(forSubject.toLowerCase()) && 
+                  !ipg.endsWith('.') && 
+                  !ipg.endsWith(' 2') &&
+                  ipg.toUpperCase().startsWith(g.groupName.toUpperCase())
+                );
+                itemsToRender = primaryMatch ? [primaryMatch] : itemsToRender.slice(0, 1);
+              } else {
+                itemsToRender = itemsToRender.filter(item => 
+                  !item.toLowerCase().includes(` ${forSubject.toLowerCase()}`) && 
+                  !item.toLowerCase().includes(`-${forSubject.toLowerCase()}`)
+                );
               }
-              subjectsToRender.forEach(subj => {
-                addRow(sg.name, `${g.groupName} - ${subj}${sg.suffix || ''}`);
-              });
-            } else {
-              addRow(sg.name, `${sg.name}${sg.suffix || ''}`);
             }
+            itemsToRender.forEach(item => {
+              addRow(sg.name, item);
+            });
           });
         }
       });
@@ -1066,10 +1119,10 @@ export default function CourseMasterImportPage() {
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg)' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ListFilter size={18} color="var(--accent)" /> Assign Subjects to: <span style={{ color: 'var(--accent)' }}>{editingSubgroup.subGroupName}</span>
+                  <ListFilter size={18} color="var(--accent)" /> Assign ImmidiateParentGroups to: <span style={{ color: 'var(--accent)' }}>{editingSubgroup.subGroupName}</span>
                 </h3>
                 <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                  Group: <strong>{editingSubgroup.groupName}</strong> • Pick subjects to include in this bucket
+                  Group: <strong>{editingSubgroup.groupName}</strong> • Pick from {getImmediateParentGroupsForGroup(editingSubgroup.groupName).length} generated ImmidiateParentGroup values
                 </span>
               </div>
               <button 
@@ -1087,7 +1140,7 @@ export default function CourseMasterImportPage() {
               <div style={{ position: 'relative', flex: 1 }}>
                 <input 
                   type="text" 
-                  placeholder="Search subjects..." 
+                  placeholder="Search ImmidiateParentGroup..." 
                   value={subjectModalSearch} 
                   onChange={(e) => setSubjectModalSearch(e.target.value)} 
                   style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }} 
@@ -1105,17 +1158,17 @@ export default function CourseMasterImportPage() {
               </div>
             </div>
 
-            {/* Modal Subject Checkboxes Grid */}
+            {/* Modal ImmidiateParentGroup Checkboxes Grid */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              {(groupToSubjectsMap[editingSubgroup.groupName] || uniqueSubjects)
-                .filter(s => !subjectModalSearch || s.toLowerCase().includes(subjectModalSearch.toLowerCase()))
-                .map(subj => {
+              {getImmediateParentGroupsForGroup(editingSubgroup.groupName)
+                .filter(ipg => !subjectModalSearch || ipg.toLowerCase().includes(subjectModalSearch.toLowerCase()))
+                .map(ipg => {
                   const currGroup = groupHierarchy.find(g => g.id === editingSubgroup.groupId);
                   const currSubgroup = currGroup?.subGroups?.find(sg => sg.id === editingSubgroup.subGroupId);
-                  const isAssigned = (currSubgroup?.subjects || []).includes(subj);
+                  const isAssigned = (currSubgroup?.subjects || []).includes(ipg);
                   return (
                     <label 
-                      key={subj} 
+                      key={ipg} 
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1132,10 +1185,10 @@ export default function CourseMasterImportPage() {
                       <input 
                         type="checkbox" 
                         checked={isAssigned} 
-                        onChange={() => toggleSubjectInSubgroup(editingSubgroup.groupId, editingSubgroup.subGroupId, subj)} 
+                        onChange={() => toggleSubjectInSubgroup(editingSubgroup.groupId, editingSubgroup.subGroupId, ipg)} 
                       />
                       <span style={{ flex: 1, color: 'var(--ink)', fontWeight: isAssigned ? 600 : 400 }}>
-                        {subj}
+                        {ipg}
                       </span>
                     </label>
                   );
@@ -1679,36 +1732,28 @@ export default function CourseMasterImportPage() {
                             >
                               <div>
                                 <strong style={{ color: 'var(--ink)' }}>{sg.name}</strong>
-                                {sg.pattern === 'group_subject' ? (
-                                  <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: '4px' }}>
-                                    ({subjCount} subjects {sg.suffix ? `• Suffix: "${sg.suffix}"` : ''})
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: '4px' }}>
-                                    (Group Only)
-                                  </span>
-                                )}
+                                <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: '4px' }}>
+                                  ({subjCount} items)
+                                </span>
                               </div>
 
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                {sg.pattern === 'group_subject' && (
-                                  <button 
-                                    type="button" 
-                                    className="secondary" 
-                                    onClick={() => {
-                                      setEditingSubgroup({
-                                        groupId: group.id,
-                                        subGroupId: sg.id,
-                                        subGroupName: sg.name,
-                                        groupName: group.groupName
-                                      });
-                                      setSubjectModalSearch('');
-                                    }}
-                                    style={{ padding: '2px 6px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                  >
-                                    <Edit3 size={10} /> Subjects ({subjCount})
-                                  </button>
-                                )}
+                                <button 
+                                  type="button" 
+                                  className="secondary" 
+                                  onClick={() => {
+                                    setEditingSubgroup({
+                                      groupId: group.id,
+                                      subGroupId: sg.id,
+                                      subGroupName: sg.name,
+                                      groupName: group.groupName
+                                    });
+                                    setSubjectModalSearch('');
+                                  }}
+                                  style={{ padding: '2px 6px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                >
+                                  <Edit3 size={10} /> Assign ({subjCount})
+                                </button>
                                 <button 
                                   type="button" 
                                   className="secondary" 
