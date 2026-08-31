@@ -213,6 +213,148 @@ export default function CourseMasterImportPage() {
     });
   }, [detectedGroups]);
 
+  // 1. MASTER COURSE FILE TRANSFORMATION PIPELINE (37 COLUMNS)
+  const generateProcessedRows = (forSubject = null, forGroup = null) => {
+    if (!rawRows.length) return [];
+    const rowsForSubject = [];
+
+    const targetRows = rawRows.filter(r => {
+      const s = getCell(r, 'Subject', 'subject').trim().toLowerCase();
+      const g = getCell(r, 'Group Name', 'groupname', 'group', 'parentgroup').trim().toUpperCase();
+      if (forSubject && s !== forSubject.trim().toLowerCase()) return false;
+      if (forGroup && g !== forGroup.trim().toUpperCase()) return false;
+      return true;
+    });
+
+    targetRows.forEach(row => {
+      const subject = getCell(row, 'Subject', 'subject');
+      const rawGroup = getCell(row, 'Group Name', 'groupname', 'group', 'parentgroup');
+      const groupKey = rawGroup.trim().toUpperCase();
+
+      if (!subject) return;
+
+      const eseMaxTh = getNumber(row, 'ESE Max - TH', 'esemaxth', 'eseth', 'esemax_th');
+      const ccaMaxTh = getNumber(row, 'CCA Max - TH', 'ccamaxth', 'ccath', 'ccamax_th', 'cemaxth');
+      const eseMaxPr = getNumber(row, 'ESE Max - PR', 'esemaxpr', 'esepr', 'esemax_pr');
+      const ccaMaxPr = getNumber(row, 'CCA Max - PR', 'ccamaxpr', 'ccapr', 'ccamax_pr', 'cemaxpr');
+
+      const hasThAssessments = eseMaxTh > 0 || ccaMaxTh > 0;
+      const hasPrAssessments = eseMaxPr > 0 || ccaMaxPr > 0;
+
+      let combinations = [];
+      if (hasThAssessments) {
+        combinations.push(['ESE', 'TH'], ['CE', 'TH']);
+      }
+      if (hasPrAssessments) {
+        combinations.push(['ESE', 'PR'], ['CE', 'PR']);
+      }
+      if (combinations.length === 0) {
+        combinations.push(['', '']);
+      }
+
+      const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
+      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
+      const rawSuffixes = (cfg.suffixStr || '').split(',').map(s => s.trim());
+      const suffixList = [];
+      for (let i = 0; i < copies; i++) {
+        suffixList.push(rawSuffixes[i] !== undefined ? rawSuffixes[i] : (i === 0 ? '' : ` ${i + 1}`));
+      }
+
+      combinations.forEach(([amMethod, atType]) => {
+        const totalCredits = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
+        const totalMarks = getNumber(row, 'Total Marks', 'totalmarks', 'marks');
+        const minMarks = getNumber(row, 'Minimum Passing Marks', 'minimumpassingmarks', 'minpassingmarks', 'minmarks');
+
+        for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
+          const newRow = {};
+          newRow['UniqueProgramTermCode'] = '';
+
+          let baseGroup = rawGroup || 'General';
+          if (cfg.pattern === 'group_subject') {
+            baseGroup = `${rawGroup.trim()} - ${subject.trim()}`;
+          }
+
+          const currentSuffix = suffixList[copyIdx] || '';
+          const immidiateParentGroup = `${baseGroup}${currentSuffix}`;
+          newRow['ImmidiateParentGroup'] = immidiateParentGroup;
+
+          newRow['GroupMaxCoursesforAdmission'] = Number(cfg.maxCourses) || 1;
+          newRow['GroupMinCoursesforAdmission'] = Number(cfg.minCourses) || 1;
+          newRow['GroupMaxCreditsforAdmission'] = cfg.maxCredits > 0 ? Number(cfg.maxCredits) : 0;
+          newRow['GroupMaxMarks'] = cfg.maxMarks > 0 ? Number(cfg.maxMarks) : totalCredits;
+          newRow['GroupMinCreditsforAdmission'] = 0;
+          newRow['GroupMaxCredits'] = newRow['GroupMaxCreditsforAdmission'];
+          newRow['GroupMinCredits'] = 0;
+
+          newRow['CourseCode'] = getCell(row, 'Course Code', 'coursecode', 'code');
+          newRow['CourseName'] = getCell(row, 'Course Name', 'coursename', 'title');
+          newRow['CourseShortName'] = newRow['CourseCode'];
+          newRow['CourseType'] = 'General';
+          newRow['CourseLevel'] = 'General';
+          newRow['Faculty'] = getCell(row, 'Faculty', 'faculty');
+          newRow['Subject'] = subject;
+          newRow['FollowCreditSystem'] = 'Yes';
+          newRow['Credits'] = totalCredits;
+          newRow['CourseEvaluationSystem'] = 'Indirect Grade System';
+          newRow['CourseMaxMarks'] = totalMarks;
+          newRow['CourseMinMarks'] = minMarks;
+          newRow['CourseEvaluationTemplate'] = 'Eight Level';
+          newRow['TeachingLearningMethod'] = 'Lec-Lab';
+          newRow['TeachingHours'] = totalCredits === 3 ? 60 : (totalCredits === 4 ? 75 : 0);
+
+          newRow['AssessmentMethod'] = amMethod;
+          newRow['AssessmentType'] = atType;
+          newRow['AMEvaluationSystem'] = 'Marks System';
+          newRow['AMCredits'] = 0;
+          newRow['AMEvaluationTemplate'] = 'Eight Level';
+          newRow['ATEvaluationSystem'] = 'Marks System';
+          newRow['ATEvaluationTemplate'] = 'Eight Level';
+
+          if (atType === 'TH') {
+            newRow['ATCredits'] = getNumber(row, 'Theory Credits', 'theorycredits', 'thcredits');
+          } else if (atType === 'PR') {
+            newRow['ATCredits'] = getNumber(row, 'Practical Credits', 'practicalcredits', 'prcredits');
+          } else {
+            newRow['ATCredits'] = 0;
+          }
+
+          if (amMethod === 'ESE' && atType === 'TH') {
+            newRow['ATMaxMarks'] = eseMaxTh;
+          } else if (amMethod === 'ESE' && atType === 'PR') {
+            newRow['ATMaxMarks'] = eseMaxPr;
+          } else if (amMethod === 'CE' && atType === 'TH') {
+            newRow['ATMaxMarks'] = ccaMaxTh;
+          } else if (amMethod === 'CE' && atType === 'PR') {
+            newRow['ATMaxMarks'] = ccaMaxPr;
+          } else {
+            newRow['ATMaxMarks'] = 0;
+          }
+
+          newRow['ATMinMarks'] = 0;
+          newRow['AMMaxMarks'] = newRow['ATMaxMarks'];
+          newRow['AMMinMarks'] = newRow['ATMinMarks'];
+
+          rowsForSubject.push(newRow);
+        }
+      });
+    });
+
+    rowsForSubject.sort((a, b) => {
+      const order = (group) => {
+        if (group.startsWith('DSC') && !group.endsWith('.')) return 1;
+        if (group.startsWith('DSC') && group.endsWith('.')) return 2;
+        if (group.startsWith('MDC')) return 3;
+        if (group.startsWith('VAC')) return 4;
+        if (group.startsWith('AEC')) return 5;
+        if (group.startsWith('SEC')) return 6;
+        return 7;
+      };
+      return order(a.ImmidiateParentGroup) - order(b.ImmidiateParentGroup);
+    });
+
+    return rowsForSubject;
+  };
+
   // Extract all unique ImmidiateParentGroup values produced by Course Master rules
   const allImmediateParentGroups = useMemo(() => {
     if (!rawRows.length) return [];
@@ -587,148 +729,6 @@ export default function CourseMasterImportPage() {
         })
       };
     }));
-  };
-
-  // 1. MASTER COURSE FILE TRANSFORMATION PIPELINE (37 COLUMNS)
-  const generateProcessedRows = (forSubject = null, forGroup = null) => {
-    if (!rawRows.length) return [];
-    const rowsForSubject = [];
-
-    const targetRows = rawRows.filter(r => {
-      const s = getCell(r, 'Subject', 'subject').trim().toLowerCase();
-      const g = getCell(r, 'Group Name', 'groupname', 'group', 'parentgroup').trim().toUpperCase();
-      if (forSubject && s !== forSubject.trim().toLowerCase()) return false;
-      if (forGroup && g !== forGroup.trim().toUpperCase()) return false;
-      return true;
-    });
-
-    targetRows.forEach(row => {
-      const subject = getCell(row, 'Subject', 'subject');
-      const rawGroup = getCell(row, 'Group Name', 'groupname', 'group', 'parentgroup');
-      const groupKey = rawGroup.trim().toUpperCase();
-
-      if (!subject) return;
-
-      const eseMaxTh = getNumber(row, 'ESE Max - TH', 'esemaxth', 'eseth', 'esemax_th');
-      const ccaMaxTh = getNumber(row, 'CCA Max - TH', 'ccamaxth', 'ccath', 'ccamax_th', 'cemaxth');
-      const eseMaxPr = getNumber(row, 'ESE Max - PR', 'esemaxpr', 'esepr', 'esemax_pr');
-      const ccaMaxPr = getNumber(row, 'CCA Max - PR', 'ccamaxpr', 'ccapr', 'ccamax_pr', 'cemaxpr');
-
-      const hasThAssessments = eseMaxTh > 0 || ccaMaxTh > 0;
-      const hasPrAssessments = eseMaxPr > 0 || ccaMaxPr > 0;
-
-      let combinations = [];
-      if (hasThAssessments) {
-        combinations.push(['ESE', 'TH'], ['CE', 'TH']);
-      }
-      if (hasPrAssessments) {
-        combinations.push(['ESE', 'PR'], ['CE', 'PR']);
-      }
-      if (combinations.length === 0) {
-        combinations.push(['', '']);
-      }
-
-      const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
-      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
-      const rawSuffixes = (cfg.suffixStr || '').split(',').map(s => s.trim());
-      const suffixList = [];
-      for (let i = 0; i < copies; i++) {
-        suffixList.push(rawSuffixes[i] !== undefined ? rawSuffixes[i] : (i === 0 ? '' : ` ${i + 1}`));
-      }
-
-      combinations.forEach(([amMethod, atType]) => {
-        const totalCredits = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
-        const totalMarks = getNumber(row, 'Total Marks', 'totalmarks', 'marks');
-        const minMarks = getNumber(row, 'Minimum Passing Marks', 'minimumpassingmarks', 'minpassingmarks', 'minmarks');
-
-        for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
-          const newRow = {};
-          newRow['UniqueProgramTermCode'] = '';
-
-          let baseGroup = rawGroup || 'General';
-          if (cfg.pattern === 'group_subject') {
-            baseGroup = `${rawGroup.trim()} - ${subject.trim()}`;
-          }
-
-          const currentSuffix = suffixList[copyIdx] || '';
-          const immidiateParentGroup = `${baseGroup}${currentSuffix}`;
-          newRow['ImmidiateParentGroup'] = immidiateParentGroup;
-
-          newRow['GroupMaxCoursesforAdmission'] = Number(cfg.maxCourses) || 1;
-          newRow['GroupMinCoursesforAdmission'] = Number(cfg.minCourses) || 1;
-          newRow['GroupMaxCreditsforAdmission'] = cfg.maxCredits > 0 ? Number(cfg.maxCredits) : 0;
-          newRow['GroupMaxMarks'] = cfg.maxMarks > 0 ? Number(cfg.maxMarks) : totalCredits;
-          newRow['GroupMinCreditsforAdmission'] = 0;
-          newRow['GroupMaxCredits'] = newRow['GroupMaxCreditsforAdmission'];
-          newRow['GroupMinCredits'] = 0;
-
-          newRow['CourseCode'] = getCell(row, 'Course Code', 'coursecode', 'code');
-          newRow['CourseName'] = getCell(row, 'Course Name', 'coursename', 'title');
-          newRow['CourseShortName'] = newRow['CourseCode'];
-          newRow['CourseType'] = 'General';
-          newRow['CourseLevel'] = 'General';
-          newRow['Faculty'] = getCell(row, 'Faculty', 'faculty');
-          newRow['Subject'] = subject;
-          newRow['FollowCreditSystem'] = 'Yes';
-          newRow['Credits'] = totalCredits;
-          newRow['CourseEvaluationSystem'] = 'Indirect Grade System';
-          newRow['CourseMaxMarks'] = totalMarks;
-          newRow['CourseMinMarks'] = minMarks;
-          newRow['CourseEvaluationTemplate'] = 'Eight Level';
-          newRow['TeachingLearningMethod'] = 'Lec-Lab';
-          newRow['TeachingHours'] = totalCredits === 3 ? 60 : (totalCredits === 4 ? 75 : 0);
-
-          newRow['AssessmentMethod'] = amMethod;
-          newRow['AssessmentType'] = atType;
-          newRow['AMEvaluationSystem'] = 'Marks System';
-          newRow['AMCredits'] = 0;
-          newRow['AMEvaluationTemplate'] = 'Eight Level';
-          newRow['ATEvaluationSystem'] = 'Marks System';
-          newRow['ATEvaluationTemplate'] = 'Eight Level';
-
-          if (atType === 'TH') {
-            newRow['ATCredits'] = getNumber(row, 'Theory Credits', 'theorycredits', 'thcredits');
-          } else if (atType === 'PR') {
-            newRow['ATCredits'] = getNumber(row, 'Practical Credits', 'practicalcredits', 'prcredits');
-          } else {
-            newRow['ATCredits'] = 0;
-          }
-
-          if (amMethod === 'ESE' && atType === 'TH') {
-            newRow['ATMaxMarks'] = eseMaxTh;
-          } else if (amMethod === 'ESE' && atType === 'PR') {
-            newRow['ATMaxMarks'] = eseMaxPr;
-          } else if (amMethod === 'CE' && atType === 'TH') {
-            newRow['ATMaxMarks'] = ccaMaxTh;
-          } else if (amMethod === 'CE' && atType === 'PR') {
-            newRow['ATMaxMarks'] = ccaMaxPr;
-          } else {
-            newRow['ATMaxMarks'] = 0;
-          }
-
-          newRow['ATMinMarks'] = 0;
-          newRow['AMMaxMarks'] = newRow['ATMaxMarks'];
-          newRow['AMMinMarks'] = newRow['ATMinMarks'];
-
-          rowsForSubject.push(newRow);
-        }
-      });
-    });
-
-    rowsForSubject.sort((a, b) => {
-      const order = (group) => {
-        if (group.startsWith('DSC') && !group.endsWith('.')) return 1;
-        if (group.startsWith('DSC') && group.endsWith('.')) return 2;
-        if (group.startsWith('MDC')) return 3;
-        if (group.startsWith('VAC')) return 4;
-        if (group.startsWith('AEC')) return 5;
-        if (group.startsWith('SEC')) return 6;
-        return 7;
-      };
-      return order(a.ImmidiateParentGroup) - order(b.ImmidiateParentGroup);
-    });
-
-    return rowsForSubject;
   };
 
   // 2. GROUP MASTER HIERARCHY TRANSFORMATION PIPELINE (10 COLUMNS)
