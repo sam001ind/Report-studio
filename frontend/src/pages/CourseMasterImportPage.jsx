@@ -24,7 +24,9 @@ import {
   Check, 
   FileCheck,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  GitFork,
+  TableProperties
 } from 'lucide-react';
 
 const OUTPUT_HEADERS = [
@@ -67,6 +69,19 @@ const OUTPUT_HEADERS = [
   'ATEvaluationTemplate'
 ];
 
+const GROUP_MASTER_HEADERS = [
+  'UniqueProgramTermCode',
+  'ParentGroupName',
+  'SubGroupName',
+  'ParentGroupMinSubGroups',
+  'ParentGroupMaxSubGroups',
+  'ParentGroupEvaluationSystem',
+  'ParentGroupMaxMarks',
+  'ParentGroupMinMarks',
+  'ParentGroupMaxCredits',
+  'ParentGroupMinCredits'
+];
+
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const createDefaultConfigForGroup = (groupKey) => {
@@ -107,11 +122,12 @@ export default function CourseMasterImportPage() {
   const [sourceFile, setSourceFile] = useState(null);
   const [rawRows, setRawRows] = useState([]);
   const [headerMap, setHeaderMap] = useState({});
+  const [activeView, setActiveView] = useState('course_master'); // 'course_master' | 'group_master'
   const [useDuplication, setUseDuplication] = useState(true); // MASTER DUPLICATION TOGGLE
   const [groupConfigs, setGroupConfigs] = useState({}); // Dynamically populated from uploaded file
   const [customGroupInput, setCustomGroupInput] = useState('');
   const [showAddGroupInput, setShowAddGroupInput] = useState(false);
-  const [exportMode, setExportMode] = useState('zip'); // 'zip' | 'combined' | 'multitab'
+  const [exportMode, setExportMode] = useState('zip_bundle'); // 'zip_bundle' | 'zip_courses' | 'zip_groups' | 'combined_courses' | 'combined_groups' | 'multitab'
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('ALL');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,6 +136,11 @@ export default function CourseMasterImportPage() {
   const [statusType, setStatusType] = useState('info');
   const [page, setPage] = useState(0);
   const pageSize = 50;
+
+  // Group Master Specific Settings (Connected to duplication logic)
+  const [customTermCode, setCustomTermCode] = useState('');
+  const [groupMasterEvalSystem, setGroupMasterEvalSystem] = useState('Marks System');
+  const [majorBucketPrefix, setMajorBucketPrefix] = useState('DSC - 1');
 
   const setStatus = (msg, type = 'info') => {
     setStatusMsg(msg);
@@ -144,23 +165,34 @@ export default function CourseMasterImportPage() {
   };
 
   // Extract all unique group names and subjects dynamically from uploaded file
-  const { detectedGroups, uniqueSubjects } = useMemo(() => {
-    if (!rawRows.length) return { detectedGroups: [], uniqueSubjects: [] };
+  const { detectedGroups, uniqueSubjects, detectedTermCode } = useMemo(() => {
+    if (!rawRows.length) return { detectedGroups: [], uniqueSubjects: [], detectedTermCode: '' };
     const groups = new Set();
     const subjects = new Set();
+    let termCodeFound = '';
 
     rawRows.forEach(row => {
       const g = getCell(row, 'Group Name', 'groupname', 'group', 'parentgroup');
       const s = getCell(row, 'Subject', 'subject');
+      const t = getCell(row, 'UniqueProgramTermCode', 'uniqueprogramtermcode', 'termcode', 'programcode');
       if (g) groups.add(g.trim().toUpperCase());
       if (s) subjects.add(s.trim());
+      if (t && !termCodeFound) termCodeFound = t;
     });
 
     return {
       detectedGroups: Array.from(groups).sort(),
-      uniqueSubjects: Array.from(subjects).sort()
+      uniqueSubjects: Array.from(subjects).sort(),
+      detectedTermCode: termCodeFound || 'BA_KAN_25_Sem1'
     };
   }, [rawRows, headerMap]);
+
+  // Set default term code if detected
+  useEffect(() => {
+    if (detectedTermCode && !customTermCode) {
+      setCustomTermCode(detectedTermCode);
+    }
+  }, [detectedTermCode]);
 
   // Synchronize dynamic group configurations whenever a new file is uploaded
   useEffect(() => {
@@ -278,7 +310,7 @@ export default function CourseMasterImportPage() {
     return list;
   };
 
-  // Master transformation pipeline supporting dual subject & group filtering
+  // 1. MASTER COURSE FILE TRANSFORMATION PIPELINE (37 COLUMNS)
   const generateProcessedRows = (forSubject = null, forGroup = null) => {
     if (!rawRows.length) return [];
     const rowsForSubject = [];
@@ -298,110 +330,110 @@ export default function CourseMasterImportPage() {
 
       if (!subject) return;
 
-        const eseMaxTh = getNumber(row, 'ESE Max - TH', 'esemaxth', 'eseth', 'esemax_th');
-        const ccaMaxTh = getNumber(row, 'CCA Max - TH', 'ccamaxth', 'ccath', 'ccamax_th', 'cemaxth');
-        const eseMaxPr = getNumber(row, 'ESE Max - PR', 'esemaxpr', 'esepr', 'esemax_pr');
-        const ccaMaxPr = getNumber(row, 'CCA Max - PR', 'ccamaxpr', 'ccapr', 'ccamax_pr', 'cemaxpr');
+      const eseMaxTh = getNumber(row, 'ESE Max - TH', 'esemaxth', 'eseth', 'esemax_th');
+      const ccaMaxTh = getNumber(row, 'CCA Max - TH', 'ccamaxth', 'ccath', 'ccamax_th', 'cemaxth');
+      const eseMaxPr = getNumber(row, 'ESE Max - PR', 'esemaxpr', 'esepr', 'esemax_pr');
+      const ccaMaxPr = getNumber(row, 'CCA Max - PR', 'ccamaxpr', 'ccapr', 'ccamax_pr', 'cemaxpr');
 
-        const hasThAssessments = eseMaxTh > 0 || ccaMaxTh > 0;
-        const hasPrAssessments = eseMaxPr > 0 || ccaMaxPr > 0;
+      const hasThAssessments = eseMaxTh > 0 || ccaMaxTh > 0;
+      const hasPrAssessments = eseMaxPr > 0 || ccaMaxPr > 0;
 
-        let combinations = [];
-        if (hasThAssessments) {
-          combinations.push(['ESE', 'TH'], ['CE', 'TH']);
-        }
-        if (hasPrAssessments) {
-          combinations.push(['ESE', 'PR'], ['CE', 'PR']);
-        }
-        if (combinations.length === 0) {
-          combinations.push(['', '']);
-        }
+      let combinations = [];
+      if (hasThAssessments) {
+        combinations.push(['ESE', 'TH'], ['CE', 'TH']);
+      }
+      if (hasPrAssessments) {
+        combinations.push(['ESE', 'PR'], ['CE', 'PR']);
+      }
+      if (combinations.length === 0) {
+        combinations.push(['', '']);
+      }
 
-        // Fetch user custom configuration for this dynamically detected group
-        const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
-        // If master duplication is disabled, enforce 1 copy without suffixes
-        const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
-        const suffixList = useDuplication ? getSuffixList(cfg, copies) : [''];
+      // Fetch user custom configuration for this dynamically detected group
+      const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
+      // If master duplication is disabled, enforce 1 copy without suffixes
+      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
+      const suffixList = useDuplication ? getSuffixList(cfg, copies) : [''];
 
-        combinations.forEach(([amMethod, atType]) => {
-          const totalCredits = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
-          const totalMarks = getNumber(row, 'Total Marks', 'totalmarks', 'marks');
-          const minMarks = getNumber(row, 'Minimum Passing Marks', 'minimumpassingmarks', 'minpassingmarks', 'minmarks');
+      combinations.forEach(([amMethod, atType]) => {
+        const totalCredits = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
+        const totalMarks = getNumber(row, 'Total Marks', 'totalmarks', 'marks');
+        const minMarks = getNumber(row, 'Minimum Passing Marks', 'minimumpassingmarks', 'minpassingmarks', 'minmarks');
 
-          // Generate each repetition copy with dynamic suffix
-          for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
-            const newRow = {};
-            newRow['UniqueProgramTermCode'] = '';
+        // Generate each repetition copy with dynamic suffix
+        for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
+          const newRow = {};
+          newRow['UniqueProgramTermCode'] = customTermCode || getCell(row, 'UniqueProgramTermCode', 'termcode') || '';
 
-            let baseGroup = rawGroup || 'General';
-            if (cfg.pattern === 'group_subject') {
-              baseGroup = `${rawGroup.trim()} - ${subject.trim()}`;
-            }
-
-            const currentSuffix = suffixList[copyIdx] || '';
-            const immidiateParentGroup = `${baseGroup}${currentSuffix}`;
-            newRow['ImmidiateParentGroup'] = immidiateParentGroup;
-
-            newRow['GroupMaxCoursesforAdmission'] = Number(cfg.maxCourses) || 1;
-            newRow['GroupMinCoursesforAdmission'] = Number(cfg.minCourses) || 1;
-            newRow['GroupMaxCreditsforAdmission'] = cfg.maxCredits > 0 ? Number(cfg.maxCredits) : 0;
-            newRow['GroupMaxMarks'] = cfg.maxMarks > 0 ? Number(cfg.maxMarks) : totalCredits;
-            newRow['GroupMinCreditsforAdmission'] = 0;
-            newRow['GroupMaxCredits'] = newRow['GroupMaxCreditsforAdmission'];
-            newRow['GroupMinCredits'] = 0;
-
-            newRow['CourseCode'] = getCell(row, 'Course Code', 'coursecode', 'code');
-            newRow['CourseName'] = getCell(row, 'Course Name', 'coursename', 'title');
-            newRow['CourseShortName'] = newRow['CourseCode'];
-            newRow['CourseType'] = 'General';
-            newRow['CourseLevel'] = 'General';
-            newRow['Faculty'] = getCell(row, 'Faculty', 'faculty');
-            newRow['Subject'] = subject;
-            newRow['FollowCreditSystem'] = 'Yes';
-            newRow['Credits'] = totalCredits;
-            newRow['CourseEvaluationSystem'] = 'Indirect Grade System';
-            newRow['CourseMaxMarks'] = totalMarks;
-            newRow['CourseMinMarks'] = minMarks;
-            newRow['CourseEvaluationTemplate'] = 'Eight Level';
-            newRow['TeachingLearningMethod'] = 'Lec-Lab';
-            newRow['TeachingHours'] = totalCredits === 3 ? 60 : (totalCredits === 4 ? 75 : 0);
-
-            newRow['AssessmentMethod'] = amMethod;
-            newRow['AssessmentType'] = atType;
-            newRow['AMEvaluationSystem'] = 'Marks System';
-            newRow['AMCredits'] = 0;
-            newRow['AMEvaluationTemplate'] = 'Eight Level';
-            newRow['ATEvaluationSystem'] = 'Marks System';
-            newRow['ATEvaluationTemplate'] = 'Eight Level';
-
-            if (atType === 'TH') {
-              newRow['ATCredits'] = getNumber(row, 'Theory Credits', 'theorycredits', 'thcredits');
-            } else if (atType === 'PR') {
-              newRow['ATCredits'] = getNumber(row, 'Practical Credits', 'practicalcredits', 'prcredits');
-            } else {
-              newRow['ATCredits'] = 0;
-            }
-
-            if (amMethod === 'ESE' && atType === 'TH') {
-              newRow['ATMaxMarks'] = eseMaxTh;
-            } else if (amMethod === 'ESE' && atType === 'PR') {
-              newRow['ATMaxMarks'] = eseMaxPr;
-            } else if (amMethod === 'CE' && atType === 'TH') {
-              newRow['ATMaxMarks'] = ccaMaxTh;
-            } else if (amMethod === 'CE' && atType === 'PR') {
-              newRow['ATMaxMarks'] = ccaMaxPr;
-            } else {
-              newRow['ATMaxMarks'] = 0;
-            }
-
-            newRow['ATMinMarks'] = 0;
-            newRow['AMMaxMarks'] = newRow['ATMaxMarks'];
-            newRow['AMMinMarks'] = newRow['ATMinMarks'];
-
-            rowsForSubject.push(newRow);
+          let baseGroup = rawGroup || 'General';
+          if (cfg.pattern === 'group_subject') {
+            baseGroup = `${rawGroup.trim()} - ${subject.trim()}`;
           }
-        });
+
+          const currentSuffix = suffixList[copyIdx] || '';
+          const immidiateParentGroup = `${baseGroup}${currentSuffix}`;
+          newRow['ImmidiateParentGroup'] = immidiateParentGroup;
+
+          newRow['GroupMaxCoursesforAdmission'] = Number(cfg.maxCourses) || 1;
+          newRow['GroupMinCoursesforAdmission'] = Number(cfg.minCourses) || 1;
+          newRow['GroupMaxCreditsforAdmission'] = cfg.maxCredits > 0 ? Number(cfg.maxCredits) : 0;
+          newRow['GroupMaxMarks'] = cfg.maxMarks > 0 ? Number(cfg.maxMarks) : totalCredits;
+          newRow['GroupMinCreditsforAdmission'] = 0;
+          newRow['GroupMaxCredits'] = newRow['GroupMaxCreditsforAdmission'];
+          newRow['GroupMinCredits'] = 0;
+
+          newRow['CourseCode'] = getCell(row, 'Course Code', 'coursecode', 'code');
+          newRow['CourseName'] = getCell(row, 'Course Name', 'coursename', 'title');
+          newRow['CourseShortName'] = newRow['CourseCode'];
+          newRow['CourseType'] = 'General';
+          newRow['CourseLevel'] = 'General';
+          newRow['Faculty'] = getCell(row, 'Faculty', 'faculty');
+          newRow['Subject'] = subject;
+          newRow['FollowCreditSystem'] = 'Yes';
+          newRow['Credits'] = totalCredits;
+          newRow['CourseEvaluationSystem'] = 'Indirect Grade System';
+          newRow['CourseMaxMarks'] = totalMarks;
+          newRow['CourseMinMarks'] = minMarks;
+          newRow['CourseEvaluationTemplate'] = 'Eight Level';
+          newRow['TeachingLearningMethod'] = 'Lec-Lab';
+          newRow['TeachingHours'] = totalCredits === 3 ? 60 : (totalCredits === 4 ? 75 : 0);
+
+          newRow['AssessmentMethod'] = amMethod;
+          newRow['AssessmentType'] = atType;
+          newRow['AMEvaluationSystem'] = 'Marks System';
+          newRow['AMCredits'] = 0;
+          newRow['AMEvaluationTemplate'] = 'Eight Level';
+          newRow['ATEvaluationSystem'] = 'Marks System';
+          newRow['ATEvaluationTemplate'] = 'Eight Level';
+
+          if (atType === 'TH') {
+            newRow['ATCredits'] = getNumber(row, 'Theory Credits', 'theorycredits', 'thcredits');
+          } else if (atType === 'PR') {
+            newRow['ATCredits'] = getNumber(row, 'Practical Credits', 'practicalcredits', 'prcredits');
+          } else {
+            newRow['ATCredits'] = 0;
+          }
+
+          if (amMethod === 'ESE' && atType === 'TH') {
+            newRow['ATMaxMarks'] = eseMaxTh;
+          } else if (amMethod === 'ESE' && atType === 'PR') {
+            newRow['ATMaxMarks'] = eseMaxPr;
+          } else if (amMethod === 'CE' && atType === 'TH') {
+            newRow['ATMaxMarks'] = ccaMaxTh;
+          } else if (amMethod === 'CE' && atType === 'PR') {
+            newRow['ATMaxMarks'] = ccaMaxPr;
+          } else {
+            newRow['ATMaxMarks'] = 0;
+          }
+
+          newRow['ATMinMarks'] = 0;
+          newRow['AMMaxMarks'] = newRow['ATMaxMarks'];
+          newRow['AMMinMarks'] = newRow['ATMinMarks'];
+
+          rowsForSubject.push(newRow);
+        }
       });
+    });
 
     // Custom sorting priority
     rowsForSubject.sort((a, b) => {
@@ -418,6 +450,92 @@ export default function CourseMasterImportPage() {
     });
 
     return rowsForSubject;
+  };
+
+  // 2. GROUP MASTER HIERARCHY TRANSFORMATION PIPELINE (10 COLUMNS)
+  // Directly connected to user duplication configuration and group rules!
+  const generateGroupMasterRows = (forSubject = null) => {
+    if (!rawRows.length) return [];
+    
+    // Resolve primary major subject
+    const majorSubject = forSubject || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : uniqueSubjects[0]) || 'General';
+    const currentTermCode = customTermCode || detectedTermCode || 'BA_KAN_25_Sem1';
+
+    // Extract subjects specifically belonging to DSC
+    const dscRows = rawRows.filter(r => {
+      const g = getCell(r, 'Group Name', 'groupname', 'group', 'parentgroup').trim().toUpperCase();
+      return g.includes('DSC') || g.includes('MAJOR');
+    });
+
+    const dscSubjects = [];
+    const seen = new Set();
+    dscRows.forEach(r => {
+      const s = getCell(r, 'Subject', 'subject').trim();
+      if (s && !seen.has(s)) {
+        seen.add(s);
+        dscSubjects.push(s);
+      }
+    });
+
+    // All DSC minor subjects (excluding the primary major subject)
+    const minorDscSubjects = dscSubjects.filter(s => s.toLowerCase() !== majorSubject.toLowerCase());
+
+    const result = [];
+
+    const addRow = (parent, sub, maxM = 100, minM = 0, maxC = 4, minC = 0, maxSub = 1, minSub = 1) => {
+      result.push({
+        UniqueProgramTermCode: currentTermCode,
+        ParentGroupName: parent,
+        SubGroupName: sub,
+        ParentGroupMinSubGroups: minSub,
+        ParentGroupMaxSubGroups: maxSub,
+        ParentGroupEvaluationSystem: groupMasterEvalSystem,
+        ParentGroupMaxMarks: maxM,
+        ParentGroupMinMarks: minM,
+        ParentGroupMaxCredits: maxC,
+        ParentGroupMinCredits: minC
+      });
+    };
+
+    // 1. Process DSC Hierarchy
+    const dscKey = detectedGroups.find(g => g.includes('DSC') || g.includes('MAJOR')) || 'DSC';
+    const dscCfg = groupConfigs[dscKey] || createDefaultConfigForGroup('DSC');
+    const dscCopies = useDuplication ? Math.max(1, Number(dscCfg.copies) || 1) : 1;
+    const dscSuffixes = useDuplication ? getSuffixList(dscCfg, dscCopies) : [''];
+
+    // Top Level -> Major Bucket (DSC -> DSC - 1)
+    const majorBucket = majorBucketPrefix || 'DSC - 1';
+    addRow(dscKey, majorBucket, dscCfg.maxMarks, 0, dscCfg.maxCredits, 0);
+    addRow(majorBucket, `${dscKey} - ${majorSubject}`, dscCfg.maxMarks, 0, dscCfg.maxCredits, 0);
+
+    // Each Minor Repetition Pool (DSC -> DSC - 2 -> Minor Subjects, DSC -> DSC - 3 -> Minor Subjects., etc.)
+    for (let copyIdx = 0; copyIdx < dscCopies; copyIdx++) {
+      const bucketNum = copyIdx + 2; // e.g. DSC - 2, DSC - 3, DSC - 4...
+      const bucketName = `${dscKey} - ${bucketNum}`;
+      const sfx = dscSuffixes[copyIdx] || '';
+
+      addRow(dscKey, bucketName, dscCfg.maxMarks, 0, dscCfg.maxCredits, 0);
+      
+      minorDscSubjects.forEach(mSub => {
+        addRow(bucketName, `${dscKey} - ${mSub}${sfx}`, dscCfg.maxMarks, 0, dscCfg.maxCredits, 0);
+      });
+    }
+
+    // 2. Process other groups (MDC, VAC, SEC, AEC, etc.)
+    detectedGroups.forEach(gKey => {
+      if (gKey.includes('DSC') || gKey.includes('MAJOR')) return;
+      const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
+      const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
+      const suffixes = useDuplication ? getSuffixList(cfg, copies) : [''];
+
+      for (let i = 0; i < copies; i++) {
+        const sfx = suffixes[i] || '';
+        const subName = cfg.pattern === 'group_subject' ? `${gKey} - ${majorSubject}${sfx}` : `${gKey}${sfx}`;
+        addRow(gKey, subName, cfg.maxMarks, 0, cfg.maxCredits, 0);
+      }
+    });
+
+    return result;
   };
 
   const handleFileUpload = async (e) => {
@@ -446,6 +564,7 @@ export default function CourseMasterImportPage() {
 
       // Extract unique group names directly from the file
       const foundGroups = new Set();
+      let termCodeFound = '';
       parsed.forEach(row => {
         for (const alias of ['Group Name', 'groupname', 'group', 'parentgroup']) {
           const actualKey = map[normalizeKey(alias)];
@@ -454,7 +573,15 @@ export default function CourseMasterImportPage() {
             break;
           }
         }
+        for (const alias of ['UniqueProgramTermCode', 'uniqueprogramtermcode', 'termcode', 'programcode']) {
+          const actualKey = map[normalizeKey(alias)];
+          if (actualKey && row[actualKey] && !termCodeFound) {
+            termCodeFound = String(row[actualKey]).trim();
+          }
+        }
       });
+
+      if (termCodeFound) setCustomTermCode(termCodeFound);
 
       const groupArray = Array.from(foundGroups).sort();
       const initialConfigs = {};
@@ -472,57 +599,117 @@ export default function CourseMasterImportPage() {
     }
   };
 
+  // Master Comprehensive Export Dispatcher
   const executeExport = async () => {
     if (!rawRows.length) return alert('Please upload a course master sheet first.');
     setIsProcessing(true);
-    setStatus('Generating custom course master workbooks...', 'info');
+    setStatus('Generating customized workbooks...', 'info');
 
     try {
-      if (exportMode === 'zip') {
+      if (exportMode === 'zip_bundle') {
+        // Complete ZIP with BOTH Course Master & Group Master for each subject
         const zip = new JSZip();
         for (const subj of uniqueSubjects) {
-          const rows = generateProcessedRows(subj, selectedGroupFilter === 'ALL' ? null : selectedGroupFilter);
-          const aoa = [OUTPUT_HEADERS, ...rows.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
-          const wb = XLSX.utils.book_new();
-          const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
-          ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: OUTPUT_HEADERS.length - 1 } }) };
-          ws['!cols'] = OUTPUT_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
-          XLSX.utils.book_append_sheet(wb, ws, subj.slice(0, 30));
-          const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-          zip.file(`${subj} Courses.xlsx`, out);
+          // 1. Subject Course Master
+          const courseRows = generateProcessedRows(subj, null);
+          const courseAoa = [OUTPUT_HEADERS, ...courseRows.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
+          const wbCourse = XLSX.utils.book_new();
+          const wsCourse = XLSX.utils.aoa_to_sheet(courseAoa, { dense: true });
+          wsCourse['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: courseAoa.length - 1, c: OUTPUT_HEADERS.length - 1 } }) };
+          wsCourse['!cols'] = OUTPUT_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+          XLSX.utils.book_append_sheet(wbCourse, wsCourse, subj.slice(0, 30));
+          const outCourse = XLSX.write(wbCourse, { bookType: 'xlsx', type: 'array' });
+          zip.file(`${subj} Course Master.xlsx`, outCourse);
+
+          // 2. Subject Group Master
+          const groupRows = generateGroupMasterRows(subj);
+          const groupAoa = [GROUP_MASTER_HEADERS, ...groupRows.map(r => GROUP_MASTER_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
+          const wbGroup = XLSX.utils.book_new();
+          const wsGroup = XLSX.utils.aoa_to_sheet(groupAoa, { dense: true });
+          wsGroup['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: groupAoa.length - 1, c: GROUP_MASTER_HEADERS.length - 1 } }) };
+          wsGroup['!cols'] = GROUP_MASTER_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+          XLSX.utils.book_append_sheet(wbGroup, wsGroup, `${subj} Groups`.slice(0, 30));
+          const outGroup = XLSX.write(wbGroup, { bookType: 'xlsx', type: 'array' });
+          zip.file(`${subj} Group Master.xlsx`, outGroup);
         }
 
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Course_Master_${useDuplication ? 'With_Duplication' : 'Standard_NoDup'}_Subjects.zip`;
+        a.download = `Complete_Master_Package_${uniqueSubjects.length}_Subjects.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setStatus(`Exported ${uniqueSubjects.length} subject course workbooks into ZIP!`, 'success');
+        setStatus(`Exported complete Course & Group Master bundle into ZIP!`, 'success');
 
-      } else if (exportMode === 'multitab') {
-        const wb = XLSX.utils.book_new();
+      } else if (exportMode === 'zip_courses') {
+        const zip = new JSZip();
         for (const subj of uniqueSubjects) {
           const rows = generateProcessedRows(subj, selectedGroupFilter === 'ALL' ? null : selectedGroupFilter);
           const aoa = [OUTPUT_HEADERS, ...rows.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
+          const wb = XLSX.utils.book_new();
           const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
           ws['!cols'] = OUTPUT_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
-          XLSX.utils.book_append_sheet(wb, ws, subj.slice(0, 31).replace(/[:\\/?*[\]]/g, '_'));
+          XLSX.utils.book_append_sheet(wb, ws, subj.slice(0, 30));
+          const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          zip.file(`${subj} Courses.xlsx`, out);
         }
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Course_Master_Subjects.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setStatus(`Exported Course Master ZIP!`, 'success');
+
+      } else if (exportMode === 'zip_groups') {
+        const zip = new JSZip();
+        for (const subj of uniqueSubjects) {
+          const rows = generateGroupMasterRows(subj);
+          const aoa = [GROUP_MASTER_HEADERS, ...rows.map(r => GROUP_MASTER_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
+          ws['!cols'] = GROUP_MASTER_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+          XLSX.utils.book_append_sheet(wb, ws, subj.slice(0, 30));
+          const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          zip.file(`${subj} Group Master.xlsx`, out);
+        }
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Group_Master_Subjects.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setStatus(`Exported Group Master ZIP!`, 'success');
+
+      } else if (exportMode === 'combined_groups') {
+        const targetSubj = selectedSubjectFilter === 'ALL' ? uniqueSubjects[0] : selectedSubjectFilter;
+        const rows = generateGroupMasterRows(targetSubj);
+        const aoa = [GROUP_MASTER_HEADERS, ...rows.map(r => GROUP_MASTER_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
+        ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: GROUP_MASTER_HEADERS.length - 1 } }) };
+        ws['!cols'] = GROUP_MASTER_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+        XLSX.utils.book_append_sheet(wb, ws, 'Group_Master');
         const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Course_Master_${useDuplication ? 'With_Duplication' : 'Standard_NoDup'}_All_Tabs.xlsx`;
+        a.download = `${targetSubj || 'All'}_Group_Master.xlsx`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setStatus(`Exported multi-tab workbook with ${uniqueSubjects.length} subject tabs!`, 'success');
+        setStatus(`Exported Group Master XLSX (${rows.length} rows)!`, 'success');
 
       } else {
         const allRows = generateProcessedRows(
@@ -540,12 +727,12 @@ export default function CourseMasterImportPage() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Course_Master_${useDuplication ? 'With_Duplication' : 'Standard_NoDup'}_Combined.xlsx`;
+        a.download = `Course_Master_Combined.xlsx`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setStatus(`Exported combined master XLSX with ${allRows.length} rows!`, 'success');
+        setStatus(`Exported combined course master XLSX!`, 'success');
       }
     } catch (err) {
       console.error('Export Error:', err);
@@ -559,16 +746,17 @@ export default function CourseMasterImportPage() {
   const exportFilteredSubset = () => {
     if (!previewRows.length) return alert('No filtered rows to download.');
     setIsProcessing(true);
-    setStatus('Exporting filtered course subset...', 'info');
+    setStatus('Exporting filtered subset...', 'info');
 
     try {
-      const aoa = [OUTPUT_HEADERS, ...previewRows.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))];
+      const headers = activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS;
+      const aoa = [headers, ...previewRows.map(r => headers.map(h => r[h] !== undefined ? r[h] : ''))];
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
-      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: OUTPUT_HEADERS.length - 1 } }) };
-      ws['!cols'] = OUTPUT_HEADERS.map(h => ({ wch: Math.max(h.length + 2, 12) }));
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: headers.length - 1 } }) };
+      ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 12) }));
 
-      const sheetTitle = (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : (selectedGroupFilter !== 'ALL' ? selectedGroupFilter : 'Filtered')).slice(0, 31);
+      const sheetTitle = (activeView === 'group_master' ? 'Group_Master' : (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : 'Filtered')).slice(0, 31);
       XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
 
       const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -578,14 +766,14 @@ export default function CourseMasterImportPage() {
       a.href = url;
       
       const sName = selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter.replace(/\s+/g, '_') : 'AllSubj';
-      const gName = selectedGroupFilter !== 'ALL' ? selectedGroupFilter.replace(/\s+/g, '_') : 'AllGroups';
-      a.download = `Course_${sName}_${gName}_${useDuplication ? 'WithDup' : 'NoDup'}.xlsx`;
+      const fileType = activeView === 'group_master' ? 'Group_Master' : 'Course_Master';
+      a.download = `${sName}_${fileType}_${useDuplication ? 'WithDup' : 'NoDup'}.xlsx`;
       
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setStatus(`Exported ${previewRows.length} filtered rows (${sName} - ${gName})!`, 'success');
+      setStatus(`Exported ${previewRows.length} filtered rows (${fileType})!`, 'success');
     } catch (err) {
       console.error('Filtered Export Error:', err);
       setStatus(`Export failed: ${err.message}`, 'error');
@@ -595,18 +783,30 @@ export default function CourseMasterImportPage() {
   };
 
   const previewRows = useMemo(() => {
-    const targetSubj = selectedSubjectFilter === 'ALL' ? null : selectedSubjectFilter;
-    const targetGroup = selectedGroupFilter === 'ALL' ? null : selectedGroupFilter;
-    const generated = generateProcessedRows(targetSubj, targetGroup);
-    if (!searchQuery) return generated;
-    const q = searchQuery.toLowerCase();
-    return generated.filter(r => 
-      String(r.CourseCode || '').toLowerCase().includes(q) ||
-      String(r.CourseName || '').toLowerCase().includes(q) ||
-      String(r.Subject || '').toLowerCase().includes(q) ||
-      String(r.ImmidiateParentGroup || '').toLowerCase().includes(q)
-    );
-  }, [rawRows, headerMap, groupConfigs, useDuplication, selectedSubjectFilter, selectedGroupFilter, searchQuery]);
+    if (activeView === 'group_master') {
+      const targetSubj = selectedSubjectFilter === 'ALL' ? null : selectedSubjectFilter;
+      const generated = generateGroupMasterRows(targetSubj);
+      if (!searchQuery) return generated;
+      const q = searchQuery.toLowerCase();
+      return generated.filter(r => 
+        String(r.ParentGroupName || '').toLowerCase().includes(q) ||
+        String(r.SubGroupName || '').toLowerCase().includes(q) ||
+        String(r.UniqueProgramTermCode || '').toLowerCase().includes(q)
+      );
+    } else {
+      const targetSubj = selectedSubjectFilter === 'ALL' ? null : selectedSubjectFilter;
+      const targetGroup = selectedGroupFilter === 'ALL' ? null : selectedGroupFilter;
+      const generated = generateProcessedRows(targetSubj, targetGroup);
+      if (!searchQuery) return generated;
+      const q = searchQuery.toLowerCase();
+      return generated.filter(r => 
+        String(r.CourseCode || '').toLowerCase().includes(q) ||
+        String(r.CourseName || '').toLowerCase().includes(q) ||
+        String(r.Subject || '').toLowerCase().includes(q) ||
+        String(r.ImmidiateParentGroup || '').toLowerCase().includes(q)
+      );
+    }
+  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, customTermCode, groupMasterEvalSystem, majorBucketPrefix]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
@@ -623,9 +823,9 @@ export default function CourseMasterImportPage() {
           </Link>
           <div style={{ height: '18px', width: '1px', background: 'var(--line)' }} />
           <h2 style={{ fontSize: '16px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={18} color="var(--accent)" /> Course Master Import & Dynamic Group Rules
+            <BookOpen size={18} color="var(--accent)" /> Course & Group Master Engine
             <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
-              {useDuplication ? '✨ Duplication: ON' : '📄 Duplication: OFF'}
+              {useDuplication ? '✨ Duplication Linked' : '📄 Single Mode'}
             </span>
           </h2>
         </div>
@@ -651,7 +851,10 @@ export default function CourseMasterImportPage() {
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', fontSize: '12px' }}
           >
             <Download size={14} /> 
-            {exportMode === 'zip' ? 'Download Subject ZIP' : exportMode === 'multitab' ? 'Export Multi-Tab XLSX' : 'Export Combined XLSX'}
+            {exportMode === 'zip_bundle' ? '📦 Download Master Bundle ZIP' : 
+             exportMode === 'zip_courses' ? 'Download Course ZIP' : 
+             exportMode === 'zip_groups' ? 'Download Group ZIP' : 
+             exportMode === 'combined_groups' ? 'Download Group Master XLSX' : 'Export Combined XLSX'}
           </button>
         </div>
       </header>
@@ -674,7 +877,7 @@ export default function CourseMasterImportPage() {
             <label htmlFor="courseMasterFileInput" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={26} color="var(--accent)" />
               <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>Upload Course Master Sheet</strong>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Automatically extracts Group Names from source file</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Extracts Course Codes, Groups, and generates Group Master</span>
             </label>
           </div>
 
@@ -682,7 +885,7 @@ export default function CourseMasterImportPage() {
           <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '10px', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.05), transparent)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                <Copy size={15} color="var(--accent)" /> Master Duplication Mode
+                <Copy size={15} color="var(--accent)" /> Duplication Engine
               </h3>
               <span style={{ 
                 fontSize: '10.5px', 
@@ -692,12 +895,12 @@ export default function CourseMasterImportPage() {
                 background: useDuplication ? 'var(--accent)' : 'var(--muted)',
                 color: 'white'
               }}>
-                {useDuplication ? 'DUPLICATION ACTIVE' : 'NO DUPLICATION'}
+                {useDuplication ? 'DUPLICATION ON' : 'DUPLICATION OFF'}
               </span>
             </div>
 
             <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--muted)' }}>
-              Choose whether to duplicate course rows into multi-choice admission groups or keep single clean entries:
+              Controls both <strong>Course Master</strong> cloned aliases and <strong>Group Master</strong> hierarchy pools (DSC - 2, DSC - 3...):
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -719,14 +922,14 @@ export default function CourseMasterImportPage() {
                   checked={useDuplication} 
                   onChange={() => {
                     setUseDuplication(true);
-                    setStatus('Duplication enabled: Generating multi-choice copies and suffix aliases.', 'info');
+                    setStatus('Duplication enabled: Generating multi-choice copies, suffix aliases & hierarchy pools.', 'info');
                   }} 
                   style={{ marginTop: '2px' }}
                 />
                 <div>
                   <strong style={{ display: 'block', color: 'var(--ink)' }}>✨ With Duplication (Recommended)</strong>
                   <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>
-                    Generates multiple repetition copies per group with custom suffixes (e.g. DSC - Subj & DSC - Subj. or 1, 2).
+                    Generates multiple repetition copies & links Group Master Minor Pools (DSC - 2, DSC - 3 with custom suffixes).
                   </span>
                 </div>
               </label>
@@ -749,17 +952,63 @@ export default function CourseMasterImportPage() {
                   checked={!useDuplication} 
                   onChange={() => {
                     setUseDuplication(false);
-                    setStatus('Duplication disabled: Generating single master rows per course.', 'info');
+                    setStatus('Duplication disabled: Generating single master rows and single group hierarchy.', 'info');
                   }} 
                   style={{ marginTop: '2px' }}
                 />
                 <div>
                   <strong style={{ display: 'block', color: 'var(--ink)' }}>📄 Without Duplication (Clean Single Master)</strong>
                   <span style={{ fontSize: '10.5px', color: 'var(--muted)' }}>
-                    Exports exactly 1 row per course assessment without creating cloned DSC 2 or alias copies.
+                    Single row per course and single Minor pool without duplicate period/number aliases.
                   </span>
                 </div>
               </label>
+            </div>
+          </div>
+
+          {/* GROUP MASTER SPECIFIC SETTINGS CARD */}
+          <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+              <GitFork size={15} color="var(--accent)" /> Group Master Hierarchy Config
+            </h3>
+            
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '10.5px' }}>Unique Program Term Code</label>
+              <input 
+                type="text" 
+                value={customTermCode} 
+                placeholder="e.g. BA_KAN_25_Sem1" 
+                onChange={(e) => setCustomTermCode(e.target.value)}
+                style={{ fontSize: '11.5px', padding: '4px 6px' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '10.5px' }}>Major Bucket Name</label>
+                <input 
+                  type="text" 
+                  value={majorBucketPrefix} 
+                  onChange={(e) => setMajorBucketPrefix(e.target.value)}
+                  style={{ fontSize: '11px', padding: '3px 6px' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '10.5px' }}>Evaluation System</label>
+                <select 
+                  value={groupMasterEvalSystem} 
+                  onChange={(e) => setGroupMasterEvalSystem(e.target.value)}
+                  style={{ fontSize: '11px', padding: '3px 6px' }}
+                >
+                  <option value="Marks System">Marks System</option>
+                  <option value="Indirect Grade System">Indirect Grade System</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ fontSize: '10.5px', color: 'var(--muted)', background: 'var(--bg)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--line)' }}>
+              🔗 <strong>Hierarchy Linking</strong>: Major maps to <code>{majorBucketPrefix}</code> $\rightarrow$ <code>DSC - {'{Subject}'}</code>. Minor pools map to <code>DSC - 2</code>, <code>DSC - 3</code> based on your Duplication Copies below.
             </div>
           </div>
 
@@ -917,13 +1166,15 @@ export default function CourseMasterImportPage() {
           {/* Export Output Package Format */}
           <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <h3 style={{ margin: 0, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-              <Settings2 size={15} color="var(--accent)" /> Output Package Format
+              <Settings2 size={15} color="var(--accent)" /> Output Package Mode
             </h3>
             
             <select value={exportMode} onChange={(e) => setExportMode(e.target.value)} style={{ fontSize: '12px' }}>
-              <option value="zip">📦 ZIP Archive (Separate .xlsx per Subject)</option>
-              <option value="combined">📑 Combined Master Sheet (.xlsx)</option>
-              <option value="multitab">📚 Multi-Tab Workbook (.xlsx)</option>
+              <option value="zip_bundle">📦 Complete Bundle ZIP (Both Courses & Groups per Subject)</option>
+              <option value="zip_courses">📑 Course Master ZIP Only (Separate .xlsx per Subject)</option>
+              <option value="zip_groups">🗂️ Group Master ZIP Only (Separate .xlsx per Subject)</option>
+              <option value="combined_groups">📑 Single Group Master File (.xlsx)</option>
+              <option value="combined_courses">📚 Combined Course Master (.xlsx)</option>
             </select>
           </div>
 
@@ -932,7 +1183,56 @@ export default function CourseMasterImportPage() {
         {/* Center Live Validation & Preview Grid */}
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '10px', overflow: 'hidden' }}>
           
-          {/* Table Header Bar */}
+          {/* Top View Selector Tab Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 16px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button 
+                type="button" 
+                onClick={() => { setActiveView('course_master'); setPage(0); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  fontSize: '12.5px',
+                  borderRadius: '6px',
+                  border: '1px solid',
+                  borderColor: activeView === 'course_master' ? 'var(--accent)' : 'var(--line)',
+                  background: activeView === 'course_master' ? 'var(--accent)' : 'var(--bg)',
+                  color: activeView === 'course_master' ? 'white' : 'var(--ink)',
+                  fontWeight: activeView === 'course_master' ? 700 : 500
+                }}
+              >
+                <TableProperties size={15} /> Course Master (37 Columns)
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => { setActiveView('group_master'); setPage(0); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  fontSize: '12.5px',
+                  borderRadius: '6px',
+                  border: '1px solid',
+                  borderColor: activeView === 'group_master' ? 'var(--accent)' : 'var(--line)',
+                  background: activeView === 'group_master' ? 'var(--accent)' : 'var(--bg)',
+                  color: activeView === 'group_master' ? 'white' : 'var(--ink)',
+                  fontWeight: activeView === 'group_master' ? 700 : 500
+                }}
+              >
+                <GitFork size={15} /> Group Master Hierarchy (10 Columns)
+              </button>
+            </div>
+
+            <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+              Active View: <strong>{activeView === 'course_master' ? 'Course Master Sheet' : 'Group Master File'}</strong>
+            </div>
+          </div>
+
+          {/* Table Header Controls Bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--line)', background: 'var(--bg)', flexWrap: 'wrap', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               
@@ -940,7 +1240,7 @@ export default function CourseMasterImportPage() {
               <div style={{ position: 'relative', width: '180px' }}>
                 <input 
                   type="text" 
-                  placeholder="Filter courses, codes..." 
+                  placeholder={activeView === 'group_master' ? "Filter parents, subgroups..." : "Filter courses, codes..."} 
                   value={searchQuery} 
                   onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }} 
                   style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }} 
@@ -962,8 +1262,8 @@ export default function CourseMasterImportPage() {
                 </select>
               )}
 
-              {/* Group Filter Dropdown */}
-              {detectedGroups.length > 0 && (
+              {/* Group Filter Dropdown (Course Master View) */}
+              {activeView === 'course_master' && detectedGroups.length > 0 && (
                 <select 
                   value={selectedGroupFilter} 
                   onChange={(e) => { setSelectedGroupFilter(e.target.value); setPage(0); }}
@@ -1010,7 +1310,7 @@ export default function CourseMasterImportPage() {
                   }}
                   title="Download only the currently filtered rows"
                 >
-                  <Download size={13} /> Download Filtered ({previewRows.length})
+                  <Download size={13} /> Download {activeView === 'group_master' ? 'Group Master' : 'Filtered'} ({previewRows.length})
                 </button>
               )}
 
@@ -1076,20 +1376,20 @@ export default function CourseMasterImportPage() {
             )}
           </div>
 
-          {/* Master 37-Column Table Container */}
+          {/* Master Table Container */}
           <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
             {rawRows.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', gap: '8px' }}>
                 <FileSpreadsheet size={40} style={{ opacity: 0.3 }} />
-                <strong style={{ fontSize: '14px', color: 'var(--ink)' }}>No Course Master File Uploaded</strong>
-                <span style={{ fontSize: '12px' }}>Upload your raw syllabus / course master spreadsheet on the left to extract Group Names and transform.</span>
+                <strong style={{ fontSize: '14px', color: 'var(--ink)' }}>No File Uploaded</strong>
+                <span style={{ fontSize: '12px' }}>Upload your raw syllabus / course master spreadsheet on the left to extract data and transform both masters.</span>
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg)', position: 'sticky', top: 0, zIndex: 10 }}>
                     <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1.5px solid var(--line)', color: 'var(--muted)', width: '40px' }}>#</th>
-                    {OUTPUT_HEADERS.map((col, idx) => (
+                    {(activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS).map((col, idx) => (
                       <th 
                         key={col} 
                         style={{ 
@@ -1111,19 +1411,20 @@ export default function CourseMasterImportPage() {
                 <tbody>
                   {pagedRows.map((row, rowIdx) => {
                     const actualIdx = (page * pageSize) + rowIdx;
+                    const headers = activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS;
                     return (
                       <tr key={actualIdx} style={{ borderBottom: '1px solid var(--line)' }}>
                         <td style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--muted)', borderRight: '1px solid var(--line)', fontWeight: 600 }}>
                           {actualIdx + 1}
                         </td>
-                        {OUTPUT_HEADERS.map(col => (
+                        {headers.map(col => (
                           <td 
                             key={col} 
                             style={{ 
                               padding: '5px 8px', 
                               borderRight: '1px solid var(--line)',
-                              color: col === 'ImmidiateParentGroup' ? 'var(--accent)' : 'var(--ink)',
-                              fontWeight: col === 'ImmidiateParentGroup' ? 700 : 400
+                              color: (col === 'ImmidiateParentGroup' || col === 'SubGroupName') ? 'var(--accent)' : 'var(--ink)',
+                              fontWeight: (col === 'ImmidiateParentGroup' || col === 'SubGroupName' || col === 'ParentGroupName') ? 700 : 400
                             }}
                           >
                             {row[col] !== undefined ? String(row[col]) : ''}
@@ -1140,8 +1441,8 @@ export default function CourseMasterImportPage() {
           {/* Footer Info */}
           {rawRows.length > 0 && (
             <div style={{ padding: '8px 16px', background: 'var(--bg)', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
-              <span>Showing {pagedRows.length} of {previewRows.length} rows across {uniqueSubjects.length} subjects • Mode: <strong>{useDuplication ? 'With Duplication' : 'No Duplication'}</strong></span>
-              <span>All 37 master columns formatted with dynamic source Group Names</span>
+              <span>Showing {pagedRows.length} of {previewRows.length} rows • View: <strong>{activeView === 'group_master' ? 'Group Master (10 cols)' : 'Course Master (37 cols)'}</strong></span>
+              <span>Hierarchy and duplication rules synchronized</span>
             </div>
           )}
 
