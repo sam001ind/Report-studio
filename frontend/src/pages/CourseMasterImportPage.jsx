@@ -395,6 +395,32 @@ export default function CourseMasterImportPage() {
     }));
   };
 
+  const applyPresetToGroup = (groupKey, type) => {
+    let updatedCfg;
+    if (type === 'subj_dot') {
+      updatedCfg = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+    } else if (type === 'numbers') {
+      updatedCfg = { pattern: 'group_subject', copies: 2, suffixStr: ' 1,  2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+    } else if (type === 'multipliers') {
+      updatedCfg = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+    } else if (type === 'subj_single') {
+      updatedCfg = { pattern: 'group_subject', copies: 1, suffixStr: '', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+    } else if (type === 'group_single') {
+      updatedCfg = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
+    }
+
+    if (updatedCfg) {
+      setGroupConfigs(prev => ({
+        ...prev,
+        [groupKey]: {
+          ...(prev[groupKey] || createDefaultConfigForGroup(groupKey)),
+          ...updatedCfg
+        }
+      }));
+      setStatus(`Applied ${type} preset to Group "${groupKey}"!`, 'success');
+    }
+  };
+
   const handleAddCustomGroup = () => {
     const trimmed = customGroupInput.trim().toUpperCase();
     if (!trimmed) return;
@@ -1381,6 +1407,56 @@ export default function CourseMasterImportPage() {
                             />
                           </div>
                         )}
+                      </div>
+
+                      {/* Smart Per-Group Quick Presets */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '9.5px', color: 'var(--muted)' }}>Smart Presets:</span>
+                        <button 
+                          type="button" 
+                          className="secondary" 
+                          onClick={() => applyPresetToGroup(groupKey, 'subj_single')}
+                          style={{ padding: '1px 5px', fontSize: '9.5px', borderRadius: '4px', background: cfg.pattern === 'group_subject' && (!cfg.suffixStr || cfg.copies === 1) ? 'var(--accent-soft)' : 'var(--panel)', color: 'var(--ink)' }}
+                          title={`Set ${groupKey} - Subject (Single copy)`}
+                        >
+                          {groupKey} - Subj
+                        </button>
+                        <button 
+                          type="button" 
+                          className="secondary" 
+                          onClick={() => applyPresetToGroup(groupKey, 'group_single')}
+                          style={{ padding: '1px 5px', fontSize: '9.5px', borderRadius: '4px', background: cfg.pattern === 'group_only' && (!cfg.suffixStr || cfg.copies === 1) ? 'var(--accent-soft)' : 'var(--panel)', color: 'var(--ink)' }}
+                          title={`Set ${groupKey} Only (Single copy)`}
+                        >
+                          {groupKey} Only
+                        </button>
+                        <button 
+                          type="button" 
+                          className="secondary" 
+                          onClick={() => applyPresetToGroup(groupKey, 'subj_dot')}
+                          style={{ padding: '1px 5px', fontSize: '9.5px', borderRadius: '4px', background: cfg.pattern === 'group_subject' && cfg.suffixStr === ', .' ? 'var(--accent-soft)' : 'var(--panel)', color: 'var(--ink)' }}
+                          title={`Set ${groupKey} - Subj & . (2 copies)`}
+                        >
+                          Subj & .
+                        </button>
+                        <button 
+                          type="button" 
+                          className="secondary" 
+                          onClick={() => applyPresetToGroup(groupKey, 'numbers')}
+                          style={{ padding: '1px 5px', fontSize: '9.5px', borderRadius: '4px', background: cfg.suffixStr?.includes('1') ? 'var(--accent-soft)' : 'var(--panel)', color: 'var(--ink)' }}
+                          title={`Set ${groupKey} - Subj 1, 2 (2 copies)`}
+                        >
+                          1, 2
+                        </button>
+                        <button 
+                          type="button" 
+                          className="secondary" 
+                          onClick={() => applyPresetToGroup(groupKey, 'multipliers')}
+                          style={{ padding: '1px 5px', fontSize: '9.5px', borderRadius: '4px', background: cfg.suffixStr?.includes('M1') ? 'var(--accent-soft)' : 'var(--panel)', color: 'var(--ink)' }}
+                          title={`Set ${groupKey} - Subj M1, M2 (2 copies)`}
+                        >
+                          M1, M2
+                        </button>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: useDuplication ? '1.2fr 1.8fr' : '1fr', gap: '6px' }}>
