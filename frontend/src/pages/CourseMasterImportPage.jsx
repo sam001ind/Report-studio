@@ -323,25 +323,27 @@ export default function CourseMasterImportPage() {
             newRow['ATCredits'] = 0;
           }
 
+          let amMinMarksVal = 0;
           if (amMethod === 'ESE' && atType === 'TH') {
             newRow['ATMaxMarks'] = eseMaxTh;
-            newRow['ATMinMarks'] = eseMinTh;
+            amMinMarksVal = eseMinTh;
           } else if (amMethod === 'ESE' && atType === 'PR') {
             newRow['ATMaxMarks'] = eseMaxPr;
-            newRow['ATMinMarks'] = eseMinPr;
+            amMinMarksVal = eseMinPr;
           } else if (amMethod === 'CE' && atType === 'TH') {
             newRow['ATMaxMarks'] = ccaMaxTh;
-            newRow['ATMinMarks'] = ccaMinTh;
+            amMinMarksVal = ccaMinTh;
           } else if (amMethod === 'CE' && atType === 'PR') {
             newRow['ATMaxMarks'] = ccaMaxPr;
-            newRow['ATMinMarks'] = ccaMinPr;
+            amMinMarksVal = ccaMinPr;
           } else {
             newRow['ATMaxMarks'] = 0;
-            newRow['ATMinMarks'] = 0;
+            amMinMarksVal = 0;
           }
 
+          newRow['ATMinMarks'] = 0;
           newRow['AMMaxMarks'] = newRow['ATMaxMarks'];
-          newRow['AMMinMarks'] = newRow['ATMinMarks'];
+          newRow['AMMinMarks'] = amMinMarksVal;
 
           rowsForSubject.push(newRow);
         }
