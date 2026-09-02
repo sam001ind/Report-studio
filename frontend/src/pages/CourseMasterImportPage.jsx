@@ -327,27 +327,23 @@ export default function CourseMasterImportPage() {
           let amMinMarksVal = 0;
           if (amMethod === 'ESE') {
             amMaxMarksVal = (eseMaxTh || 0) + (eseMaxPr || 0);
+            amMinMarksVal = (eseMinTh || 0) + (eseMinPr || 0);
             if (atType === 'TH') {
               newRow['ATMaxMarks'] = eseMaxTh;
-              amMinMarksVal = eseMinTh;
             } else if (atType === 'PR') {
               newRow['ATMaxMarks'] = eseMaxPr;
-              amMinMarksVal = eseMinPr;
             } else {
               newRow['ATMaxMarks'] = 0;
-              amMinMarksVal = 0;
             }
           } else if (amMethod === 'CE') {
             amMaxMarksVal = (ccaMaxTh || 0) + (ccaMaxPr || 0);
+            amMinMarksVal = (ccaMinTh || 0) + (ccaMinPr || 0);
             if (atType === 'TH') {
               newRow['ATMaxMarks'] = ccaMaxTh;
-              amMinMarksVal = ccaMinTh;
             } else if (atType === 'PR') {
               newRow['ATMaxMarks'] = ccaMaxPr;
-              amMinMarksVal = ccaMinPr;
             } else {
               newRow['ATMaxMarks'] = 0;
-              amMinMarksVal = 0;
             }
           } else {
             newRow['ATMaxMarks'] = 0;
