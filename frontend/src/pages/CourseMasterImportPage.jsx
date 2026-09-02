@@ -323,26 +323,40 @@ export default function CourseMasterImportPage() {
             newRow['ATCredits'] = 0;
           }
 
+          let amMaxMarksVal = 0;
           let amMinMarksVal = 0;
-          if (amMethod === 'ESE' && atType === 'TH') {
-            newRow['ATMaxMarks'] = eseMaxTh;
-            amMinMarksVal = eseMinTh;
-          } else if (amMethod === 'ESE' && atType === 'PR') {
-            newRow['ATMaxMarks'] = eseMaxPr;
-            amMinMarksVal = eseMinPr;
-          } else if (amMethod === 'CE' && atType === 'TH') {
-            newRow['ATMaxMarks'] = ccaMaxTh;
-            amMinMarksVal = ccaMinTh;
-          } else if (amMethod === 'CE' && atType === 'PR') {
-            newRow['ATMaxMarks'] = ccaMaxPr;
-            amMinMarksVal = ccaMinPr;
+          if (amMethod === 'ESE') {
+            amMaxMarksVal = (eseMaxTh || 0) + (eseMaxPr || 0);
+            if (atType === 'TH') {
+              newRow['ATMaxMarks'] = eseMaxTh;
+              amMinMarksVal = eseMinTh;
+            } else if (atType === 'PR') {
+              newRow['ATMaxMarks'] = eseMaxPr;
+              amMinMarksVal = eseMinPr;
+            } else {
+              newRow['ATMaxMarks'] = 0;
+              amMinMarksVal = 0;
+            }
+          } else if (amMethod === 'CE') {
+            amMaxMarksVal = (ccaMaxTh || 0) + (ccaMaxPr || 0);
+            if (atType === 'TH') {
+              newRow['ATMaxMarks'] = ccaMaxTh;
+              amMinMarksVal = ccaMinTh;
+            } else if (atType === 'PR') {
+              newRow['ATMaxMarks'] = ccaMaxPr;
+              amMinMarksVal = ccaMinPr;
+            } else {
+              newRow['ATMaxMarks'] = 0;
+              amMinMarksVal = 0;
+            }
           } else {
             newRow['ATMaxMarks'] = 0;
+            amMaxMarksVal = 0;
             amMinMarksVal = 0;
           }
 
           newRow['ATMinMarks'] = 0;
-          newRow['AMMaxMarks'] = newRow['ATMaxMarks'];
+          newRow['AMMaxMarks'] = amMaxMarksVal;
           newRow['AMMinMarks'] = amMinMarksVal;
 
           rowsForSubject.push(newRow);
