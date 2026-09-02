@@ -238,6 +238,11 @@ export default function CourseMasterImportPage() {
       const eseMaxPr = getNumber(row, 'ESE Max - PR', 'esemaxpr', 'esepr', 'esemax_pr');
       const ccaMaxPr = getNumber(row, 'CCA Max - PR', 'ccamaxpr', 'ccapr', 'ccamax_pr', 'cemaxpr');
 
+      const eseMinTh = getNumber(row, 'ESE Min - TH', 'eseminth', 'esethmin', 'esemin_th');
+      const ccaMinTh = getNumber(row, 'CCA Min - TH', 'ccaminth', 'ccathmin', 'ccamin_th', 'ceminth', 'cethmin');
+      const eseMinPr = getNumber(row, 'ESE Min - PR', 'eseminpr', 'eseprmin', 'esemin_pr');
+      const ccaMinPr = getNumber(row, 'CCA Min - PR', 'ccaminpr', 'ccaprmin', 'ccamin_pr', 'ceminpr', 'ceprmin');
+
       const hasThAssessments = eseMaxTh > 0 || ccaMaxTh > 0;
       const hasPrAssessments = eseMaxPr > 0 || ccaMaxPr > 0;
 
@@ -320,17 +325,21 @@ export default function CourseMasterImportPage() {
 
           if (amMethod === 'ESE' && atType === 'TH') {
             newRow['ATMaxMarks'] = eseMaxTh;
+            newRow['ATMinMarks'] = eseMinTh;
           } else if (amMethod === 'ESE' && atType === 'PR') {
             newRow['ATMaxMarks'] = eseMaxPr;
+            newRow['ATMinMarks'] = eseMinPr;
           } else if (amMethod === 'CE' && atType === 'TH') {
             newRow['ATMaxMarks'] = ccaMaxTh;
+            newRow['ATMinMarks'] = ccaMinTh;
           } else if (amMethod === 'CE' && atType === 'PR') {
             newRow['ATMaxMarks'] = ccaMaxPr;
+            newRow['ATMinMarks'] = ccaMinPr;
           } else {
             newRow['ATMaxMarks'] = 0;
+            newRow['ATMinMarks'] = 0;
           }
 
-          newRow['ATMinMarks'] = 0;
           newRow['AMMaxMarks'] = newRow['ATMaxMarks'];
           newRow['AMMinMarks'] = newRow['ATMinMarks'];
 
