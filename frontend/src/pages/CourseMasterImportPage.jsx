@@ -31,7 +31,10 @@ import {
   X,
   ListFilter,
   FolderPlus,
-  Trash
+  Trash,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from 'lucide-react';
 
 const OUTPUT_HEADERS = [
@@ -151,7 +154,23 @@ export default function CourseMasterImportPage() {
   const [columnFilters, setColumnFilters] = useState({}); // { [colName]: string }
   const [selectedFilterCol, setSelectedFilterCol] = useState('');
   const [selectedFilterVal, setSelectedFilterVal] = useState('');
-  const [showColumnFilterRow, setShowColumnFilterRow] = useState(true);
+  const [showColumnFilterRow, setShowColumnFilterRow] = useState(false);
+
+  // Column Sorting State: { column: string | null, direction: 'asc' | 'desc' | null }
+  const [sortConfig, setSortConfig] = useState({ column: null, direction: null });
+
+  const handleSort = (column) => {
+    setSortConfig(prev => {
+      if (prev.column !== column) {
+        return { column, direction: 'asc' };
+      }
+      if (prev.direction === 'asc') {
+        return { column, direction: 'desc' };
+      }
+      return { column: null, direction: null };
+    });
+    setPage(0);
+  };
 
   const updateColumnFilter = (colKey, val) => {
     setColumnFilters(prev => {
@@ -168,6 +187,7 @@ export default function CourseMasterImportPage() {
 
   const clearAllColumnFilters = () => {
     setColumnFilters({});
+    setSortConfig({ column: null, direction: null });
     setSelectedFilterCol('');
     setSelectedFilterVal('');
     setSelectedSubjectFilter('ALL');
@@ -1137,8 +1157,32 @@ export default function CourseMasterImportPage() {
       });
     }
 
+    // 3. Apply Column Sorting across all headers (1 to 37)
+    if (sortConfig.column && sortConfig.direction) {
+      const col = sortConfig.column;
+      const dir = sortConfig.direction === 'asc' ? 1 : -1;
+
+      generated.sort((a, b) => {
+        const valA = a[col] !== undefined && a[col] !== null ? a[col] : '';
+        const valB = b[col] !== undefined && b[col] !== null ? b[col] : '';
+
+        // Check if numeric
+        const numA = Number(valA);
+        const numB = Number(valB);
+        const isNumA = typeof valA === 'number' || (String(valA).trim() !== '' && !isNaN(numA));
+        const isNumB = typeof valB === 'number' || (String(valB).trim() !== '' && !isNaN(numB));
+
+        if (isNumA && isNumB) {
+          return (numA - numB) * dir;
+        }
+
+        // Natural alphanumeric comparison
+        return String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' }) * dir;
+      });
+    }
+
     return generated;
-  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, groupHierarchy, columnFilters]);
+  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, groupHierarchy, columnFilters, sortConfig]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
@@ -1933,7 +1977,7 @@ export default function CourseMasterImportPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 
                 {/* Global Search Box */}
-                <div style={{ position: 'relative', width: '170px' }}>
+                <div style={{ position: 'relative', width: '160px' }}>
                   <input 
                     type="text" 
                     placeholder={activeView === 'group_master' ? "Global search..." : "Global search..."} 
@@ -1944,77 +1988,63 @@ export default function CourseMasterImportPage() {
                   <Search size={13} color="var(--muted)" style={{ position: 'absolute', left: '8px', top: '7px' }} />
                 </div>
 
-                {/* Column Selector Dropdown (All 37 Columns) */}
+                {/* Sort Selector Dropdown (All 37 Headers) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <select 
-                    value={selectedFilterCol} 
-                    onChange={(e) => setSelectedFilterCol(e.target.value)}
-                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '210px' }}
+                    value={sortConfig.column || ''} 
+                    onChange={(e) => {
+                      const col = e.target.value;
+                      if (!col) {
+                        setSortConfig({ column: null, direction: null });
+                      } else {
+                        setSortConfig({ column: col, direction: 'asc' });
+                      }
+                      setPage(0);
+                    }}
+                    style={{ 
+                      padding: '5px 8px', 
+                      fontSize: '12px', 
+                      borderRadius: '4px', 
+                      border: sortConfig.column ? '1.5px solid var(--accent)' : '1px solid var(--line)', 
+                      maxWidth: '220px', 
+                      background: sortConfig.column ? 'var(--accent-soft)' : 'var(--bg)',
+                      fontWeight: sortConfig.column ? 600 : 400
+                    }}
                   >
-                    <option value="">🔍 Filter by Column (1-37)...</option>
+                    <option value="">↕️ Sort by Header (Cols 1-37)...</option>
                     {(activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS).map((col, idx) => (
                       <option key={col} value={col}>
-                        Col {idx + 1}: {col} {columnFilters[col] ? `(Filtered: ${columnFilters[col]})` : ''}
+                        Col {idx + 1}: {col} {sortConfig.column === col ? `(${sortConfig.direction.toUpperCase()})` : ''}
                       </option>
                     ))}
                   </select>
 
-                  {selectedFilterCol && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <input 
-                        type="text" 
-                        placeholder={`Value for ${selectedFilterCol}...`} 
-                        value={selectedFilterVal} 
-                        onChange={(e) => setSelectedFilterVal(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && selectedFilterCol) {
-                            updateColumnFilter(selectedFilterCol, selectedFilterVal);
-                            setSelectedFilterVal('');
-                          }
-                        }}
-                        style={{ width: '140px', padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }} 
-                      />
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          if (selectedFilterCol) {
-                            updateColumnFilter(selectedFilterCol, selectedFilterVal);
-                            setSelectedFilterVal('');
-                          }
-                        }}
-                        style={{ padding: '5px 10px', fontSize: '11.5px', background: 'var(--accent)', color: 'white', borderRadius: '4px', border: 'none' }}
-                      >
-                        Apply
-                      </button>
-                    </div>
+                  {sortConfig.column && (
+                    <button 
+                      type="button" 
+                      className="secondary"
+                      onClick={() => {
+                        setSortConfig(prev => ({
+                          ...prev,
+                          direction: prev.direction === 'asc' ? 'desc' : 'asc'
+                        }));
+                        setPage(0);
+                      }}
+                      style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent)', fontWeight: 600 }}
+                      title="Toggle Ascending / Descending"
+                    >
+                      {sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                      {sortConfig.direction === 'asc' ? 'ASC' : 'DESC'}
+                    </button>
                   )}
                 </div>
-
-                {/* Toggle Column Filters Row in Table */}
-                <button 
-                  type="button" 
-                  className="secondary" 
-                  onClick={() => setShowColumnFilterRow(!showColumnFilterRow)}
-                  style={{ 
-                    padding: '4px 8px', 
-                    fontSize: '11px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '4px',
-                    borderColor: showColumnFilterRow ? 'var(--accent)' : 'var(--line)',
-                    color: showColumnFilterRow ? 'var(--accent)' : 'var(--ink)'
-                  }}
-                  title="Toggle inline filter inputs in the table header"
-                >
-                  <ListFilter size={12} /> {showColumnFilterRow ? 'Table Inputs: ON' : 'Table Inputs: OFF'}
-                </button>
 
                 {/* Subject Filter Dropdown */}
                 {uniqueSubjects.length > 0 && (
                   <select 
                     value={selectedSubjectFilter} 
                     onChange={(e) => { setSelectedSubjectFilter(e.target.value); setPage(0); }}
-                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '150px' }}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '140px' }}
                   >
                     <option value="ALL">All Subjects ({uniqueSubjects.length})</option>
                     {uniqueSubjects.map(s => (
@@ -2028,7 +2058,7 @@ export default function CourseMasterImportPage() {
                   <select 
                     value={selectedGroupFilter} 
                     onChange={(e) => { setSelectedGroupFilter(e.target.value); setPage(0); }}
-                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '140px' }}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '130px' }}
                   >
                     <option value="ALL">All Groups ({detectedGroups.length})</option>
                     {detectedGroups.map(g => (
@@ -2037,15 +2067,15 @@ export default function CourseMasterImportPage() {
                   </select>
                 )}
 
-                {/* Reset Filters Link */}
-                {(selectedSubjectFilter !== 'ALL' || selectedGroupFilter !== 'ALL' || searchQuery || Object.keys(columnFilters).length > 0) && (
+                {/* Reset Filters & Sort */}
+                {(selectedSubjectFilter !== 'ALL' || selectedGroupFilter !== 'ALL' || searchQuery || Object.keys(columnFilters).length > 0 || sortConfig.column) && (
                   <button 
                     type="button" 
                     className="secondary" 
                     onClick={clearAllColumnFilters}
                     style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--danger)' }}
                   >
-                    Reset All
+                    Reset
                   </button>
                 )}
 
@@ -2065,9 +2095,9 @@ export default function CourseMasterImportPage() {
                       borderRadius: '4px',
                       border: 'none'
                     }}
-                    title="Download only the currently filtered rows"
+                    title="Download only the currently filtered/sorted rows"
                   >
-                    <Download size={13} /> Export Filtered ({previewRows.length})
+                    <Download size={13} /> Export ({previewRows.length})
                   </button>
                 )}
 
@@ -2133,10 +2163,40 @@ export default function CourseMasterImportPage() {
               )}
             </div>
 
-            {/* Active Column Filters Badges Bar */}
-            {Object.keys(columnFilters).length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '4px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Active Filters:</span>
+            {/* Active Sort / Filter Badges Bar */}
+            {(sortConfig.column || Object.keys(columnFilters).length > 0) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '2px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Active:</span>
+                
+                {/* Active Sort Badge */}
+                {sortConfig.column && (
+                  <span 
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '4px', 
+                      fontSize: '10.5px', 
+                      background: 'var(--accent-soft)', 
+                      color: 'var(--accent)', 
+                      border: '1.5px solid var(--accent)', 
+                      padding: '2px 8px', 
+                      borderRadius: '4px',
+                      fontWeight: 700 
+                    }}
+                  >
+                    Sorted by: Col {((activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS).indexOf(sortConfig.column) + 1)} {sortConfig.column} ({sortConfig.direction === 'asc' ? '▲ Ascending' : '▼ Descending'})
+                    <button 
+                      type="button" 
+                      onClick={() => setSortConfig({ column: null, direction: null })} 
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', display: 'flex' }}
+                      title="Clear sort"
+                    >
+                      <X size={11} />
+                    </button>
+                  </span>
+                )}
+
+                {/* Active Filter Badges */}
                 {Object.entries(columnFilters).map(([colKey, filterVal]) => {
                   const headers = activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS;
                   const colIdx = headers.indexOf(colKey) + 1;
@@ -2167,14 +2227,6 @@ export default function CourseMasterImportPage() {
                     </span>
                   );
                 })}
-                <button 
-                  type="button" 
-                  className="secondary" 
-                  onClick={() => setColumnFilters({})} 
-                  style={{ padding: '2px 6px', fontSize: '10.5px', color: 'var(--danger)' }}
-                >
-                  Clear Column Filters ({Object.keys(columnFilters).length})
-                </button>
               </div>
             )}
           </div>
@@ -2192,23 +2244,48 @@ export default function CourseMasterImportPage() {
                 <thead>
                   <tr style={{ background: 'var(--bg)', position: 'sticky', top: 0, zIndex: 11 }}>
                     <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1.5px solid var(--line)', color: 'var(--muted)', width: '40px' }}>#</th>
-                    {(activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS).map((col, idx) => (
-                      <th 
-                        key={col} 
-                        style={{ 
-                          padding: '8px 10px', 
-                          textAlign: 'left', 
-                          borderBottom: showColumnFilterRow ? '1px solid var(--line)' : '1.5px solid var(--line)', 
-                          color: 'var(--ink)', 
-                          fontWeight: 700,
-                          borderRight: '1px solid var(--line)',
-                          background: 'var(--bg)'
-                        }}
-                      >
-                        <span style={{ fontSize: '9px', color: 'var(--muted)', display: 'block', fontWeight: 600 }}>Col {idx + 1}</span>
-                        {col}
-                      </th>
-                    ))}
+                    {(activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS).map((col, idx) => {
+                      const isSorted = sortConfig.column === col;
+                      return (
+                        <th 
+                          key={col} 
+                          onClick={() => handleSort(col)}
+                          title={`Click to sort by Col ${idx + 1} (${col}) - Asc / Desc / Default`}
+                          style={{ 
+                            padding: '8px 10px', 
+                            textAlign: 'left', 
+                            borderBottom: '1.5px solid var(--line)', 
+                            color: isSorted ? 'var(--accent)' : 'var(--ink)', 
+                            fontWeight: 700,
+                            borderRight: '1px solid var(--line)',
+                            background: isSorted ? 'var(--accent-soft)' : 'var(--bg)',
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            transition: 'background 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                            <div>
+                              <span style={{ fontSize: '9px', color: isSorted ? 'var(--accent)' : 'var(--muted)', display: 'block', fontWeight: 600 }}>
+                                Col {idx + 1}
+                              </span>
+                              <span>{col}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              {isSorted && sortConfig.direction === 'asc' && (
+                                <ArrowUp size={13} color="var(--accent)" />
+                              )}
+                              {isSorted && sortConfig.direction === 'desc' && (
+                                <ArrowDown size={13} color="var(--accent)" />
+                              )}
+                              {!isSorted && (
+                                <ArrowUpDown size={11} style={{ opacity: 0.25, color: 'var(--ink)' }} />
+                              )}
+                            </div>
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
 
                   {/* Inline Column Filter Inputs Header Row */}
