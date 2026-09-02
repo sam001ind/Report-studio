@@ -147,6 +147,35 @@ export default function CourseMasterImportPage() {
   const [editingSubgroup, setEditingSubgroup] = useState(null); // { groupId, subGroupId, subGroupName, groupName }
   const [subjectModalSearch, setSubjectModalSearch] = useState('');
 
+  // 37-Column Deep Filtering States
+  const [columnFilters, setColumnFilters] = useState({}); // { [colName]: string }
+  const [selectedFilterCol, setSelectedFilterCol] = useState('');
+  const [selectedFilterVal, setSelectedFilterVal] = useState('');
+  const [showColumnFilterRow, setShowColumnFilterRow] = useState(true);
+
+  const updateColumnFilter = (colKey, val) => {
+    setColumnFilters(prev => {
+      const next = { ...prev };
+      if (val === undefined || val === null || String(val).trim() === '') {
+        delete next[colKey];
+      } else {
+        next[colKey] = String(val);
+      }
+      return next;
+    });
+    setPage(0);
+  };
+
+  const clearAllColumnFilters = () => {
+    setColumnFilters({});
+    setSelectedFilterCol('');
+    setSelectedFilterVal('');
+    setSelectedSubjectFilter('ALL');
+    setSelectedGroupFilter('ALL');
+    setSearchQuery('');
+    setPage(0);
+  };
+
   const setStatus = (msg, type = 'info') => {
     setStatusMsg(msg);
     setStatusType(type);
@@ -1078,29 +1107,38 @@ export default function CourseMasterImportPage() {
   };
 
   const previewRows = useMemo(() => {
+    let generated = [];
     if (activeView === 'group_master') {
       const targetSubj = selectedSubjectFilter === 'ALL' ? null : selectedSubjectFilter;
-      const generated = generateGroupMasterRows(targetSubj);
-      if (!searchQuery) return generated;
-      const q = searchQuery.toLowerCase();
-      return generated.filter(r => 
-        String(r.ParentGroupName || '').toLowerCase().includes(q) ||
-        String(r.SubGroupName || '').toLowerCase().includes(q)
-      );
+      generated = generateGroupMasterRows(targetSubj);
     } else {
       const targetSubj = selectedSubjectFilter === 'ALL' ? null : selectedSubjectFilter;
       const targetGroup = selectedGroupFilter === 'ALL' ? null : selectedGroupFilter;
-      const generated = generateProcessedRows(targetSubj, targetGroup);
-      if (!searchQuery) return generated;
+      generated = generateProcessedRows(targetSubj, targetGroup);
+    }
+
+    // 1. Apply global search query
+    if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      return generated.filter(r => 
-        String(r.CourseCode || '').toLowerCase().includes(q) ||
-        String(r.CourseName || '').toLowerCase().includes(q) ||
-        String(r.Subject || '').toLowerCase().includes(q) ||
-        String(r.ImmidiateParentGroup || '').toLowerCase().includes(q)
+      generated = generated.filter(r => 
+        Object.values(r).some(val => String(val || '').toLowerCase().includes(q))
       );
     }
-  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, groupHierarchy]);
+
+    // 2. Apply Column-specific filters across all 37 columns
+    const activeFilters = Object.entries(columnFilters);
+    if (activeFilters.length > 0) {
+      generated = generated.filter(r => {
+        return activeFilters.every(([colKey, filterVal]) => {
+          if (!filterVal || String(filterVal).trim() === '') return true;
+          const cellVal = String(r[colKey] !== undefined && r[colKey] !== null ? r[colKey] : '').toLowerCase();
+          return cellVal.includes(String(filterVal).toLowerCase().trim());
+        });
+      });
+    }
+
+    return generated;
+  }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, groupHierarchy, columnFilters]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
@@ -1890,144 +1928,252 @@ export default function CourseMasterImportPage() {
           </div>
 
           {/* Table Header Controls Bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--line)', background: 'var(--bg)', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              
-              {/* Search Box */}
-              <div style={{ position: 'relative', width: '180px' }}>
-                <input 
-                  type="text" 
-                  placeholder={activeView === 'group_master' ? "Filter parents, subgroups..." : "Filter courses, codes..."} 
-                  value={searchQuery} 
-                  onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }} 
-                  style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }} 
-                />
-                <Search size={13} color="var(--muted)" style={{ position: 'absolute', left: '8px', top: '7px' }} />
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 16px', borderBottom: '1px solid var(--line)', background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                
+                {/* Global Search Box */}
+                <div style={{ position: 'relative', width: '170px' }}>
+                  <input 
+                    type="text" 
+                    placeholder={activeView === 'group_master' ? "Global search..." : "Global search..."} 
+                    value={searchQuery} 
+                    onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }} 
+                    style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }} 
+                  />
+                  <Search size={13} color="var(--muted)" style={{ position: 'absolute', left: '8px', top: '7px' }} />
+                </div>
 
-              {/* Subject Filter Dropdown */}
-              {uniqueSubjects.length > 0 && (
-                <select 
-                  value={selectedSubjectFilter} 
-                  onChange={(e) => { setSelectedSubjectFilter(e.target.value); setPage(0); }}
-                  style={{ padding: '5px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '170px' }}
-                >
-                  <option value="ALL">All Subjects ({uniqueSubjects.length})</option>
-                  {uniqueSubjects.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              )}
+                {/* Column Selector Dropdown (All 37 Columns) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <select 
+                    value={selectedFilterCol} 
+                    onChange={(e) => setSelectedFilterCol(e.target.value)}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '210px' }}
+                  >
+                    <option value="">🔍 Filter by Column (1-37)...</option>
+                    {(activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS).map((col, idx) => (
+                      <option key={col} value={col}>
+                        Col {idx + 1}: {col} {columnFilters[col] ? `(Filtered: ${columnFilters[col]})` : ''}
+                      </option>
+                    ))}
+                  </select>
 
-              {/* Group Filter Dropdown (Course Master View) */}
-              {activeView === 'course_master' && detectedGroups.length > 0 && (
-                <select 
-                  value={selectedGroupFilter} 
-                  onChange={(e) => { setSelectedGroupFilter(e.target.value); setPage(0); }}
-                  style={{ padding: '5px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '150px' }}
-                >
-                  <option value="ALL">All Groups ({detectedGroups.length})</option>
-                  {detectedGroups.map(g => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </select>
-              )}
+                  {selectedFilterCol && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input 
+                        type="text" 
+                        placeholder={`Value for ${selectedFilterCol}...`} 
+                        value={selectedFilterVal} 
+                        onChange={(e) => setSelectedFilterVal(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && selectedFilterCol) {
+                            updateColumnFilter(selectedFilterCol, selectedFilterVal);
+                            setSelectedFilterVal('');
+                          }
+                        }}
+                        style={{ width: '140px', padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }} 
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          if (selectedFilterCol) {
+                            updateColumnFilter(selectedFilterCol, selectedFilterVal);
+                            setSelectedFilterVal('');
+                          }
+                        }}
+                        style={{ padding: '5px 10px', fontSize: '11.5px', background: 'var(--accent)', color: 'white', borderRadius: '4px', border: 'none' }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-              {/* Reset Filters Link */}
-              {(selectedSubjectFilter !== 'ALL' || selectedGroupFilter !== 'ALL' || searchQuery) && (
+                {/* Toggle Column Filters Row in Table */}
                 <button 
                   type="button" 
                   className="secondary" 
-                  onClick={() => {
-                    setSelectedSubjectFilter('ALL');
-                    setSelectedGroupFilter('ALL');
-                    setSearchQuery('');
-                    setPage(0);
-                  }}
-                  style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--danger)' }}
-                >
-                  Reset
-                </button>
-              )}
-
-              {/* Direct Download Filtered Subset Button */}
-              {previewRows.length > 0 && (
-                <button 
-                  type="button" 
-                  onClick={exportFilteredSubset}
+                  onClick={() => setShowColumnFilterRow(!showColumnFilterRow)}
                   style={{ 
+                    padding: '4px 8px', 
+                    fontSize: '11px', 
                     display: 'flex', 
                     alignItems: 'center', 
-                    gap: '5px', 
-                    padding: '4px 10px', 
-                    fontSize: '11.5px', 
-                    background: 'var(--accent)', 
-                    color: 'white', 
-                    borderRadius: '4px' 
+                    gap: '4px',
+                    borderColor: showColumnFilterRow ? 'var(--accent)' : 'var(--line)',
+                    color: showColumnFilterRow ? 'var(--accent)' : 'var(--ink)'
                   }}
-                  title="Download only the currently filtered rows"
+                  title="Toggle inline filter inputs in the table header"
                 >
-                  <Download size={13} /> Download {activeView === 'group_master' ? 'Group Master' : 'Filtered'} ({previewRows.length})
+                  <ListFilter size={12} /> {showColumnFilterRow ? 'Table Inputs: ON' : 'Table Inputs: OFF'}
                 </button>
-              )}
 
-              {/* Quick Mode Toggle on Header Bar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--panel)', padding: '2px 6px', borderRadius: '14px', border: '1px solid var(--line)' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setUseDuplication(true)}
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: '11px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: useDuplication ? 'var(--accent)' : 'transparent',
-                    color: useDuplication ? 'white' : 'var(--muted)',
-                    fontWeight: 600
-                  }}
-                >
-                  ✨ With Duplication
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setUseDuplication(false)}
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: '11px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: !useDuplication ? 'var(--accent)' : 'transparent',
-                    color: !useDuplication ? 'white' : 'var(--muted)',
-                    fontWeight: 600
-                  }}
-                >
-                  📄 No Duplication
-                </button>
+                {/* Subject Filter Dropdown */}
+                {uniqueSubjects.length > 0 && (
+                  <select 
+                    value={selectedSubjectFilter} 
+                    onChange={(e) => { setSelectedSubjectFilter(e.target.value); setPage(0); }}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '150px' }}
+                  >
+                    <option value="ALL">All Subjects ({uniqueSubjects.length})</option>
+                    {uniqueSubjects.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Group Filter Dropdown */}
+                {activeView === 'course_master' && detectedGroups.length > 0 && (
+                  <select 
+                    value={selectedGroupFilter} 
+                    onChange={(e) => { setSelectedGroupFilter(e.target.value); setPage(0); }}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '140px' }}
+                  >
+                    <option value="ALL">All Groups ({detectedGroups.length})</option>
+                    {detectedGroups.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Reset Filters Link */}
+                {(selectedSubjectFilter !== 'ALL' || selectedGroupFilter !== 'ALL' || searchQuery || Object.keys(columnFilters).length > 0) && (
+                  <button 
+                    type="button" 
+                    className="secondary" 
+                    onClick={clearAllColumnFilters}
+                    style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--danger)' }}
+                  >
+                    Reset All
+                  </button>
+                )}
+
+                {/* Direct Download Filtered Subset Button */}
+                {previewRows.length > 0 && (
+                  <button 
+                    type="button" 
+                    onClick={exportFilteredSubset}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '5px', 
+                      padding: '4px 10px', 
+                      fontSize: '11.5px', 
+                      background: 'var(--accent)', 
+                      color: 'white', 
+                      borderRadius: '4px',
+                      border: 'none'
+                    }}
+                    title="Download only the currently filtered rows"
+                  >
+                    <Download size={13} /> Export Filtered ({previewRows.length})
+                  </button>
+                )}
+
+                {/* Quick Mode Toggle on Header Bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--panel)', padding: '2px 6px', borderRadius: '14px', border: '1px solid var(--line)' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setUseDuplication(true)}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '11px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: useDuplication ? 'var(--accent)' : 'transparent',
+                      color: useDuplication ? 'white' : 'var(--muted)',
+                      fontWeight: 600
+                    }}
+                  >
+                    ✨ With Duplication
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setUseDuplication(false)}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '11px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: !useDuplication ? 'var(--accent)' : 'transparent',
+                      color: !useDuplication ? 'white' : 'var(--muted)',
+                      fontWeight: 600
+                    }}
+                  >
+                    📄 No Duplication
+                  </button>
+                </div>
+
               </div>
 
+              {/* Pagination Controls */}
+              {previewRows.length > pageSize && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}>
+                  <span>Page {page + 1} of {Math.ceil(previewRows.length / pageSize)}</span>
+                  <button 
+                    type="button" 
+                    className="secondary" 
+                    disabled={page === 0} 
+                    onClick={() => setPage(p => p - 1)} 
+                    style={{ padding: '2px 6px', fontSize: '11px' }}
+                  >
+                    Prev
+                  </button>
+                  <button 
+                    type="button" 
+                    className="secondary" 
+                    disabled={(page + 1) * pageSize >= previewRows.length} 
+                    onClick={() => setPage(p => p + 1)} 
+                    style={{ padding: '2px 6px', fontSize: '11px' }}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Pagination Controls */}
-            {previewRows.length > pageSize && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}>
-                <span>Page {page + 1} of {Math.ceil(previewRows.length / pageSize)}</span>
+            {/* Active Column Filters Badges Bar */}
+            {Object.keys(columnFilters).length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '4px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Active Filters:</span>
+                {Object.entries(columnFilters).map(([colKey, filterVal]) => {
+                  const headers = activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS;
+                  const colIdx = headers.indexOf(colKey) + 1;
+                  return (
+                    <span 
+                      key={colKey} 
+                      style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: '4px', 
+                        fontSize: '10.5px', 
+                        background: 'var(--accent-soft)', 
+                        color: 'var(--accent)', 
+                        border: '1px solid var(--accent)', 
+                        padding: '2px 6px', 
+                        borderRadius: '4px',
+                        fontWeight: 600 
+                      }}
+                    >
+                      {colIdx > 0 ? `Col ${colIdx} ` : ''}{colKey}: "{filterVal}"
+                      <button 
+                        type="button" 
+                        onClick={() => updateColumnFilter(colKey, '')} 
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', display: 'flex' }}
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  );
+                })}
                 <button 
                   type="button" 
                   className="secondary" 
-                  disabled={page === 0} 
-                  onClick={() => setPage(p => p - 1)} 
-                  style={{ padding: '2px 6px', fontSize: '11px' }}
+                  onClick={() => setColumnFilters({})} 
+                  style={{ padding: '2px 6px', fontSize: '10.5px', color: 'var(--danger)' }}
                 >
-                  Prev
-                </button>
-                <button 
-                  type="button" 
-                  className="secondary" 
-                  disabled={(page + 1) * pageSize >= previewRows.length} 
-                  onClick={() => setPage(p => p + 1)} 
-                  style={{ padding: '2px 6px', fontSize: '11px' }}
-                >
-                  Next
+                  Clear Column Filters ({Object.keys(columnFilters).length})
                 </button>
               </div>
             )}
@@ -2044,7 +2190,7 @@ export default function CourseMasterImportPage() {
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px', whiteSpace: 'nowrap' }}>
                 <thead>
-                  <tr style={{ background: 'var(--bg)', position: 'sticky', top: 0, zIndex: 10 }}>
+                  <tr style={{ background: 'var(--bg)', position: 'sticky', top: 0, zIndex: 11 }}>
                     <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1.5px solid var(--line)', color: 'var(--muted)', width: '40px' }}>#</th>
                     {(activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS).map((col, idx) => (
                       <th 
@@ -2052,7 +2198,7 @@ export default function CourseMasterImportPage() {
                         style={{ 
                           padding: '8px 10px', 
                           textAlign: 'left', 
-                          borderBottom: '1.5px solid var(--line)', 
+                          borderBottom: showColumnFilterRow ? '1px solid var(--line)' : '1.5px solid var(--line)', 
                           color: 'var(--ink)', 
                           fontWeight: 700,
                           borderRight: '1px solid var(--line)',
@@ -2064,6 +2210,67 @@ export default function CourseMasterImportPage() {
                       </th>
                     ))}
                   </tr>
+
+                  {/* Inline Column Filter Inputs Header Row */}
+                  {showColumnFilterRow && (
+                    <tr style={{ background: 'var(--panel)', position: 'sticky', top: '35px', zIndex: 10 }}>
+                      <th style={{ padding: '4px 6px', textAlign: 'center', borderBottom: '1.5px solid var(--line)', borderRight: '1px solid var(--line)', background: 'var(--panel)' }}>
+                        <ListFilter size={11} color="var(--muted)" style={{ margin: '0 auto' }} />
+                      </th>
+                      {(activeView === 'group_master' ? GROUP_MASTER_HEADERS : OUTPUT_HEADERS).map((col) => {
+                        const isFiltered = !!columnFilters[col];
+                        return (
+                          <th 
+                            key={`filter_${col}`} 
+                            style={{ 
+                              padding: '3px 6px', 
+                              borderBottom: '1.5px solid var(--line)', 
+                              borderRight: '1px solid var(--line)', 
+                              background: isFiltered ? 'var(--accent-soft)' : 'var(--panel)'
+                            }}
+                          >
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <input 
+                                type="text" 
+                                placeholder={`Filter...`} 
+                                value={columnFilters[col] || ''} 
+                                onChange={(e) => updateColumnFilter(col, e.target.value)} 
+                                style={{ 
+                                  width: '100%', 
+                                  padding: isFiltered ? '2px 18px 2px 5px' : '2px 5px', 
+                                  fontSize: '10.5px', 
+                                  borderRadius: '3px', 
+                                  border: isFiltered ? '1.5px solid var(--accent)' : '1px solid var(--line)',
+                                  background: 'var(--bg)',
+                                  color: 'var(--ink)'
+                                }} 
+                              />
+                              {isFiltered && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => updateColumnFilter(col, '')} 
+                                  style={{ 
+                                    position: 'absolute', 
+                                    right: '4px', 
+                                    background: 'none', 
+                                    border: 'none', 
+                                    padding: 0, 
+                                    cursor: 'pointer', 
+                                    color: 'var(--muted)',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                  }}
+                                  title="Clear filter"
+                                >
+                                  <X size={10} />
+                                </button>
+                              )}
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  )}
                 </thead>
                 <tbody>
                   {pagedRows.map((row, rowIdx) => {
