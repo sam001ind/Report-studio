@@ -144,12 +144,91 @@ export default function AffiliatedProgrammePage() {
     return output;
   };
 
+  const [sheetMetadata, setSheetMetadata] = useState({}); // { [sheetName]: { score, matchedHeaders: [], headerRowIdx } }
+
+  const scoreHeaderRow = (rowArray) => {
+    if (!Array.isArray(rowArray)) return { score: 0, matchedHeaders: [] };
+    let score = 0;
+    const matchedHeaders = [];
+    const normCols = rowArray.map(c => normalizeKey(c));
+
+    if (normCols.some(c => c.includes('coursedetail') || c.includes('course') || c.includes('subject'))) {
+      score += 10;
+      matchedHeaders.push('Course Details');
+    }
+    if (normCols.some(c => c.includes('programterm') || c.includes('term') || c.includes('semester'))) {
+      score += 6;
+      matchedHeaders.push('Program Term');
+    }
+    if (normCols.some(c => c.includes('collegecode') || c.includes('instcode') || c.includes('centercode') || c === 'code')) {
+      score += 4;
+      matchedHeaders.push('College Code');
+    }
+    if (normCols.some(c => c.includes('collegename') || c.includes('institutename') || c === 'college' || c === 'centername')) {
+      score += 4;
+      matchedHeaders.push('College Name');
+    }
+    if (normCols.some(c => c.includes('programcode') || c.includes('progcode') || c.includes('degreecode') || c === 'program')) {
+      score += 4;
+      matchedHeaders.push('Program Code');
+    }
+
+    return { score, matchedHeaders };
+  };
+
+  const parseSheetWithHeaderScan = (ws) => {
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (!aoa || aoa.length === 0) return { rows: [], headerMap: {}, headerRowIdx: 0, score: 0, matchedHeaders: [] };
+
+    // Scan top 15 rows to find the best header row
+    let bestRowIdx = 0;
+    let maxScore = -1;
+    let bestMatchedHeaders = [];
+
+    for (let r = 0; r < Math.min(aoa.length, 15); r++) {
+      const rowArr = aoa[r];
+      if (!Array.isArray(rowArr) || rowArr.length === 0) continue;
+      const { score, matchedHeaders } = scoreHeaderRow(rowArr);
+      if (score > maxScore) {
+        maxScore = score;
+        bestRowIdx = r;
+        bestMatchedHeaders = matchedHeaders;
+      }
+    }
+
+    const rawHeaders = aoa[bestRowIdx] || [];
+    const headerMap = {};
+    const validHeaderIndices = [];
+
+    rawHeaders.forEach((colName, idx) => {
+      const name = String(colName || '').trim();
+      if (name) {
+        const norm = normalizeKey(name);
+        headerMap[norm] = name;
+        validHeaderIndices.push({ idx, name, norm });
+      }
+    });
+
+    const rows = [];
+    for (let r = bestRowIdx + 1; r < aoa.length; r++) {
+      const rowArr = aoa[r];
+      if (!Array.isArray(rowArr) || rowArr.every(c => String(c || '').trim() === '')) continue;
+      const rowObj = {};
+      validHeaderIndices.forEach(({ idx, name }) => {
+        rowObj[name] = rowArr[idx] !== undefined ? String(rowArr[idx]).trim() : '';
+      });
+      rows.push(rowObj);
+    }
+
+    return { rows, headerMap, headerRowIdx: bestRowIdx, score: maxScore, matchedHeaders: bestMatchedHeaders };
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsProcessing(true);
-    setStatus(`Reading ${file.name}...`, 'info');
+    setStatus(`Analyzing workbook ${file.name}...`, 'info');
     setSourceFile(file.name);
 
     const reader = new FileReader();
@@ -160,32 +239,53 @@ export default function AffiliatedProgrammePage() {
         setWorkbook(wb);
         setSheetNames(wb.SheetNames);
 
-        // Pick 'Source' sheet if present, else first sheet
-        const defaultSheet = wb.SheetNames.includes('Source') ? 'Source' : wb.SheetNames[0];
-        setSelectedSheet(defaultSheet);
+        // Analyze all sheets to calculate header match scores
+        const meta = {};
+        let bestSheet = wb.SheetNames[0];
+        let highestTotalScore = -1;
 
-        const ws = wb.Sheets[defaultSheet];
-        const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        wb.SheetNames.forEach((sName) => {
+          const ws = wb.Sheets[sName];
+          const { score, matchedHeaders, headerRowIdx, rows } = parseSheetWithHeaderScan(ws);
+          
+          let nameBonus = 0;
+          const sNorm = normalizeKey(sName);
+          if (sNorm === 'affiliatedprograms' || sNorm.includes('affiliatedprogram')) nameBonus += 12;
+          else if (sNorm.includes('affiliated')) nameBonus += 6;
+          else if (sNorm.includes('program')) nameBonus += 4;
+          else if (sNorm === 'source') nameBonus += 5;
 
-        if (!json || json.length === 0) {
-          setStatus('Sheet is empty or no valid rows found.', 'error');
+          const totalScore = score + nameBonus + (rows.length > 0 ? 3 : 0);
+          meta[sName] = { score: totalScore, matchedHeaders, headerRowIdx, rowCount: rows.length };
+
+          if (totalScore > highestTotalScore) {
+            highestTotalScore = totalScore;
+            bestSheet = sName;
+          }
+        });
+
+        setSheetMetadata(meta);
+        setSelectedSheet(bestSheet);
+
+        // Load best detected sheet
+        const ws = wb.Sheets[bestSheet];
+        const { rows, headerMap: hMap, headerRowIdx, matchedHeaders } = parseSheetWithHeaderScan(ws);
+
+        if (!rows || rows.length === 0) {
+          setStatus(`No valid data rows found in sheet "${bestSheet}".`, 'warning');
           setIsProcessing(false);
           return;
         }
 
-        // Build header map
-        const keys = Object.keys(json[0] || {});
-        const hMap = {};
-        keys.forEach(k => {
-          hMap[normalizeKey(k)] = k;
-        });
         setHeaderMap(hMap);
-        setRawRows(json);
+        setRawRows(rows);
 
-        const exploded = processDataFromRows(json, hMap);
+        const exploded = processDataFromRows(rows, hMap);
         setProcessedRows(exploded);
         setPage(0);
-        setStatus(`Successfully processed ${json.length} source rows into ${exploded.length} exploded course records!`, 'success');
+        
+        const headerInfo = matchedHeaders.length > 0 ? ` (Detected Headers: ${matchedHeaders.join(', ')} at Row ${headerRowIdx + 1})` : '';
+        setStatus(`Auto-selected sheet "${bestSheet}"${headerInfo}: ${rows.length} source rows -> ${exploded.length} exploded course records!`, 'success');
       } catch (err) {
         console.error('Error parsing sheet:', err);
         setStatus(`Failed to read file: ${err.message}`, 'error');
@@ -206,32 +306,29 @@ export default function AffiliatedProgrammePage() {
     if (!workbook) return;
     setSelectedSheet(sheetName);
     setIsProcessing(true);
-    setStatus(`Loading sheet ${sheetName}...`, 'info');
+    setStatus(`Loading sheet "${sheetName}"...`, 'info');
 
     try {
       const ws = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const { rows, headerMap: hMap, headerRowIdx, matchedHeaders } = parseSheetWithHeaderScan(ws);
 
-      if (!json || json.length === 0) {
-        setStatus(`Sheet "${sheetName}" is empty.`, 'warning');
+      if (!rows || rows.length === 0) {
+        setStatus(`Sheet "${sheetName}" is empty or has no valid rows.`, 'warning');
         setRawRows([]);
         setProcessedRows([]);
         setIsProcessing(false);
         return;
       }
 
-      const keys = Object.keys(json[0] || {});
-      const hMap = {};
-      keys.forEach(k => {
-        hMap[normalizeKey(k)] = k;
-      });
       setHeaderMap(hMap);
-      setRawRows(json);
+      setRawRows(rows);
 
-      const exploded = processDataFromRows(json, hMap);
+      const exploded = processDataFromRows(rows, hMap);
       setProcessedRows(exploded);
       setPage(0);
-      setStatus(`Loaded "${sheetName}": ${json.length} source rows -> ${exploded.length} exploded records.`, 'success');
+
+      const headerInfo = matchedHeaders.length > 0 ? ` (Headers: ${matchedHeaders.join(', ')} on Row ${headerRowIdx + 1})` : '';
+      setStatus(`Loaded "${sheetName}"${headerInfo}: ${rows.length} source rows -> ${exploded.length} exploded records.`, 'success');
     } catch (err) {
       console.error(err);
       setStatus(`Failed to load sheet: ${err.message}`, 'error');
@@ -517,9 +614,16 @@ export default function AffiliatedProgrammePage() {
                 onChange={(e) => handleSheetChange(e.target.value)}
                 style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)' }}
               >
-                {sheetNames.map(s => (
-                  <option key={s} value={s}>{s} {s === 'Source' ? '★ (Source)' : ''}</option>
-                ))}
+                {sheetNames.map(s => {
+                  const meta = sheetMetadata[s];
+                  const hasHeaders = meta && meta.matchedHeaders && meta.matchedHeaders.length > 0;
+                  const isTopMatch = s === selectedSheet;
+                  return (
+                    <option key={s} value={s}>
+                      {s} {hasHeaders ? `(✓ ${meta.matchedHeaders.length} headers)` : ''} {s.toLowerCase().includes('affiliated') ? '★' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
