@@ -11,7 +11,8 @@ import {
   Link as LinkIcon,
   Sparkles,
   Database,
-  BookOpen
+  BookOpen,
+  Building2
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -151,6 +152,15 @@ const LandingPage = () => {
             <div style={styles.featureIcon}><BookOpen size={24} color="var(--accent)" /></div>
             <h3 style={styles.featureTitle}>Course Master Import</h3>
             <p style={styles.featureText}>Process course syllabus matrices into 37 standardized master columns with optional DSC 1 / 2 duplication and multi-subject exports.</p>
+          </div>
+
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/affiliated-programs')}
+          >
+            <div style={styles.featureIcon}><Building2 size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Affiliated programme details</h3>
+            <p style={styles.featureText}>Split and explode comma-separated course details, extract course codes, names, programme year, and semester term.</p>
           </div>
 
           <div 

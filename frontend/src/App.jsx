@@ -15,6 +15,7 @@ import ImageToolsPage from './pages/ImageToolsPage';
 import PdfToolsPage from './pages/PdfToolsPage';
 import AdmissionImportPage from './pages/AdmissionImportPage';
 import CourseMasterImportPage from './pages/CourseMasterImportPage';
+import AffiliatedProgrammePage from './pages/AffiliatedProgrammePage';
 import UrlRedirectHandler from './pages/UrlRedirectHandler';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -137,6 +138,21 @@ function App() {
           <Route path="/course-master" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <CourseMasterImportPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/affiliated-programs" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <AffiliatedProgrammePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/affiliated-programmes" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <AffiliatedProgrammePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/affiliated" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <AffiliatedProgrammePage />
             </ProtectedRoute>
           } />
           <Route path="/s/:code" element={<UrlRedirectHandler />} />
