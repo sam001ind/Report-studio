@@ -22,10 +22,24 @@ import {
   ArrowDown,
   ArrowUpDown,
   X,
-  ListFilter
+  ListFilter,
+  Layers2,
+  FileCheck2
 } from 'lucide-react';
 
-const OUTPUT_HEADERS = [
+// Format 1: 7-Column Deduplicated Report
+export const DEDUPLICATED_HEADERS = [
+  'College Code', 
+  'College Name', 
+  'Programme Year', 
+  'Program Term Name', 
+  'Course Details',
+  'Course Code', 
+  'Course Name'
+];
+
+// Format 2: 9-Column All Rows Exploded Report
+export const ALL_ROWS_HEADERS = [
   'College Code', 
   'College Name', 
   'Program Code', 
@@ -45,7 +59,11 @@ export default function AffiliatedProgrammePage() {
   const [selectedSheet, setSelectedSheet] = useState('');
   const [workbook, setWorkbook] = useState(null);
   const [rawRows, setRawRows] = useState([]);
-  const [processedRows, setProcessedRows] = useState([]);
+  const [allExplodedRows, setAllExplodedRows] = useState([]);
+  const [deduplicatedRows, setDeduplicatedRows] = useState([]);
+  const [duplicatesCount, setDuplicatesCount] = useState(0);
+  const [activeTab, setActiveTab] = useState('deduplicated'); // 'deduplicated' (7 cols) or 'all_rows' (9 cols)
+
   const [headerMap, setHeaderMap] = useState({});
   const [statusMsg, setStatusMsg] = useState('Ready');
   const [statusType, setStatusType] = useState('info');
@@ -60,9 +78,7 @@ export default function AffiliatedProgrammePage() {
   const [page, setPage] = useState(0);
   const pageSize = 50;
   const [showHelpModal, setShowHelpModal] = useState(false);
-
-  const [useDeduplication, setUseDeduplication] = useState(true);
-  const [duplicatesCount, setDuplicatesCount] = useState(0);
+  const [sheetMetadata, setSheetMetadata] = useState({});
 
   const setStatus = (msg, type = 'info') => {
     setStatusMsg(msg);
@@ -80,8 +96,10 @@ export default function AffiliatedProgrammePage() {
     return '';
   };
 
-  const processDataFromRows = (rows, currentHeaderMap, isDedupe = true) => {
-    const output = [];
+  // Process raw rows into both (1) All Rows Exploded (9 cols) and (2) Deduplicated Unique (7 cols)
+  const processDataFromRows = (rows, currentHeaderMap) => {
+    const allExploded = [];
+    const dedupeList = [];
     const seen = new Set();
     let dupCount = 0;
 
@@ -92,13 +110,13 @@ export default function AffiliatedProgrammePage() {
       const programTerm = getCell(row, currentHeaderMap, 'Program Term', 'ProgramTerm', 'Program_Term', 'Term', 'SemesterYear', 'Sem');
       const rawCourseDetails = getCell(row, currentHeaderMap, 'Course Details', 'CourseDetails', 'Course_Details', 'Courses', 'Subjects', 'SubjectDetails');
 
-      // 3. Extract Year and Semester from 'Program Term'
+      // Extract Year and Semester from 'Program Term'
       const yearMatch = programTerm.match(/(Year\s+[IVXLCDM\d]+)/i);
       const semesterMatch = programTerm.match(/(SEMESTER\s+[IVXLCDM\d]+)/i);
       const programmeYear = yearMatch ? yearMatch[1] : '';
       const programTermName = semesterMatch ? semesterMatch[1] : '';
 
-      // 2. Split and explode the 'Course Details' column by commas separating courses: r',\s*(?=\()'
+      // Split and explode the 'Course Details' column by commas separating courses: r',\s*(?=\()'
       let courseItems = [];
       if (rawCourseDetails) {
         courseItems = rawCourseDetails.split(/,\s*(?=\()/).map(s => s.trim()).filter(Boolean);
@@ -106,15 +124,9 @@ export default function AffiliatedProgrammePage() {
 
       if (courseItems.length === 0) {
         const itemCourseDetails = rawCourseDetails || '';
-        const dedupeKey = `${collegeCode.trim().toLowerCase()}|${programCode.trim().toLowerCase()}|${programmeYear.trim().toLowerCase()}|${programTermName.trim().toLowerCase()}|${itemCourseDetails.trim().toLowerCase()}`;
         
-        if (isDedupe && dedupeKey.replace(/\|/g, '') && seen.has(dedupeKey)) {
-          dupCount++;
-          return;
-        }
-        if (dedupeKey.replace(/\|/g, '')) seen.add(dedupeKey);
-
-        output.push({
+        // Format 2: All Rows (9 columns)
+        allExploded.push({
           'College Code': collegeCode,
           'College Name': collegeName,
           'Program Code': programCode,
@@ -125,9 +137,26 @@ export default function AffiliatedProgrammePage() {
           'Course Code': '',
           'Course Name': itemCourseDetails
         });
+
+        // Format 1: Deduplicated (7 columns)
+        const dedupeKey = `${collegeCode.trim().toLowerCase()}|${programCode.trim().toLowerCase()}|${programmeYear.trim().toLowerCase()}|${programTermName.trim().toLowerCase()}|${itemCourseDetails.trim().toLowerCase()}`;
+        if (dedupeKey.replace(/\|/g, '') && seen.has(dedupeKey)) {
+          dupCount++;
+        } else {
+          if (dedupeKey.replace(/\|/g, '')) seen.add(dedupeKey);
+          dedupeList.push({
+            'College Code': collegeCode,
+            'College Name': collegeName,
+            'Programme Year': programmeYear,
+            'Program Term Name': programTermName,
+            'Course Details': itemCourseDetails,
+            'Course Code': '',
+            'Course Name': itemCourseDetails
+          });
+        }
       } else {
         courseItems.forEach((courseStr) => {
-          // 4. Extract 'Course Code' and 'Course Name' from 'Course Details': r'^\((?P<Course_Code>[^)]+)\)\s*(?P<Course_Name>.*)$'
+          // Extract 'Course Code' and 'Course Name' from 'Course Details': r'^\((?P<Course_Code>[^)]+)\)\s*(?P<Course_Name>.*)$'
           const coursePatternMatch = courseStr.match(/^\(([^)]+)\)\s*(.*)$/);
           let courseCode = '';
           let courseName = '';
@@ -139,17 +168,8 @@ export default function AffiliatedProgrammePage() {
             courseName = courseStr;
           }
 
-          // Deduplication key: College + Program + Year + Term + (Course Code / Course Name)
-          const distinctCourseIdentifier = (courseCode || courseName || courseStr).trim().toLowerCase();
-          const dedupeKey = `${collegeCode.trim().toLowerCase()}|${programCode.trim().toLowerCase()}|${programmeYear.trim().toLowerCase()}|${programTermName.trim().toLowerCase()}|${distinctCourseIdentifier}`;
-
-          if (isDedupe && seen.has(dedupeKey)) {
-            dupCount++;
-            return;
-          }
-          seen.add(dedupeKey);
-
-          output.push({
+          // Format 2: All Rows (9 columns)
+          allExploded.push({
             'College Code': collegeCode,
             'College Name': collegeName,
             'Program Code': programCode,
@@ -160,15 +180,33 @@ export default function AffiliatedProgrammePage() {
             'Course Code': courseCode,
             'Course Name': courseName
           });
+
+          // Format 1: Deduplicated (7 columns)
+          // Key: College + Program + Year + Term + (Course Code / Course Name)
+          const distinctCourseIdentifier = (courseCode || courseName || courseStr).trim().toLowerCase();
+          const dedupeKey = `${collegeCode.trim().toLowerCase()}|${programCode.trim().toLowerCase()}|${programmeYear.trim().toLowerCase()}|${programTermName.trim().toLowerCase()}|${distinctCourseIdentifier}`;
+
+          if (seen.has(dedupeKey)) {
+            dupCount++;
+          } else {
+            seen.add(dedupeKey);
+            dedupeList.push({
+              'College Code': collegeCode,
+              'College Name': collegeName,
+              'Programme Year': programmeYear,
+              'Program Term Name': programTermName,
+              'Course Details': courseStr,
+              'Course Code': courseCode,
+              'Course Name': courseName
+            });
+          }
         });
       }
     });
 
     setDuplicatesCount(dupCount);
-    return output;
+    return { allExploded, dedupeList, dupCount };
   };
-
-  const [sheetMetadata, setSheetMetadata] = useState({}); // { [sheetName]: { score, matchedHeaders: [], headerRowIdx } }
 
   const scoreHeaderRow = (rowArray) => {
     if (!Array.isArray(rowArray)) return { score: 0, matchedHeaders: [] };
@@ -304,12 +342,13 @@ export default function AffiliatedProgrammePage() {
         setHeaderMap(hMap);
         setRawRows(rows);
 
-        const exploded = processDataFromRows(rows, hMap, useDeduplication);
-        setProcessedRows(exploded);
+        const { allExploded, dedupeList, dupCount } = processDataFromRows(rows, hMap);
+        setAllExplodedRows(allExploded);
+        setDeduplicatedRows(dedupeList);
         setPage(0);
         
         const headerInfo = matchedHeaders.length > 0 ? ` (Detected Headers: ${matchedHeaders.join(', ')} at Row ${headerRowIdx + 1})` : '';
-        setStatus(`Auto-selected sheet "${bestSheet}"${headerInfo}: ${rows.length} source rows -> ${exploded.length} unique course records!`, 'success');
+        setStatus(`Loaded "${bestSheet}"${headerInfo}: ${rows.length} source rows -> ${dedupeList.length} unique records (${dupCount} repeats filtered), ${allExploded.length} total exploded rows.`, 'success');
       } catch (err) {
         console.error('Error parsing sheet:', err);
         setStatus(`Failed to read file: ${err.message}`, 'error');
@@ -339,7 +378,8 @@ export default function AffiliatedProgrammePage() {
       if (!rows || rows.length === 0) {
         setStatus(`Sheet "${sheetName}" is empty or has no valid rows.`, 'warning');
         setRawRows([]);
-        setProcessedRows([]);
+        setAllExplodedRows([]);
+        setDeduplicatedRows([]);
         setIsProcessing(false);
         return;
       }
@@ -347,27 +387,18 @@ export default function AffiliatedProgrammePage() {
       setHeaderMap(hMap);
       setRawRows(rows);
 
-      const exploded = processDataFromRows(rows, hMap, useDeduplication);
-      setProcessedRows(exploded);
+      const { allExploded, dedupeList, dupCount } = processDataFromRows(rows, hMap);
+      setAllExplodedRows(allExploded);
+      setDeduplicatedRows(dedupeList);
       setPage(0);
 
       const headerInfo = matchedHeaders.length > 0 ? ` (Headers: ${matchedHeaders.join(', ')} on Row ${headerRowIdx + 1})` : '';
-      setStatus(`Loaded "${sheetName}"${headerInfo}: ${rows.length} source rows -> ${exploded.length} unique records.`, 'success');
+      setStatus(`Loaded "${sheetName}"${headerInfo}: ${rows.length} source rows -> ${dedupeList.length} unique (${dupCount} filtered), ${allExploded.length} all rows.`, 'success');
     } catch (err) {
       console.error(err);
       setStatus(`Failed to load sheet: ${err.message}`, 'error');
     } finally {
       setIsProcessing(false);
-    }
-  };
-
-  const handleToggleDeduplication = (dedupeVal) => {
-    setUseDeduplication(dedupeVal);
-    if (rawRows.length > 0) {
-      const exploded = processDataFromRows(rawRows, headerMap, dedupeVal);
-      setProcessedRows(exploded);
-      setPage(0);
-      setStatus(dedupeVal ? `Deduplicated: ${exploded.length} unique courses (repeats filtered out).` : `Showing all ${exploded.length} records without deduplication.`, 'info');
     }
   };
 
@@ -408,49 +439,53 @@ export default function AffiliatedProgrammePage() {
     setPage(0);
   };
 
+  // Determine active dataset and columns based on selected tab
+  const activeHeaders = activeTab === 'deduplicated' ? DEDUPLICATED_HEADERS : ALL_ROWS_HEADERS;
+  const currentDataset = activeTab === 'deduplicated' ? deduplicatedRows : allExplodedRows;
+
   // Unique Lists for Dropdown Filters
   const uniqueColleges = useMemo(() => {
     const set = new Set();
-    processedRows.forEach(r => {
+    currentDataset.forEach(r => {
       if (r['College Name']) set.add(r['College Name']);
       else if (r['College Code']) set.add(r['College Code']);
     });
     return Array.from(set).sort();
-  }, [processedRows]);
+  }, [currentDataset]);
 
   const uniquePrograms = useMemo(() => {
     const set = new Set();
-    processedRows.forEach(r => {
+    allExplodedRows.forEach(r => {
       if (r['Program Code']) set.add(r['Program Code']);
     });
     return Array.from(set).sort();
-  }, [processedRows]);
+  }, [allExplodedRows]);
 
   const uniqueYears = useMemo(() => {
     const set = new Set();
-    processedRows.forEach(r => {
+    currentDataset.forEach(r => {
       if (r['Programme Year']) set.add(r['Programme Year']);
     });
     return Array.from(set).sort();
-  }, [processedRows]);
+  }, [currentDataset]);
 
   const uniqueSemesters = useMemo(() => {
     const set = new Set();
-    processedRows.forEach(r => {
+    currentDataset.forEach(r => {
       if (r['Program Term Name']) set.add(r['Program Term Name']);
     });
     return Array.from(set).sort();
-  }, [processedRows]);
+  }, [currentDataset]);
 
-  // Filtered & Sorted Rows
+  // Filtered & Sorted Rows for the active tab
   const filteredRows = useMemo(() => {
-    let result = [...processedRows];
+    let result = [...currentDataset];
 
     // 1. Dropdown Filters
     if (selectedCollegeFilter !== 'ALL') {
       result = result.filter(r => r['College Name'] === selectedCollegeFilter || r['College Code'] === selectedCollegeFilter);
     }
-    if (selectedProgramFilter !== 'ALL') {
+    if (activeTab === 'all_rows' && selectedProgramFilter !== 'ALL') {
       result = result.filter(r => r['Program Code'] === selectedProgramFilter);
     }
     if (selectedYearFilter !== 'ALL') {
@@ -469,10 +504,10 @@ export default function AffiliatedProgrammePage() {
     }
 
     // 3. Column-specific filters
-    const activeFilters = Object.entries(columnFilters);
-    if (activeFilters.length > 0) {
+    const activeFilterEntries = Object.entries(columnFilters);
+    if (activeFilterEntries.length > 0) {
       result = result.filter(r => {
-        return activeFilters.every(([colKey, filterVal]) => {
+        return activeFilterEntries.every(([colKey, filterVal]) => {
           if (!filterVal || String(filterVal).trim() === '') return true;
           const cellVal = String(r[colKey] !== undefined && r[colKey] !== null ? r[colKey] : '').toLowerCase();
           return cellVal.includes(String(filterVal).toLowerCase().trim());
@@ -503,46 +538,44 @@ export default function AffiliatedProgrammePage() {
     }
 
     return result;
-  }, [processedRows, selectedCollegeFilter, selectedProgramFilter, selectedYearFilter, selectedSemesterFilter, searchQuery, columnFilters, sortConfig]);
+  }, [currentDataset, activeTab, selectedCollegeFilter, selectedProgramFilter, selectedYearFilter, selectedSemesterFilter, searchQuery, columnFilters, sortConfig]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
     return filteredRows.slice(start, start + pageSize);
   }, [filteredRows, page]);
 
-  // Export to Excel
-  const handleExportExcel = (rowsToExport = filteredRows, filename = 'Affiliated_Programs_Output.xlsx') => {
+  // Export a specific dataset to single-sheet Excel
+  const handleExportSingleReport = (rowsToExport, headers, sheetTitle, filename) => {
     if (!rowsToExport || rowsToExport.length === 0) {
       alert('No rows to export.');
       return;
     }
 
     setIsProcessing(true);
-    setStatus('Generating Excel export...', 'info');
+    setStatus(`Generating ${sheetTitle} export...`, 'info');
 
     try {
       const aoa = [
-        OUTPUT_HEADERS,
-        ...rowsToExport.map(r => OUTPUT_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))
+        headers,
+        ...rowsToExport.map(r => headers.map(h => r[h] !== undefined ? r[h] : ''))
       ];
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(aoa, { dense: true });
 
-      // Auto filter
       ws['!autofilter'] = {
         ref: XLSX.utils.encode_range({
           s: { r: 0, c: 0 },
-          e: { r: aoa.length - 1, c: OUTPUT_HEADERS.length - 1 }
+          e: { r: aoa.length - 1, c: headers.length - 1 }
         })
       };
 
-      // Set column widths
-      ws['!cols'] = OUTPUT_HEADERS.map(h => ({
-        wch: Math.max(h.length + 3, 14)
+      ws['!cols'] = headers.map(h => ({
+        wch: Math.max(h.length + 3, 15)
       }));
 
-      XLSX.utils.book_append_sheet(wb, ws, 'Affiliated_Programs');
+      XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
       const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
@@ -563,6 +596,70 @@ export default function AffiliatedProgrammePage() {
     }
   };
 
+  // Export Combined Multi-Tab Workbook (Sheet 1: Deduplicated 7-Col, Sheet 2: All Rows 9-Col)
+  const handleExportCombinedExcel = () => {
+    if (deduplicatedRows.length === 0 && allExplodedRows.length === 0) {
+      alert('No data to export.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setStatus('Generating 2-Sheet Combined Excel Workbook...', 'info');
+
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Deduplicated Unique Report (7 Columns)
+      const aoaDedupe = [
+        DEDUPLICATED_HEADERS,
+        ...deduplicatedRows.map(r => DEDUPLICATED_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))
+      ];
+      const wsDedupe = XLSX.utils.aoa_to_sheet(aoaDedupe, { dense: true });
+      wsDedupe['!autofilter'] = {
+        ref: XLSX.utils.encode_range({
+          s: { r: 0, c: 0 },
+          e: { r: aoaDedupe.length - 1, c: DEDUPLICATED_HEADERS.length - 1 }
+        })
+      };
+      wsDedupe['!cols'] = DEDUPLICATED_HEADERS.map(h => ({ wch: Math.max(h.length + 3, 15) }));
+      XLSX.utils.book_append_sheet(wb, wsDedupe, 'Unique_Deduplicated_Courses');
+
+      // Sheet 2: All Rows Exploded Report (9 Columns)
+      const aoaAll = [
+        ALL_ROWS_HEADERS,
+        ...allExplodedRows.map(r => ALL_ROWS_HEADERS.map(h => r[h] !== undefined ? r[h] : ''))
+      ];
+      const wsAll = XLSX.utils.aoa_to_sheet(aoaAll, { dense: true });
+      wsAll['!autofilter'] = {
+        ref: XLSX.utils.encode_range({
+          s: { r: 0, c: 0 },
+          e: { r: aoaAll.length - 1, c: ALL_ROWS_HEADERS.length - 1 }
+        })
+      };
+      wsAll['!cols'] = ALL_ROWS_HEADERS.map(h => ({ wch: Math.max(h.length + 3, 15) }));
+      XLSX.utils.book_append_sheet(wb, wsAll, 'All_Exploded_Rows');
+
+      const filename = 'Affiliated_Programs_Combined_Report.xlsx';
+      const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setStatus(`Successfully exported combined 2-sheet workbook with ${deduplicatedRows.length} unique and ${allExplodedRows.length} all rows!`, 'success');
+    } catch (err) {
+      console.error('Combined Export Error:', err);
+      setStatus(`Export failed: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', background: 'var(--bg)', color: 'var(--ink)' }}>
       
@@ -577,7 +674,7 @@ export default function AffiliatedProgrammePage() {
             <Building2 size={20} color="var(--accent)" />
             <h2 style={{ fontSize: '16px', fontWeight: 700, margin: 0 }}>Affiliated Programme Details</h2>
             <span style={{ fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
-              Exploder & Code Extractor
+              Dual Report Formatter
             </span>
           </div>
         </div>
@@ -587,31 +684,60 @@ export default function AffiliatedProgrammePage() {
             type="button" 
             className="secondary" 
             onClick={() => setShowHelpModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '5px 10px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
           >
             <HelpCircle size={14} /> Extraction Logic & Guide
           </button>
 
-          {processedRows.length > 0 && (
-            <button 
-              type="button" 
-              onClick={() => handleExportExcel(filteredRows, 'Affiliated_Programs_Output.xlsx')}
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                padding: '6px 14px', 
-                fontSize: '12.5px', 
-                background: 'var(--accent)', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '6px', 
-                fontWeight: 600,
-                cursor: 'pointer' 
-              }}
-            >
-              <Download size={14} /> Export Excel ({filteredRows.length} Rows)
-            </button>
+          {(deduplicatedRows.length > 0 || allExplodedRows.length > 0) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Export Active Tab Single Sheet */}
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (activeTab === 'deduplicated') {
+                    handleExportSingleReport(filteredRows, DEDUPLICATED_HEADERS, 'Unique_Deduplicated_Courses', 'Affiliated_Programs_Deduplicated_Report.xlsx');
+                  } else {
+                    handleExportSingleReport(filteredRows, ALL_ROWS_HEADERS, 'All_Exploded_Rows', 'Affiliated_Programs_All_Rows_Report.xlsx');
+                  }
+                }}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  padding: '6px 14px', 
+                  fontSize: '12px', 
+                  background: 'var(--accent)', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '6px', 
+                  fontWeight: 600,
+                  cursor: 'pointer' 
+                }}
+                title={`Export ${activeTab === 'deduplicated' ? '7-Column Deduplicated' : '9-Column All Rows'} report to Excel`}
+              >
+                <Download size={14} /> Export {activeTab === 'deduplicated' ? 'Deduplicated (7 Cols)' : 'All Rows (9 Cols)'} ({filteredRows.length})
+              </button>
+
+              {/* Export Combined 2-Sheet Excel */}
+              <button 
+                type="button" 
+                className="secondary"
+                onClick={handleExportCombinedExcel}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  padding: '6px 12px', 
+                  fontSize: '12px', 
+                  fontWeight: 600,
+                  cursor: 'pointer' 
+                }}
+                title="Download single Excel workbook containing both Deduplicated & All Rows sheets"
+              >
+                <FileSpreadsheet size={14} color="var(--accent)" /> Export Combined (2-Sheet)
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -651,7 +777,6 @@ export default function AffiliatedProgrammePage() {
                 {sheetNames.map(s => {
                   const meta = sheetMetadata[s];
                   const hasHeaders = meta && meta.matchedHeaders && meta.matchedHeaders.length > 0;
-                  const isTopMatch = s === selectedSheet;
                   return (
                     <option key={s} value={s}>
                       {s} {hasHeaders ? `(✓ ${meta.matchedHeaders.length} headers)` : ''} {s.toLowerCase().includes('affiliated') ? '★' : ''}
@@ -673,9 +798,17 @@ export default function AffiliatedProgrammePage() {
                   <div style={{ color: 'var(--muted)' }}>Raw Source Rows</div>
                   <strong style={{ fontSize: '15px', color: 'var(--ink)' }}>{rawRows.length}</strong>
                 </div>
-                <div style={{ background: 'var(--accent-soft)', padding: '8px', borderRadius: '6px', border: '1px solid var(--accent)' }}>
-                  <div style={{ color: 'var(--accent)', fontWeight: 600 }}>Unique Records</div>
-                  <strong style={{ fontSize: '15px', color: 'var(--accent)' }}>{processedRows.length}</strong>
+                <div style={{ background: activeTab === 'deduplicated' ? 'var(--accent-soft)' : 'var(--panel)', padding: '8px', borderRadius: '6px', border: activeTab === 'deduplicated' ? '1px solid var(--accent)' : '1px solid var(--line)' }}>
+                  <div style={{ color: activeTab === 'deduplicated' ? 'var(--accent)' : 'var(--muted)', fontWeight: 600 }}>Deduplicated (7 Col)</div>
+                  <strong style={{ fontSize: '15px', color: activeTab === 'deduplicated' ? 'var(--accent)' : 'var(--ink)' }}>{deduplicatedRows.length}</strong>
+                </div>
+                <div style={{ background: activeTab === 'all_rows' ? 'var(--accent-soft)' : 'var(--panel)', padding: '8px', borderRadius: '6px', border: activeTab === 'all_rows' ? '1px solid var(--accent)' : '1px solid var(--line)' }}>
+                  <div style={{ color: activeTab === 'all_rows' ? 'var(--accent)' : 'var(--muted)', fontWeight: 600 }}>All Exploded (9 Col)</div>
+                  <strong style={{ fontSize: '15px', color: activeTab === 'all_rows' ? 'var(--accent)' : 'var(--ink)' }}>{allExplodedRows.length}</strong>
+                </div>
+                <div style={{ background: 'var(--panel)', padding: '8px', borderRadius: '6px', border: '1px solid var(--line)' }}>
+                  <div style={{ color: 'var(--muted)' }}>Duplicates Filtered</div>
+                  <strong style={{ fontSize: '15px', color: 'var(--danger, #e11d48)' }}>{duplicatesCount}</strong>
                 </div>
                 <div style={{ background: 'var(--panel)', padding: '8px', borderRadius: '6px', border: '1px solid var(--line)' }}>
                   <div style={{ color: 'var(--muted)' }}>Colleges</div>
@@ -685,25 +818,29 @@ export default function AffiliatedProgrammePage() {
                   <div style={{ color: 'var(--muted)' }}>Programs</div>
                   <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>{uniquePrograms.length}</strong>
                 </div>
-                {duplicatesCount > 0 && (
-                  <div style={{ gridColumn: 'span 2', background: 'var(--panel)', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: 'var(--muted)', fontSize: '10.5px' }}>Duplicates Filtered:</span>
-                    <strong style={{ color: 'var(--accent)', fontSize: '12px' }}>{duplicatesCount}</strong>
-                  </div>
-                )}
               </div>
             </div>
           )}
 
-          {/* Step Guide / Info Note */}
+          {/* Formats Definition Card */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px', padding: '12px', fontSize: '11.5px', color: 'var(--muted)', lineHeight: '1.4' }}>
-            <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: '4px' }}>Automatic Transformations:</strong>
-            <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <li><strong>Split & Explode:</strong> Splits <code>Course Details</code> by comma preceding <code>(</code></li>
-              <li><strong>Year Extraction:</strong> Matches <code>Year I, II, III...</code> from Program Term</li>
-              <li><strong>Term Extraction:</strong> Matches <code>SEMESTER I, II...</code> from Program Term</li>
-              <li><strong>Code Extraction:</strong> Extracts <code>(Course Code)</code> and <code>Course Name</code></li>
-            </ul>
+            <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: '6px' }}>2 Output Report Formats:</strong>
+            
+            <div style={{ marginBottom: '8px', padding: '6px 8px', background: 'var(--panel)', borderRadius: '6px', border: '1px solid var(--line)' }}>
+              <div style={{ fontWeight: 700, color: 'var(--accent)', marginBottom: '2px' }}>🛡️ Format 1: Deduplicated Report (7 Cols)</div>
+              <div style={{ fontSize: '10.5px' }}>
+                <code>College Code</code>, <code>College Name</code>, <code>Programme Year</code>, <code>Program Term Name</code>, <code>Course Details</code>, <code>Course Code</code>, <code>Course Name</code>
+                <div style={{ marginTop: '2px', color: 'var(--ink)' }}>• Unique courses per college, program, year & term.</div>
+              </div>
+            </div>
+
+            <div style={{ padding: '6px 8px', background: 'var(--panel)', borderRadius: '6px', border: '1px solid var(--line)' }}>
+              <div style={{ fontWeight: 700, color: 'var(--ink)', marginBottom: '2px' }}>📄 Format 2: All Rows Exploded (9 Cols)</div>
+              <div style={{ fontSize: '10.5px' }}>
+                <code>College Code</code>, <code>College Name</code>, <code>Program Code</code>, <code>Program Term</code>, <code>Programme Year</code>, <code>Program Term Name</code>, <code>Course Details</code>, <code>Course Code</code>, <code>Course Name</code>
+                <div style={{ marginTop: '2px', color: 'var(--ink)' }}>• Retains all exploded rows without deduplication.</div>
+              </div>
+            </div>
           </div>
 
           {/* Status Message */}
@@ -716,42 +853,85 @@ export default function AffiliatedProgrammePage() {
         {/* Right Content / Data Table View */}
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
           
+          {/* Top Report Type Tabs Switcher */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => { setActiveTab('deduplicated'); setPage(0); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: activeTab === 'deduplicated' ? '1.5px solid var(--accent)' : '1px solid var(--line)',
+                  background: activeTab === 'deduplicated' ? 'var(--accent-soft)' : 'var(--bg)',
+                  color: activeTab === 'deduplicated' ? 'var(--accent)' : 'var(--muted)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <ListFilter size={15} />
+                <span>Format 1: Deduplicated Report (7 Columns)</span>
+                {deduplicatedRows.length > 0 && (
+                  <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '10px', background: activeTab === 'deduplicated' ? 'var(--accent)' : 'var(--line)', color: activeTab === 'deduplicated' ? 'white' : 'var(--ink)' }}>
+                    {deduplicatedRows.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setActiveTab('all_rows'); setPage(0); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: activeTab === 'all_rows' ? '1.5px solid var(--accent)' : '1px solid var(--line)',
+                  background: activeTab === 'all_rows' ? 'var(--accent-soft)' : 'var(--bg)',
+                  color: activeTab === 'all_rows' ? 'var(--accent)' : 'var(--muted)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Layers2 size={15} />
+                <span>Format 2: All Rows Exploded (9 Columns)</span>
+                {allExplodedRows.length > 0 && (
+                  <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '10px', background: activeTab === 'all_rows' ? 'var(--accent)' : 'var(--line)', color: activeTab === 'all_rows' ? 'white' : 'var(--ink)' }}>
+                    {allExplodedRows.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {duplicatesCount > 0 && activeTab === 'deduplicated' && (
+              <span style={{ fontSize: '11.5px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <CheckCircle2 size={13} color="var(--accent)" />
+                <strong>{duplicatesCount}</strong> duplicate course instances filtered
+              </span>
+            )}
+          </div>
+
           {/* Interactive Toolbar */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 16px', borderBottom: '1px solid var(--line)', background: 'var(--panel)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 16px', borderBottom: '1px solid var(--line)', background: 'var(--bg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                {/* Deduplication Toggle */}
-                <button
-                  type="button"
-                  onClick={() => handleToggleDeduplication(!useDeduplication)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '5px 10px',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
-                    borderRadius: '6px',
-                    border: useDeduplication ? '1px solid var(--accent)' : '1px solid var(--line)',
-                    background: useDeduplication ? 'var(--accent-soft)' : 'var(--bg)',
-                    color: useDeduplication ? 'var(--accent)' : 'var(--muted)',
-                    cursor: 'pointer'
-                  }}
-                  title="Toggle automatic deduplication per College, Program, Year & Semester"
-                >
-                  <ListFilter size={13} />
-                  {useDeduplication ? `🛡️ Deduplicated (${duplicatesCount} repeats hidden)` : '📄 All Rows (No Deduplication)'}
-                </button>
-
                 {/* Search Box */}
-                <div style={{ position: 'relative', width: '180px' }}>
+                <div style={{ position: 'relative', width: '200px' }}>
                   <input 
                     type="text" 
-                    placeholder="Search all fields..." 
+                    placeholder="Search all columns..." 
                     value={searchQuery} 
                     onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }} 
-                    style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }} 
+                    style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)' }} 
                   />
                   <Search size={13} color="var(--muted)" style={{ position: 'absolute', left: '8px', top: '7px' }} />
                 </div>
@@ -761,7 +941,7 @@ export default function AffiliatedProgrammePage() {
                   <select 
                     value={selectedCollegeFilter} 
                     onChange={(e) => { setSelectedCollegeFilter(e.target.value); setPage(0); }}
-                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '160px' }}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', maxWidth: '160px' }}
                   >
                     <option value="ALL">All Colleges ({uniqueColleges.length})</option>
                     {uniqueColleges.map(c => (
@@ -770,12 +950,12 @@ export default function AffiliatedProgrammePage() {
                   </select>
                 )}
 
-                {/* Program Filter */}
-                {uniquePrograms.length > 0 && (
+                {/* Program Filter (For All Rows Mode) */}
+                {activeTab === 'all_rows' && uniquePrograms.length > 0 && (
                   <select 
                     value={selectedProgramFilter} 
                     onChange={(e) => { setSelectedProgramFilter(e.target.value); setPage(0); }}
-                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '140px' }}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', maxWidth: '140px' }}
                   >
                     <option value="ALL">All Programs ({uniquePrograms.length})</option>
                     {uniquePrograms.map(p => (
@@ -789,7 +969,7 @@ export default function AffiliatedProgrammePage() {
                   <select 
                     value={selectedYearFilter} 
                     onChange={(e) => { setSelectedYearFilter(e.target.value); setPage(0); }}
-                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '120px' }}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', maxWidth: '120px' }}
                   >
                     <option value="ALL">All Years</option>
                     {uniqueYears.map(y => (
@@ -803,7 +983,7 @@ export default function AffiliatedProgrammePage() {
                   <select 
                     value={selectedSemesterFilter} 
                     onChange={(e) => { setSelectedSemesterFilter(e.target.value); setPage(0); }}
-                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', maxWidth: '140px' }}
+                    style={{ padding: '5px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', maxWidth: '140px' }}
                   >
                     <option value="ALL">All Semesters</option>
                     {uniqueSemesters.map(s => (
@@ -879,12 +1059,12 @@ export default function AffiliatedProgrammePage() {
 
           {/* Table Container */}
           <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
-            {processedRows.length === 0 ? (
+            {currentDataset.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', gap: '10px' }}>
                 <Building2 size={44} style={{ opacity: 0.3 }} />
-                <strong style={{ fontSize: '15px', color: 'var(--ink)' }}>No Programs Loaded</strong>
-                <span style={{ fontSize: '12px', maxWidth: '400px', textAlign: 'center' }}>
-                  Upload your <code>Affiliated_Programs_Sheet.xlsx</code> on the left to explode courses and extract course codes, names, years, and semesters.
+                <strong style={{ fontSize: '15px', color: 'var(--ink)' }}>No Records Loaded</strong>
+                <span style={{ fontSize: '12px', maxWidth: '420px', textAlign: 'center' }}>
+                  Upload your <code>Affiliated_Programs_Sheet.xlsx</code> on the left to process both <strong>Format 1 (Deduplicated 7 Columns)</strong> and <strong>Format 2 (All Rows 9 Columns)</strong> reports.
                 </span>
               </div>
             ) : (
@@ -892,7 +1072,7 @@ export default function AffiliatedProgrammePage() {
                 <thead>
                   <tr style={{ background: 'var(--panel)', position: 'sticky', top: 0, zIndex: 10 }}>
                     <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1.5px solid var(--line)', color: 'var(--muted)', width: '40px' }}>#</th>
-                    {OUTPUT_HEADERS.map((col, idx) => {
+                    {activeHeaders.map((col, idx) => {
                       const isSorted = sortConfig.column === col;
                       return (
                         <th 
@@ -935,7 +1115,7 @@ export default function AffiliatedProgrammePage() {
                         <td style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--muted)', borderRight: '1px solid var(--line)', fontWeight: 600 }}>
                           {actualIdx + 1}
                         </td>
-                        {OUTPUT_HEADERS.map(col => (
+                        {activeHeaders.map(col => (
                           <td 
                             key={col} 
                             style={{ 
@@ -957,10 +1137,16 @@ export default function AffiliatedProgrammePage() {
           </div>
 
           {/* Footer Info */}
-          {processedRows.length > 0 && (
+          {currentDataset.length > 0 && (
             <div style={{ padding: '8px 16px', background: 'var(--panel)', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
-              <span>Showing {pagedRows.length} of {filteredRows.length} filtered rows (Total exploded: <strong>{processedRows.length}</strong>)</span>
-              <span>Standard 9-Column Affiliated Programme Output</span>
+              <span>
+                Showing {pagedRows.length} of {filteredRows.length} filtered rows | Current View: <strong>{activeTab === 'deduplicated' ? 'Format 1: Deduplicated (7 Columns)' : 'Format 2: All Exploded (9 Columns)'}</strong> (Total: {currentDataset.length})
+              </span>
+              <span>
+                {activeTab === 'deduplicated' 
+                  ? 'Format: College Code, College Name, Programme Year, Program Term Name, Course Details, Course Code, Course Name' 
+                  : 'Format: College Code, College Name, Program Code, Program Term, Programme Year, Program Term Name, Course Details, Course Code, Course Name'}
+              </span>
             </div>
           )}
 
@@ -986,7 +1172,7 @@ export default function AffiliatedProgrammePage() {
             background: 'var(--panel)',
             border: '1px solid var(--line)',
             borderRadius: '12px',
-            width: '600px',
+            width: '640px',
             maxWidth: '90vw',
             maxHeight: '85vh',
             display: 'flex',
@@ -997,7 +1183,7 @@ export default function AffiliatedProgrammePage() {
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Building2 size={20} color="var(--accent)" />
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Affiliated Programme Extraction Rules</h3>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Affiliated Programme Dual Extraction Logic</h3>
               </div>
               <button 
                 type="button" 
@@ -1010,38 +1196,48 @@ export default function AffiliatedProgrammePage() {
 
             <div style={{ padding: '20px', overflowY: 'auto', fontSize: '12.5px', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <strong>1. Course Exploder Regex:</strong>
-                <pre style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line)', marginTop: '4px', fontSize: '11.5px' }}>
-                  r',\s*(?=\()'
-                </pre>
-                <span>Splits multi-course cells like <code>(24UGVACA01) Env Studies, (24UGVACA02) Digital Fluency</code> into individual course records.</span>
+                <strong>1. Format 1: Deduplicated Report (7 Columns):</strong>
+                <p style={{ margin: '4px 0 6px', color: 'var(--muted)' }}>
+                  Filters duplicate course instances so courses are not repeated for a programme for a specific college, year, and semester term.
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {DEDUPLICATED_HEADERS.map((h, i) => (
+                    <span key={h} style={{ background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--accent)', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                      {i + 1}. {h}
+                    </span>
+                  ))}
+                </div>
               </div>
 
               <div>
-                <strong>2. Year & Semester Extraction:</strong>
-                <pre style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line)', marginTop: '4px', fontSize: '11.5px' }}>
-                  Programme Year: r'(Year\s+[IVXLCDM]+)'
-                  Program Term Name: r'(SEMESTER\s+[IVXLCDM]+)'
-                </pre>
-              </div>
-
-              <div>
-                <strong>3. Course Code & Course Name Extraction:</strong>
-                <pre style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line)', marginTop: '4px', fontSize: '11.5px' }}>
-                  Course Code: Extracts text between leading (...)
-                  Course Name: Extracts the remaining title string
-                </pre>
-              </div>
-
-              <div>
-                <strong>4. Output Columns:</strong>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-                  {OUTPUT_HEADERS.map((h, i) => (
+                <strong>2. Format 2: All Rows Exploded Report (9 Columns):</strong>
+                <p style={{ margin: '4px 0 6px', color: 'var(--muted)' }}>
+                  Complete exploded list retaining Program Code and raw Program Term columns across all exploded items.
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {ALL_ROWS_HEADERS.map((h, i) => (
                     <span key={h} style={{ background: 'var(--bg)', border: '1px solid var(--line)', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
                       {i + 1}. {h}
                     </span>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <strong>3. Regular Expression Transformations:</strong>
+                <ul style={{ margin: '4px 0 0', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <li><strong>Course Exploder:</strong> <code>r',\s*(?=\()'</code> (Splits multi-course cells by comma before opening bracket).</li>
+                  <li><strong>Programme Year:</strong> <code>r'(Year\s+[IVXLCDM]+)'</code></li>
+                  <li><strong>Program Term Name:</strong> <code>r'(SEMESTER\s+[IVXLCDM]+)'</code></li>
+                  <li><strong>Course Code & Name:</strong> <code>r'^\(([^)]+)\)\s*(.*)$'</code></li>
+                </ul>
+              </div>
+
+              <div>
+                <strong>4. Combined Export:</strong>
+                <p style={{ margin: '4px 0', color: 'var(--muted)' }}>
+                  Click <strong>"Export Combined (2-Sheet)"</strong> to download an Excel workbook containing both <code>Unique_Deduplicated_Courses</code> and <code>All_Exploded_Rows</code> sheets in one file.
+                </p>
               </div>
             </div>
 

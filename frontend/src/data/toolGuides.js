@@ -249,23 +249,23 @@ export const TOOL_GUIDES = {
   'affiliated-programs': {
     title: 'Affiliated Programme Details - Extraction Logic & Guide',
     icon: 'Building2',
-    description: 'Split and explode comma-separated course details, extract course codes, names, programme year, and semester term.',
+    description: 'Split and explode comma-separated course details, extract course codes, names, programme year, and semester term with dual reporting formats.',
     sections: [
       {
-        heading: '1. Course Details Exploder Regex',
-        content: 'Splits multi-course cells by comma preceding an opening parenthesis: r\',\\s*(?=\\()\' into individual row records.'
+        heading: '1. Format 1: Deduplicated Report (7 Columns)',
+        content: 'College Code, College Name, Programme Year, Program Term Name, Course Details, Course Code, Course Name. Filters duplicate courses for a programme for a specific college, year, and term.'
       },
       {
-        heading: '2. Year & Term Extraction',
-        content: 'Programme Year: r\'(Year\\s+[IVXLCDM]+)\' | Program Term Name: r\'(SEMESTER\\s+[IVXLCDM]+)\'.'
+        heading: '2. Format 2: All Rows Exploded Report (9 Columns)',
+        content: 'College Code, College Name, Program Code, Program Term, Programme Year, Program Term Name, Course Details, Course Code, Course Name. Retains all exploded rows without deduplication.'
       },
       {
-        heading: '3. Course Code & Title Isolation',
-        content: 'Course Code: r\'^\\(([^)]+)\\)\' | Course Name: remaining string title after code.'
+        heading: '3. Regex Transformations',
+        content: 'Exploder: r\',\\s*(?=\\()\' | Year: r\'(Year\\s+[IVXLCDM]+)\' | Term: r\'(SEMESTER\\s+[IVXLCDM]+)\' | Code: r\'^\\(([^)]+)\\)\''
       },
       {
-        heading: '4. Standard 9-Column Output',
-        content: 'College Code, College Name, Program Code, Program Term, Programme Year, Program Term Name, Course Details, Course Code, Course Name.'
+        heading: '4. Export Options',
+        content: 'Export either format independently or export a combined 2-Sheet Excel workbook containing both Unique_Deduplicated_Courses and All_Exploded_Rows sheets.'
       }
     ]
   },
