@@ -188,32 +188,69 @@ const MergerPage = () => {
     };
   };
 
-  // Helper to extract exact cell value as text without IEEE 754 precision loss
-  const extractCellTextValue = (cell, isTextColumn) => {
-    if (cell === null || cell === undefined) return '';
-    if (typeof cell === 'string') return cell;
-    if (typeof cell === 'number') {
-      if (isTextColumn || (autoDetectLongNumbers && Math.abs(cell) >= 1e12)) {
-        return Number.isInteger(cell) ? String(BigInt(Math.trunc(cell))) : String(cell);
-      }
-      return cell;
+  // Helper to extract raw cell object from sheet (handles dense and sparse modes)
+  const getRawCellFromSheet = (sheet, rIdx, cIdx) => {
+    if (!sheet) return null;
+    if (Array.isArray(sheet[rIdx])) {
+      return sheet[rIdx][cIdx];
     }
-    if (typeof cell === 'object') {
-      if (cell.w !== undefined && cell.w !== null && String(cell.w).trim() !== '') {
-        return String(cell.w).trim();
-      }
+    const cellAddress = XLSX.utils.encode_cell({ r: rIdx, c: cIdx });
+    return sheet[cellAddress];
+  };
+
+  // Helper to format cell value into clean, exact text (expanding scientific notation and BigInt integers)
+  const formatCellValue = (cell, isTextColumn) => {
+    if (cell === null || cell === undefined) return '';
+
+    let rawVal = cell;
+    if (typeof cell === 'object' && cell !== null) {
       if (cell.v !== undefined && cell.v !== null) {
-        if (typeof cell.v === 'number' && Number.isInteger(cell.v) && (isTextColumn || Math.abs(cell.v) >= 1e12)) {
-          try {
-            return String(BigInt(Math.trunc(cell.v)));
-          } catch (_) {
-            return String(cell.v);
+        rawVal = cell.v;
+      } else if (cell.w !== undefined && cell.w !== null) {
+        rawVal = cell.w;
+      }
+    }
+
+    let str = String(rawVal).trim();
+    if (str === '' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return '';
+
+    // Handle integers without scientific notation
+    if (typeof rawVal === 'number') {
+      if (Number.isInteger(rawVal)) {
+        try {
+          str = BigInt(Math.trunc(rawVal)).toString();
+        } catch (_) {
+          str = String(rawVal);
+        }
+      } else {
+        str = String(rawVal);
+      }
+    }
+
+    // Expand scientific notation strings (e.g. 2.02601E+16, 1.10003E+13, 2.02501E+15)
+    if (/^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$/i.test(str)) {
+      try {
+        const parts = str.toLowerCase().split('e');
+        const base = parts[0];
+        const exp = parseInt(parts[1], 10);
+        
+        if (exp > 0) {
+          const baseParts = base.split('.');
+          const intPart = baseParts[0];
+          const fracPart = baseParts[1] || '';
+          
+          if (exp >= fracPart.length) {
+            str = intPart + fracPart + '0'.repeat(exp - fracPart.length);
+          } else {
+            str = intPart + fracPart.slice(0, exp) + '.' + fracPart.slice(exp);
           }
         }
-        return cell.v;
+      } catch (_) {
+        // Fallback to original string
       }
     }
-    return String(cell || '').trim();
+
+    return str;
   };
 
   const isDesignatedTextHeader = (headerName) => {
@@ -254,14 +291,13 @@ const MergerPage = () => {
       const allExtractedData = [];
 
       for (const file of selectedFiles) {
-        // Read file array buffer with cellText & cellNF enabled
         const workbook = XLSX.read(file.buffer, { 
           type: 'array', 
           cellDates: false, 
           cellText: true, 
           cellNF: true, 
           dense: true, 
-          raw: false 
+          raw: true 
         });
         
         for (const sheetName of workbook.SheetNames) {
@@ -271,31 +307,32 @@ const MergerPage = () => {
           const range = getActualRange(sheet);
           if (!range) continue;
 
-          // Read sheet rows preserving text representations
-          const rows = XLSX.utils.sheet_to_json(sheet, {
-            header: 1,
-            range: range,
-            raw: false,
-            defval: ''
-          });
-
-          if (!rows || rows.length === 0) continue;
-
           let sheetHeaderFound = false;
           let currentSheetHeaderMap = []; // colIdx -> masterHeaderIdx
 
-          for (let rIdx = 0; rIdx < rows.length; rIdx++) {
-            if (rIdx < headerIdx) continue;
+          for (let r = range.s.r; r <= range.e.r; r++) {
+            if (r < headerIdx) continue;
 
-            const rowCells = rows[rIdx];
-            if (isBlankRow(rowCells)) continue;
+            // Check if row has any content
+            let rowHasData = false;
+            const rowCells = [];
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const cell = getRawCellFromSheet(sheet, r, c);
+              rowCells.push(cell);
+              if (cell && cell.v !== undefined && cell.v !== null && String(cell.v).trim() !== '') {
+                rowHasData = true;
+              }
+            }
+
+            if (!rowHasData) continue;
 
             // Sheet Header Row
             if (!sheetHeaderFound) {
               sheetHeaderFound = true;
               currentSheetHeaderMap = [];
 
-              rowCells.forEach((headerVal, cIdx) => {
+              rowCells.forEach((cell, cIdx) => {
+                const headerVal = cell ? (cell.v !== undefined ? cell.v : cell.w) : '';
                 const hName = String(headerVal || '').trim();
                 if (!hName) return;
 
@@ -318,12 +355,12 @@ const MergerPage = () => {
               _cells: []
             };
 
-            rowCells.forEach((cellVal, cIdx) => {
+            rowCells.forEach((cell, cIdx) => {
               const masterColIdx = currentSheetHeaderMap[cIdx];
               if (masterColIdx !== undefined) {
                 const headerName = masterHeaders[masterColIdx];
                 const isTextCol = isDesignatedTextHeader(headerName);
-                const finalVal = extractCellTextValue(cellVal, isTextCol);
+                const finalVal = formatCellValue(cell, isTextCol);
                 rowDataObj._cells[masterColIdx] = finalVal;
               }
             });
@@ -374,7 +411,11 @@ const MergerPage = () => {
           const cell = row[c];
           if (!cell) continue;
 
-          const rawVal = cell.v !== undefined ? String(cell.v).trim() : '';
+          let rawVal = cell.v !== undefined ? String(cell.v).trim() : '';
+          if (rawVal.toLowerCase() === 'null' || rawVal.toLowerCase() === 'undefined') {
+            rawVal = '';
+          }
+
           const isTextCol = textColIndices.has(c);
           const isLongNumber = autoDetectLongNumbers && /^\d{12,}$/.test(rawVal);
           const hasLeadingZero = rawVal.length > 1 && /^0\d+$/.test(rawVal);
