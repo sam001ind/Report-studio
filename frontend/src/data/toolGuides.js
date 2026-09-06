@@ -59,19 +59,23 @@ export const TOOL_GUIDES = {
   'merger': {
     title: 'Excel Sheet Merger - Extraction Logic & Guide',
     icon: 'FileStack',
-    description: 'Combine multiple Excel sheets into a single document with file origin tracking and custom headers.',
+    description: 'Combine multiple Excel sheets into a single document with sequence-agnostic header alignment and strict text preservation for 15+ digit transaction reference numbers.',
     sections: [
       {
         heading: '1. Multi-File Ingestion',
-        content: 'Upload any number of Excel workbooks or CSV files simultaneously.'
+        content: 'Upload any number of Excel workbooks or CSV files simultaneously, or upload a ZIP containing all target files.'
       },
       {
-        heading: '2. Header Alignment & Provenance Tracking',
-        content: 'Performs sequence-agnostic column union. Adds a "_Source_File" origin column tracking which file each row originated from.'
+        heading: '2. Sequence-Agnostic Header Alignment',
+        content: 'Performs sequence-agnostic column union across all worksheets so columns align under matching headers regardless of order.'
       },
       {
-        heading: '3. Export',
-        content: 'Outputs a consolidated single-sheet master XLSX with deduplication options.'
+        heading: '3. 15–18 Digit Text & Reference Protection',
+        content: 'Headers like CLIENTAPPTRANSCATIONREFERENCENUMBER, TRANSCATIONREFERENCENUMBER, DESCRIPTION, OTHERPARAMETERS, REF1 and 12+ digit numbers are explicitly preserved as text (@) to prevent scientific notation and precision loss.'
+      },
+      {
+        heading: '4. Export',
+        content: 'Outputs a consolidated single-sheet master XLSX with autofilter and auto-fitted column widths.'
       }
     ]
   },
