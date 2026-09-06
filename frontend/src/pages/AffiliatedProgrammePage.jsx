@@ -61,6 +61,9 @@ export default function AffiliatedProgrammePage() {
   const pageSize = 50;
   const [showHelpModal, setShowHelpModal] = useState(false);
 
+  const [useDeduplication, setUseDeduplication] = useState(true);
+  const [duplicatesCount, setDuplicatesCount] = useState(0);
+
   const setStatus = (msg, type = 'info') => {
     setStatusMsg(msg);
     setStatusType(type);
@@ -77,8 +80,10 @@ export default function AffiliatedProgrammePage() {
     return '';
   };
 
-  const processDataFromRows = (rows, currentHeaderMap) => {
+  const processDataFromRows = (rows, currentHeaderMap, isDedupe = true) => {
     const output = [];
+    const seen = new Set();
+    let dupCount = 0;
 
     rows.forEach((row) => {
       const collegeCode = getCell(row, currentHeaderMap, 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
@@ -100,7 +105,15 @@ export default function AffiliatedProgrammePage() {
       }
 
       if (courseItems.length === 0) {
-        // Handle row with empty course details or unparenthesized single text
+        const itemCourseDetails = rawCourseDetails || '';
+        const dedupeKey = `${collegeCode.trim().toLowerCase()}|${programCode.trim().toLowerCase()}|${programmeYear.trim().toLowerCase()}|${programTermName.trim().toLowerCase()}|${itemCourseDetails.trim().toLowerCase()}`;
+        
+        if (isDedupe && dedupeKey.replace(/\|/g, '') && seen.has(dedupeKey)) {
+          dupCount++;
+          return;
+        }
+        if (dedupeKey.replace(/\|/g, '')) seen.add(dedupeKey);
+
         output.push({
           'College Code': collegeCode,
           'College Name': collegeName,
@@ -108,9 +121,9 @@ export default function AffiliatedProgrammePage() {
           'Program Term': programTerm,
           'Programme Year': programmeYear,
           'Program Term Name': programTermName,
-          'Course Details': rawCourseDetails || '',
+          'Course Details': itemCourseDetails,
           'Course Code': '',
-          'Course Name': rawCourseDetails || ''
+          'Course Name': itemCourseDetails
         });
       } else {
         courseItems.forEach((courseStr) => {
@@ -125,6 +138,16 @@ export default function AffiliatedProgrammePage() {
           } else {
             courseName = courseStr;
           }
+
+          // Deduplication key: College + Program + Year + Term + (Course Code / Course Name)
+          const distinctCourseIdentifier = (courseCode || courseName || courseStr).trim().toLowerCase();
+          const dedupeKey = `${collegeCode.trim().toLowerCase()}|${programCode.trim().toLowerCase()}|${programmeYear.trim().toLowerCase()}|${programTermName.trim().toLowerCase()}|${distinctCourseIdentifier}`;
+
+          if (isDedupe && seen.has(dedupeKey)) {
+            dupCount++;
+            return;
+          }
+          seen.add(dedupeKey);
 
           output.push({
             'College Code': collegeCode,
@@ -141,6 +164,7 @@ export default function AffiliatedProgrammePage() {
       }
     });
 
+    setDuplicatesCount(dupCount);
     return output;
   };
 
@@ -280,12 +304,12 @@ export default function AffiliatedProgrammePage() {
         setHeaderMap(hMap);
         setRawRows(rows);
 
-        const exploded = processDataFromRows(rows, hMap);
+        const exploded = processDataFromRows(rows, hMap, useDeduplication);
         setProcessedRows(exploded);
         setPage(0);
         
         const headerInfo = matchedHeaders.length > 0 ? ` (Detected Headers: ${matchedHeaders.join(', ')} at Row ${headerRowIdx + 1})` : '';
-        setStatus(`Auto-selected sheet "${bestSheet}"${headerInfo}: ${rows.length} source rows -> ${exploded.length} exploded course records!`, 'success');
+        setStatus(`Auto-selected sheet "${bestSheet}"${headerInfo}: ${rows.length} source rows -> ${exploded.length} unique course records!`, 'success');
       } catch (err) {
         console.error('Error parsing sheet:', err);
         setStatus(`Failed to read file: ${err.message}`, 'error');
@@ -323,17 +347,27 @@ export default function AffiliatedProgrammePage() {
       setHeaderMap(hMap);
       setRawRows(rows);
 
-      const exploded = processDataFromRows(rows, hMap);
+      const exploded = processDataFromRows(rows, hMap, useDeduplication);
       setProcessedRows(exploded);
       setPage(0);
 
       const headerInfo = matchedHeaders.length > 0 ? ` (Headers: ${matchedHeaders.join(', ')} on Row ${headerRowIdx + 1})` : '';
-      setStatus(`Loaded "${sheetName}"${headerInfo}: ${rows.length} source rows -> ${exploded.length} exploded records.`, 'success');
+      setStatus(`Loaded "${sheetName}"${headerInfo}: ${rows.length} source rows -> ${exploded.length} unique records.`, 'success');
     } catch (err) {
       console.error(err);
       setStatus(`Failed to load sheet: ${err.message}`, 'error');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleToggleDeduplication = (dedupeVal) => {
+    setUseDeduplication(dedupeVal);
+    if (rawRows.length > 0) {
+      const exploded = processDataFromRows(rawRows, headerMap, dedupeVal);
+      setProcessedRows(exploded);
+      setPage(0);
+      setStatus(dedupeVal ? `Deduplicated: ${exploded.length} unique courses (repeats filtered out).` : `Showing all ${exploded.length} records without deduplication.`, 'info');
     }
   };
 
@@ -640,7 +674,7 @@ export default function AffiliatedProgrammePage() {
                   <strong style={{ fontSize: '15px', color: 'var(--ink)' }}>{rawRows.length}</strong>
                 </div>
                 <div style={{ background: 'var(--accent-soft)', padding: '8px', borderRadius: '6px', border: '1px solid var(--accent)' }}>
-                  <div style={{ color: 'var(--accent)', fontWeight: 600 }}>Exploded Records</div>
+                  <div style={{ color: 'var(--accent)', fontWeight: 600 }}>Unique Records</div>
                   <strong style={{ fontSize: '15px', color: 'var(--accent)' }}>{processedRows.length}</strong>
                 </div>
                 <div style={{ background: 'var(--panel)', padding: '8px', borderRadius: '6px', border: '1px solid var(--line)' }}>
@@ -651,6 +685,12 @@ export default function AffiliatedProgrammePage() {
                   <div style={{ color: 'var(--muted)' }}>Programs</div>
                   <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>{uniquePrograms.length}</strong>
                 </div>
+                {duplicatesCount > 0 && (
+                  <div style={{ gridColumn: 'span 2', background: 'var(--panel)', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--muted)', fontSize: '10.5px' }}>Duplicates Filtered:</span>
+                    <strong style={{ color: 'var(--accent)', fontSize: '12px' }}>{duplicatesCount}</strong>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -681,6 +721,29 @@ export default function AffiliatedProgrammePage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {/* Deduplication Toggle */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleDeduplication(!useDeduplication)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '5px 10px',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    border: useDeduplication ? '1px solid var(--accent)' : '1px solid var(--line)',
+                    background: useDeduplication ? 'var(--accent-soft)' : 'var(--bg)',
+                    color: useDeduplication ? 'var(--accent)' : 'var(--muted)',
+                    cursor: 'pointer'
+                  }}
+                  title="Toggle automatic deduplication per College, Program, Year & Semester"
+                >
+                  <ListFilter size={13} />
+                  {useDeduplication ? `🛡️ Deduplicated (${duplicatesCount} repeats hidden)` : '📄 All Rows (No Deduplication)'}
+                </button>
+
                 {/* Search Box */}
                 <div style={{ position: 'relative', width: '180px' }}>
                   <input 
