@@ -274,9 +274,9 @@ export const TOOL_GUIDES = {
     ]
   },
   'ades-result-calculator': {
-    title: 'ADES Result Calculator - Calculation Logic & Guide',
+    title: 'ADES Result Calculator - Calculation & Moderation Guide',
     icon: 'Calculator',
-    description: 'Calculates ESE (30% ceiling rule), Continuous Evaluation (CE), and aggregate course marks (35% overall rule) with individual and combined Pass/Fail evaluations across 30 standardized columns.',
+    description: 'Calculates ESE (30% ceiling rule), Continuous Evaluation (CE), and aggregate course marks (35% overall rule) with course-level Moderation Engine across 31 standardized columns.',
     sections: [
       {
         heading: '1. Student-Course Level Grouping',
@@ -299,8 +299,12 @@ export const TOOL_GUIDES = {
         content: 'Course Pass/Fail status is "Pass" only if BOTH ESE Pass is "Pass" AND Overall pass is "Pass". If either condition fails, final status is "Fail".'
       },
       {
-        heading: '6. Master 30-Column Export',
-        content: 'Exports complete formatted 30-column calculation sheets to Excel with sheet name "Output file ".'
+        heading: '6. Course Moderation Engine (UI & Excel)',
+        content: 'Set course-specific moderation limits M_limit via interactive matrix or by uploading a Moderation Excel. ESE Deficit = max(0, ESE Min - ESE Overall), Overall Deficit = max(0, Overall Min - Course Overall). Marks Needed = max(ESE Deficit, Overall Deficit). If Marks Needed <= M_limit, student is awarded Moderation Marks = Marks Needed, turning ESE Pass, Overall Pass, and Course Pass/Fail to "Pass".'
+      },
+      {
+        heading: '7. Master 31-Column Export',
+        content: 'Exports complete formatted 31-column calculation sheets to Excel with sheet name "Output file ", including the Moderation Marks column directly next to Course Pass/Fail.'
       }
     ]
   },
