@@ -16,6 +16,7 @@ import PdfToolsPage from './pages/PdfToolsPage';
 import AdmissionImportPage from './pages/AdmissionImportPage';
 import CourseMasterImportPage from './pages/CourseMasterImportPage';
 import AffiliatedProgrammePage from './pages/AffiliatedProgrammePage';
+import AdesResultCalculatorPage from './pages/AdesResultCalculatorPage';
 import UrlRedirectHandler from './pages/UrlRedirectHandler';
 import AuthPage from './pages/AuthPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -153,6 +154,21 @@ function App() {
           <Route path="/affiliated" element={
             <ProtectedRoute requiredPermission="can_access_studio">
               <AffiliatedProgrammePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/ades-result-calculator" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <AdesResultCalculatorPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/ades-calculator" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <AdesResultCalculatorPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/ades" element={
+            <ProtectedRoute requiredPermission="can_access_studio">
+              <AdesResultCalculatorPage />
             </ProtectedRoute>
           } />
           <Route path="/s/:code" element={<UrlRedirectHandler />} />

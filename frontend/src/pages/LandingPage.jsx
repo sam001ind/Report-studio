@@ -14,6 +14,7 @@ import {
   Database,
   BookOpen,
   Building2,
+  Calculator,
   HelpCircle,
   X,
   ArrowRight
@@ -312,7 +313,26 @@ const LandingPage = () => {
             </div>
           </div>
 
-          {/* 15. Timetable Scheduler */}
+          {/* 15. ADES Result calculator */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/ades-result-calculator')}
+          >
+            <div style={styles.featureIcon}><Calculator size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>ADES Result calculator</h3>
+            <p style={styles.featureText}>Aggregate student-course assessments with ESE (30% rule), CE, and 35% aggregate pass logic across 30 master columns.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('ades-result-calculator'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
+          {/* 16. Timetable Scheduler */}
           <div 
             style={{...styles.featureCard, cursor: 'pointer', border: '1px solid var(--accent)'}} 
             onClick={() => navigate('/scheduler')}

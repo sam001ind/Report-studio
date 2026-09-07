@@ -273,6 +273,37 @@ export const TOOL_GUIDES = {
       }
     ]
   },
+  'ades-result-calculator': {
+    title: 'ADES Result Calculator - Calculation Logic & Guide',
+    icon: 'Calculator',
+    description: 'Calculates ESE (30% ceiling rule), Continuous Evaluation (CE), and aggregate course marks (35% overall rule) with individual and combined Pass/Fail evaluations across 30 standardized columns.',
+    sections: [
+      {
+        heading: '1. Student-Course Level Grouping',
+        content: 'Groups raw assessment rows by (Faculty, Program Term Name, Seat Number, PRN, Course Code, Course Name) to aggregate individual component marks.'
+      },
+      {
+        heading: '2. ESE Component & 30% Pass Rule',
+        content: 'Sums Practical (PR) and Theory (TH) ESE marks. ESE - Max = (ESE - PR Max + ESE - TH Max). ESE - Min = ceil(0.30 × ESE - Max). ESE Overall = (ESE - PR Obtained + ESE - TH Obtained). ESE Pass = "Pass" if ESE Overall >= ESE - Min else "Fail".'
+      },
+      {
+        heading: '3. Continuous Evaluation (CE) Component',
+        content: 'Sums Practical (PR) and Theory (TH) CE marks. CE - Max = (CE - PR Max + CE - TH Max). CE - Min = 0. CE Overall Marks = (CE - PR Obtained + CE - TH Obtained).'
+      },
+      {
+        heading: '4. Aggregate Course & 35% Overall Pass Rule',
+        content: 'Overall Maximum = ESE - Max + CE - Max. Overall Minimum = ceil(0.35 × Overall Maximum). Course Overall Marks = ESE Overall + CE Overall Marks. Overall pass = "Pass" if Course Overall Marks >= Overall Minimum else "Fail".'
+      },
+      {
+        heading: '5. Combined Course Pass/Fail Status',
+        content: 'Course Pass/Fail status is "Pass" only if BOTH ESE Pass is "Pass" AND Overall pass is "Pass". If either condition fails, final status is "Fail".'
+      },
+      {
+        heading: '6. Master 30-Column Export',
+        content: 'Exports complete formatted 30-column calculation sheets to Excel with sheet name "Output file ".'
+      }
+    ]
+  },
   'scheduler': {
     title: 'Timetable Scheduler - Logic & Guide',
     icon: 'CalendarDays',
