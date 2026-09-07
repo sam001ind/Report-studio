@@ -299,8 +299,8 @@ export const TOOL_GUIDES = {
         content: 'Course Pass/Fail status is "Pass" only if BOTH ESE Pass is "Pass" AND Overall pass is "Pass". If either condition fails, final status is "Fail".'
       },
       {
-        heading: '6. Course Moderation Engine (UI & Excel)',
-        content: 'Set course-specific moderation limits M_limit via interactive matrix or by uploading a Moderation Excel. ESE Deficit = max(0, ESE Min - ESE Overall), Overall Deficit = max(0, Overall Min - Course Overall). Marks Needed = max(ESE Deficit, Overall Deficit). If Marks Needed <= M_limit, student is awarded Moderation Marks = Marks Needed, turning ESE Pass, Overall Pass, and Course Pass/Fail to "Pass".'
+        heading: '6. Course Moderation Engine (Theory Only vs PR-Only Option)',
+        content: 'Set course-specific moderation limits M_limit via interactive matrix or by uploading a Moderation Excel. Moderation is effected only on courses with an ESE Theory (TH) component by default. Courses with solely ESE - PR are excluded unless the user enables the "Allow Moderation on Solely ESE - PR Courses" toggle in the Moderation tab. Formula: Marks Needed = max(ESE Deficit, Overall Deficit). If Marks Needed <= M_limit, student is awarded Moderation Marks = Marks Needed, turning ESE Pass, Overall pass, and Course Pass/Fail to "Pass".'
       },
       {
         heading: '7. Master 31-Column Export',

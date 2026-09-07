@@ -30,7 +30,10 @@ import {
   Sliders,
   FileUp,
   FileDown,
-  Zap
+  Zap,
+  Check,
+  ToggleLeft,
+  ToggleRight
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -83,6 +86,7 @@ export default function AdesResultCalculatorPage() {
   
   // Moderation State
   const [courseModerationMap, setCourseModerationMap] = useState({});
+  const [allowPrOnlyModeration, setAllowPrOnlyModeration] = useState(false); // Moderation on solely ESE-PR courses toggle (default: false)
   const [activeTab, setActiveTab] = useState("results"); // "results" | "moderation"
   const [moderationSearch, setModerationSearch] = useState("");
   const [bulkModValue, setBulkModValue] = useState(4);
@@ -138,7 +142,6 @@ export default function AdesResultCalculatorPage() {
     const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
 
     if (isAgg) {
-      // Direct 1-to-1 parsing of already-aggregated or converted output sheets
       const baseRecords = [];
 
       rows.forEach((row) => {
@@ -207,6 +210,10 @@ export default function AdesResultCalculatorPage() {
         const raw_overall_pass = overall_deficit === 0;
         const raw_course_pass = raw_ese_pass && raw_overall_pass;
 
+        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0;
+        const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0;
+        const is_pr_only = has_ese_pr && !has_ese_th;
+
         baseRecords.push({
           identifiers: { faculty, program, seat, prn, code, name },
           raw: {
@@ -238,6 +245,9 @@ export default function AdesResultCalculatorPage() {
             "Overall Minimum": overall_min,
             "Course Overall Marks ": course_overall,
           },
+          has_ese_th,
+          has_ese_pr,
+          is_pr_only,
           ese_deficit,
           overall_deficit,
           raw_ese_pass,
@@ -299,7 +309,6 @@ export default function AdesResultCalculatorPage() {
     const baseRecords = [];
 
     groups.forEach(({ identifiers, components }) => {
-      // 1. ESE Components (Practical & Theory)
       const ese_pr = components["ESE_PR"];
       const ese_pr_max = (ese_pr && ese_pr.max !== null) ? ese_pr.max : 0;
       const ese_pr_obtained = (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : 0;
@@ -312,7 +321,6 @@ export default function AdesResultCalculatorPage() {
       const ese_min = Math.ceil(0.30 * ese_max);
       const ese_obtained = ese_pr_obtained + ese_th_obtained;
 
-      // 2. CE Components (Practical & Theory)
       const ce_pr = components["CE_PR"];
       const ce_pr_max = (ce_pr && ce_pr.max !== null) ? ce_pr.max : 0;
       const ce_pr_obtained = (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : 0;
@@ -325,17 +333,19 @@ export default function AdesResultCalculatorPage() {
       const ce_min = 0;
       const ce_obtained = ce_pr_obtained + ce_th_obtained;
 
-      // 3. Aggregate Course Calculations
       const overall_max = ese_max + ce_max;
       const overall_min = Math.ceil(0.35 * overall_max);
       const course_overall = ese_obtained + ce_obtained;
 
-      // Raw Deficits
       const ese_deficit = Math.max(0, ese_min - ese_obtained);
       const overall_deficit = Math.max(0, overall_min - course_overall);
       const raw_ese_pass = ese_deficit === 0;
       const raw_overall_pass = overall_deficit === 0;
       const raw_course_pass = raw_ese_pass && raw_overall_pass;
+
+      const has_ese_th = ese_th_max > 0;
+      const has_ese_pr = ese_pr_max > 0;
+      const is_pr_only = has_ese_pr && !has_ese_th;
 
       baseRecords.push({
         identifiers,
@@ -368,6 +378,9 @@ export default function AdesResultCalculatorPage() {
           "Overall Minimum": overall_min,
           "Course Overall Marks ": course_overall,
         },
+        has_ese_th,
+        has_ese_pr,
+        is_pr_only,
         ese_deficit,
         overall_deficit,
         raw_ese_pass,
@@ -395,6 +408,9 @@ export default function AdesResultCalculatorPage() {
           courseName: name,
           faculty: rec.identifiers.faculty,
           program: rec.identifiers.program,
+          hasEseTh: rec.has_ese_th,
+          hasEsePr: rec.has_ese_pr,
+          isPrOnly: rec.is_pr_only,
           totalStudents: 0,
           rawPassed: 0,
           rawFailed: 0,
@@ -425,13 +441,16 @@ export default function AdesResultCalculatorPage() {
       const normCode = normalizeKey(rec.identifiers.code);
       const modLimit = courseModerationMap[normCode] || 0;
 
+      // Moderation eligibility: Effected if course has ESE-TH, OR if it is ESE-PR only AND user enabled allowPrOnlyModeration
+      const isEligibleForModeration = rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration);
+
       let moderation_awarded = 0;
       let final_ese_pass = rec.raw_ese_pass ? "Pass" : "Fail";
       let final_overall_pass = rec.raw_overall_pass ? "Pass" : "Fail";
       let final_course_pass = rec.raw_course_pass ? "Pass" : "Fail";
       let is_moderated_pass = false;
 
-      if (!rec.raw_course_pass && modLimit > 0) {
+      if (!rec.raw_course_pass && modLimit > 0 && isEligibleForModeration) {
         const marks_needed = Math.max(rec.ese_deficit, rec.overall_deficit);
         if (marks_needed <= modLimit) {
           moderation_awarded = marks_needed;
@@ -451,12 +470,14 @@ export default function AdesResultCalculatorPage() {
       row._rawPass = rec.raw_course_pass;
       row._isModeratedPass = is_moderated_pass;
       row._modLimit = modLimit;
+      row._isEligibleForMod = isEligibleForModeration;
+      row._isPrOnly = rec.is_pr_only;
       row._eseDeficit = rec.ese_deficit;
       row._overallDeficit = rec.overall_deficit;
 
       return row;
     });
-  }, [groupedRecords, courseModerationMap]);
+  }, [groupedRecords, courseModerationMap, allowPrOnlyModeration]);
 
   const scoreHeaderRow = (rowArray) => {
     if (!Array.isArray(rowArray)) return { score: 0, matchedHeaders: [] };
@@ -734,7 +755,7 @@ export default function AdesResultCalculatorPage() {
             const kNorm = normalizeKey(key);
             if (kNorm.includes("coursecode") || kNorm.includes("papercode") || kNorm.includes("subjectcode") || kNorm === "code") {
               courseCode = String(val).trim();
-            } else if (kNorm.includes("moderation") || kNorm.includes("modmarks") || kNorm.includes("gracemarks") || kNorm === "marks") {
+            } else if (kNorm.includes("currentmoderationmarks") || kNorm.includes("moderation") || kNorm.includes("modmarks") || kNorm.includes("gracemarks") || kNorm === "marks") {
               const parsed = parseInt(val, 10);
               if (!isNaN(parsed)) modMarks = Math.max(0, parsed);
             }
@@ -759,7 +780,7 @@ export default function AdesResultCalculatorPage() {
     if (modFileInputRef.current) modFileInputRef.current.value = "";
   };
 
-  // Download Pre-filled Moderation Template Excel
+  // Download Pre-filled Moderation Template Excel (Course Code, Current Moderation Marks)
   const handleDownloadModerationTemplate = () => {
     if (distinctCourses.length === 0) {
       alert("Please upload a source marks sheet first to extract unique course codes.");
@@ -1208,6 +1229,9 @@ export default function AdesResultCalculatorPage() {
                   <span>Rescued via Moderation:</span>
                   <span>+{metrics.moderatedPassed}</span>
                 </div>
+                <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "2px" }}>
+                  Rule: {allowPrOnlyModeration ? "Applied to TH & PR-Only" : "Restricted to ESE-TH courses"}
+                </div>
               </div>
 
               {/* Failure Breakdown */}
@@ -1235,7 +1259,7 @@ export default function AdesResultCalculatorPage() {
               <li><strong>Overall Min:</strong> <code>ceil(35% × Overall Max)</code></li>
               <li><strong>Pass Condition:</strong> <code>ESE Pass AND Overall Pass</code></li>
               <li><strong>Moderation Rule:</strong> <code>marks_needed = max(ESE Deficit, Overall Deficit)</code></li>
-              <li><strong>Award Condition:</strong> <code>Awarded if marks_needed &le; Course Mod Limit</code></li>
+              <li><strong>ESE-TH Only (Default):</strong> Moderation applies only to courses with ESE Theory (TH) unless PR-only option is enabled.</li>
             </ul>
           </div>
 
@@ -1323,6 +1347,61 @@ export default function AdesResultCalculatorPage() {
                 </div>
               </div>
 
+              {/* Policy Toggle Bar: ESE-PR Only Moderation Switch */}
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "space-between", 
+                background: allowPrOnlyModeration ? "rgba(16, 185, 129, 0.08)" : "var(--panel)", 
+                padding: "12px 16px", 
+                borderRadius: "8px", 
+                border: allowPrOnlyModeration ? "1.5px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--line)",
+                transition: "all 0.2s ease"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ 
+                    background: allowPrOnlyModeration ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.12)", 
+                    color: allowPrOnlyModeration ? "#10b981" : "#ef4444", 
+                    padding: "6px", 
+                    borderRadius: "6px" 
+                  }}>
+                    <Sliders size={18} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+                      Allow Moderation on Solely ESE - PR (Practical-Only) Courses
+                      {allowPrOnlyModeration && (
+                        <span style={{ fontSize: "10.5px", background: "#10b981", color: "white", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                          ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "11.5px", color: "var(--muted)", marginTop: "2px" }}>
+                      {allowPrOnlyModeration 
+                        ? "Enabled: Moderation marks will be applied to both Theory (ESE-TH) and Practical-Only (ESE-PR) courses." 
+                        : "Default: Moderation is ONLY effected on courses with an ESE Theory (TH) component. Practical-Only courses will not receive moderation marks unless this option is enabled."}
+                    </div>
+                  </div>
+                </div>
+
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "12px", fontWeight: 600, userSelect: "none" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={allowPrOnlyModeration} 
+                    onChange={(e) => {
+                      setAllowPrOnlyModeration(e.target.checked);
+                      setStatus(e.target.checked 
+                        ? "Moderation enabled for Practical-Only (ESE - PR) courses." 
+                        : "Moderation restricted to courses with ESE Theory (TH) component.", "info");
+                    }}
+                    style={{ width: "18px", height: "18px", accentColor: "var(--accent)", cursor: "pointer" }}
+                  />
+                  <span style={{ color: allowPrOnlyModeration ? "#10b981" : "var(--muted)" }}>
+                    {allowPrOnlyModeration ? "Enabled" : "Disabled (Default)"}
+                  </span>
+                </label>
+              </div>
+
               {/* Course Search in Moderation Tab */}
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <div style={{ position: "relative", flex: 1, maxWidth: "400px" }}>
@@ -1347,17 +1426,18 @@ export default function AdesResultCalculatorPage() {
                     <tr>
                       <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600 }}>Course Code</th>
                       <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600 }}>Course Name</th>
+                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Component Type</th>
                       <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Total Enrolled</th>
                       <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Raw Failed</th>
                       <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Deficit &le; 5 Marks</th>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "150px" }}>Moderation Marks</th>
+                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "150px" }}>Current Moderation Marks</th>
                       <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Rescued with Mod</th>
                     </tr>
                   </thead>
                   <tbody>
                     {distinctCourses.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ padding: "30px", textAlign: "center", color: "var(--muted)" }}>
+                        <td colSpan={8} style={{ padding: "30px", textAlign: "center", color: "var(--muted)" }}>
                           No courses loaded. Upload an ADES Marks Excel sheet to begin.
                         </td>
                       </tr>
@@ -1368,11 +1448,30 @@ export default function AdesResultCalculatorPage() {
                           const currentMod = courseModerationMap[c.normCode] || 0;
                           const courseRows = processedRows.filter(r => normalizeKey(r["Course Code"]) === c.normCode);
                           const rescuedInCourse = courseRows.filter(r => r._isModeratedPass).length;
+                          const isPrOnly = c.isPrOnly;
 
                           return (
                             <tr key={c.normCode} style={{ borderBottom: "1px solid var(--line)", background: currentMod > 0 ? "rgba(245, 158, 11, 0.04)" : "transparent" }}>
                               <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--ink)" }}>{c.courseCode}</td>
                               <td style={{ padding: "8px 12px", color: "var(--ink)" }}>{c.courseName}</td>
+                              <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                                {isPrOnly ? (
+                                  <span style={{ 
+                                    fontSize: "10.5px", 
+                                    padding: "2px 7px", 
+                                    borderRadius: "4px", 
+                                    fontWeight: 600, 
+                                    background: allowPrOnlyModeration ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)", 
+                                    color: allowPrOnlyModeration ? "#10b981" : "#ef4444" 
+                                  }}>
+                                    ESE-PR Only {allowPrOnlyModeration ? "(Eligible)" : "(Excluded)"}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "4px", fontWeight: 600, background: "var(--accent-soft)", color: "var(--accent)" }}>
+                                    {c.hasEsePr ? "ESE-TH + PR" : "ESE-TH Only"}
+                                  </span>
+                                )}
+                              </td>
                               <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.totalStudents}</td>
                               <td style={{ padding: "8px 12px", textAlign: "center", color: c.rawFailed > 0 ? "#ef4444" : "var(--muted)", fontWeight: c.rawFailed > 0 ? 600 : 400 }}>
                                 {c.rawFailed}
@@ -1419,7 +1518,9 @@ export default function AdesResultCalculatorPage() {
                                     +{rescuedInCourse} Passed
                                   </span>
                                 ) : (
-                                  <span style={{ color: "var(--muted)", fontSize: "11px" }}>0</span>
+                                  <span style={{ color: "var(--muted)", fontSize: "11px" }}>
+                                    {isPrOnly && !allowPrOnlyModeration && currentMod > 0 ? "(PR-Only Excluded)" : "0"}
+                                  </span>
                                 )}
                               </td>
                             </tr>
@@ -1801,21 +1902,18 @@ export default function AdesResultCalculatorPage() {
               </div>
 
               <div>
-                <h4 style={{ margin: "0 0 6px", fontSize: "14px", color: "#f59e0b" }}>5. Course Moderation Engine (Interactive UI + Excel)</h4>
+                <h4 style={{ margin: "0 0 6px", fontSize: "14px", color: "#f59e0b" }}>5. Course Moderation Engine (Theory Only vs Practical-Only Toggle)</h4>
                 <p style={{ margin: 0, color: "var(--muted)" }}>
-                  Each course can have a moderation limit M_limit. When a student is failing:<br />
-                  &bull; <code>ESE Deficit = max(0, ESE - Min - ESE Overall)</code><br />
-                  &bull; <code>Overall Deficit = max(0, Overall Minimum - Course Overall Marks)</code><br />
-                  &bull; <code>Marks Needed = max(ESE Deficit, Overall Deficit)</code><br />
-                  If <code>Marks Needed &le; Course Moderation Limit</code>, the student is awarded <code>Moderation Marks = Marks Needed</code>, turning <strong>ESE Pass</strong>, <strong>Overall pass</strong>, and <strong>Course Pass/Fail</strong> to <code>"Pass"</code>!<br />
-                  You can set moderation marks in the UI table or upload a moderation Excel file anytime.
+                  &bull; <strong>Theory Rule (Default):</strong> Moderation is effected only for courses containing an <code>ESE Theory (TH)</code> component.<br />
+                  &bull; <strong>Practical-Only Option:</strong> Courses that have solely <code>ESE - PR</code> components are excluded by default, but can be included by enabling the <strong>"Allow Moderation on Solely ESE - PR Courses"</strong> toggle in the Moderation Matrix tab.<br />
+                  &bull; <strong>Formula:</strong> <code>Marks Needed = max(ESE Deficit, Overall Deficit)</code>. Awarded if <code>Marks Needed &le; Course Moderation Limit</code>.
                 </p>
               </div>
 
               <div>
                 <h4 style={{ margin: "0 0 6px", fontSize: "14px", color: "var(--accent)" }}>6. 31 Standardized Master Output Columns</h4>
                 <p style={{ margin: 0, color: "var(--muted)" }}>
-                  Exports complete formatted 31-column calculation sheets to Excel with sheet name <code>"Output file "</code>, including the new <code>Moderation Marks</code> column directly next to <code>Course Pass/Fail</code>.
+                  Exports complete formatted 31-column calculation sheets to Excel with sheet name <code>"Output file "</code>, including <code>ESE Pass</code>, <code>Overall pass</code>, <code>Course Pass/Fail</code>, and <code>Moderation Marks</code>.
                 </p>
               </div>
 
