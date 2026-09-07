@@ -61,9 +61,9 @@ export const ADES_OUTPUT_HEADERS = [
   "Overall Maximum",
   "Overall Minimum",
   "Course Overall Marks ",
-  "ESE Pass (ESE obtained  >= ESE Min is pass if less then fail)",
-  "Overall pass (Course overall Marks >= Overall Minimum is pass if less then fail)",
-  "Course Pass/Fail (\"Pass\"only if both ESE Pass and Overall pass are pass if any condition is fail then course pass/fail status is fail )",
+  "ESE Pass",
+  "Overall pass",
+  "Course Pass/Fail",
   "Moderation Marks"
 ];
 
@@ -442,9 +442,9 @@ export default function AdesResultCalculatorPage() {
         }
       }
 
-      row["ESE Pass (ESE obtained  >= ESE Min is pass if less then fail)"] = final_ese_pass;
-      row["Overall pass (Course overall Marks >= Overall Minimum is pass if less then fail)"] = final_overall_pass;
-      row["Course Pass/Fail (\"Pass\"only if both ESE Pass and Overall pass are pass if any condition is fail then course pass/fail status is fail )"] = final_course_pass;
+      row["ESE Pass"] = final_ese_pass;
+      row["Overall pass"] = final_overall_pass;
+      row["Course Pass/Fail"] = final_course_pass;
       row["Moderation Marks"] = moderation_awarded;
 
       // Internal flags for UI rendering & statistics
@@ -852,9 +852,9 @@ export default function AdesResultCalculatorPage() {
     let eseFailed = 0;
     let overallFailed = 0;
 
-    const coursePassKey = "Course Pass/Fail (\"Pass\"only if both ESE Pass and Overall pass are pass if any condition is fail then course pass/fail status is fail )";
-    const esePassKey = "ESE Pass (ESE obtained  >= ESE Min is pass if less then fail)";
-    const overallPassKey = "Overall pass (Course overall Marks >= Overall Minimum is pass if less then fail)";
+    const coursePassKey = "Course Pass/Fail";
+    const esePassKey = "ESE Pass";
+    const overallPassKey = "Overall pass";
 
     processedRows.forEach(r => {
       if (r["PRN"]) prnSet.add(r["PRN"]);
@@ -893,9 +893,9 @@ export default function AdesResultCalculatorPage() {
   const filteredRows = useMemo(() => {
     let result = [...processedRows];
 
-    const coursePassKey = "Course Pass/Fail (\"Pass\"only if both ESE Pass and Overall pass are pass if any condition is fail then course pass/fail status is fail )";
-    const esePassKey = "ESE Pass (ESE obtained  >= ESE Min is pass if less then fail)";
-    const overallPassKey = "Overall pass (Course overall Marks >= Overall Minimum is pass if less then fail)";
+    const coursePassKey = "Course Pass/Fail";
+    const esePassKey = "ESE Pass";
+    const overallPassKey = "Overall pass";
 
     // 1. Result Status Filter
     if (selectedResultFilter === "PASS") {
@@ -1022,7 +1022,7 @@ export default function AdesResultCalculatorPage() {
     }
   };
 
-  const coursePassKey = "Course Pass/Fail (\"Pass\"only if both ESE Pass and Overall pass are pass if any condition is fail then course pass/fail status is fail )";
+  const coursePassKey = "Course Pass/Fail";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", overflow: "hidden", background: "var(--bg)", color: "var(--ink)" }}>
@@ -1667,7 +1667,7 @@ export default function AdesResultCalculatorPage() {
                             {ADES_OUTPUT_HEADERS.map((col) => {
                               const val = row[col];
                               const isCoursePass = col === coursePassKey;
-                              const isOtherPass = col.includes("Pass (");
+                              const isOtherPass = col === "ESE Pass" || col === "Overall pass";
                               const isModMarks = col === "Moderation Marks";
 
                               if (isCoursePass) {
