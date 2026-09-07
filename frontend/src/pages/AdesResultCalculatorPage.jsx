@@ -767,23 +767,20 @@ export default function AdesResultCalculatorPage() {
     }
 
     const templateData = [
-      ["Course Code", "Course Name", "Faculty", "Program Term Name", "Current Moderation Marks"],
+      ["Course Code", "Current Moderation Marks"],
       ...distinctCourses.map(c => [
         c.courseCode,
-        c.courseName,
-        c.faculty || "",
-        c.program || "",
         courseModerationMap[c.normCode] || 0
       ])
     ];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(templateData);
-    ws["!cols"] = [{ wch: 18 }, { wch: 35 }, { wch: 20 }, { wch: 25 }, { wch: 25 }];
+    ws["!cols"] = [{ wch: 22 }, { wch: 28 }];
     XLSX.utils.book_append_sheet(wb, ws, "Course_Moderation_Template");
 
     XLSX.writeFile(wb, "course_moderation_template.xlsx");
-    setStatus("Downloaded pre-filled Course Moderation Template (.xlsx). Fill it and upload anytime!", "success");
+    setStatus("Downloaded pre-filled Course Moderation Template (.xlsx) with Course Code & Current Moderation Marks.", "success");
   };
 
   const handleSort = (column) => {
