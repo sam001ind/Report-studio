@@ -118,13 +118,138 @@ export default function AdesResultCalculatorPage() {
   };
 
   const parseNumber = (val) => {
-    if (val === null || val === undefined || val === "") return null;
-    const num = Number(val);
+    if (val === null || val === undefined) return null;
+    const s = String(val).trim();
+    if (s === "") return null;
+    const num = Number(s);
     return isNaN(num) ? null : num;
   };
 
-  // Group raw assessment rows into Student-Course Base Aggregates
+  const isAlreadyAggregatedSheet = (hMap) => {
+    const keys = Object.keys(hMap);
+    const hasEseOverall = keys.some(k => k.includes("eseoverall") || k.includes("esemax") || k.includes("esethobtained") || k.includes("esethmax"));
+    const hasCourseOverall = keys.some(k => k.includes("courseoverall") || k.includes("overallmax") || k.includes("overallmin"));
+    const hasRawAssessment = keys.some(k => k === "assessmentmethod" || k === "am" || k.includes("assessmenttype") || k === "at");
+    return (hasEseOverall || hasCourseOverall) && !hasRawAssessment;
+  };
+
+  // Group raw assessment rows OR parse pre-aggregated rows into Student-Course Base Aggregates
   const buildGroupedRecordsFromRows = (rows, currentHeaderMap) => {
+    const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
+
+    if (isAgg) {
+      // Direct 1-to-1 parsing of already-aggregated or converted output sheets
+      const baseRecords = [];
+
+      rows.forEach((row) => {
+        const faculty = String(getCell(row, currentHeaderMap, "Faculty", "Fac", "FacultyName", "Department") || "").trim();
+        const program = String(getCell(row, currentHeaderMap, "Program Term Name", "ProgramTermName", "ProgramTerm", "Program Term", "Degree", "Term", "Semester") || "").trim();
+        const seat = String(getCell(row, currentHeaderMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || "").trim();
+        const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
+        const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+        const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
+
+        const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? "";
+        const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
+        const ese_pr_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained")) ?? "";
+
+        const ese_th_max = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax")) ?? "";
+        const ese_th_min = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Min", "ESETHMin")) ?? (ese_th_max !== "" ? 0 : "");
+        const ese_th_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained")) ?? "";
+
+        let ese_max = parseNumber(getCell(row, currentHeaderMap, "ESE - Max", "ESEMax"));
+        if (ese_max === null) {
+          ese_max = (parseNumber(ese_pr_max) || 0) + (parseNumber(ese_th_max) || 0);
+        }
+        let ese_min = parseNumber(getCell(row, currentHeaderMap, "ESE - Min", "ESEMin"));
+        if (ese_min === null) {
+          ese_min = Math.ceil(0.30 * ese_max);
+        }
+        let ese_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE Overall", "ESEOverall"));
+        if (ese_obtained === null) {
+          ese_obtained = (parseNumber(ese_pr_obtained) || 0) + (parseNumber(ese_th_obtained) || 0);
+        }
+
+        const ce_pr_max = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax")) ?? "";
+        const ce_pr_min = parseNumber(getCell(row, currentHeaderMap, "CE - PR Min", "CEPRMin")) ?? (ce_pr_max !== "" ? 0 : "");
+        const ce_pr_obtained = parseNumber(getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained")) ?? "";
+
+        const ce_th_max = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax")) ?? "";
+        const ce_th_min = parseNumber(getCell(row, currentHeaderMap, "CE - TH Min", "CETHMin")) ?? (ce_th_max !== "" ? 0 : "");
+        const ce_th_obtained = parseNumber(getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained")) ?? "";
+
+        let ce_max = parseNumber(getCell(row, currentHeaderMap, "CE - Max", "CEMax"));
+        if (ce_max === null) {
+          ce_max = (parseNumber(ce_pr_max) || 0) + (parseNumber(ce_th_max) || 0);
+        }
+        let ce_min = 0;
+        let ce_obtained = parseNumber(getCell(row, currentHeaderMap, "CE Overall Marks ", "CE Overall Marks", "CEOverallMarks", "CEOverall"));
+        if (ce_obtained === null) {
+          ce_obtained = (parseNumber(ce_pr_obtained) || 0) + (parseNumber(ce_th_obtained) || 0);
+        }
+
+        let overall_max = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax"));
+        if (overall_max === null) {
+          overall_max = ese_max + ce_max;
+        }
+        let overall_min = parseNumber(getCell(row, currentHeaderMap, "Overall Minimum", "OverallMinimum", "OverallMin"));
+        if (overall_min === null) {
+          overall_min = Math.ceil(0.35 * overall_max);
+        }
+        let course_overall = parseNumber(getCell(row, currentHeaderMap, "Course Overall Marks ", "Course Overall Marks", "CourseOverallMarks"));
+        if (course_overall === null) {
+          course_overall = ese_obtained + ce_obtained;
+        }
+
+        const ese_deficit = Math.max(0, ese_min - ese_obtained);
+        const overall_deficit = Math.max(0, overall_min - course_overall);
+        const raw_ese_pass = ese_deficit === 0;
+        const raw_overall_pass = overall_deficit === 0;
+        const raw_course_pass = raw_ese_pass && raw_overall_pass;
+
+        baseRecords.push({
+          identifiers: { faculty, program, seat, prn, code, name },
+          raw: {
+            "Faculty": faculty,
+            "Program Term Name": program,
+            "Course Code": code,
+            "Course Name": name,
+            "Seat Number": seat,
+            "PRN": prn,
+            "ESE - PR Max": ese_pr_max,
+            "ESE - PR Min": ese_pr_min,
+            "ESE - PR Obtained": ese_pr_obtained,
+            "ESE - TH Max": ese_th_max,
+            "ESE - TH Min": ese_th_min,
+            "ESE - TH Obtained": ese_th_obtained,
+            "ESE - Max": ese_max,
+            "ESE - Min": ese_min,
+            "ESE Overall": ese_obtained,
+            "CE - PR Max": ce_pr_max,
+            "CE - PR Min": ce_pr_min,
+            "CE - PR Obtained": ce_pr_obtained,
+            "CE - TH Max": ce_th_max,
+            "CE - TH Min": ce_th_min,
+            "CE - TH Obtained": ce_th_obtained,
+            "CE - Max": ce_max,
+            "CE - Min": ce_min,
+            "CE Overall Marks ": ce_obtained,
+            "Overall Maximum": overall_max,
+            "Overall Minimum": overall_min,
+            "Course Overall Marks ": course_overall,
+          },
+          ese_deficit,
+          overall_deficit,
+          raw_ese_pass,
+          raw_overall_pass,
+          raw_course_pass
+        });
+      });
+
+      return baseRecords;
+    }
+
+    // Standard Raw Assessment Grouping
     const groups = new Map();
 
     rows.forEach((row) => {
@@ -339,12 +464,13 @@ export default function AdesResultCalculatorPage() {
     const matchedHeaders = [];
     const normCols = rowArray.map(c => normalizeKey(c));
 
+    // Raw assessment indicators
     if (normCols.some(c => c.includes("assessmentmethod") || c === "am" || c === "method")) {
-      score += 10;
+      score += 12;
       matchedHeaders.push("Assessment Method");
     }
     if (normCols.some(c => c.includes("assessmenttype") || c === "at" || c === "type")) {
-      score += 10;
+      score += 12;
       matchedHeaders.push("Assessment Type");
     }
     if (normCols.some(c => c.includes("atmaxmarks") || c.includes("maxmarks") || c.includes("maxmark"))) {
@@ -355,6 +481,22 @@ export default function AdesResultCalculatorPage() {
       score += 8;
       matchedHeaders.push("Marks");
     }
+
+    // Pre-aggregated indicators
+    if (normCols.some(c => c.includes("eseoverall") || c.includes("esemax") || c.includes("esethmax") || c.includes("esethobtained"))) {
+      score += 12;
+      matchedHeaders.push("ESE Component");
+    }
+    if (normCols.some(c => c.includes("ceoverall") || c.includes("cemax") || c.includes("cethmax") || c.includes("cethobtained"))) {
+      score += 12;
+      matchedHeaders.push("CE Component");
+    }
+    if (normCols.some(c => c.includes("courseoverall") || c.includes("overallmax") || c.includes("overallmin"))) {
+      score += 10;
+      matchedHeaders.push("Course Overall");
+    }
+
+    // Common identifiers
     if (normCols.some(c => c.includes("coursecode") || c.includes("papercode") || c.includes("subjectcode"))) {
       score += 6;
       matchedHeaders.push("Course Code");
@@ -456,7 +598,7 @@ export default function AdesResultCalculatorPage() {
           let nameBonus = 0;
           const sNorm = normalizeKey(sName);
           if (sNorm.includes("sourcefile") || sNorm.includes("source") || sNorm.includes("raw")) nameBonus += 10;
-          else if (sNorm.includes("result") || sNorm.includes("marks") || sNorm.includes("exam")) nameBonus += 6;
+          else if (sNorm.includes("result") || sNorm.includes("marks") || sNorm.includes("exam") || sNorm.includes("output")) nameBonus += 6;
 
           const totalScore = score + nameBonus + (rows.length > 0 ? 4 : 0);
           meta[sName] = { score: totalScore, matchedHeaders, headerRowIdx, rowCount: rows.length };
@@ -487,7 +629,7 @@ export default function AdesResultCalculatorPage() {
         setPage(0);
 
         const headerInfo = matchedHeaders.length > 0 ? " (Detected Headers: " + matchedHeaders.join(", ") + " on Row " + (headerRowIdx + 1) + ")" : "";
-        setStatus("Successfully calculated results for " + baseGrouped.length + " courses from \"" + bestSheet + "\"!" + headerInfo, "success");
+        setStatus("Successfully loaded " + baseGrouped.length + " courses from \"" + bestSheet + "\"!" + headerInfo, "success");
       } catch (err) {
         console.error("Error parsing sheet:", err);
         setStatus("Failed to read file: " + err.message, "error");
@@ -999,7 +1141,7 @@ export default function AdesResultCalculatorPage() {
               {sourceFile ? sourceFile : "Upload ADES Marks Excel"}
             </div>
             <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px" }}>
-              Drop .xlsx / .xls file here (e.g. new tool card_updated.xlsx)
+              Drop .xlsx / .xls file here (Raw Marks or Output Format)
             </div>
           </div>
 
