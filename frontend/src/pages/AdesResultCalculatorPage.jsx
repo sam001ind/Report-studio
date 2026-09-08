@@ -482,7 +482,7 @@ export default function AdesResultCalculatorPage() {
     });
   }, [groupedRecords, courseModerationMap, allowPrOnlyModeration]);
 
-  // Course-Wise Pass Simulation (0 to +10 Moderation Marks)
+  // Course-Wise Pass Simulation (0 to +10 Moderation Marks) - Enforcing both 30% ESE & 35% Overall Pass Conditions
   const courseSimulationData = useMemo(() => {
     const map = new Map();
 
@@ -506,8 +506,12 @@ export default function AdesResultCalculatorPage() {
           isPrOnly: rec.is_pr_only,
           isEligible: rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration),
           totalStudents: 0,
-          rawPassCount: 0,
-          passCountAtMod: Array(11).fill(0), // indices 0 to 10
+          rawEsePassCount: 0,       // 30% ESE Rule Pass Count
+          rawOverallPassCount: 0,   // 35% Overall Course Rule Pass Count
+          rawPassCount: 0,          // Combined (Both 30% ESE & 35% Overall Met)
+          esePassAtMod: Array(11).fill(0),
+          overallPassAtMod: Array(11).fill(0),
+          passCountAtMod: Array(11).fill(0), // Combined Dual-Condition Pass at +0..+10
         });
       }
 
@@ -517,8 +521,16 @@ export default function AdesResultCalculatorPage() {
       const ese_deficit = rec.ese_deficit;
       const overall_deficit = rec.overall_deficit;
       const marks_needed = Math.max(ese_deficit, overall_deficit);
-      const is_raw_pass = rec.raw_course_pass;
+      const is_raw_ese_pass = rec.raw_ese_pass;         // 30% ESE Rule
+      const is_raw_overall_pass = rec.raw_overall_pass; // 35% Overall Rule
+      const is_raw_pass = rec.raw_course_pass;          // Both 30% and 35% Rules
 
+      if (is_raw_ese_pass) {
+        item.rawEsePassCount++;
+      }
+      if (is_raw_overall_pass) {
+        item.rawOverallPassCount++;
+      }
       if (is_raw_pass) {
         item.rawPassCount++;
       }
@@ -526,12 +538,15 @@ export default function AdesResultCalculatorPage() {
       const isEligible = rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration);
 
       // Evaluate simulated pass for each moderation mark level from 0 to 10
+      // Student is awarded pass only if BOTH 30% ESE and 35% Overall conditions are met
       for (let m = 0; m <= 10; m++) {
-        if (is_raw_pass) {
-          item.passCountAtMod[m]++;
-        } else if (isEligible && marks_needed <= m) {
-          item.passCountAtMod[m]++;
-        }
+        const meetsEse = is_raw_ese_pass || (isEligible && ese_deficit <= m);
+        const meetsOverall = is_raw_overall_pass || (isEligible && overall_deficit <= m);
+        const meetsBoth = meetsEse && meetsOverall; // Precisely is_raw_pass || (isEligible && marks_needed <= m)
+
+        if (meetsEse) item.esePassAtMod[m]++;
+        if (meetsOverall) item.overallPassAtMod[m]++;
+        if (meetsBoth) item.passCountAtMod[m]++;
       }
     });
 
@@ -553,25 +568,39 @@ export default function AdesResultCalculatorPage() {
   // Overall Simulation Totals across filtered courses
   const simTotals = useMemo(() => {
     let totalStudents = 0;
+    let rawEsePass = 0;
+    let rawOverallPass = 0;
     let rawPass = 0;
     const modPass = Array(11).fill(0);
+    const eseModPass = Array(11).fill(0);
+    const overallModPass = Array(11).fill(0);
 
     filteredSimulationCourses.forEach(c => {
       totalStudents += c.totalStudents;
+      rawEsePass += c.rawEsePassCount;
+      rawOverallPass += c.rawOverallPassCount;
       rawPass += c.rawPassCount;
       for (let m = 0; m <= 10; m++) {
         modPass[m] += c.passCountAtMod[m];
+        eseModPass[m] += c.esePassAtMod[m];
+        overallModPass[m] += c.overallPassAtMod[m];
       }
     });
 
     return {
       totalCourses: filteredSimulationCourses.length,
       totalStudents,
+      rawEsePass,
+      rawEsePassPct: totalStudents > 0 ? ((rawEsePass / totalStudents) * 100).toFixed(1) : "0.0",
+      rawOverallPass,
+      rawOverallPassPct: totalStudents > 0 ? ((rawOverallPass / totalStudents) * 100).toFixed(1) : "0.0",
       rawPass,
       rawPassPct: totalStudents > 0 ? ((rawPass / totalStudents) * 100).toFixed(1) : "0.0",
       modPass,
       modPassPct: (m) => totalStudents > 0 ? ((modPass[m] / totalStudents) * 100).toFixed(1) : "0.0",
-      rescuedAtMod: (m) => modPass[m] - rawPass
+      rescuedAtMod: (m) => modPass[m] - rawPass,
+      eseModPass,
+      overallModPass
     };
   }, [filteredSimulationCourses]);
 
@@ -914,33 +943,43 @@ export default function AdesResultCalculatorPage() {
       "Course Name",
       "Component Type",
       "Total Students",
-      "Normal Pass (0 Mod)",
+      "30% ESE Pass (0 Mod)",
+      "30% ESE Pass %",
+      "35% Overall Pass (0 Mod)",
+      "35% Overall Pass %",
+      "Normal Pass (Both 30% & 35% Met)",
       "Normal Pass %",
-      "+1 Mod Pass",
-      "+2 Mod Pass",
-      "+3 Mod Pass",
-      "+4 Mod Pass",
-      "+5 Mod Pass",
-      "+6 Mod Pass",
-      "+7 Mod Pass",
-      "+8 Mod Pass",
-      "+9 Mod Pass",
-      "+10 Mod Pass",
+      "+1 Mod Pass (Both Met)",
+      "+2 Mod Pass (Both Met)",
+      "+3 Mod Pass (Both Met)",
+      "+4 Mod Pass (Both Met)",
+      "+5 Mod Pass (Both Met)",
+      "+6 Mod Pass (Both Met)",
+      "+7 Mod Pass (Both Met)",
+      "+8 Mod Pass (Both Met)",
+      "+9 Mod Pass (Both Met)",
+      "+10 Mod Pass (Both Met)",
       "+10 Mod Pass %",
       "Max Rescued (+10)"
     ];
 
     let totalAllStudents = 0;
+    let totalAllRawEsePass = 0;
+    let totalAllRawOverallPass = 0;
     let totalAllRawPass = 0;
     const totalAllModPass = Array(11).fill(0);
 
     const rows = courseSimulationData.map(c => {
       totalAllStudents += c.totalStudents;
+      totalAllRawEsePass += c.rawEsePassCount;
+      totalAllRawOverallPass += c.rawOverallPassCount;
       totalAllRawPass += c.rawPassCount;
       for (let m = 1; m <= 10; m++) {
         totalAllModPass[m] += c.passCountAtMod[m];
       }
 
+      const rawEsePct = c.totalStudents > 0 ? ((c.rawEsePassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
+      const rawOverallPct = c.totalStudents > 0 ? ((c.rawOverallPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const rawPct = c.totalStudents > 0 ? ((c.rawPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const plus10Pct = c.totalStudents > 0 ? ((c.passCountAtMod[10] / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const maxRescued = c.passCountAtMod[10] - c.rawPassCount;
@@ -954,6 +993,10 @@ export default function AdesResultCalculatorPage() {
         c.courseName,
         compType,
         c.totalStudents,
+        c.rawEsePassCount,
+        rawEsePct,
+        c.rawOverallPassCount,
+        rawOverallPct,
         c.rawPassCount,
         rawPct,
         c.passCountAtMod[1],
@@ -972,6 +1015,8 @@ export default function AdesResultCalculatorPage() {
     });
 
     // Summary / Total Row
+    const overallRawEsePct = totalAllStudents > 0 ? ((totalAllRawEsePass / totalAllStudents) * 100).toFixed(2) + "%" : "0.00%";
+    const overallRawOverallPct = totalAllStudents > 0 ? ((totalAllRawOverallPass / totalAllStudents) * 100).toFixed(2) + "%" : "0.00%";
     const overallRawPct = totalAllStudents > 0 ? ((totalAllRawPass / totalAllStudents) * 100).toFixed(2) + "%" : "0.00%";
     const overallPlus10Pct = totalAllStudents > 0 ? ((totalAllModPass[10] / totalAllStudents) * 100).toFixed(2) + "%" : "0.00%";
     const overallMaxRescued = totalAllModPass[10] - totalAllRawPass;
@@ -983,6 +1028,10 @@ export default function AdesResultCalculatorPage() {
       "-",
       "-",
       totalAllStudents,
+      totalAllRawEsePass,
+      overallRawEsePct,
+      totalAllRawOverallPass,
+      overallRawOverallPct,
       totalAllRawPass,
       overallRawPct,
       totalAllModPass[1],
@@ -1011,25 +1060,29 @@ export default function AdesResultCalculatorPage() {
       { wch: 32 }, // Course Name
       { wch: 16 }, // Component Type
       { wch: 14 }, // Total Students
-      { wch: 18 }, // Normal Pass (0 Mod)
-      { wch: 14 }, // Normal Pass %
-      { wch: 13 }, // +1 Mod Pass
-      { wch: 13 }, // +2 Mod Pass
-      { wch: 13 }, // +3 Mod Pass
-      { wch: 13 }, // +4 Mod Pass
-      { wch: 13 }, // +5 Mod Pass
-      { wch: 13 }, // +6 Mod Pass
-      { wch: 13 }, // +7 Mod Pass
-      { wch: 13 }, // +8 Mod Pass
-      { wch: 13 }, // +9 Mod Pass
-      { wch: 14 }, // +10 Mod Pass
+      { wch: 20 }, // 30% ESE Pass
+      { wch: 15 }, // 30% ESE Pass %
+      { wch: 22 }, // 35% Overall Pass
+      { wch: 16 }, // 35% Overall Pass %
+      { wch: 26 }, // Normal Pass (Both Met)
+      { wch: 15 }, // Normal Pass %
+      { wch: 18 }, // +1 Mod Pass
+      { wch: 18 }, // +2 Mod Pass
+      { wch: 18 }, // +3 Mod Pass
+      { wch: 18 }, // +4 Mod Pass
+      { wch: 18 }, // +5 Mod Pass
+      { wch: 18 }, // +6 Mod Pass
+      { wch: 18 }, // +7 Mod Pass
+      { wch: 18 }, // +8 Mod Pass
+      { wch: 18 }, // +9 Mod Pass
+      { wch: 18 }, // +10 Mod Pass
       { wch: 16 }, // +10 Mod Pass %
       { wch: 16 }  // Max Rescued (+10)
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, "Course_Pass_Simulation");
     XLSX.writeFile(wb, "course_wise_pass_simulation.xlsx");
-    setStatus("Generated & downloaded Course-Wise Pass Simulation Report (+0 to +10 Moderation).", "success");
+    setStatus("Generated & downloaded Course-Wise Pass Simulation Report (+0 to +10 Moderation) with 30% ESE and 35% Aggregate checks.", "success");
   };
 
   const handleSort = (column) => {
@@ -1920,36 +1973,60 @@ export default function AdesResultCalculatorPage() {
                 </div>
               </div>
 
+              {/* Dual Pass Condition Verification Banner */}
+              <div style={{ background: "rgba(59, 130, 246, 0.08)", border: "1px solid rgba(59, 130, 246, 0.25)", borderRadius: "8px", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", fontSize: "11.5px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Sparkles size={16} color="#3b82f6" />
+                  <div>
+                    <strong style={{ color: "var(--ink)" }}>Dual Pass Conditions Enforced for All Simulation Levels (+0 to +10):</strong>
+                    <span style={{ color: "var(--muted)", marginLeft: "6px" }}>
+                      1. <strong>30% ESE Rule</strong> (<code>ESE Overall + Mod &ge; ESE Min</code>) &nbsp;|&nbsp; 
+                      2. <strong>35% Overall Rule</strong> (<code>Course Overall + Mod &ge; Overall Min</code>) &nbsp;&rarr;&nbsp; 
+                      <span style={{ color: "#10b981", fontWeight: 700 }}>Pass awarded ONLY if BOTH rules pass.</span>
+                    </span>
+                  </div>
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--muted)", background: "var(--bg)", padding: "3px 8px", borderRadius: "4px", border: "1px solid var(--line)" }}>
+                  Eligibility: {allowPrOnlyModeration ? "Applied to TH & PR-Only" : "Restricted to ESE-TH courses (Default)"}
+                </div>
+              </div>
+
               {/* KPI Summary Cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "12px" }}>
-                <div style={{ background: "var(--panel)", padding: "12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
-                  <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>Total Courses</div>
-                  <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--ink)", marginTop: "2px" }}>{simTotals.totalCourses}</div>
-                  <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>{simTotals.totalStudents} total student entries</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
+                <div style={{ background: "var(--panel)", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "10.5px", color: "var(--muted)", fontWeight: 600 }}>Total Courses</div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "var(--ink)", marginTop: "2px" }}>{simTotals.totalCourses}</div>
+                  <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>{simTotals.totalStudents} student entries</div>
                 </div>
 
-                <div style={{ background: "var(--panel)", padding: "12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
-                  <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>Normal Pass (0 Mod)</div>
-                  <div style={{ fontSize: "18px", fontWeight: 700, color: "#3b82f6", marginTop: "2px" }}>{simTotals.rawPass}</div>
-                  <div style={{ fontSize: "11px", color: "#3b82f6", fontWeight: 600, marginTop: "2px" }}>{simTotals.rawPassPct}% raw pass rate</div>
+                <div style={{ background: "var(--panel)", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "10.5px", color: "var(--muted)", fontWeight: 600 }}>30% ESE Pass (0 Mod)</div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#6366f1", marginTop: "2px" }}>{simTotals.rawEsePass}</div>
+                  <div style={{ fontSize: "10.5px", color: "#6366f1", fontWeight: 600 }}>{simTotals.rawEsePassPct}% meet ESE &ge; 30%</div>
                 </div>
 
-                <div style={{ background: "rgba(245, 158, 11, 0.08)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
-                  <div style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 600 }}>Pass at +3 Mod</div>
-                  <div style={{ fontSize: "18px", fontWeight: 700, color: "#f59e0b", marginTop: "2px" }}>{simTotals.modPass[3]}</div>
-                  <div style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 600, marginTop: "2px" }}>{simTotals.modPassPct(3)}% (+{simTotals.rescuedAtMod(3)} rescued)</div>
+                <div style={{ background: "var(--panel)", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "10.5px", color: "var(--muted)", fontWeight: 600 }}>35% Overall Pass (0 Mod)</div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#8b5cf6", marginTop: "2px" }}>{simTotals.rawOverallPass}</div>
+                  <div style={{ fontSize: "10.5px", color: "#8b5cf6", fontWeight: 600 }}>{simTotals.rawOverallPassPct}% meet Agg &ge; 35%</div>
                 </div>
 
-                <div style={{ background: "rgba(245, 158, 11, 0.12)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(245, 158, 11, 0.35)" }}>
-                  <div style={{ fontSize: "11px", color: "#d97706", fontWeight: 600 }}>Pass at +5 Mod</div>
-                  <div style={{ fontSize: "18px", fontWeight: 700, color: "#d97706", marginTop: "2px" }}>{simTotals.modPass[5]}</div>
-                  <div style={{ fontSize: "11px", color: "#d97706", fontWeight: 600, marginTop: "2px" }}>{simTotals.modPassPct(5)}% (+{simTotals.rescuedAtMod(5)} rescued)</div>
+                <div style={{ background: "rgba(59, 130, 246, 0.08)", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(59, 130, 246, 0.25)" }}>
+                  <div style={{ fontSize: "10.5px", color: "#3b82f6", fontWeight: 600 }}>Normal Pass (Both Met)</div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#3b82f6", marginTop: "2px" }}>{simTotals.rawPass}</div>
+                  <div style={{ fontSize: "10.5px", color: "#3b82f6", fontWeight: 600 }}>{simTotals.rawPassPct}% raw combined pass</div>
                 </div>
 
-                <div style={{ background: "rgba(16, 185, 129, 0.12)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.35)" }}>
-                  <div style={{ fontSize: "11px", color: "#10b981", fontWeight: 600 }}>Pass at +10 Mod</div>
-                  <div style={{ fontSize: "18px", fontWeight: 700, color: "#10b981", marginTop: "2px" }}>{simTotals.modPass[10]}</div>
-                  <div style={{ fontSize: "11px", color: "#10b981", fontWeight: 600, marginTop: "2px" }}>{simTotals.modPassPct(10)}% (+{simTotals.rescuedAtMod(10)} rescued)</div>
+                <div style={{ background: "rgba(245, 158, 11, 0.1)", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(245, 158, 11, 0.3)" }}>
+                  <div style={{ fontSize: "10.5px", color: "#d97706", fontWeight: 600 }}>Pass at +5 Mod (Both Met)</div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#d97706", marginTop: "2px" }}>{simTotals.modPass[5]}</div>
+                  <div style={{ fontSize: "10.5px", color: "#d97706", fontWeight: 600 }}>{simTotals.modPassPct(5)}% (+{simTotals.rescuedAtMod(5)} rescued)</div>
+                </div>
+
+                <div style={{ background: "rgba(16, 185, 129, 0.12)", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.35)" }}>
+                  <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>Pass at +10 Mod (Both Met)</div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#10b981", marginTop: "2px" }}>{simTotals.modPass[10]}</div>
+                  <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>{simTotals.modPassPct(10)}% (+{simTotals.rescuedAtMod(10)} rescued)</div>
                 </div>
               </div>
 
@@ -1958,33 +2035,35 @@ export default function AdesResultCalculatorPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                   <thead style={{ position: "sticky", top: 0, background: "var(--bg)", zIndex: 10, borderBottom: "2px solid var(--line)" }}>
                     <tr>
-                      <th style={{ padding: "10px 12px", textAlign: "left", color: "var(--muted)", fontWeight: 600, width: "120px" }}>Course Code</th>
-                      <th style={{ padding: "10px 12px", textAlign: "left", color: "var(--muted)", fontWeight: 600, minWidth: "180px" }}>Course Name</th>
-                      <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontWeight: 600, width: "100px" }}>Type</th>
-                      <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontWeight: 600, width: "70px" }}>Total</th>
-                      <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--ink)", fontWeight: 700, width: "85px", background: "rgba(59, 130, 246, 0.08)" }}>Normal (0)</th>
+                      <th style={{ padding: "10px 12px", textAlign: "left", color: "var(--muted)", fontWeight: 600, width: "110px" }}>Course Code</th>
+                      <th style={{ padding: "10px 12px", textAlign: "left", color: "var(--muted)", fontWeight: 600, minWidth: "160px" }}>Course Name</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontWeight: 600, width: "90px" }}>Type</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontWeight: 600, width: "65px" }}>Total</th>
+                      <th style={{ padding: "10px 8px", textAlign: "center", color: "#6366f1", fontWeight: 600, width: "75px", background: "rgba(99, 102, 241, 0.05)" }}>30% ESE</th>
+                      <th style={{ padding: "10px 8px", textAlign: "center", color: "#8b5cf6", fontWeight: 600, width: "75px", background: "rgba(139, 92, 246, 0.05)" }}>35% Agg</th>
+                      <th style={{ padding: "10px 10px", textAlign: "center", color: "var(--ink)", fontWeight: 700, width: "95px", background: "rgba(59, 130, 246, 0.1)" }}>Normal (Both)</th>
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => (
                         <th 
                           key={m} 
                           style={{ 
-                            padding: "10px 8px", 
+                            padding: "10px 6px", 
                             textAlign: "center", 
                             color: m === 5 ? "#d97706" : m === 10 ? "#10b981" : "var(--muted)", 
                             fontWeight: m === 5 || m === 10 ? 700 : 600, 
-                            width: "55px",
+                            width: "50px",
                             background: m === 5 ? "rgba(245, 158, 11, 0.1)" : m === 10 ? "rgba(16, 185, 129, 0.1)" : "transparent"
                           }}
                         >
                           +{m}
                         </th>
                       ))}
-                      <th style={{ padding: "10px 12px", textAlign: "center", color: "#10b981", fontWeight: 700, width: "100px", background: "rgba(16, 185, 129, 0.08)" }}>Max Gain (+10)</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center", color: "#10b981", fontWeight: 700, width: "95px", background: "rgba(16, 185, 129, 0.08)" }}>Max Gain (+10)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredSimulationCourses.length === 0 ? (
                       <tr>
-                        <td colSpan={16} style={{ padding: "32px", textAlign: "center", color: "var(--muted)" }}>
+                        <td colSpan={18} style={{ padding: "32px", textAlign: "center", color: "var(--muted)" }}>
                           No matching courses found.
                         </td>
                       </tr>
@@ -2022,7 +2101,13 @@ export default function AdesResultCalculatorPage() {
                               )}
                             </td>
                             <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>{c.totalStudents}</td>
-                            <td style={{ padding: "8px 12px", textAlign: "center", background: "rgba(59, 130, 246, 0.04)" }}>
+                            <td style={{ padding: "8px 8px", textAlign: "center", color: "#6366f1", background: "rgba(99, 102, 241, 0.03)" }}>
+                              {c.rawEsePassCount}
+                            </td>
+                            <td style={{ padding: "8px 8px", textAlign: "center", color: "#8b5cf6", background: "rgba(139, 92, 246, 0.03)" }}>
+                              {c.rawOverallPassCount}
+                            </td>
+                            <td style={{ padding: "8px 10px", textAlign: "center", background: "rgba(59, 130, 246, 0.06)" }}>
                               <span style={{ fontWeight: 700, color: "var(--ink)" }}>{c.rawPassCount}</span>
                               <span style={{ fontSize: "10.5px", color: "var(--muted)", marginLeft: "3px" }}>({rawPct}%)</span>
                             </td>
@@ -2034,7 +2119,7 @@ export default function AdesResultCalculatorPage() {
                                 <td 
                                   key={m} 
                                   style={{ 
-                                    padding: "8px 6px", 
+                                    padding: "8px 5px", 
                                     textAlign: "center",
                                     fontWeight: diff > 0 ? 600 : 400,
                                     color: diff > 0 ? (m === 10 ? "#10b981" : m >= 5 ? "#d97706" : "var(--ink)") : "var(--muted)",
@@ -2070,14 +2155,16 @@ export default function AdesResultCalculatorPage() {
                       <tr>
                         <td colSpan={3} style={{ padding: "10px 12px", color: "var(--ink)" }}>TOTAL (All Filtered Courses)</td>
                         <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--ink)" }}>{simTotals.totalStudents}</td>
-                        <td style={{ padding: "10px 12px", textAlign: "center", color: "#3b82f6" }}>
+                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#6366f1" }}>{simTotals.rawEsePass}</td>
+                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#8b5cf6" }}>{simTotals.rawOverallPass}</td>
+                        <td style={{ padding: "10px 10px", textAlign: "center", color: "#3b82f6", background: "rgba(59, 130, 246, 0.08)" }}>
                           {simTotals.rawPass} ({simTotals.rawPassPct}%)
                         </td>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => (
                           <td 
                             key={m} 
                             style={{ 
-                              padding: "10px 6px", 
+                              padding: "10px 5px", 
                               textAlign: "center", 
                               color: m === 10 ? "#10b981" : m === 5 ? "#d97706" : "var(--ink)",
                               background: m === 10 ? "rgba(16, 185, 129, 0.1)" : m === 5 ? "rgba(245, 158, 11, 0.1)" : "transparent"
