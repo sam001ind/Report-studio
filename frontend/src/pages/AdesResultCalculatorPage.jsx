@@ -94,6 +94,9 @@ export default function AdesResultCalculatorPage() {
   const [allowPrOnlyModeration, setAllowPrOnlyModeration] = useState(false); // Moderation on solely ESE-PR courses toggle (default: false)
   const [activeTab, setActiveTab] = useState("results"); // "results" | "students" | "moderation" | "simulation"
   const [moderationSearch, setModerationSearch] = useState("");
+  const [modSortConfig, setModSortConfig] = useState({ column: "rawFailed", direction: "desc" });
+  const [modFilterType, setModFilterType] = useState("ALL"); // "ALL" | "TH" | "PR_ONLY"
+  const [modFilterStatus, setModFilterStatus] = useState("ALL"); // "ALL" | "FAILED" | "NEAR_PASS" | "ACTIVE_MOD" | "RESCUED"
   const [simSearchQuery, setSimSearchQuery] = useState("");
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
   const [studentFilterStatus, setStudentFilterStatus] = useState("ALL"); // "ALL" | "PASS" | "FAIL" | "RESCUED"
@@ -570,6 +573,172 @@ export default function AdesResultCalculatorPage() {
       c.program.toLowerCase().includes(q)
     );
   }, [courseSimulationData, simSearchQuery]);
+
+  // Course Moderation Manager enriched dataset
+  const moderationCoursesList = useMemo(() => {
+    return distinctCourses.map(c => {
+      const currentMod = courseModerationMap[c.normCode] || 0;
+      const courseRows = processedRows.filter(r => normalizeKey(r["Course Code"]) === c.normCode);
+      const rescuedInCourse = courseRows.filter(r => r._isModeratedPass).length;
+      const componentTypeStr = c.isPrOnly 
+        ? "ESE-PR Only" 
+        : c.hasEsePr 
+          ? "ESE-TH + PR" 
+          : "ESE-TH Only";
+
+      return {
+        ...c,
+        currentMod,
+        rescuedInCourse,
+        componentTypeStr
+      };
+    });
+  }, [distinctCourses, courseModerationMap, processedRows]);
+
+  // Counts for filter pills in Course Moderation tab
+  const modFilterCounts = useMemo(() => {
+    const total = moderationCoursesList.length;
+    let thCount = 0;
+    let prOnlyCount = 0;
+    let failedCount = 0;
+    let nearPassCount = 0;
+    let activeModCount = 0;
+    let rescuedCount = 0;
+
+    moderationCoursesList.forEach(c => {
+      if (c.hasEseTh) thCount++;
+      if (c.isPrOnly) prOnlyCount++;
+      if (c.rawFailed > 0) failedCount++;
+      if (c.nearPassCount > 0) nearPassCount++;
+      if (c.currentMod > 0) activeModCount++;
+      if (c.rescuedInCourse > 0) rescuedCount++;
+    });
+
+    return {
+      total,
+      thCount,
+      prOnlyCount,
+      failedCount,
+      nearPassCount,
+      activeModCount,
+      rescuedCount
+    };
+  }, [moderationCoursesList]);
+
+  // Filtered & Sorted Course Moderation List
+  const filteredAndSortedModCourses = useMemo(() => {
+    let list = moderationCoursesList;
+
+    // Component Type filter
+    if (modFilterType === "TH") {
+      list = list.filter(c => c.hasEseTh);
+    } else if (modFilterType === "PR_ONLY") {
+      list = list.filter(c => c.isPrOnly);
+    }
+
+    // Status filter
+    if (modFilterStatus === "FAILED") {
+      list = list.filter(c => c.rawFailed > 0);
+    } else if (modFilterStatus === "NEAR_PASS") {
+      list = list.filter(c => c.nearPassCount > 0);
+    } else if (modFilterStatus === "ACTIVE_MOD") {
+      list = list.filter(c => c.currentMod > 0);
+    } else if (modFilterStatus === "RESCUED") {
+      list = list.filter(c => c.rescuedInCourse > 0);
+    }
+
+    // Search query
+    if (moderationSearch.trim()) {
+      const q = moderationSearch.toLowerCase().trim();
+      list = list.filter(c => 
+        (c.courseCode && c.courseCode.toLowerCase().includes(q)) ||
+        (c.courseName && c.courseName.toLowerCase().includes(q)) ||
+        (c.program && c.program.toLowerCase().includes(q)) ||
+        (c.faculty && c.faculty.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort
+    if (modSortConfig.column && modSortConfig.direction) {
+      const col = modSortConfig.column;
+      const dir = modSortConfig.direction === "asc" ? 1 : -1;
+
+      list = [...list].sort((a, b) => {
+        let valA, valB;
+        switch (col) {
+          case "courseCode":
+            valA = a.courseCode || "";
+            valB = b.courseCode || "";
+            return dir * String(valA).localeCompare(String(valB), undefined, { numeric: true });
+          case "courseName":
+            valA = a.courseName || "";
+            valB = b.courseName || "";
+            return dir * String(valA).localeCompare(String(valB));
+          case "componentType":
+            valA = a.componentTypeStr || "";
+            valB = b.componentTypeStr || "";
+            return dir * String(valA).localeCompare(String(valB));
+          case "totalStudents":
+            valA = a.totalStudents || 0;
+            valB = b.totalStudents || 0;
+            return dir * (valA - valB);
+          case "rawFailed":
+            valA = a.rawFailed || 0;
+            valB = b.rawFailed || 0;
+            return dir * (valA - valB);
+          case "nearPassCount":
+            valA = a.nearPassCount || 0;
+            valB = b.nearPassCount || 0;
+            return dir * (valA - valB);
+          case "currentMod":
+            valA = a.currentMod || 0;
+            valB = b.currentMod || 0;
+            return dir * (valA - valB);
+          case "rescuedInCourse":
+            valA = a.rescuedInCourse || 0;
+            valB = b.rescuedInCourse || 0;
+            return dir * (valA - valB);
+          default:
+            return 0;
+        }
+      });
+    }
+
+    return list;
+  }, [moderationCoursesList, modFilterType, modFilterStatus, moderationSearch, modSortConfig]);
+
+  // Handler for sorting moderation columns
+  const handleModSort = (column) => {
+    setModSortConfig(prev => {
+      if (prev.column === column) {
+        return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
+      }
+      const defaultDir = ["totalStudents", "rawFailed", "nearPassCount", "currentMod", "rescuedInCourse"].includes(column) ? "desc" : "asc";
+      return { column, direction: defaultDir };
+    });
+  };
+
+  // Summary Totals for the currently filtered courses in the Moderation Manager table
+  const modTableTotals = useMemo(() => {
+    let totalStudents = 0;
+    let rawFailed = 0;
+    let nearPassCount = 0;
+    let rescuedCount = 0;
+
+    filteredAndSortedModCourses.forEach(c => {
+      totalStudents += c.totalStudents;
+      rawFailed += c.rawFailed;
+      nearPassCount += c.nearPassCount;
+      rescuedCount += c.rescuedInCourse;
+    });
+
+    return {
+      totalStudents,
+      rawFailed,
+      nearPassCount,
+      rescuedCount
+    };
+  }, [filteredAndSortedModCourses]);
 
   // Overall Simulation Totals across filtered courses
   const simTotals = useMemo(() => {
@@ -2420,132 +2589,363 @@ export default function AdesResultCalculatorPage() {
                 </label>
               </div>
 
-              {/* Course Search in Moderation Tab */}
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div style={{ position: "relative", flex: 1, maxWidth: "400px" }}>
-                  <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-                  <input 
-                    type="text"
-                    placeholder="Search courses by code or title..."
-                    value={moderationSearch}
-                    onChange={(e) => setModerationSearch(e.target.value)}
-                    style={{ width: "100%", padding: "6px 10px 6px 30px", fontSize: "12px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)" }}
-                  />
+              {/* Filters & Search Toolbar in Moderation Tab */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "var(--panel)", padding: "12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                  
+                  {/* Search Input */}
+                  <div style={{ position: "relative", flex: 1, minWidth: "260px", maxWidth: "380px" }}>
+                    <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+                    <input 
+                      type="text"
+                      placeholder="Search courses by code, title, program..."
+                      value={moderationSearch}
+                      onChange={(e) => setModerationSearch(e.target.value)}
+                      style={{ width: "100%", padding: "6px 28px 6px 30px", fontSize: "12px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)" }}
+                    />
+                    {moderationSearch && (
+                      <X 
+                        size={13} 
+                        onClick={() => setModerationSearch("")}
+                        style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "var(--muted)" }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Component Type Filters */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--bg)", padding: "3px", borderRadius: "6px", border: "1px solid var(--line)" }}>
+                    <span style={{ fontSize: "11px", color: "var(--muted)", padding: "0 4px", fontWeight: 600 }}>Type:</span>
+                    <button 
+                      type="button"
+                      onClick={() => setModFilterType("ALL")}
+                      style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: modFilterType === "ALL" ? "var(--accent)" : "transparent", color: modFilterType === "ALL" ? "white" : "var(--muted)" }}
+                    >
+                      All ({modFilterCounts.total})
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setModFilterType("TH")}
+                      style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: modFilterType === "TH" ? "var(--accent)" : "transparent", color: modFilterType === "TH" ? "white" : "var(--muted)" }}
+                    >
+                      Theory ({modFilterCounts.thCount})
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setModFilterType("PR_ONLY")}
+                      style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: modFilterType === "PR_ONLY" ? "var(--accent)" : "transparent", color: modFilterType === "PR_ONLY" ? "white" : "var(--muted)" }}
+                    >
+                      PR-Only ({modFilterCounts.prOnlyCount})
+                    </button>
+                  </div>
+
+                  {/* Status Filters */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--bg)", padding: "3px", borderRadius: "6px", border: "1px solid var(--line)", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "11px", color: "var(--muted)", padding: "0 4px", fontWeight: 600 }}>Status:</span>
+                    <button 
+                      type="button"
+                      onClick={() => setModFilterStatus("ALL")}
+                      style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: modFilterStatus === "ALL" ? "var(--accent)" : "transparent", color: modFilterStatus === "ALL" ? "white" : "var(--muted)" }}
+                    >
+                      All ({modFilterCounts.total})
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setModFilterStatus("FAILED")}
+                      style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: modFilterStatus === "FAILED" ? "#ef4444" : "transparent", color: modFilterStatus === "FAILED" ? "white" : "var(--muted)" }}
+                    >
+                      Has Failures ({modFilterCounts.failedCount})
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setModFilterStatus("NEAR_PASS")}
+                      style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: modFilterStatus === "NEAR_PASS" ? "#f59e0b" : "transparent", color: modFilterStatus === "NEAR_PASS" ? "white" : "var(--muted)" }}
+                    >
+                      Deficit ≤ 5 ({modFilterCounts.nearPassCount})
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setModFilterStatus("ACTIVE_MOD")}
+                      style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: modFilterStatus === "ACTIVE_MOD" ? "#3b82f6" : "transparent", color: modFilterStatus === "ACTIVE_MOD" ? "white" : "var(--muted)" }}
+                    >
+                      Has Mod ({modFilterCounts.activeModCount})
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setModFilterStatus("RESCUED")}
+                      style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: modFilterStatus === "RESCUED" ? "#10b981" : "transparent", color: modFilterStatus === "RESCUED" ? "white" : "var(--muted)" }}
+                    >
+                      Rescued ({modFilterCounts.rescuedCount})
+                    </button>
+                  </div>
+
+                  {/* Reset Filters */}
+                  {(moderationSearch || modFilterType !== "ALL" || modFilterStatus !== "ALL") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModerationSearch("");
+                        setModFilterType("ALL");
+                        setModFilterStatus("ALL");
+                      }}
+                      style={{ padding: "4px 8px", fontSize: "11px", background: "transparent", border: "1px solid var(--line)", borderRadius: "4px", color: "var(--muted)", cursor: "pointer" }}
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+
+                  <span style={{ fontSize: "11.5px", color: "var(--muted)", marginLeft: "auto" }}>
+                    Showing <strong>{filteredAndSortedModCourses.length}</strong> of {distinctCourses.length} courses
+                  </span>
                 </div>
-                <span style={{ fontSize: "12px", color: "var(--muted)" }}>
-                  Showing {distinctCourses.filter(c => !moderationSearch || c.courseCode.toLowerCase().includes(moderationSearch.toLowerCase()) || c.courseName.toLowerCase().includes(moderationSearch.toLowerCase())).length} of {distinctCourses.length} unique courses
-                </span>
               </div>
 
-              {/* Moderation Course List Table */}
+              {/* Moderation Course List Table with Interactive Sort Headers */}
               <div style={{ flex: 1, overflow: "auto", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "8px" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", textAlign: "left" }}>
-                  <thead style={{ position: "sticky", top: 0, background: "var(--panel)", borderBottom: "1px solid var(--line)", zIndex: 10 }}>
+                  <thead style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "2px solid var(--line)", zIndex: 10 }}>
                     <tr>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600 }}>Course Code</th>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600 }}>Course Name</th>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Component Type</th>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Total Enrolled</th>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Raw Failed</th>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Deficit &le; 5 Marks</th>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "150px" }}>Current Moderation Marks</th>
-                      <th style={{ padding: "8px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center" }}>Rescued with Mod</th>
+                      {/* Course Code */}
+                      <th 
+                        onClick={() => handleModSort("courseCode")}
+                        style={{ padding: "10px 12px", color: modSortConfig.column === "courseCode" ? "var(--ink)" : "var(--muted)", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          Course Code
+                          {modSortConfig.column === "courseCode" ? (
+                            modSortConfig.direction === "asc" ? <ArrowUp size={12} color="var(--accent)" /> : <ArrowDown size={12} color="var(--accent)" />
+                          ) : (
+                            <ArrowUpDown size={11} style={{ opacity: 0.35 }} />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Course Name */}
+                      <th 
+                        onClick={() => handleModSort("courseName")}
+                        style={{ padding: "10px 12px", color: modSortConfig.column === "courseName" ? "var(--ink)" : "var(--muted)", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          Course Name
+                          {modSortConfig.column === "courseName" ? (
+                            modSortConfig.direction === "asc" ? <ArrowUp size={12} color="var(--accent)" /> : <ArrowDown size={12} color="var(--accent)" />
+                          ) : (
+                            <ArrowUpDown size={11} style={{ opacity: 0.35 }} />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Component Type */}
+                      <th 
+                        onClick={() => handleModSort("componentType")}
+                        style={{ padding: "10px 12px", color: modSortConfig.column === "componentType" ? "var(--ink)" : "var(--muted)", fontWeight: 600, textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          Component Type
+                          {modSortConfig.column === "componentType" ? (
+                            modSortConfig.direction === "asc" ? <ArrowUp size={12} color="var(--accent)" /> : <ArrowDown size={12} color="var(--accent)" />
+                          ) : (
+                            <ArrowUpDown size={11} style={{ opacity: 0.35 }} />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Total Enrolled */}
+                      <th 
+                        onClick={() => handleModSort("totalStudents")}
+                        style={{ padding: "10px 12px", color: modSortConfig.column === "totalStudents" ? "var(--ink)" : "var(--muted)", fontWeight: 600, textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          Total Enrolled
+                          {modSortConfig.column === "totalStudents" ? (
+                            modSortConfig.direction === "asc" ? <ArrowUp size={12} color="var(--accent)" /> : <ArrowDown size={12} color="var(--accent)" />
+                          ) : (
+                            <ArrowUpDown size={11} style={{ opacity: 0.35 }} />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Raw Failed */}
+                      <th 
+                        onClick={() => handleModSort("rawFailed")}
+                        style={{ padding: "10px 12px", color: modSortConfig.column === "rawFailed" ? "var(--ink)" : "var(--muted)", fontWeight: 600, textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          Raw Failed
+                          {modSortConfig.column === "rawFailed" ? (
+                            modSortConfig.direction === "asc" ? <ArrowUp size={12} color="var(--accent)" /> : <ArrowDown size={12} color="var(--accent)" />
+                          ) : (
+                            <ArrowUpDown size={11} style={{ opacity: 0.35 }} />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Deficit <= 5 Marks */}
+                      <th 
+                        onClick={() => handleModSort("nearPassCount")}
+                        style={{ padding: "10px 12px", color: modSortConfig.column === "nearPassCount" ? "var(--ink)" : "var(--muted)", fontWeight: 600, textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          Deficit ≤ 5 Marks
+                          {modSortConfig.column === "nearPassCount" ? (
+                            modSortConfig.direction === "asc" ? <ArrowUp size={12} color="var(--accent)" /> : <ArrowDown size={12} color="var(--accent)" />
+                          ) : (
+                            <ArrowUpDown size={11} style={{ opacity: 0.35 }} />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Current Moderation Marks */}
+                      <th 
+                        onClick={() => handleModSort("currentMod")}
+                        style={{ padding: "10px 12px", color: modSortConfig.column === "currentMod" ? "var(--ink)" : "var(--muted)", fontWeight: 600, textAlign: "center", width: "160px", cursor: "pointer", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          Current Moderation Marks
+                          {modSortConfig.column === "currentMod" ? (
+                            modSortConfig.direction === "asc" ? <ArrowUp size={12} color="var(--accent)" /> : <ArrowDown size={12} color="var(--accent)" />
+                          ) : (
+                            <ArrowUpDown size={11} style={{ opacity: 0.35 }} />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Rescued with Mod */}
+                      <th 
+                        onClick={() => handleModSort("rescuedInCourse")}
+                        style={{ padding: "10px 12px", color: modSortConfig.column === "rescuedInCourse" ? "var(--ink)" : "var(--muted)", fontWeight: 600, textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                          Rescued with Mod
+                          {modSortConfig.column === "rescuedInCourse" ? (
+                            modSortConfig.direction === "asc" ? <ArrowUp size={12} color="var(--accent)" /> : <ArrowDown size={12} color="var(--accent)" />
+                          ) : (
+                            <ArrowUpDown size={11} style={{ opacity: 0.35 }} />
+                          )}
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {distinctCourses.length === 0 ? (
+                    {filteredAndSortedModCourses.length === 0 ? (
                       <tr>
-                        <td colSpan={8} style={{ padding: "30px", textAlign: "center", color: "var(--muted)" }}>
-                          No courses loaded. Upload an ADES Marks Excel sheet to begin.
+                        <td colSpan={8} style={{ padding: "36px", textAlign: "center", color: "var(--muted)" }}>
+                          {distinctCourses.length === 0 
+                            ? "No courses loaded. Upload an ADES Marks Excel sheet to begin." 
+                            : "No courses match your filter criteria."}
                         </td>
                       </tr>
                     ) : (
-                      distinctCourses
-                        .filter(c => !moderationSearch || c.courseCode.toLowerCase().includes(moderationSearch.toLowerCase()) || c.courseName.toLowerCase().includes(moderationSearch.toLowerCase()))
-                        .map(c => {
-                          const currentMod = courseModerationMap[c.normCode] || 0;
-                          const courseRows = processedRows.filter(r => normalizeKey(r["Course Code"]) === c.normCode);
-                          const rescuedInCourse = courseRows.filter(r => r._isModeratedPass).length;
-                          const isPrOnly = c.isPrOnly;
+                      filteredAndSortedModCourses.map(c => {
+                        const currentMod = c.currentMod;
+                        const rescuedInCourse = c.rescuedInCourse;
+                        const isPrOnly = c.isPrOnly;
 
-                          return (
-                            <tr key={c.normCode} style={{ borderBottom: "1px solid var(--line)", background: currentMod > 0 ? "rgba(245, 158, 11, 0.04)" : "transparent" }}>
-                              <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--ink)" }}>{c.courseCode}</td>
-                              <td style={{ padding: "8px 12px", color: "var(--ink)" }}>{c.courseName}</td>
-                              <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                                {isPrOnly ? (
-                                  <span style={{ 
-                                    fontSize: "10.5px", 
-                                    padding: "2px 7px", 
+                        return (
+                          <tr key={c.normCode} style={{ borderBottom: "1px solid var(--line)", background: currentMod > 0 ? "rgba(245, 158, 11, 0.04)" : "transparent" }}>
+                            <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--ink)" }}>{c.courseCode}</td>
+                            <td style={{ padding: "8px 12px", color: "var(--ink)" }}>
+                              <div>{c.courseName}</div>
+                              {c.program && <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>{c.program}</div>}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                              {isPrOnly ? (
+                                <span style={{ 
+                                  fontSize: "10.5px", 
+                                  padding: "2px 7px", 
+                                  borderRadius: "4px", 
+                                  fontWeight: 600, 
+                                  background: allowPrOnlyModeration ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)", 
+                                  color: allowPrOnlyModeration ? "#10b981" : "#ef4444" 
+                                }}>
+                                  ESE-PR Only {allowPrOnlyModeration ? "(Eligible)" : "(Excluded)"}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "4px", fontWeight: 600, background: "var(--accent-soft)", color: "var(--accent)" }}>
+                                  {c.hasEsePr ? "ESE-TH + PR" : "ESE-TH Only"}
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>{c.totalStudents}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "center", color: c.rawFailed > 0 ? "#ef4444" : "var(--muted)", fontWeight: c.rawFailed > 0 ? 600 : 400 }}>
+                              {c.rawFailed}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center", color: c.nearPassCount > 0 ? "#f59e0b" : "var(--muted)", fontWeight: c.nearPassCount > 0 ? 600 : 400 }}>
+                              {c.nearPassCount}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                                <input 
+                                  type="number" 
+                                  min="0" 
+                                  max="50" 
+                                  value={currentMod} 
+                                  onChange={(e) => updateCourseModeration(c.normCode, e.target.value)}
+                                  style={{ 
+                                    width: "55px", 
+                                    padding: "4px 6px", 
+                                    fontSize: "12.5px", 
+                                    textAlign: "center", 
                                     borderRadius: "4px", 
-                                    fontWeight: 600, 
-                                    background: allowPrOnlyModeration ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)", 
-                                    color: allowPrOnlyModeration ? "#10b981" : "#ef4444" 
-                                  }}>
-                                    ESE-PR Only {allowPrOnlyModeration ? "(Eligible)" : "(Excluded)"}
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "4px", fontWeight: 600, background: "var(--accent-soft)", color: "var(--accent)" }}>
-                                    {c.hasEsePr ? "ESE-TH + PR" : "ESE-TH Only"}
-                                  </span>
-                                )}
-                              </td>
-                              <td style={{ padding: "8px 12px", textAlign: "center" }}>{c.totalStudents}</td>
-                              <td style={{ padding: "8px 12px", textAlign: "center", color: c.rawFailed > 0 ? "#ef4444" : "var(--muted)", fontWeight: c.rawFailed > 0 ? 600 : 400 }}>
-                                {c.rawFailed}
-                              </td>
-                              <td style={{ padding: "8px 12px", textAlign: "center", color: "#f59e0b", fontWeight: 600 }}>
-                                {c.nearPassCount}
-                              </td>
-                              <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                                  <input 
-                                    type="number" 
-                                    min="0" 
-                                    max="50"
-                                    value={currentMod}
-                                    onChange={(e) => updateCourseModeration(c.normCode, e.target.value)}
-                                    style={{ 
-                                      width: "60px", 
-                                      padding: "4px 6px", 
-                                      fontSize: "12.5px", 
-                                      textAlign: "center", 
-                                      borderRadius: "4px", 
-                                      border: currentMod > 0 ? "1.5px solid #f59e0b" : "1px solid var(--line)", 
-                                      background: currentMod > 0 ? "rgba(245, 158, 11, 0.1)" : "var(--bg)",
-                                      fontWeight: currentMod > 0 ? 700 : 400
-                                    }}
-                                  />
-                                  <div style={{ display: "flex", gap: "2px" }}>
-                                    {[2, 4, 6].map(m => (
-                                      <button
-                                        key={m}
-                                        type="button"
-                                        onClick={() => updateCourseModeration(c.normCode, m)}
-                                        style={{ fontSize: "10px", padding: "2px 5px", borderRadius: "3px", border: "1px solid var(--line)", background: currentMod === m ? "var(--accent)" : "var(--bg)", color: currentMod === m ? "white" : "var(--muted)", cursor: "pointer" }}
-                                      >
-                                        +{m}
-                                      </button>
-                                    ))}
-                                  </div>
+                                    border: currentMod > 0 ? "1.5px solid #f59e0b" : "1px solid var(--line)", 
+                                    background: currentMod > 0 ? "rgba(245, 158, 11, 0.1)" : "var(--bg)",
+                                    fontWeight: currentMod > 0 ? 700 : 400
+                                  }}
+                                />
+                                <div style={{ display: "flex", gap: "2px" }}>
+                                  {[2, 4, 6].map(m => (
+                                    <button
+                                      key={m}
+                                      type="button"
+                                      onClick={() => updateCourseModeration(c.normCode, m)}
+                                      style={{ fontSize: "10px", padding: "2px 5px", borderRadius: "3px", border: "1px solid var(--line)", background: currentMod === m ? "var(--accent)" : "var(--bg)", color: currentMod === m ? "white" : "var(--muted)", cursor: "pointer" }}
+                                    >
+                                      +{m}
+                                    </button>
+                                  ))}
                                 </div>
-                              </td>
-                              <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                                {rescuedInCourse > 0 ? (
-                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 8px", borderRadius: "10px", fontWeight: 600, fontSize: "11px" }}>
-                                    +{rescuedInCourse} Passed
-                                  </span>
-                                ) : (
-                                  <span style={{ color: "var(--muted)", fontSize: "11px" }}>
-                                    {isPrOnly && !allowPrOnlyModeration && currentMod > 0 ? "(PR-Only Excluded)" : "0"}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
+                              </div>
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                              {rescuedInCourse > 0 ? (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 8px", borderRadius: "10px", fontWeight: 600, fontSize: "11px" }}>
+                                  +{rescuedInCourse} Passed
+                                </span>
+                              ) : (
+                                <span style={{ color: "var(--muted)", fontSize: "11px" }}>
+                                  {isPrOnly && !allowPrOnlyModeration && currentMod > 0 ? "(PR-Only Excluded)" : "0"}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
+                  {/* Summary Totals Footer Row */}
+                  {filteredAndSortedModCourses.length > 0 && (
+                    <tfoot style={{ position: "sticky", bottom: 0, background: "var(--bg)", borderTop: "2px solid var(--line)", fontWeight: 700 }}>
+                      <tr>
+                        <td colSpan={3} style={{ padding: "10px 12px", color: "var(--ink)" }}>
+                          TOTAL ({filteredAndSortedModCourses.length} Courses)
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--ink)" }}>
+                          {modTableTotals.totalStudents}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "#ef4444" }}>
+                          {modTableTotals.rawFailed}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "#f59e0b" }}>
+                          {modTableTotals.nearPassCount}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontSize: "11px" }}>
+                          -
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "#10b981", background: "rgba(16, 185, 129, 0.08)" }}>
+                          +{modTableTotals.rescuedCount} Passed
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
