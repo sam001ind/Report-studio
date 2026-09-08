@@ -35,7 +35,10 @@ import {
   ToggleLeft,
   ToggleRight,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  Users,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -86,12 +89,15 @@ export default function AdesResultCalculatorPage() {
   const [statusType, setStatusType] = useState("info");
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Moderation & Simulation State
+  // Moderation, Simulation & Student Summary State
   const [courseModerationMap, setCourseModerationMap] = useState({});
   const [allowPrOnlyModeration, setAllowPrOnlyModeration] = useState(false); // Moderation on solely ESE-PR courses toggle (default: false)
-  const [activeTab, setActiveTab] = useState("results"); // "results" | "moderation" | "simulation"
+  const [activeTab, setActiveTab] = useState("results"); // "results" | "students" | "moderation" | "simulation"
   const [moderationSearch, setModerationSearch] = useState("");
   const [simSearchQuery, setSimSearchQuery] = useState("");
+  const [studentSearchQuery, setStudentSearchQuery] = useState("");
+  const [studentFilterStatus, setStudentFilterStatus] = useState("ALL"); // "ALL" | "PASS" | "FAIL" | "RESCUED"
+  const [expandedStudents, setExpandedStudents] = useState({});
   const [bulkModValue, setBulkModValue] = useState(4);
   const modFileInputRef = useRef(null);
 
@@ -604,6 +610,180 @@ export default function AdesResultCalculatorPage() {
     };
   }, [filteredSimulationCourses]);
 
+  // Student-Level Semester Pass/Fail Evaluation
+  // Rule: A student is "Pass" in the Semester ONLY IF they pass ALL attempted papers in that semester/term.
+  const studentSemesterData = useMemo(() => {
+    const map = new Map();
+
+    processedRows.forEach(row => {
+      const prn = String(row["PRN"] || "").trim();
+      const seat = String(row["Seat Number"] || "").trim();
+      const program = String(row["Program Term Name"] || "").trim();
+      const faculty = String(row["Faculty"] || "").trim();
+      
+      const studentId = prn || seat || "UNKNOWN";
+      const key = `${studentId}__${program}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          studentId,
+          prn,
+          seatNumber: seat,
+          faculty,
+          program,
+          totalCourses: 0,
+          rawPassedCourses: 0,
+          rawFailedCourses: 0,
+          finalPassedCourses: 0,
+          finalFailedCourses: 0,
+          totalModerationMarks: 0,
+          courses: []
+        });
+      }
+
+      const st = map.get(key);
+      st.totalCourses++;
+
+      const isRawCoursePass = row._rawPass;
+      const isFinalCoursePass = row["Course Pass/Fail"] === "Pass";
+      const modMarks = row["Moderation Marks"] || 0;
+
+      if (isRawCoursePass) {
+        st.rawPassedCourses++;
+      } else {
+        st.rawFailedCourses++;
+      }
+
+      if (isFinalCoursePass) {
+        st.finalPassedCourses++;
+      } else {
+        st.finalFailedCourses++;
+      }
+
+      st.totalModerationMarks += modMarks;
+
+      st.courses.push({
+        courseCode: row["Course Code"],
+        courseName: row["Course Name"],
+        esePass: row["ESE Pass"],
+        overallPass: row["Overall pass"],
+        coursePass: row["Course Pass/Fail"],
+        rawPass: isRawCoursePass,
+        isModeratedPass: row._isModeratedPass,
+        modMarks,
+        eseOverall: row["ESE Overall"],
+        eseMin: row["ESE - Min"],
+        courseOverall: row["Course Overall Marks "],
+        overallMin: row["Overall Minimum"]
+      });
+    });
+
+    const list = Array.from(map.values()).map(st => {
+      // Semester Pass Condition: Passed ALL attempted courses
+      const rawSemesterPass = st.rawFailedCourses === 0;
+      const finalSemesterPass = st.finalFailedCourses === 0;
+      const isRescuedSemester = !rawSemesterPass && finalSemesterPass;
+
+      return {
+        ...st,
+        rawSemesterPass,
+        finalSemesterPass,
+        isRescuedSemester,
+        semesterResult: finalSemesterPass ? "Pass" : "Fail",
+        rawSemesterResult: rawSemesterPass ? "Pass" : "Fail"
+      };
+    });
+
+    return list.sort((a, b) => {
+      if (a.seatNumber && b.seatNumber) {
+        return String(a.seatNumber).localeCompare(String(b.seatNumber), undefined, { numeric: true });
+      }
+      return String(a.prn).localeCompare(String(b.prn), undefined, { numeric: true });
+    });
+  }, [processedRows]);
+
+  // Overall Student-Level Metrics
+  const studentMetrics = useMemo(() => {
+    const total = studentSemesterData.length;
+    if (total === 0) {
+      return {
+        totalStudents: 0,
+        rawPassedStudents: 0,
+        rawPassedPct: "0.0",
+        finalPassedStudents: 0,
+        finalPassedPct: "0.0",
+        failedStudents: 0,
+        failedPct: "0.0",
+        rescuedStudents: 0,
+        rescuedPct: "0.0",
+        totalPapersAttempted: 0,
+        avgPapersPerStudent: "0.0"
+      };
+    }
+
+    let rawPassedStudents = 0;
+    let finalPassedStudents = 0;
+    let rescuedStudents = 0;
+    let totalPapersAttempted = 0;
+
+    studentSemesterData.forEach(st => {
+      totalPapersAttempted += st.totalCourses;
+      if (st.rawSemesterPass) rawPassedStudents++;
+      if (st.finalSemesterPass) finalPassedStudents++;
+      if (st.isRescuedSemester) rescuedStudents++;
+    });
+
+    const failedStudents = total - finalPassedStudents;
+
+    return {
+      totalStudents: total,
+      rawPassedStudents,
+      rawPassedPct: ((rawPassedStudents / total) * 100).toFixed(1),
+      finalPassedStudents,
+      finalPassedPct: ((finalPassedStudents / total) * 100).toFixed(1),
+      failedStudents,
+      failedPct: ((failedStudents / total) * 100).toFixed(1),
+      rescuedStudents,
+      rescuedPct: ((rescuedStudents / total) * 100).toFixed(1),
+      totalPapersAttempted,
+      avgPapersPerStudent: (totalPapersAttempted / total).toFixed(1)
+    };
+  }, [studentSemesterData]);
+
+  // Filtered Student List
+  const filteredStudents = useMemo(() => {
+    let list = studentSemesterData;
+
+    if (studentFilterStatus === "PASS") {
+      list = list.filter(st => st.finalSemesterPass);
+    } else if (studentFilterStatus === "FAIL") {
+      list = list.filter(st => !st.finalSemesterPass);
+    } else if (studentFilterStatus === "RESCUED") {
+      list = list.filter(st => st.isRescuedSemester);
+    }
+
+    if (studentSearchQuery.trim()) {
+      const q = studentSearchQuery.toLowerCase().trim();
+      list = list.filter(st => 
+        st.prn.toLowerCase().includes(q) ||
+        st.seatNumber.toLowerCase().includes(q) ||
+        st.program.toLowerCase().includes(q) ||
+        st.faculty.toLowerCase().includes(q) ||
+        st.courses.some(c => (c.courseCode && c.courseCode.toLowerCase().includes(q)) || (c.courseName && c.courseName.toLowerCase().includes(q)))
+      );
+    }
+
+    return list;
+  }, [studentSemesterData, studentFilterStatus, studentSearchQuery]);
+
+  const toggleStudentExpand = (key) => {
+    setExpandedStudents(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
   const scoreHeaderRow = (rowArray) => {
     if (!Array.isArray(rowArray)) return { score: 0, matchedHeaders: [] };
     let score = 0;
@@ -1085,6 +1265,92 @@ export default function AdesResultCalculatorPage() {
     setStatus("Generated & downloaded Course-Wise Pass Simulation Report (+0 to +10 Moderation) with 30% ESE and 35% Aggregate checks.", "success");
   };
 
+  // Export Student-Wise Semester Results Report (.xlsx)
+  const handleExportStudentSemesterExcel = () => {
+    if (!studentSemesterData || studentSemesterData.length === 0) {
+      setStatus("No student data available to export. Please upload a source file first.", "error");
+      return;
+    }
+
+    const headers = [
+      "Faculty",
+      "Program Term Name",
+      "Seat Number",
+      "PRN",
+      "Papers Attempted",
+      "Papers Passed",
+      "Papers Failed",
+      "Raw Semester Result (0 Mod)",
+      "Final Semester Result",
+      "Semester Rescued via Moderation",
+      "Total Moderation Marks Awarded",
+      "Failed Courses List",
+      "All Attempted Courses Breakdown"
+    ];
+
+    const rows = studentSemesterData.map(st => {
+      const failedList = st.courses.filter(c => c.coursePass === "Fail").map(c => `${c.courseCode} (${c.courseName})`).join("; ");
+      const coursesSummary = st.courses.map(c => `${c.courseCode}: ${c.coursePass}${c.modMarks > 0 ? ` (+${c.modMarks} Mod)` : ''}`).join("; ");
+
+      return [
+        st.faculty,
+        st.program,
+        st.seatNumber,
+        st.prn,
+        st.totalCourses,
+        st.finalPassedCourses,
+        st.finalFailedCourses,
+        st.rawSemesterResult,
+        st.semesterResult,
+        st.isRescuedSemester ? "Yes (Rescued)" : "No",
+        st.totalModerationMarks,
+        failedList || "None (All Passed)",
+        coursesSummary
+      ];
+    });
+
+    // Summary / Total Row
+    const summaryRow = [
+      "TOTAL STUDENTS / SUMMARY",
+      "-",
+      "-",
+      "-",
+      studentMetrics.totalPapersAttempted,
+      "-",
+      "-",
+      `${studentMetrics.rawPassedStudents} Passed (${studentMetrics.rawPassedPct}%)`,
+      `${studentMetrics.finalPassedStudents} Passed (${studentMetrics.finalPassedPct}%)`,
+      `+${studentMetrics.rescuedStudents} Rescued (${studentMetrics.rescuedPct}%)`,
+      "-",
+      `${studentMetrics.failedStudents} Failed (${studentMetrics.failedPct}%)`,
+      "-"
+    ];
+
+    const aoa = [headers, ...rows, summaryRow];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    ws["!cols"] = [
+      { wch: 24 }, // Faculty
+      { wch: 24 }, // Program
+      { wch: 16 }, // Seat Number
+      { wch: 18 }, // PRN
+      { wch: 18 }, // Papers Attempted
+      { wch: 15 }, // Papers Passed
+      { wch: 15 }, // Papers Failed
+      { wch: 26 }, // Raw Semester Result
+      { wch: 22 }, // Final Semester Result
+      { wch: 28 }, // Rescued via Moderation
+      { wch: 28 }, // Total Moderation Marks
+      { wch: 38 }, // Failed Courses List
+      { wch: 55 }  // Courses Breakdown
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Student_Semester_Results");
+    XLSX.writeFile(wb, "student_semester_results.xlsx");
+    setStatus("Generated & downloaded Student Semester Results Summary (.xlsx).", "success");
+  };
+
   const handleSort = (column) => {
     setSortConfig(prev => {
       if (prev.column !== column) {
@@ -1365,7 +1631,26 @@ export default function AdesResultCalculatorPage() {
                 color: activeTab === "results" ? "white" : "var(--muted)"
               }}
             >
-              <Table size={13} /> Results & Grid
+              <Table size={13} /> Course Results (31 Cols)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("students")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px 12px",
+                fontSize: "12px",
+                fontWeight: 600,
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                background: activeTab === "students" ? "var(--accent)" : "transparent",
+                color: activeTab === "students" ? "white" : "var(--muted)"
+              }}
+            >
+              <Users size={13} /> Student Semester Results ({studentMetrics.totalStudents})
             </button>
             <button
               type="button"
@@ -1420,6 +1705,26 @@ export default function AdesResultCalculatorPage() {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button 
                 type="button" 
+                onClick={handleExportStudentSemesterExcel}
+                style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "6px", 
+                  padding: "6px 12px", 
+                  fontSize: "12px", 
+                  background: "#6366f1", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: "6px", 
+                  fontWeight: 600, 
+                  cursor: "pointer" 
+                }}
+                title="Export student-wise semester pass/fail summary (.xlsx)"
+              >
+                <Download size={14} /> Export Students ({studentMetrics.totalStudents})
+              </button>
+              <button 
+                type="button" 
                 onClick={handleExportSimulationExcel}
                 style={{ 
                   display: "flex", 
@@ -1436,7 +1741,7 @@ export default function AdesResultCalculatorPage() {
                 }}
                 title="Export course-wise pass count under 0 to +10 moderation marks"
               >
-                <Download size={14} /> Export Simulation (+0 to +10 XLSX)
+                <Download size={14} /> Export Simulation (+0..+10)
               </button>
               <button 
                 type="button" 
@@ -1510,49 +1815,71 @@ export default function AdesResultCalculatorPage() {
           {/* Result Overview Stat Card */}
           {processedRows.length > 0 && (
             <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", gap: "6px" }}>
-                <Sparkles size={14} color="var(--accent)" /> Evaluation Metrics
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Users size={14} color="#6366f1" /> Student (Semester) Result
+                </span>
+                <span style={{ fontSize: "10px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  All Papers Rule
+                </span>
               </div>
               
+              {/* Student Semester Level Cards */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "11px" }}>
                 <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)" }}>
-                  <div style={{ color: "var(--muted)" }}>Evaluated Courses</div>
-                  <strong style={{ fontSize: "15px", color: "var(--ink)" }}>{metrics.total}</strong>
+                  <div style={{ color: "var(--muted)" }}>Unique Students</div>
+                  <strong style={{ fontSize: "15px", color: "var(--ink)" }}>{studentMetrics.totalStudents}</strong>
                 </div>
 
-                <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)" }}>
-                  <div style={{ color: "var(--muted)" }}>Unique Students</div>
-                  <strong style={{ fontSize: "15px", color: "var(--ink)" }}>{metrics.uniqueStudents}</strong>
+                <div style={{ background: "rgba(99, 102, 241, 0.08)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(99, 102, 241, 0.25)" }}>
+                  <div style={{ color: "#6366f1", fontWeight: 600 }}>Semester Pass %</div>
+                  <strong style={{ fontSize: "15px", color: "#6366f1" }}>{studentMetrics.finalPassedPct}%</strong>
                 </div>
 
                 <div style={{ background: "rgba(16, 185, 129, 0.1)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                  <div style={{ color: "#10b981", fontWeight: 600 }}>Total Passed</div>
-                  <strong style={{ fontSize: "15px", color: "#10b981" }}>{metrics.totalPassed}</strong>
-                  <div style={{ fontSize: "10px", color: "#10b981" }}>({metrics.passPct}%)</div>
+                  <div style={{ color: "#10b981", fontWeight: 600 }}>Passed All Papers</div>
+                  <strong style={{ fontSize: "15px", color: "#10b981" }}>{studentMetrics.finalPassedStudents}</strong>
+                  <div style={{ fontSize: "9.5px", color: "#10b981" }}>({studentMetrics.finalPassedPct}%)</div>
                 </div>
 
                 <div style={{ background: "rgba(239, 68, 68, 0.1)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
-                  <div style={{ color: "#ef4444", fontWeight: 600 }}>Failed Courses</div>
-                  <strong style={{ fontSize: "15px", color: "#ef4444" }}>{metrics.failed}</strong>
-                  <div style={{ fontSize: "10px", color: "#ef4444" }}>({(100 - metrics.passPct).toFixed(1)}%)</div>
+                  <div style={{ color: "#ef4444", fontWeight: 600 }}>Failed &ge; 1 Paper</div>
+                  <strong style={{ fontSize: "15px", color: "#ef4444" }}>{studentMetrics.failedStudents}</strong>
+                  <div style={{ fontSize: "9.5px", color: "#ef4444" }}>({studentMetrics.failedPct}%)</div>
                 </div>
               </div>
 
-              {/* Moderation Impact Breakdown */}
+              {/* Student Semester Moderation Impact */}
               <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
                 <div style={{ fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <Zap size={12} color="#f59e0b" /> Moderation Impact:
+                  <Zap size={12} color="#f59e0b" /> Semester Moderation Impact:
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
-                  <span>Raw Passed:</span>
-                  <strong>{metrics.rawPassed} ({metrics.rawPassPct}%)</strong>
+                  <span>Raw Passed (0 Mod):</span>
+                  <strong>{studentMetrics.rawPassedStudents} ({studentMetrics.rawPassedPct}%)</strong>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981", fontWeight: 600 }}>
-                  <span>Rescued via Moderation:</span>
-                  <span>+{metrics.moderatedPassed}</span>
+                  <span>Rescued to Semester Pass:</span>
+                  <span>+{studentMetrics.rescuedStudents} students</span>
                 </div>
-                <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "2px" }}>
-                  Rule: {allowPrOnlyModeration ? "Applied to TH & PR-Only" : "Restricted to ESE-TH courses"}
+              </div>
+
+              {/* Course-Level Statistics Summary */}
+              <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                <div style={{ fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <BookOpen size={12} color="var(--accent)" /> Course-Level Aggregate:
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
+                  <span>Total Course Papers:</span>
+                  <strong>{metrics.total}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981" }}>
+                  <span>Course Papers Passed:</span>
+                  <strong>{metrics.totalPassed} ({metrics.passPct}%)</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#ef4444" }}>
+                  <span>Course Papers Failed:</span>
+                  <strong>{metrics.failed} ({(100 - metrics.passPct).toFixed(1)}%)</strong>
                 </div>
               </div>
 
@@ -1648,7 +1975,314 @@ export default function AdesResultCalculatorPage() {
         {/* Right Content / Dynamic View (Results Table or Moderation Matrix) */}
         <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--bg)" }}>
           
-          {activeTab === "moderation" ? (
+          {activeTab === "students" ? (
+            /* Student-Wise Semester Results Panel */
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "16px", gap: "14px" }}>
+              
+              {/* Header & Actions */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", background: "var(--panel)", padding: "14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                <div>
+                  <h3 style={{ fontSize: "15px", fontWeight: 700, margin: "0 0 4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Users size={18} color="var(--accent)" /> Student Semester Results & Breakdown
+                  </h3>
+                  <p style={{ margin: 0, fontSize: "12px", color: "var(--muted)" }}>
+                    Rule: A student passes the semester <strong>only if they pass ALL attempted papers</strong> in that term. Shows PRN/Seat, paper counts, moderation benefit, and course breakdown.
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                  <button 
+                    type="button"
+                    onClick={handleExportStudentSemesterExcel}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "7px 14px", background: "var(--accent)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    <Download size={14} /> Export Student Summary (.xlsx)
+                  </button>
+                </div>
+              </div>
+
+              {/* Student KPI Summary Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "10px" }}>
+                <div style={{ background: "var(--panel)", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                    <Users size={14} color="var(--accent)" /> Unique Students
+                  </div>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--ink)", marginTop: "3px" }}>
+                    {studentMetrics.totalStudents}
+                  </div>
+                  <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>
+                    Total: {studentMetrics.totalPapersAttempted} papers (~{studentMetrics.avgPapersPerStudent}/student)
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(16, 185, 129, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                  <div style={{ fontSize: "11px", color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                    <CheckCircle2 size={14} /> Passed Semester (All Papers)
+                  </div>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#10b981", marginTop: "3px" }}>
+                    {studentMetrics.finalPassedStudents}
+                  </div>
+                  <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>
+                    {studentMetrics.finalPassedPct}% of total students
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(239, 68, 68, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
+                  <div style={{ fontSize: "11px", color: "#ef4444", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                    <XCircle size={14} /> Failed Semester (≥1 Paper)
+                  </div>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#ef4444", marginTop: "3px" }}>
+                    {studentMetrics.failedStudents}
+                  </div>
+                  <div style={{ fontSize: "10.5px", color: "#ef4444", fontWeight: 600 }}>
+                    {studentMetrics.failedPct}% of total students
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(245, 158, 11, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(245, 158, 11, 0.3)" }}>
+                  <div style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                    <Sparkles size={14} /> Rescued to Pass with Mod
+                  </div>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#f59e0b", marginTop: "3px" }}>
+                    +{studentMetrics.rescuedStudents}
+                  </div>
+                  <div style={{ fontSize: "10.5px", color: "#f59e0b", fontWeight: 600 }}>
+                    {studentMetrics.rescuedPct}% students rescued to pass
+                  </div>
+                </div>
+
+                <div style={{ background: "var(--panel)", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                    <Calculator size={14} color="var(--muted)" /> Raw Passed (0 Mod)
+                  </div>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--ink)", marginTop: "3px" }}>
+                    {studentMetrics.rawPassedStudents}
+                  </div>
+                  <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>
+                    {studentMetrics.rawPassedPct}% without moderation
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters & Search Toolbar */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                <div style={{ position: "relative", flex: 1, maxWidth: "380px" }}>
+                  <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+                  <input 
+                    type="text"
+                    placeholder="Search by PRN, Seat Number, Program, Course..."
+                    value={studentSearchQuery}
+                    onChange={(e) => setStudentSearchQuery(e.target.value)}
+                    style={{ width: "100%", padding: "6px 10px 6px 30px", fontSize: "12px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)" }}
+                  />
+                  {studentSearchQuery && (
+                    <X 
+                      size={13} 
+                      onClick={() => setStudentSearchQuery("")}
+                      style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "var(--muted)" }}
+                    />
+                  )}
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--panel)", padding: "3px", borderRadius: "6px", border: "1px solid var(--line)" }}>
+                  <button 
+                    type="button"
+                    onClick={() => setStudentFilterStatus("ALL")}
+                    style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "ALL" ? "var(--accent)" : "transparent", color: studentFilterStatus === "ALL" ? "white" : "var(--muted)" }}
+                  >
+                    All ({studentMetrics.totalStudents})
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setStudentFilterStatus("PASS")}
+                    style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "PASS" ? "#10b981" : "transparent", color: studentFilterStatus === "PASS" ? "white" : "var(--muted)" }}
+                  >
+                    Passed Semester ({studentMetrics.finalPassedStudents})
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setStudentFilterStatus("FAIL")}
+                    style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "FAIL" ? "#ef4444" : "transparent", color: studentFilterStatus === "FAIL" ? "white" : "var(--muted)" }}
+                  >
+                    Failed Semester ({studentMetrics.failedStudents})
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setStudentFilterStatus("RESCUED")}
+                    style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "RESCUED" ? "#f59e0b" : "transparent", color: studentFilterStatus === "RESCUED" ? "white" : "var(--muted)" }}
+                  >
+                    Rescued ({studentMetrics.rescuedStudents})
+                  </button>
+                </div>
+              </div>
+
+              {/* Student Semester Table */}
+              <div style={{ flex: 1, overflow: "auto", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "8px" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", textAlign: "left" }}>
+                  <thead style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "2px solid var(--line)", zIndex: 10 }}>
+                    <tr>
+                      <th style={{ padding: "10px 12px", width: "40px" }}></th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, width: "120px" }}>Seat Number</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, width: "140px" }}>PRN</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600 }}>Program / Term</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "100px" }}>Attempted</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "90px" }}>Passed</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "90px" }}>Failed</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "110px" }}>Mod Marks</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "110px" }}>Raw Result</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "140px" }}>Semester Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} style={{ padding: "36px", textAlign: "center", color: "var(--muted)" }}>
+                          {studentSemesterData.length === 0 
+                            ? "No student data loaded. Upload an ADES Marks Excel sheet to begin." 
+                            : "No students match your filter criteria."}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStudents.map((st) => {
+                        const isExpanded = expandedStudents[st.key];
+                        return (
+                          <React.Fragment key={st.key}>
+                            <tr 
+                              onClick={() => toggleStudentExpand(st.key)}
+                              style={{ 
+                                borderBottom: isExpanded ? "none" : "1px solid var(--line)", 
+                                cursor: "pointer",
+                                background: isExpanded ? "rgba(59, 130, 246, 0.05)" : "transparent"
+                              }}
+                            >
+                              <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)" }}>
+                                {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                              </td>
+                              <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)" }}>
+                                {st.seatNumber || "-"}
+                              </td>
+                              <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--accent)" }}>
+                                {st.prn || "-"}
+                              </td>
+                              <td style={{ padding: "10px 12px", color: "var(--muted)" }}>
+                                <div style={{ color: "var(--ink)", fontWeight: 500 }}>{st.program || "-"}</div>
+                                {st.faculty && <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>{st.faculty}</div>}
+                              </td>
+                              <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600 }}>
+                                {st.totalCourses} Papers
+                              </td>
+                              <td style={{ padding: "10px 12px", textAlign: "center", color: "#10b981", fontWeight: 600 }}>
+                                {st.finalPassedCourses}
+                              </td>
+                              <td style={{ padding: "10px 12px", textAlign: "center", color: st.finalFailedCourses > 0 ? "#ef4444" : "var(--muted)", fontWeight: st.finalFailedCourses > 0 ? 600 : 400 }}>
+                                {st.finalFailedCourses}
+                              </td>
+                              <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                                {st.totalModerationMarks > 0 ? (
+                                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#f59e0b", background: "rgba(245, 158, 11, 0.12)", padding: "2px 6px", borderRadius: "4px" }}>
+                                    +{st.totalModerationMarks} Marks
+                                  </span>
+                                ) : (
+                                  <span style={{ color: "var(--muted)", fontSize: "11px" }}>0</span>
+                                )}
+                              </td>
+                              <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                                <span style={{ 
+                                  fontSize: "11px", 
+                                  fontWeight: 600,
+                                  color: st.rawSemesterPass ? "#10b981" : "#ef4444"
+                                }}>
+                                  {st.rawSemesterResult}
+                                </span>
+                              </td>
+                              <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                                {st.isRescuedSemester ? (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(245, 158, 11, 0.15)", color: "#d97706", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
+                                    <Sparkles size={12} /> Pass (Rescued)
+                                  </span>
+                                ) : st.finalSemesterPass ? (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
+                                    <CheckCircle2 size={12} /> Pass
+                                  </span>
+                                ) : (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
+                                    <XCircle size={12} /> Fail ({st.finalFailedCourses} Failed)
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+
+                            {/* Nested Course Breakdown Row */}
+                            {isExpanded && (
+                              <tr style={{ background: "rgba(59, 130, 246, 0.03)", borderBottom: "1px solid var(--line)" }}>
+                                <td colSpan={10} style={{ padding: "10px 14px 16px 40px" }}>
+                                  <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "6px", overflow: "hidden" }}>
+                                    <div style={{ padding: "6px 12px", background: "var(--bg)", fontSize: "11px", fontWeight: 700, color: "var(--muted)", borderBottom: "1px solid var(--line)" }}>
+                                      COURSE-BY-COURSE BREAKDOWN FOR {st.seatNumber || st.prn} ({st.courses.length} Attempted Papers)
+                                    </div>
+                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px" }}>
+                                      <thead>
+                                        <tr style={{ borderBottom: "1px solid var(--line)", background: "rgba(0,0,0,0.02)" }}>
+                                          <th style={{ padding: "6px 10px", textAlign: "left", color: "var(--muted)" }}>Course Code</th>
+                                          <th style={{ padding: "6px 10px", textAlign: "left", color: "var(--muted)" }}>Course Name</th>
+                                          <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>ESE (Marks / Min)</th>
+                                          <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>Overall (Marks / Min)</th>
+                                          <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>ESE Pass</th>
+                                          <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>Overall Pass</th>
+                                          <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>Mod Awarded</th>
+                                          <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>Course Result</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {st.courses.map((c, cIdx) => (
+                                          <tr key={cIdx} style={{ borderBottom: "1px solid var(--line)", background: c.coursePass === "Pass" ? "transparent" : "rgba(239, 68, 68, 0.03)" }}>
+                                            <td style={{ padding: "6px 10px", fontWeight: 600 }}>{c.courseCode}</td>
+                                            <td style={{ padding: "6px 10px" }}>{c.courseName}</td>
+                                            <td style={{ padding: "6px 10px", textAlign: "center" }}>
+                                              {c.eseOverall !== null ? `${c.eseOverall} / ${c.eseMin ?? "-"}` : "-"}
+                                            </td>
+                                            <td style={{ padding: "6px 10px", textAlign: "center" }}>
+                                              {c.courseOverall !== null ? `${c.courseOverall} / ${c.overallMin ?? "-"}` : "-"}
+                                            </td>
+                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.esePass === "Pass" ? "#10b981" : "#ef4444" }}>
+                                              {c.esePass || "-"}
+                                            </td>
+                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.overallPass === "Pass" ? "#10b981" : "#ef4444" }}>
+                                              {c.overallPass || "-"}
+                                            </td>
+                                            <td style={{ padding: "6px 10px", textAlign: "center" }}>
+                                              {c.modMarks > 0 ? (
+                                                <span style={{ color: "#f59e0b", fontWeight: 700 }}>+{c.modMarks}</span>
+                                              ) : (
+                                                <span style={{ color: "var(--muted)" }}>0</span>
+                                              )}
+                                            </td>
+                                            <td style={{ padding: "6px 10px", textAlign: "center" }}>
+                                              {c.isModeratedPass ? (
+                                                <span style={{ color: "#d97706", fontWeight: 700 }}>Pass (Mod)</span>
+                                              ) : c.coursePass === "Pass" ? (
+                                                <span style={{ color: "#10b981", fontWeight: 600 }}>Pass</span>
+                                              ) : (
+                                                <span style={{ color: "#ef4444", fontWeight: 600 }}>Fail</span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : activeTab === "moderation" ? (
             /* Moderation Management Panel */
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "16px", gap: "14px" }}>
               
