@@ -305,6 +305,10 @@ export const TOOL_GUIDES = {
       {
         heading: '7. Master 31-Column Export',
         content: 'Exports complete formatted 31-column calculation sheets to Excel with sheet name "Output file ", including the Moderation Marks column directly next to Course Pass/Fail.'
+      },
+      {
+        heading: '8. Course-Wise Pass Simulation (+0 to +10 Moderation)',
+        content: 'Provides an instant simulation matrix and Excel export for each course showing total student appearances, Normal Pass count (0 Moderation), and simulated pass counts if +1, +2, +3, ..., +10 moderation marks are awarded.'
       }
     ]
   },

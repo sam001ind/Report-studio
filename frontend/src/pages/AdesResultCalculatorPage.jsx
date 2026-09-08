@@ -33,7 +33,9 @@ import {
   Zap,
   Check,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  TrendingUp,
+  BarChart3
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -84,11 +86,12 @@ export default function AdesResultCalculatorPage() {
   const [statusType, setStatusType] = useState("info");
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Moderation State
+  // Moderation & Simulation State
   const [courseModerationMap, setCourseModerationMap] = useState({});
   const [allowPrOnlyModeration, setAllowPrOnlyModeration] = useState(false); // Moderation on solely ESE-PR courses toggle (default: false)
-  const [activeTab, setActiveTab] = useState("results"); // "results" | "moderation"
+  const [activeTab, setActiveTab] = useState("results"); // "results" | "moderation" | "simulation"
   const [moderationSearch, setModerationSearch] = useState("");
+  const [simSearchQuery, setSimSearchQuery] = useState("");
   const [bulkModValue, setBulkModValue] = useState(4);
   const modFileInputRef = useRef(null);
 
@@ -479,6 +482,99 @@ export default function AdesResultCalculatorPage() {
     });
   }, [groupedRecords, courseModerationMap, allowPrOnlyModeration]);
 
+  // Course-Wise Pass Simulation (0 to +10 Moderation Marks)
+  const courseSimulationData = useMemo(() => {
+    const map = new Map();
+
+    groupedRecords.forEach(rec => {
+      const code = rec.identifiers.code;
+      const name = rec.identifiers.name;
+      const faculty = rec.identifiers.faculty;
+      const program = rec.identifiers.program;
+      const norm = normalizeKey(code);
+      if (!norm) return;
+
+      if (!map.has(norm)) {
+        map.set(norm, {
+          normCode: norm,
+          courseCode: code,
+          courseName: name,
+          faculty: faculty || "",
+          program: program || "",
+          hasEseTh: rec.has_ese_th,
+          hasEsePr: rec.has_ese_pr,
+          isPrOnly: rec.is_pr_only,
+          isEligible: rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration),
+          totalStudents: 0,
+          rawPassCount: 0,
+          passCountAtMod: Array(11).fill(0), // indices 0 to 10
+        });
+      }
+
+      const item = map.get(norm);
+      item.totalStudents++;
+
+      const ese_deficit = rec.ese_deficit;
+      const overall_deficit = rec.overall_deficit;
+      const marks_needed = Math.max(ese_deficit, overall_deficit);
+      const is_raw_pass = rec.raw_course_pass;
+
+      if (is_raw_pass) {
+        item.rawPassCount++;
+      }
+
+      const isEligible = rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration);
+
+      // Evaluate simulated pass for each moderation mark level from 0 to 10
+      for (let m = 0; m <= 10; m++) {
+        if (is_raw_pass) {
+          item.passCountAtMod[m]++;
+        } else if (isEligible && marks_needed <= m) {
+          item.passCountAtMod[m]++;
+        }
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.courseCode.localeCompare(b.courseCode));
+  }, [groupedRecords, allowPrOnlyModeration]);
+
+  // Filtered Course Simulation Data (based on simSearchQuery)
+  const filteredSimulationCourses = useMemo(() => {
+    if (!simSearchQuery.trim()) return courseSimulationData;
+    const q = simSearchQuery.toLowerCase().trim();
+    return courseSimulationData.filter(c => 
+      c.courseCode.toLowerCase().includes(q) ||
+      c.courseName.toLowerCase().includes(q) ||
+      c.faculty.toLowerCase().includes(q) ||
+      c.program.toLowerCase().includes(q)
+    );
+  }, [courseSimulationData, simSearchQuery]);
+
+  // Overall Simulation Totals across filtered courses
+  const simTotals = useMemo(() => {
+    let totalStudents = 0;
+    let rawPass = 0;
+    const modPass = Array(11).fill(0);
+
+    filteredSimulationCourses.forEach(c => {
+      totalStudents += c.totalStudents;
+      rawPass += c.rawPassCount;
+      for (let m = 0; m <= 10; m++) {
+        modPass[m] += c.passCountAtMod[m];
+      }
+    });
+
+    return {
+      totalCourses: filteredSimulationCourses.length,
+      totalStudents,
+      rawPass,
+      rawPassPct: totalStudents > 0 ? ((rawPass / totalStudents) * 100).toFixed(1) : "0.0",
+      modPass,
+      modPassPct: (m) => totalStudents > 0 ? ((modPass[m] / totalStudents) * 100).toFixed(1) : "0.0",
+      rescuedAtMod: (m) => modPass[m] - rawPass
+    };
+  }, [filteredSimulationCourses]);
+
   const scoreHeaderRow = (rowArray) => {
     if (!Array.isArray(rowArray)) return { score: 0, matchedHeaders: [] };
     let score = 0;
@@ -804,6 +900,138 @@ export default function AdesResultCalculatorPage() {
     setStatus("Downloaded pre-filled Course Moderation Template (.xlsx) with Course Code & Current Moderation Marks.", "success");
   };
 
+  // Export Course-Wise Pass Simulation Report (+0 to +10 Moderation)
+  const handleExportSimulationExcel = () => {
+    if (!courseSimulationData || courseSimulationData.length === 0) {
+      setStatus("No course data available to export simulation. Please upload a source file first.", "error");
+      return;
+    }
+
+    const headers = [
+      "Faculty",
+      "Program Term Name",
+      "Course Code",
+      "Course Name",
+      "Component Type",
+      "Total Students",
+      "Normal Pass (0 Mod)",
+      "Normal Pass %",
+      "+1 Mod Pass",
+      "+2 Mod Pass",
+      "+3 Mod Pass",
+      "+4 Mod Pass",
+      "+5 Mod Pass",
+      "+6 Mod Pass",
+      "+7 Mod Pass",
+      "+8 Mod Pass",
+      "+9 Mod Pass",
+      "+10 Mod Pass",
+      "+10 Mod Pass %",
+      "Max Rescued (+10)"
+    ];
+
+    let totalAllStudents = 0;
+    let totalAllRawPass = 0;
+    const totalAllModPass = Array(11).fill(0);
+
+    const rows = courseSimulationData.map(c => {
+      totalAllStudents += c.totalStudents;
+      totalAllRawPass += c.rawPassCount;
+      for (let m = 1; m <= 10; m++) {
+        totalAllModPass[m] += c.passCountAtMod[m];
+      }
+
+      const rawPct = c.totalStudents > 0 ? ((c.rawPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
+      const plus10Pct = c.totalStudents > 0 ? ((c.passCountAtMod[10] / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
+      const maxRescued = c.passCountAtMod[10] - c.rawPassCount;
+
+      const compType = c.hasEseTh ? "ESE-TH (+PR)" : (c.isPrOnly ? "ESE-PR Only" : "Other");
+
+      return [
+        c.faculty,
+        c.program,
+        c.courseCode,
+        c.courseName,
+        compType,
+        c.totalStudents,
+        c.rawPassCount,
+        rawPct,
+        c.passCountAtMod[1],
+        c.passCountAtMod[2],
+        c.passCountAtMod[3],
+        c.passCountAtMod[4],
+        c.passCountAtMod[5],
+        c.passCountAtMod[6],
+        c.passCountAtMod[7],
+        c.passCountAtMod[8],
+        c.passCountAtMod[9],
+        c.passCountAtMod[10],
+        plus10Pct,
+        maxRescued
+      ];
+    });
+
+    // Summary / Total Row
+    const overallRawPct = totalAllStudents > 0 ? ((totalAllRawPass / totalAllStudents) * 100).toFixed(2) + "%" : "0.00%";
+    const overallPlus10Pct = totalAllStudents > 0 ? ((totalAllModPass[10] / totalAllStudents) * 100).toFixed(2) + "%" : "0.00%";
+    const overallMaxRescued = totalAllModPass[10] - totalAllRawPass;
+
+    const summaryRow = [
+      "TOTAL / ALL COURSES",
+      "-",
+      "-",
+      "-",
+      "-",
+      totalAllStudents,
+      totalAllRawPass,
+      overallRawPct,
+      totalAllModPass[1],
+      totalAllModPass[2],
+      totalAllModPass[3],
+      totalAllModPass[4],
+      totalAllModPass[5],
+      totalAllModPass[6],
+      totalAllModPass[7],
+      totalAllModPass[8],
+      totalAllModPass[9],
+      totalAllModPass[10],
+      overallPlus10Pct,
+      overallMaxRescued
+    ];
+
+    const aoa = [headers, ...rows, summaryRow];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    ws["!cols"] = [
+      { wch: 24 }, // Faculty
+      { wch: 24 }, // Program
+      { wch: 18 }, // Course Code
+      { wch: 32 }, // Course Name
+      { wch: 16 }, // Component Type
+      { wch: 14 }, // Total Students
+      { wch: 18 }, // Normal Pass (0 Mod)
+      { wch: 14 }, // Normal Pass %
+      { wch: 13 }, // +1 Mod Pass
+      { wch: 13 }, // +2 Mod Pass
+      { wch: 13 }, // +3 Mod Pass
+      { wch: 13 }, // +4 Mod Pass
+      { wch: 13 }, // +5 Mod Pass
+      { wch: 13 }, // +6 Mod Pass
+      { wch: 13 }, // +7 Mod Pass
+      { wch: 13 }, // +8 Mod Pass
+      { wch: 13 }, // +9 Mod Pass
+      { wch: 14 }, // +10 Mod Pass
+      { wch: 16 }, // +10 Mod Pass %
+      { wch: 16 }  // Max Rescued (+10)
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Course_Pass_Simulation");
+    XLSX.writeFile(wb, "course_wise_pass_simulation.xlsx");
+    setStatus("Generated & downloaded Course-Wise Pass Simulation Report (+0 to +10 Moderation).", "success");
+  };
+
   const handleSort = (column) => {
     setSortConfig(prev => {
       if (prev.column !== column) {
@@ -1105,6 +1333,25 @@ export default function AdesResultCalculatorPage() {
             >
               <Sliders size={13} /> Moderation Matrix ({Object.values(courseModerationMap).filter(v => v > 0).length} Active)
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("simulation")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px 12px",
+                fontSize: "12px",
+                fontWeight: 600,
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                background: activeTab === "simulation" ? "var(--accent)" : "transparent",
+                color: activeTab === "simulation" ? "white" : "var(--muted)"
+              }}
+            >
+              <TrendingUp size={13} /> Pass Simulation (+0 to +10)
+            </button>
           </div>
 
           <button 
@@ -1117,25 +1364,47 @@ export default function AdesResultCalculatorPage() {
           </button>
 
           {processedRows.length > 0 && (
-            <button 
-              type="button" 
-              onClick={() => handleExportExcel(filteredRows, "converted_output_card.xlsx")}
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                gap: "6px", 
-                padding: "6px 14px", 
-                fontSize: "12.5px", 
-                background: "var(--accent)", 
-                color: "white", 
-                border: "none", 
-                borderRadius: "6px", 
-                fontWeight: 600, 
-                cursor: "pointer" 
-              }}
-            >
-              <Download size={14} /> Export 31-Col XLSX ({filteredRows.length} Rows)
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button 
+                type="button" 
+                onClick={handleExportSimulationExcel}
+                style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "6px", 
+                  padding: "6px 12px", 
+                  fontSize: "12px", 
+                  background: "#10b981", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: "6px", 
+                  fontWeight: 600, 
+                  cursor: "pointer" 
+                }}
+                title="Export course-wise pass count under 0 to +10 moderation marks"
+              >
+                <Download size={14} /> Export Simulation (+0 to +10 XLSX)
+              </button>
+              <button 
+                type="button" 
+                onClick={() => handleExportExcel(filteredRows, "converted_output_card.xlsx")}
+                style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "6px", 
+                  padding: "6px 14px", 
+                  fontSize: "12.5px", 
+                  background: "var(--accent)", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: "6px", 
+                  fontWeight: 600, 
+                  cursor: "pointer" 
+                }}
+              >
+                <Download size={14} /> Export 31-Col XLSX ({filteredRows.length} Rows)
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -1248,6 +1517,59 @@ export default function AdesResultCalculatorPage() {
                   </div>
                 </div>
               )}
+
+              {/* Course Pass Simulation (+0 to +10) Card */}
+              <div style={{ background: "rgba(16, 185, 129, 0.08)", padding: "10px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.25)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ fontWeight: 700, color: "#10b981", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <TrendingUp size={13} /> Pass Simulation (+0 to +10):
+                </div>
+                <div style={{ color: "var(--muted)", lineHeight: "1.3" }}>
+                  Pass counts calculated for every course across 0 to +10 moderation marks.
+                </div>
+                <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+                  <button
+                    type="button"
+                    onClick={handleExportSimulationExcel}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                      padding: "5px 8px",
+                      fontSize: "11px",
+                      background: "#10b981",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    <Download size={12} /> Excel Report
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("simulation")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                      padding: "5px 8px",
+                      fontSize: "11px",
+                      background: "var(--bg)",
+                      color: "var(--ink)",
+                      border: "1px solid var(--line)",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    View Matrix
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1334,6 +1656,15 @@ export default function AdesResultCalculatorPage() {
                     style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px" }}
                   >
                     <FileDown size={14} /> Download Template (.xlsx)
+                  </button>
+
+                  {/* Download Simulation Report */}
+                  <button 
+                    type="button"
+                    onClick={handleExportSimulationExcel}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    <Download size={14} /> Simulation Report (+0..+10)
                   </button>
 
                   {/* Reset Button */}
@@ -1528,6 +1859,239 @@ export default function AdesResultCalculatorPage() {
                         })
                     )}
                   </tbody>
+                </table>
+              </div>
+            </div>
+          ) : activeTab === "simulation" ? (
+            /* Course Pass Simulation Panel (+0 to +10) */
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "16px", gap: "14px" }}>
+              
+              {/* Header & Controls */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", background: "var(--panel)", padding: "14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                <div>
+                  <h3 style={{ fontSize: "15px", fontWeight: 700, margin: "0 0 4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <TrendingUp size={18} color="#10b981" /> Course-Wise Pass Simulation (0 to +10 Moderation)
+                  </h3>
+                  <p style={{ margin: 0, fontSize: "12px", color: "var(--muted)" }}>
+                    Calculates and predicts how many students pass each course with normal marks vs incremental moderation from +1 up to +10 marks.
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                  {/* Search Filter */}
+                  <div style={{ position: "relative", width: "220px" }}>
+                    <Search size={14} style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+                    <input 
+                      type="text" 
+                      placeholder="Filter courses..." 
+                      value={simSearchQuery} 
+                      onChange={(e) => setSimSearchQuery(e.target.value)}
+                      style={{ width: "100%", padding: "5px 8px 5px 28px", fontSize: "12px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)" }}
+                    />
+                    {simSearchQuery && (
+                      <X 
+                        size={13} 
+                        onClick={() => setSimSearchQuery("")}
+                        style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "var(--muted)" }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Export Simulation Excel Button */}
+                  <button 
+                    type="button"
+                    onClick={handleExportSimulationExcel}
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      gap: "6px", 
+                      fontSize: "12.5px", 
+                      padding: "6px 14px", 
+                      background: "#10b981", 
+                      color: "white", 
+                      border: "none", 
+                      borderRadius: "6px", 
+                      fontWeight: 600, 
+                      cursor: "pointer" 
+                    }}
+                  >
+                    <Download size={14} /> Download Simulation Excel (.xlsx)
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Summary Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "12px" }}>
+                <div style={{ background: "var(--panel)", padding: "12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>Total Courses</div>
+                  <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--ink)", marginTop: "2px" }}>{simTotals.totalCourses}</div>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>{simTotals.totalStudents} total student entries</div>
+                </div>
+
+                <div style={{ background: "var(--panel)", padding: "12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>Normal Pass (0 Mod)</div>
+                  <div style={{ fontSize: "18px", fontWeight: 700, color: "#3b82f6", marginTop: "2px" }}>{simTotals.rawPass}</div>
+                  <div style={{ fontSize: "11px", color: "#3b82f6", fontWeight: 600, marginTop: "2px" }}>{simTotals.rawPassPct}% raw pass rate</div>
+                </div>
+
+                <div style={{ background: "rgba(245, 158, 11, 0.08)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+                  <div style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 600 }}>Pass at +3 Mod</div>
+                  <div style={{ fontSize: "18px", fontWeight: 700, color: "#f59e0b", marginTop: "2px" }}>{simTotals.modPass[3]}</div>
+                  <div style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 600, marginTop: "2px" }}>{simTotals.modPassPct(3)}% (+{simTotals.rescuedAtMod(3)} rescued)</div>
+                </div>
+
+                <div style={{ background: "rgba(245, 158, 11, 0.12)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(245, 158, 11, 0.35)" }}>
+                  <div style={{ fontSize: "11px", color: "#d97706", fontWeight: 600 }}>Pass at +5 Mod</div>
+                  <div style={{ fontSize: "18px", fontWeight: 700, color: "#d97706", marginTop: "2px" }}>{simTotals.modPass[5]}</div>
+                  <div style={{ fontSize: "11px", color: "#d97706", fontWeight: 600, marginTop: "2px" }}>{simTotals.modPassPct(5)}% (+{simTotals.rescuedAtMod(5)} rescued)</div>
+                </div>
+
+                <div style={{ background: "rgba(16, 185, 129, 0.12)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.35)" }}>
+                  <div style={{ fontSize: "11px", color: "#10b981", fontWeight: 600 }}>Pass at +10 Mod</div>
+                  <div style={{ fontSize: "18px", fontWeight: 700, color: "#10b981", marginTop: "2px" }}>{simTotals.modPass[10]}</div>
+                  <div style={{ fontSize: "11px", color: "#10b981", fontWeight: 600, marginTop: "2px" }}>{simTotals.modPassPct(10)}% (+{simTotals.rescuedAtMod(10)} rescued)</div>
+                </div>
+              </div>
+
+              {/* Simulation Table Container */}
+              <div style={{ flex: 1, overflow: "auto", border: "1px solid var(--line)", borderRadius: "8px", background: "var(--panel)" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead style={{ position: "sticky", top: 0, background: "var(--bg)", zIndex: 10, borderBottom: "2px solid var(--line)" }}>
+                    <tr>
+                      <th style={{ padding: "10px 12px", textAlign: "left", color: "var(--muted)", fontWeight: 600, width: "120px" }}>Course Code</th>
+                      <th style={{ padding: "10px 12px", textAlign: "left", color: "var(--muted)", fontWeight: 600, minWidth: "180px" }}>Course Name</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontWeight: 600, width: "100px" }}>Type</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontWeight: 600, width: "70px" }}>Total</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--ink)", fontWeight: 700, width: "85px", background: "rgba(59, 130, 246, 0.08)" }}>Normal (0)</th>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => (
+                        <th 
+                          key={m} 
+                          style={{ 
+                            padding: "10px 8px", 
+                            textAlign: "center", 
+                            color: m === 5 ? "#d97706" : m === 10 ? "#10b981" : "var(--muted)", 
+                            fontWeight: m === 5 || m === 10 ? 700 : 600, 
+                            width: "55px",
+                            background: m === 5 ? "rgba(245, 158, 11, 0.1)" : m === 10 ? "rgba(16, 185, 129, 0.1)" : "transparent"
+                          }}
+                        >
+                          +{m}
+                        </th>
+                      ))}
+                      <th style={{ padding: "10px 12px", textAlign: "center", color: "#10b981", fontWeight: 700, width: "100px", background: "rgba(16, 185, 129, 0.08)" }}>Max Gain (+10)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSimulationCourses.length === 0 ? (
+                      <tr>
+                        <td colSpan={16} style={{ padding: "32px", textAlign: "center", color: "var(--muted)" }}>
+                          No matching courses found.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredSimulationCourses.map((c, idx) => {
+                        const rawPct = c.totalStudents > 0 ? ((c.rawPassCount / c.totalStudents) * 100).toFixed(0) : "0";
+                        const maxRescued = c.passCountAtMod[10] - c.rawPassCount;
+                        const plus10Pct = c.totalStudents > 0 ? ((c.passCountAtMod[10] / c.totalStudents) * 100).toFixed(0) : "0";
+
+                        return (
+                          <tr key={c.normCode} style={{ borderBottom: "1px solid var(--line)", background: idx % 2 === 0 ? "transparent" : "rgba(255, 255, 255, 0.02)" }}>
+                            <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--ink)" }}>{c.courseCode}</td>
+                            <td style={{ padding: "8px 12px", color: "var(--muted)" }}>
+                              <div style={{ fontWeight: 500, color: "var(--ink)" }}>{c.courseName}</div>
+                              {c.program && <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>{c.program}</div>}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                              {c.hasEseTh ? (
+                                <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(59, 130, 246, 0.12)", color: "#3b82f6", fontWeight: 600 }}>
+                                  ESE-TH
+                                </span>
+                              ) : c.isPrOnly ? (
+                                <span style={{ 
+                                  fontSize: "10.5px", 
+                                  padding: "2px 6px", 
+                                  borderRadius: "4px", 
+                                  background: allowPrOnlyModeration ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)", 
+                                  color: allowPrOnlyModeration ? "#10b981" : "#ef4444", 
+                                  fontWeight: 600 
+                                }}>
+                                  PR-Only {allowPrOnlyModeration ? "✓" : "✗"}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: "10.5px", color: "var(--muted)" }}>-</span>
+                              )}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>{c.totalStudents}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "center", background: "rgba(59, 130, 246, 0.04)" }}>
+                              <span style={{ fontWeight: 700, color: "var(--ink)" }}>{c.rawPassCount}</span>
+                              <span style={{ fontSize: "10.5px", color: "var(--muted)", marginLeft: "3px" }}>({rawPct}%)</span>
+                            </td>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => {
+                              const cnt = c.passCountAtMod[m];
+                              const diff = cnt - c.rawPassCount;
+                              const isHighlight = m === 5 || m === 10;
+                              return (
+                                <td 
+                                  key={m} 
+                                  style={{ 
+                                    padding: "8px 6px", 
+                                    textAlign: "center",
+                                    fontWeight: diff > 0 ? 600 : 400,
+                                    color: diff > 0 ? (m === 10 ? "#10b981" : m >= 5 ? "#d97706" : "var(--ink)") : "var(--muted)",
+                                    background: isHighlight ? (m === 10 ? "rgba(16, 185, 129, 0.05)" : "rgba(245, 158, 11, 0.05)") : "transparent"
+                                  }}
+                                >
+                                  {cnt}
+                                  {diff > 0 && (
+                                    <div style={{ fontSize: "9.5px", color: m === 10 ? "#10b981" : "#f59e0b", fontWeight: 700 }}>
+                                      +{diff}
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td style={{ padding: "8px 12px", textAlign: "center", background: "rgba(16, 185, 129, 0.05)" }}>
+                              {maxRescued > 0 ? (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "2px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 6px", borderRadius: "10px", fontWeight: 700, fontSize: "11px" }}>
+                                  +{maxRescued} ({plus10Pct}%)
+                                </span>
+                              ) : (
+                                <span style={{ color: "var(--muted)", fontSize: "11px" }}>0</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                  {/* Summary Totals Row */}
+                  {filteredSimulationCourses.length > 0 && (
+                    <tfoot style={{ position: "sticky", bottom: 0, background: "var(--bg)", borderTop: "2px solid var(--line)", fontWeight: 700 }}>
+                      <tr>
+                        <td colSpan={3} style={{ padding: "10px 12px", color: "var(--ink)" }}>TOTAL (All Filtered Courses)</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--ink)" }}>{simTotals.totalStudents}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "#3b82f6" }}>
+                          {simTotals.rawPass} ({simTotals.rawPassPct}%)
+                        </td>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(m => (
+                          <td 
+                            key={m} 
+                            style={{ 
+                              padding: "10px 6px", 
+                              textAlign: "center", 
+                              color: m === 10 ? "#10b981" : m === 5 ? "#d97706" : "var(--ink)",
+                              background: m === 10 ? "rgba(16, 185, 129, 0.1)" : m === 5 ? "rgba(245, 158, 11, 0.1)" : "transparent"
+                            }}
+                          >
+                            {simTotals.modPass[m]}
+                          </td>
+                        ))}
+                        <td style={{ padding: "10px 12px", textAlign: "center", color: "#10b981", background: "rgba(16, 185, 129, 0.1)" }}>
+                          +{simTotals.rescuedAtMod(10)} ({simTotals.modPassPct(10)}%)
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
