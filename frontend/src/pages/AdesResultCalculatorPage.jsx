@@ -918,8 +918,8 @@ export default function AdesResultCalculatorPage() {
           ese_min = Math.ceil(0.30 * ese_max);
         }
 
-        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0 || (prof?.requiresEseTh ?? false);
         const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0 || (prof?.requiresEsePr ?? false);
+        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0 || (prof?.requiresEseTh ?? false) || !has_ese_pr;
         const is_pr_only = has_ese_pr && !has_ese_th;
 
         let is_heldback = false;
@@ -1366,8 +1366,8 @@ export default function AdesResultCalculatorPage() {
         raw_course_pass = raw_ese_pass && raw_overall_pass;
       }
 
-      const has_ese_th = ese_th_max > 0 || (prof?.requiresEseTh ?? false);
-      const has_ese_pr = ese_pr_max > 0 || (prof?.requiresEsePr ?? false);
+      const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0 || (prof?.requiresEsePr ?? false);
+      const has_ese_th = (parseNumber(ese_th_max) || 0) > 0 || (prof?.requiresEseTh ?? false) || !has_ese_pr;
       const is_pr_only = has_ese_pr && !has_ese_th;
 
       const rawC = identifiers.rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
@@ -1449,9 +1449,9 @@ export default function AdesResultCalculatorPage() {
           courseName: name,
           faculty: rec.identifiers.faculty,
           program: rec.identifiers.program,
-          hasEseTh: rec.has_ese_th,
-          hasEsePr: rec.has_ese_pr,
-          isPrOnly: rec.is_pr_only,
+          hasEseTh: rec.has_ese_th ?? !rec.has_ese_pr,
+          hasEsePr: rec.has_ese_pr ?? false,
+          isPrOnly: rec.is_pr_only ?? false,
           totalStudents: 0,
           rawPassed: 0,
           rawFailed: 0,
@@ -1467,6 +1467,9 @@ export default function AdesResultCalculatorPage() {
       if ((!item.courseName || (name && name.length > item.courseName.length)) && name) {
         item.courseName = name;
       }
+      item.hasEseTh = item.hasEseTh || !!rec.has_ese_th;
+      item.hasEsePr = item.hasEsePr || !!rec.has_ese_pr;
+      item.isPrOnly = item.hasEsePr && !item.hasEseTh;
       item.totalStudents++;
       if (rec.is_heldback) {
         item.heldbackCount = (item.heldbackCount || 0) + 1;
@@ -1687,10 +1690,10 @@ export default function AdesResultCalculatorPage() {
           courseName: name,
           faculty: faculty || "",
           program: program || "",
-          hasEseTh: rec.has_ese_th,
-          hasEsePr: rec.has_ese_pr,
-          isPrOnly: rec.is_pr_only,
-          isEligible: rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration),
+          hasEseTh: rec.has_ese_th ?? !rec.has_ese_pr,
+          hasEsePr: rec.has_ese_pr ?? false,
+          isPrOnly: rec.is_pr_only ?? false,
+          isEligible: (rec.has_ese_th ?? !rec.has_ese_pr) || (rec.is_pr_only && allowPrOnlyModeration),
           totalStudents: 0,
           heldCount: 0,
           heldbackCount: 0,
@@ -1709,6 +1712,10 @@ export default function AdesResultCalculatorPage() {
       if ((!item.courseName || (name && name.length > item.courseName.length)) && name) {
         item.courseName = name;
       }
+      item.hasEseTh = item.hasEseTh || !!rec.has_ese_th;
+      item.hasEsePr = item.hasEsePr || !!rec.has_ese_pr;
+      item.isPrOnly = item.hasEsePr && !item.hasEseTh;
+      item.isEligible = item.hasEseTh || (item.isPrOnly && allowPrOnlyModeration);
       item.totalStudents++;
 
       // Heldback students are strictly locked and excluded from pass calculations at all moderation levels
@@ -3381,9 +3388,11 @@ export default function AdesResultCalculatorPage() {
       const rawOverallPct = c.totalStudents > 0 ? ((c.rawOverallPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const rawPct = c.totalStudents > 0 ? ((c.rawPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const plus10Pct = c.totalStudents > 0 ? ((c.passCountAtMod[10] / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
-      const maxRescued = c.passCountAtMod[10] - c.rawPassCount;
-
-      const compType = c.hasEseTh ? "ESE-TH (+PR)" : (c.isPrOnly ? "ESE-PR Only" : "Other");
+      const compType = (c.hasEseTh && c.hasEsePr)
+        ? "Theory & Practical (TH + PR)"
+        : (c.isPrOnly
+            ? "Practical Only (PR)"
+            : "Theory (TH)");
 
       return [
         c.faculty,
@@ -6166,9 +6175,9 @@ export default function AdesResultCalculatorPage() {
                               {c.program && <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>{c.program}</div>}
                             </td>
                             <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                              {c.hasEseTh ? (
+                              {(c.hasEseTh && c.hasEsePr) ? (
                                 <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(59, 130, 246, 0.12)", color: "#3b82f6", fontWeight: 600 }}>
-                                  ESE-TH
+                                  TH + PR
                                 </span>
                               ) : c.isPrOnly ? (
                                 <span style={{ 
@@ -6182,7 +6191,9 @@ export default function AdesResultCalculatorPage() {
                                   PR-Only {allowPrOnlyModeration ? "✓" : "✗"}
                                 </span>
                               ) : (
-                                <span style={{ fontSize: "10.5px", color: "var(--muted)" }}>-</span>
+                                <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", fontWeight: 600 }}>
+                                  Theory (TH)
+                                </span>
                               )}
                             </td>
                             <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>
