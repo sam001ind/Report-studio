@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import { parseCollegeRaw, buildCollegeCanonicalRegistry } from './AdesResultCalculatorPage';
 import { 
   ArrowLeft, 
   Upload, 
@@ -101,11 +102,18 @@ export default function AffiliatedProgrammePage() {
     const allExploded = [];
     const dedupeList = [];
     const seen = new Set();
-    let dupCount = 0;
+    const rawCollegeItems = [];
+    rows.forEach(row => {
+      const rawC = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
+      const rawN = getCell(row, currentHeaderMap, 'ADEC Name', 'ADECName', 'ADEC_Name', 'ADEC', 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College');
+      if (rawC || rawN) rawCollegeItems.push({ code: rawC, name: rawN });
+    });
+    const collegeRegistry = buildCollegeCanonicalRegistry(rawCollegeItems);
 
     rows.forEach((row) => {
-      const collegeCode = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
-      const collegeName = getCell(row, currentHeaderMap, 'ADEC Name', 'ADECName', 'ADEC_Name', 'ADEC', 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College');
+      const rawCollegeCode = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
+      const rawCollegeName = getCell(row, currentHeaderMap, 'ADEC Name', 'ADECName', 'ADEC_Name', 'ADEC', 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College');
+      const { collegeCode, collegeName } = collegeRegistry.resolve(rawCollegeCode, rawCollegeName);
       const programCode = getCell(row, currentHeaderMap, 'Program Code', 'ProgramCode', 'Program_Code', 'ProgCode', 'DegreeCode', 'Program');
       const programTerm = getCell(row, currentHeaderMap, 'Program Term', 'ProgramTerm', 'Program_Term', 'Term', 'SemesterYear', 'Sem');
       const rawCourseDetails = getCell(row, currentHeaderMap, 'Course Details', 'CourseDetails', 'Course_Details', 'Courses', 'Subjects', 'SubjectDetails');

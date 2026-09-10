@@ -80,6 +80,128 @@ export const ADES_OUTPUT_HEADERS = [
 
 const normalizeKey = (key) => String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
+const cleanString = (str) => {
+  if (!str) return "";
+  return String(str).replace(/\s+/g, " ").trim();
+};
+
+// Parses raw college code and name, stripping duplicate code prefixes and embedded tags
+export const parseCollegeRaw = (rawCodeInput, rawNameInput) => {
+  let code = cleanString(rawCodeInput);
+  let name = cleanString(rawNameInput);
+
+  if (name) {
+    // Pattern 1: "[101] - Govt College" or "101 - Govt College" or "101: Govt College"
+    const prefixMatch = name.match(/^\[?([A-Za-z0-9_]+)\]?\s*[-:–—]\s*(.+)$/);
+    if (prefixMatch) {
+      if (!code) code = prefixMatch[1].trim();
+      name = prefixMatch[2].trim();
+    } else {
+      // Pattern 2: "Govt College (101)" or "Govt College [101]"
+      const suffixMatch = name.match(/^(.+?)\s*[\(\[]\s*([A-Za-z0-9_]+)\s*[\)\]]$/);
+      if (suffixMatch && !suffixMatch[1].toLowerCase().includes("autonomous") && !suffixMatch[1].toLowerCase().includes("aided")) {
+        if (!code) code = suffixMatch[2].trim();
+        name = suffixMatch[1].trim();
+      } else {
+        // Pattern 3: "101 Govt College"
+        const numStartMatch = name.match(/^(\d{2,})\s+([A-Za-z].+)$/);
+        if (numStartMatch) {
+          if (!code) code = numStartMatch[1].trim();
+          name = numStartMatch[2].trim();
+        }
+      }
+    }
+  }
+
+  // Strip redundant code prefix if present in name
+  if (code && name) {
+    const escCode = code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const redRegex = new RegExp(`^(\\[?${escCode}\\]?\\s*[-:–—]?\\s*)+`, "i");
+    name = name.replace(redRegex, "").trim();
+  }
+
+  return { code, name };
+};
+
+// Builds a dataset-wide two-way canonical resolver that clusters and merges same colleges
+export const buildCollegeCanonicalRegistry = (rawItems = []) => {
+  const codeToNames = new Map();
+  const nameToCodes = new Map();
+
+  rawItems.forEach(item => {
+    if (!item) return;
+    const { code, name } = parseCollegeRaw(item.code || item.collegeCode, item.name || item.collegeName);
+    const normC = normalizeKey(code);
+    const normN = normalizeKey(name);
+
+    if (normC && name) {
+      if (!codeToNames.has(normC)) codeToNames.set(normC, new Set());
+      codeToNames.get(normC).add(name);
+    }
+    if (normN && code) {
+      if (!nameToCodes.has(normN)) nameToCodes.set(normN, new Set());
+      nameToCodes.get(normN).add(code);
+    }
+  });
+
+  const canonicalCodeMap = new Map();
+  const canonicalNameCodeMap = new Map();
+
+  codeToNames.forEach((nameSet, normC) => {
+    const names = Array.from(nameSet);
+    names.sort((a, b) => {
+      const aIsUpper = a === a.toUpperCase();
+      const bIsUpper = b === b.toUpperCase();
+      if (aIsUpper !== bIsUpper) return aIsUpper ? 1 : -1;
+      return b.length - a.length;
+    });
+    canonicalCodeMap.set(normC, names[0]);
+  });
+
+  nameToCodes.forEach((codeSet, normN) => {
+    const codes = Array.from(codeSet);
+    codes.sort((a, b) => b.length - a.length);
+    canonicalNameCodeMap.set(normN, codes[0]);
+  });
+
+  const resolve = (rawCodeInput, rawNameInput) => {
+    const { code, name } = parseCollegeRaw(rawCodeInput, rawNameInput);
+    const normC = normalizeKey(code);
+    const normN = normalizeKey(name);
+
+    let finalCode = code || (normN ? canonicalNameCodeMap.get(normN) || "" : "");
+    let finalName = name || (normC ? canonicalCodeMap.get(normC) || "" : "");
+
+    const normFinalC = normalizeKey(finalCode);
+    if (normFinalC && canonicalCodeMap.has(normFinalC)) {
+      finalName = canonicalCodeMap.get(normFinalC);
+    }
+
+    if (finalCode && finalName) {
+      return {
+        collegeCode: finalCode,
+        collegeName: finalName,
+        college: `${finalCode} - ${finalName}`
+      };
+    } else if (finalName) {
+      return {
+        collegeCode: "",
+        collegeName: finalName,
+        college: finalName
+      };
+    } else if (finalCode) {
+      return {
+        collegeCode: finalCode,
+        collegeName: "",
+        college: finalCode
+      };
+    }
+    return { collegeCode: "", collegeName: "", college: "" };
+  };
+
+  return { resolve };
+};
+
 export default function AdesResultCalculatorPage() {
   const [sourceFile, setSourceFile] = useState(null);
   const [sheetNames, setSheetNames] = useState([]);
@@ -201,6 +323,9 @@ export default function AdesResultCalculatorPage() {
       const code = String(getCell(r, headerMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Course Code"] || "").trim();
       const courseName = String(getCell(r, headerMap, "Course Name", "CourseName", "PaperName", "SubjectName") || r["Course Name"] || "").trim();
       const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
+      const rawCollegeCode = String(getCell(r, headerMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code") || r["College Code"] || r["ADEC Code"] || "").trim();
+      const rawCollegeName = String(getCell(r, headerMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "Institute") || r["College Name"] || r["ADEC Name"] || "").trim();
+      const { code: collegeCode, name: collegeName } = parseCollegeRaw(rawCollegeCode, rawCollegeName);
 
       const am = String(getCell(r, headerMap, "AM", "Assessment Method", "AssessmentMethod") || r["AM"] || "").trim().toUpperCase();
       const at = String(getCell(r, headerMap, "AT", "Assessment Type", "AssessmentType") || r["AT"] || "").trim().toUpperCase();
@@ -224,6 +349,8 @@ export default function AdesResultCalculatorPage() {
         seat,
         code,
         courseName,
+        collegeCode,
+        collegeName,
         am: am || "ESE",
         at: at || "TH",
         status,
@@ -281,6 +408,9 @@ export default function AdesResultCalculatorPage() {
       const code = String(getCell(r, headerMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Course Code"] || "").trim();
       const courseName = String(getCell(r, headerMap, "Course Name", "CourseName", "PaperName", "SubjectName") || r["Course Name"] || "").trim();
       const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
+      const rawCollegeCode = String(getCell(r, headerMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code") || r["College Code"] || r["ADEC Code"] || "").trim();
+      const rawCollegeName = String(getCell(r, headerMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "Institute") || r["College Name"] || r["ADEC Name"] || "").trim();
+      const { code: collegeCode, name: collegeName } = parseCollegeRaw(rawCollegeCode, rawCollegeName);
 
       const am = String(getCell(r, headerMap, "AM", "Assessment Method", "AssessmentMethod") || r["AM"] || "").trim().toUpperCase();
       const at = String(getCell(r, headerMap, "AT", "Assessment Type", "AssessmentType") || r["AT"] || "").trim().toUpperCase();
@@ -306,6 +436,8 @@ export default function AdesResultCalculatorPage() {
         seat,
         code,
         courseName,
+        collegeCode,
+        collegeName,
         am: am || "ESE",
         at: at || "TH",
         status,
@@ -374,11 +506,11 @@ export default function AdesResultCalculatorPage() {
       const prn = String(getCell(r, headerMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || r["PRN"] || "").trim();
       const seat = String(getCell(r, headerMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || r["Seat Number"] || "").trim();
       const reason = String(getCell(r, headerMap, "Reason", "Heldback Reason", "HeldbackReason", "Remarks", "Description") || r["Reason"] || "").trim() || "APC Heldback";
-      const assessmentType = String(getCell(r, headerMap, "Assessment Type", "AssessmentType", "AT") || r["Assessment Type"] || "").trim();
-      const collegeCode = String(getCell(r, headerMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code") || r["College Code"] || r["ADEC Code"] || "").trim();
+      const rawCollegeCode = String(getCell(r, headerMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code") || r["College Code"] || r["ADEC Code"] || "").trim();
+      const rawCollegeName = String(getCell(r, headerMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "Institute") || r["College Name"] || r["ADEC Name"] || "").trim();
+      const { code: collegeCode, name: collegeName } = parseCollegeRaw(rawCollegeCode, rawCollegeName);
       const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
       const paper = String(getCell(r, headerMap, "Paper", "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Paper"] || "").trim();
-      const collegeName = String(getCell(r, headerMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "Institute") || r["College Name"] || r["ADEC Name"] || "").trim();
       const tlm = String(getCell(r, headerMap, "Teaching Learning Method", "TeachingLearningMethod", "TLM") || r["Teaching Learning Method"] || "").trim();
       const am = String(getCell(r, headerMap, "Assessment Method", "AssessmentMethod", "AM") || r["Assessment Method"] || "").trim();
 
@@ -452,6 +584,29 @@ export default function AdesResultCalculatorPage() {
   const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap, currentMalpracticeMap = malpracticeRecordsMap, currentHeldbackMap = heldbackRecordsMap) => {
     if (!rows || rows.length === 0) return [];
     const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
+    // Build dataset-wide canonical college registry from all rows and external reports
+    const rawCollegeItems = [];
+    rows.forEach(row => {
+      const cCode = String(getCell(row, currentHeaderMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode") || "").trim();
+      const cName = String(getCell(row, currentHeaderMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
+      if (cCode || cName) rawCollegeItems.push({ code: cCode, name: cName });
+    });
+    if (currentHeldbackMap) {
+      currentHeldbackMap.forEach(e => {
+        if (e.collegeCode || e.collegeName) rawCollegeItems.push({ code: e.collegeCode, name: e.collegeName });
+      });
+    }
+    if (currentMalpracticeMap) {
+      currentMalpracticeMap.forEach(e => {
+        if (e.collegeCode || e.collegeName) rawCollegeItems.push({ code: e.collegeCode, name: e.collegeName });
+      });
+    }
+    if (currentAbsentMap) {
+      currentAbsentMap.forEach(e => {
+        if (e.collegeCode || e.collegeName) rawCollegeItems.push({ code: e.collegeCode, name: e.collegeName });
+      });
+    }
+    const collegeRegistry = buildCollegeCanonicalRegistry(rawCollegeItems);
 
     // Pass 1: Build expected component profiles for all courses present in the dataset
     const courseExpectedComponentsMap = new Map();
@@ -720,9 +875,9 @@ export default function AdesResultCalculatorPage() {
         const malpracticeEntry = !heldbackEntry && getMalpracticeEntry(prn, seat, code, currentMalpracticeMap);
         const absentEntry = !heldbackEntry && !malpracticeEntry && getAbsentEntry(prn, seat, code, currentAbsentMap);
 
-        const collegeCode = rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
-        const collegeName = rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
-        const college = collegeName ? (collegeCode ? `${collegeCode} - ${collegeName}` : collegeName) : collegeCode;
+        const rawC = rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
+        const rawN = rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
+        const { collegeCode, collegeName, college } = collegeRegistry.resolve(rawC, rawN);
 
         const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || "") : "");
         const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
@@ -1009,6 +1164,10 @@ export default function AdesResultCalculatorPage() {
           components: {},
           tlm: ""
         });
+      } else {
+        const grp = groups.get(groupKey);
+        if (!grp.identifiers.rawCollegeCode && rawCollegeCode) grp.identifiers.rawCollegeCode = rawCollegeCode;
+        if (!grp.identifiers.rawCollegeName && rawCollegeName) grp.identifiers.rawCollegeName = rawCollegeName;
       }
 
       const group = groups.get(groupKey);
@@ -1190,9 +1349,9 @@ export default function AdesResultCalculatorPage() {
       const has_ese_pr = ese_pr_max > 0 || (prof?.requiresEsePr ?? false);
       const is_pr_only = has_ese_pr && !has_ese_th;
 
-      const collegeCode = identifiers.rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
-      const collegeName = identifiers.rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
-      const college = collegeName ? (collegeCode ? `${collegeCode} - ${collegeName}` : collegeName) : collegeCode;
+      const rawC = identifiers.rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
+      const rawN = identifiers.rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
+      const { collegeCode, collegeName, college } = collegeRegistry.resolve(rawC, rawN);
 
       baseRecords.push({
         identifiers: { ...identifiers, college, collegeCode, collegeName },
