@@ -85,6 +85,29 @@ const cleanString = (str) => {
   return String(str).replace(/\s+/g, " ").trim();
 };
 
+export const getCell = (row, hMap = {}, ...aliases) => {
+  if (!row || !hMap) return "";
+  for (const alias of aliases) {
+    const norm = normalizeKey(alias);
+    const actualKey = hMap[norm];
+    if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null) {
+      return row[actualKey];
+    }
+  }
+  return "";
+};
+
+export const parseNumber = (val) => {
+  if (val === null || val === undefined) return null;
+  const s = String(val).trim();
+  if (s === "") return null;
+  const lower = s.toLowerCase();
+  if (lower.includes("absent") || lower.includes("(ab)")) return null;
+  if (lower.includes("malpractice") || lower.includes("(mp)") || lower.includes("smp") || lower.includes("ehb")) return null;
+  const num = Number(s);
+  return isNaN(num) ? null : num;
+};
+
 // Cleans and canonicalizes course codes: strips ., #, *, _, -, spaces, wrapping brackets, and converts to uppercase
 export const cleanCourseCode = (rawCode) => {
   if (!rawCode) return "";
@@ -339,27 +362,6 @@ export default function AdesResultCalculatorPage() {
     setStatusType(type);
   };
 
-  const getCell = (row, hMap, ...aliases) => {
-    for (const alias of aliases) {
-      const norm = normalizeKey(alias);
-      const actualKey = hMap[norm];
-      if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null) {
-        return row[actualKey];
-      }
-    }
-    return "";
-  };
-
-  const parseNumber = (val) => {
-    if (val === null || val === undefined) return null;
-    const s = String(val).trim();
-    if (s === "") return null;
-    const lower = s.toLowerCase();
-    if (lower.includes("absent") || lower.includes("(ab)")) return null;
-    if (lower.includes("malpractice") || lower.includes("(mp)") || lower.includes("smp") || lower.includes("ehb")) return null;
-    const num = Number(s);
-    return isNaN(num) ? null : num;
-  };
 
   // Helper to match student course record against loaded Absent Report
   const getAbsentEntry = (prn, seat, code, absentMap) => {
