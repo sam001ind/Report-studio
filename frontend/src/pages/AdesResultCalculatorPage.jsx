@@ -3087,90 +3087,160 @@ export default function AdesResultCalculatorPage() {
     setStatus("Generated & downloaded Course-Wise Pass Simulation Report (+0 to +10 Moderation) with 30% ESE and 35% Aggregate checks.", "success");
   };
 
-  // Export Student-Wise Semester Results Report (.xlsx)
-  const handleExportStudentSemesterExcel = () => {
-    if (!studentSemesterData || studentSemesterData.length === 0) {
-      setStatus("No student data available to export. Please upload a source file first.", "error");
+  // Export Student-Wise Semester Results Report (.xlsx) - Supports active live filtered view or all students
+  const handleExportStudentSemesterExcel = (studentsToExport = filteredStudents, customFilename = null) => {
+    if (!studentsToExport || studentsToExport.length === 0) {
+      setStatus("No student records available to export for the current filter/view.", "warning");
       return;
     }
 
-    const headers = [
-      "Faculty",
-      "Program Term Name",
-      "Seat Number",
-      "PRN",
-      "Papers Attempted",
-      "Papers Passed",
-      "Papers Failed",
-      "Raw Semester Result (0 Mod)",
-      "Final Semester Result",
-      "Semester Rescued via Moderation",
-      "Total Moderation Marks Awarded",
-      "Failed Courses List",
-      "All Attempted Courses Breakdown"
-    ];
+    const isFiltered = studentsToExport.length !== studentSemesterData.length;
+    let defaultName = "student_semester_results.xlsx";
+    if (isFiltered) {
+      const filterTag = studentFilterStatus !== "ALL" ? studentFilterStatus.toLowerCase() : "filtered";
+      defaultName = `student_semester_results_${filterTag}_${studentsToExport.length}students.xlsx`;
+    }
+    const filename = customFilename || defaultName;
 
-    const rows = studentSemesterData.map(st => {
-      const failedList = st.courses.filter(c => c.coursePass === "Fail").map(c => `${c.courseCode} (${c.courseName})`).join("; ");
-      const coursesSummary = st.courses.map(c => `${c.courseCode}: ${c.coursePass}${c.modMarks > 0 ? ` (+${c.modMarks} Mod)` : ''}`).join("; ");
+    setIsProcessing(true);
+    setStatus("Generating Student Semester Excel export...", "info");
 
-      return [
-        st.faculty,
-        st.program,
-        st.seatNumber,
-        st.prn,
-        st.totalCourses,
-        st.finalPassedCourses,
-        st.finalFailedCourses,
-        st.rawSemesterResult,
-        st.semesterResult,
-        st.isRescuedSemester ? "Yes (Rescued)" : "No",
-        st.totalModerationMarks,
-        failedList || "None (All Passed)",
-        coursesSummary
+    try {
+      const headers = [
+        "Faculty",
+        "Program Term Name",
+        "Seat Number",
+        "PRN",
+        "Papers Attempted",
+        "Papers Passed",
+        "Papers Failed",
+        "Heldback / Missing Papers",
+        "Raw Semester Result (0 Mod)",
+        "Final Semester Result",
+        "Semester Rescued via Moderation",
+        "Total Moderation Marks Awarded",
+        "Failed Courses List",
+        "All Attempted Courses Breakdown"
       ];
-    });
 
-    // Summary / Total Row
-    const summaryRow = [
-      "TOTAL STUDENTS / SUMMARY",
-      "-",
-      "-",
-      "-",
-      studentMetrics.totalPapersAttempted,
-      "-",
-      "-",
-      `${studentMetrics.rawPassedStudents} Passed (${studentMetrics.rawPassedPct}%)`,
-      `${studentMetrics.finalPassedStudents} Passed (${studentMetrics.finalPassedPct}%)`,
-      `+${studentMetrics.rescuedStudents} Rescued (${studentMetrics.rescuedPct}%)`,
-      "-",
-      `${studentMetrics.failedStudents} Failed (${studentMetrics.failedPct}%)`,
-      "-"
-    ];
+      // Dynamic summary stats based on the exported subset
+      let totalAttempted = 0;
+      let totalPassed = 0;
+      let totalFailed = 0;
+      let totalRawPass = 0;
+      let totalFinalPass = 0;
+      let totalRescued = 0;
+      let totalHeld = 0;
+      let totalHeldback = 0;
 
-    const aoa = [headers, ...rows, summaryRow];
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const rows = studentsToExport.map(st => {
+        totalAttempted += st.totalCourses;
+        totalPassed += st.finalPassedCourses;
+        totalFailed += st.finalFailedCourses;
+        if (st.isHeldback) totalHeldback++;
+        if (st.isHeld) totalHeld++;
+        if (st.rawSemesterPass) totalRawPass++;
+        if (st.finalSemesterPass) totalFinalPass++;
+        if (st.isRescuedSemester) totalRescued++;
 
-    ws["!cols"] = [
-      { wch: 24 }, // Faculty
-      { wch: 24 }, // Program
-      { wch: 16 }, // Seat Number
-      { wch: 18 }, // PRN
-      { wch: 18 }, // Papers Attempted
-      { wch: 15 }, // Papers Passed
-      { wch: 15 }, // Papers Failed
-      { wch: 26 }, // Raw Semester Result
-      { wch: 22 }, // Final Semester Result
-      { wch: 28 }, // Rescued via Moderation
-      { wch: 28 }, // Total Moderation Marks
-      { wch: 38 }, // Failed Courses List
-      { wch: 55 }  // Courses Breakdown
-    ];
+        const failedList = st.courses.filter(c => c.coursePass === "Fail").map(c => `${c.courseCode} (${c.courseName})`).join("; ");
+        const coursesSummary = st.courses.map(c => `${c.courseCode}: ${c.coursePass}${c.modMarks > 0 ? ` (+${c.modMarks} Mod)` : ''}`).join("; ");
+        const heldInfo = st.isHeldback 
+          ? `Heldback (${st.heldbackReason || "Term-level"})`
+          : st.heldCourses > 0 
+            ? `${st.heldCourses} Missing Component`
+            : "0";
 
-    XLSX.utils.book_append_sheet(wb, ws, "Student_Semester_Results");
-    XLSX.writeFile(wb, "student_semester_results.xlsx");
-    setStatus("Generated & downloaded Student Semester Results Summary (.xlsx).", "success");
+        return [
+          st.faculty,
+          st.program,
+          st.seatNumber,
+          st.prn,
+          st.totalCourses,
+          st.finalPassedCourses,
+          st.finalFailedCourses,
+          heldInfo,
+          st.rawSemesterResult,
+          st.semesterResult,
+          st.isRescuedSemester ? "Yes (Rescued)" : "No",
+          st.totalModerationMarks,
+          failedList || "None (All Passed)",
+          coursesSummary
+        ];
+      });
+
+      const expCount = studentsToExport.length;
+      const rawPct = ((totalRawPass / expCount) * 100).toFixed(1);
+      const finalPct = ((totalFinalPass / expCount) * 100).toFixed(1);
+      const resPct = ((totalRescued / expCount) * 100).toFixed(1);
+      const failCount = expCount - totalFinalPass - totalHeld;
+      const failPct = ((failCount / expCount) * 100).toFixed(1);
+
+      // Summary / Total Row
+      const summaryRow = [
+        `TOTAL EXPORTED STUDENTS: ${expCount}`,
+        "-",
+        "-",
+        "-",
+        totalAttempted,
+        totalPassed,
+        totalFailed,
+        `${totalHeld} Held (${totalHeldback} Heldback)`,
+        `${totalRawPass} Passed (${rawPct}%)`,
+        `${totalFinalPass} Passed (${finalPct}%)`,
+        `+${totalRescued} Rescued (${resPct}%)`,
+        "-",
+        `${failCount} Failed (${failPct}%)`,
+        "-"
+      ];
+
+      const aoa = [headers, ...rows, summaryRow];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+      ws["!autofilter"] = {
+        ref: XLSX.utils.encode_range({
+          s: { r: 0, c: 0 },
+          e: { r: aoa.length - 2, c: headers.length - 1 }
+        })
+      };
+
+      ws["!cols"] = [
+        { wch: 24 }, // Faculty
+        { wch: 28 }, // Program
+        { wch: 16 }, // Seat Number
+        { wch: 18 }, // PRN
+        { wch: 16 }, // Papers Attempted
+        { wch: 14 }, // Papers Passed
+        { wch: 14 }, // Papers Failed
+        { wch: 24 }, // Heldback / Missing Papers
+        { wch: 24 }, // Raw Semester Result
+        { wch: 24 }, // Final Semester Result
+        { wch: 22 }, // Semester Rescued
+        { wch: 18 }, // Total Moderation Marks
+        { wch: 40 }, // Failed Courses List
+        { wch: 60 }  // All Attempted Courses Breakdown
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, "Student_Semester_Results");
+      const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setStatus(`Successfully exported ${studentsToExport.length} student record(s) [${isFiltered ? 'Filtered Live View' : 'All Students'}] to ${filename}!`, "success");
+    } catch (err) {
+      console.error("Export Student Semester Error:", err);
+      setStatus("Failed to export Student Semester summary: " + err.message, "error");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleSort = (column) => {
@@ -3404,10 +3474,21 @@ export default function AdesResultCalculatorPage() {
   }, [filteredRows, page]);
 
   // Export to Excel Matching exact 31 columns structure with "Output file " sheet name
-  const handleExportExcel = (rowsToExport = filteredRows, filename = "converted_output_card.xlsx") => {
+  const handleExportExcel = (rowsToExport = filteredRows, customFilename = null) => {
     if (!rowsToExport || rowsToExport.length === 0) {
       alert("No rows to export.");
       return;
+    }
+
+    const isFiltered = calculatedRows && rowsToExport.length !== calculatedRows.length;
+    let filename = customFilename;
+    if (!filename) {
+      if (isFiltered) {
+        const filterTag = selectedResultFilter !== "ALL" ? selectedResultFilter.toLowerCase() : "filtered";
+        filename = `ades_course_results_${filterTag}_${rowsToExport.length}rows.xlsx`;
+      } else {
+        filename = "converted_output_card.xlsx";
+      }
     }
 
     setIsProcessing(true);
@@ -3569,7 +3650,7 @@ export default function AdesResultCalculatorPage() {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button 
                 type="button" 
-                onClick={handleExportStudentSemesterExcel}
+                onClick={() => handleExportStudentSemesterExcel(filteredStudents)}
                 style={{ 
                   display: "flex", 
                   alignItems: "center", 
@@ -3583,9 +3664,9 @@ export default function AdesResultCalculatorPage() {
                   fontWeight: 600, 
                   cursor: "pointer" 
                 }}
-                title="Export student-wise semester pass/fail summary (.xlsx)"
+                title={filteredStudents.length !== studentSemesterData.length ? `Export current filtered view (${filteredStudents.length} students)` : "Export all student semester results"}
               >
-                <Download size={14} /> Export Students ({studentMetrics.totalStudents})
+                <Download size={14} /> Export Students ({filteredStudents.length !== studentSemesterData.length ? `${filteredStudents.length}/${studentMetrics.totalStudents}` : studentMetrics.totalStudents})
               </button>
               <button 
                 type="button" 
@@ -3609,7 +3690,7 @@ export default function AdesResultCalculatorPage() {
               </button>
               <button 
                 type="button" 
-                onClick={() => handleExportExcel(filteredRows, "converted_output_card.xlsx")}
+                onClick={() => handleExportExcel(filteredRows)}
                 style={{ 
                   display: "flex", 
                   alignItems: "center", 
@@ -3623,8 +3704,9 @@ export default function AdesResultCalculatorPage() {
                   fontWeight: 600, 
                   cursor: "pointer" 
                 }}
+                title={filteredRows.length !== calculatedRows.length ? `Export current filtered view (${filteredRows.length} rows)` : "Export all 31-column ADES results"}
               >
-                <Download size={14} /> Export 31-Col XLSX ({filteredRows.length} Rows)
+                <Download size={14} /> Export 31-Col XLSX ({filteredRows.length !== calculatedRows.length ? `${filteredRows.length}/${calculatedRows.length}` : `${filteredRows.length} Rows`})
               </button>
             </div>
           )}
@@ -4201,11 +4283,22 @@ export default function AdesResultCalculatorPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                   <button 
                     type="button"
-                    onClick={handleExportStudentSemesterExcel}
+                    onClick={() => handleExportStudentSemesterExcel(filteredStudents)}
                     style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "7px 14px", background: "var(--accent)", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
+                    title={filteredStudents.length !== studentSemesterData.length ? `Export current filtered view (${filteredStudents.length} students)` : "Export all student semester results"}
                   >
-                    <Download size={14} /> Export Student Summary (.xlsx)
+                    <Download size={14} /> Export Current View ({filteredStudents.length} Students)
                   </button>
+                  {filteredStudents.length !== studentSemesterData.length && (
+                    <button 
+                      type="button"
+                      onClick={() => handleExportStudentSemesterExcel(studentSemesterData, "student_semester_results_all.xlsx")}
+                      style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "7px 12px", background: "transparent", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
+                      title="Export all student records without filters (.xlsx)"
+                    >
+                      <Download size={14} /> Export All ({studentSemesterData.length})
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -5530,6 +5623,15 @@ export default function AdesResultCalculatorPage() {
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <button 
+                      type="button" 
+                      onClick={() => handleExportExcel(filteredRows)}
+                      style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 9px", fontSize: "11px", borderRadius: "5px", border: "1px solid var(--accent)", background: "var(--accent-soft)", color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}
+                      title={filteredRows.length !== calculatedRows.length ? `Export current filtered view (${filteredRows.length} rows) to 31-Col ADES XLSX` : "Export all rows to 31-Col ADES XLSX"}
+                    >
+                      <Download size={12} /> Export Current View ({filteredRows.length})
+                    </button>
+
                     <span style={{ fontSize: "12px", color: "var(--muted)" }}>
                       Showing {filteredRows.length > 0 ? page * pageSize + 1 : 0} - {Math.min((page + 1) * pageSize, filteredRows.length)} of {filteredRows.length} rows
                     </span>
