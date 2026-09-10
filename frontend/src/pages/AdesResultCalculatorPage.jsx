@@ -40,6 +40,7 @@ import {
   ChevronDown,
   ChevronRight,
   ShieldAlert,
+  AlertCircle,
   Lock
 } from "lucide-react";
 
