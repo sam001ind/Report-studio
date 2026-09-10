@@ -359,11 +359,27 @@ export default function AdesResultCalculatorPage() {
       if (!courseExpectedComponentsMap.has(norm)) {
         courseExpectedComponentsMap.set(norm, {
           courseCode: code,
-          isLecLab: false,
+          tlm: "",
+          eseMax: 0,
+          eseThMax: 0,
+          esePrMax: 0,
+          ceMax: 0,
+          ceThMax: 0,
+          cePrMax: 0,
+          courseMax: 0,
+          hasSeenEseTh: false,
+          hasSeenEsePr: false,
+          hasSeenCeTh: false,
+          hasSeenCePr: false,
+          requiresEseTh: false,
+          requiresEsePr: false,
+          requiresCeTh: false,
+          requiresCePr: false,
           hasEseTh: false,
           hasEsePr: false,
           hasCeTh: false,
           hasCePr: false,
+          isPrOnly: false,
           maxMarks: {
             ESE_TH: 0,
             ESE_PR: 0,
@@ -375,37 +391,46 @@ export default function AdesResultCalculatorPage() {
 
       const prof = courseExpectedComponentsMap.get(norm);
       const tlmRaw = String(getCell(row, currentHeaderMap, "TeachingLearningMethod", "TLM", "Teaching Learning Method", "Teaching_Learning_Method", "MethodType", "Course Type") || "").trim();
-      if (isLecLabTlm(tlmRaw)) {
-        prof.isLecLab = true;
-        prof.hasEseTh = true;
-        prof.hasEsePr = true;
-      }
+      if (tlmRaw) prof.tlm = tlmRaw;
 
       if (isAgg) {
-        const ese_pr_m = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax"));
-        if (ese_pr_m !== null && ese_pr_m > 0) {
-          prof.hasEsePr = true;
-          prof.maxMarks.ESE_PR = Math.max(prof.maxMarks.ESE_PR, ese_pr_m);
-        }
-        const ese_th_m = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax"));
+        const ese_max_raw = parseNumber(getCell(row, currentHeaderMap, "ESE - Max", "ESEMax", "ESE Max", "ESE_Max"));
+        const ese_th_m = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax", "ESE TH Max", "ESE_TH_Max"));
+        const ese_pr_m = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax", "ESE PR Max", "ESE_PR_Max"));
+        const ce_max_raw = parseNumber(getCell(row, currentHeaderMap, "CE - Max", "CEMax", "CE Max", "CE_Max"));
+        const ce_th_m = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax", "CE TH Max", "CE_TH_Max"));
+        const ce_pr_m = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax", "CE PR Max", "CE_PR_Max"));
+        const overall_max_raw = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax", "Course Max", "CourseMax", "Total Max"));
+
+        if (ese_max_raw !== null && ese_max_raw > 0) prof.eseMax = Math.max(prof.eseMax, ese_max_raw);
         if (ese_th_m !== null && ese_th_m > 0) {
-          prof.hasEseTh = true;
+          prof.hasSeenEseTh = true;
+          prof.eseThMax = Math.max(prof.eseThMax, ese_th_m);
           prof.maxMarks.ESE_TH = Math.max(prof.maxMarks.ESE_TH, ese_th_m);
         }
-        const ce_pr_m = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax"));
-        if (ce_pr_m !== null && ce_pr_m > 0) {
-          prof.hasCePr = true;
-          prof.maxMarks.CE_PR = Math.max(prof.maxMarks.CE_PR, ce_pr_m);
+        if (ese_pr_m !== null && ese_pr_m > 0) {
+          prof.hasSeenEsePr = true;
+          prof.esePrMax = Math.max(prof.esePrMax, ese_pr_m);
+          prof.maxMarks.ESE_PR = Math.max(prof.maxMarks.ESE_PR, ese_pr_m);
         }
-        const ce_th_m = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax"));
+        if (ce_max_raw !== null && ce_max_raw > 0) prof.ceMax = Math.max(prof.ceMax, ce_max_raw);
         if (ce_th_m !== null && ce_th_m > 0) {
-          prof.hasCeTh = true;
+          prof.hasSeenCeTh = true;
+          prof.ceThMax = Math.max(prof.ceThMax, ce_th_m);
           prof.maxMarks.CE_TH = Math.max(prof.maxMarks.CE_TH, ce_th_m);
         }
+        if (ce_pr_m !== null && ce_pr_m > 0) {
+          prof.hasSeenCePr = true;
+          prof.cePrMax = Math.max(prof.cePrMax, ce_pr_m);
+          prof.maxMarks.CE_PR = Math.max(prof.maxMarks.CE_PR, ce_pr_m);
+        }
+        if (overall_max_raw !== null && overall_max_raw > 0) prof.courseMax = Math.max(prof.courseMax, overall_max_raw);
       } else {
-        const methodRaw = String(getCell(row, currentHeaderMap, "Assessment Method", "AssessmentMethod", "AM", "Method") || "").trim().toUpperCase();
-        const typeRaw = String(getCell(row, currentHeaderMap, "Assessment Type", "AssessmentType", "AT", "Type") || "").trim().toUpperCase();
-        const atMaxRaw = parseNumber(getCell(row, currentHeaderMap, "AT Max Marks", "ATMaxMarks", "MaxMarks", "Max Marks", "Max"));
+        const methodRaw = String(getCell(row, currentHeaderMap, "Assessment Method", "AssessmentMethod", "AM", "Method", "Assessment_Method") || "").trim().toUpperCase();
+        const typeRaw = String(getCell(row, currentHeaderMap, "Assessment Type", "AssessmentType", "AT", "Type", "Assessment_Type") || "").trim().toUpperCase();
+        const amMaxRaw = parseNumber(getCell(row, currentHeaderMap, "AM Max Marks", "AMMaxMarks", "AM Max", "AMMax", "AM_Max_Marks", "Method Max Marks", "Method Max"));
+        const atMaxRaw = parseNumber(getCell(row, currentHeaderMap, "AT Max Marks", "ATMaxMarks", "MaxMarks", "Max Marks", "Max", "AT Max", "AT_Max_Marks"));
+        const courseMaxRaw = parseNumber(getCell(row, currentHeaderMap, "Course Max", "CourseMax", "Overall Maximum", "OverallMax", "Total Max"));
 
         let method = "ESE";
         if (methodRaw.includes("CE") || methodRaw.includes("CA") || methodRaw.includes("IA") || methodRaw.includes("CCA") || methodRaw.includes("INTERNAL")) {
@@ -421,16 +446,152 @@ export default function AdesResultCalculatorPage() {
           type = "TH";
         }
 
-        const compKey = method + "_" + type;
-        if (compKey === "ESE_TH") prof.hasEseTh = true;
-        if (compKey === "ESE_PR") prof.hasEsePr = true;
-        if (compKey === "CE_TH") prof.hasCeTh = true;
-        if (compKey === "CE_PR") prof.hasCePr = true;
+        if (method === "ESE") {
+          if (amMaxRaw !== null && amMaxRaw > 0) prof.eseMax = Math.max(prof.eseMax, amMaxRaw);
+          if (type === "TH") {
+            prof.hasSeenEseTh = true;
+            if (atMaxRaw !== null && atMaxRaw > 0) {
+              prof.eseThMax = Math.max(prof.eseThMax, atMaxRaw);
+              prof.maxMarks.ESE_TH = Math.max(prof.maxMarks.ESE_TH, atMaxRaw);
+            }
+          } else if (type === "PR") {
+            prof.hasSeenEsePr = true;
+            if (atMaxRaw !== null && atMaxRaw > 0) {
+              prof.esePrMax = Math.max(prof.esePrMax, atMaxRaw);
+              prof.maxMarks.ESE_PR = Math.max(prof.maxMarks.ESE_PR, atMaxRaw);
+            }
+          }
+        } else if (method === "CE") {
+          if (amMaxRaw !== null && amMaxRaw > 0) prof.ceMax = Math.max(prof.ceMax, amMaxRaw);
+          if (type === "TH") {
+            prof.hasSeenCeTh = true;
+            if (atMaxRaw !== null && atMaxRaw > 0) {
+              prof.ceThMax = Math.max(prof.ceThMax, atMaxRaw);
+              prof.maxMarks.CE_TH = Math.max(prof.maxMarks.CE_TH, atMaxRaw);
+            }
+          } else if (type === "PR") {
+            prof.hasSeenCePr = true;
+            if (atMaxRaw !== null && atMaxRaw > 0) {
+              prof.cePrMax = Math.max(prof.cePrMax, atMaxRaw);
+              prof.maxMarks.CE_PR = Math.max(prof.maxMarks.CE_PR, atMaxRaw);
+            }
+          }
+        }
 
-        if (atMaxRaw !== null && atMaxRaw > 0) {
-          prof.maxMarks[compKey] = Math.max(prof.maxMarks[compKey] || 0, atMaxRaw);
+        if (courseMaxRaw !== null && courseMaxRaw > 0) {
+          prof.courseMax = Math.max(prof.courseMax, courseMaxRaw);
         }
       }
+    });
+
+    // Finalize expected components deduction for each course based on mathematical marks rules
+    courseExpectedComponentsMap.forEach(prof => {
+      // 1. Cross-check with Course Max if available
+      if (prof.courseMax > 0) {
+        if (prof.eseMax > 0 && prof.ceMax === 0 && prof.courseMax > prof.eseMax) {
+          prof.ceMax = prof.courseMax - prof.eseMax;
+        } else if (prof.ceMax > 0 && prof.eseMax === 0 && prof.courseMax > prof.ceMax) {
+          prof.eseMax = prof.courseMax - prof.ceMax;
+        }
+      } else if (prof.eseMax > 0 || prof.ceMax > 0) {
+        prof.courseMax = prof.eseMax + prof.ceMax;
+      }
+
+      // 2. Deduce ESE Component Requirements
+      if (prof.eseMax > 0) {
+        if (prof.eseThMax > 0 && prof.eseMax > prof.eseThMax) {
+          // ESE TH accounts for less than ESE Max -> Must have ESE PR to make up the difference!
+          // Example: KU4DSCAFZ206 (ESE Max 65 > ESE TH Max 50, PR Max 15)
+          prof.requiresEseTh = true;
+          prof.requiresEsePr = true;
+          if (prof.esePrMax === 0) prof.esePrMax = prof.eseMax - prof.eseThMax;
+          prof.maxMarks.ESE_PR = Math.max(prof.maxMarks.ESE_PR, prof.esePrMax);
+        } else if (prof.eseThMax > 0 && prof.eseMax === prof.eseThMax) {
+          // ESE TH accounts for the entire ESE Max -> Theory Only, NO ESE PR!
+          // Example: KU4DSCCOM208 (ESE Max 70 === ESE TH Max 70)
+          prof.requiresEseTh = true;
+          prof.requiresEsePr = false;
+        } else if (prof.esePrMax > 0 && prof.eseMax === prof.esePrMax) {
+          // ESE PR accounts for entire ESE Max -> Practical Only!
+          prof.requiresEseTh = false;
+          prof.requiresEsePr = true;
+        } else if (prof.hasSeenEsePr && prof.hasSeenEseTh) {
+          prof.requiresEseTh = true;
+          prof.requiresEsePr = true;
+        } else if (prof.hasSeenEsePr) {
+          prof.requiresEsePr = true;
+        } else {
+          prof.requiresEseTh = true;
+        }
+      } else {
+        // ESE Max was not explicitly stated
+        if (prof.eseThMax > 0 && prof.esePrMax > 0) {
+          prof.requiresEseTh = true;
+          prof.requiresEsePr = true;
+          prof.eseMax = prof.eseThMax + prof.esePrMax;
+        } else if (prof.esePrMax > 0 && prof.eseThMax === 0) {
+          prof.requiresEseTh = false;
+          prof.requiresEsePr = true;
+          prof.eseMax = prof.esePrMax;
+        } else if (prof.eseThMax > 0) {
+          prof.requiresEseTh = true;
+          prof.requiresEsePr = false;
+          prof.eseMax = prof.eseThMax;
+        } else if (prof.hasSeenEsePr && !prof.hasSeenEseTh) {
+          prof.requiresEsePr = true;
+        } else if (prof.hasSeenEseTh) {
+          prof.requiresEseTh = true;
+        }
+      }
+
+      // 3. Deduce CE Component Requirements
+      if (prof.ceMax > 0) {
+        if (prof.ceThMax > 0 && prof.ceMax > prof.ceThMax) {
+          // CE TH accounts for less than CE Max -> Must have CE PR!
+          prof.requiresCeTh = true;
+          prof.requiresCePr = true;
+          if (prof.cePrMax === 0) prof.cePrMax = prof.ceMax - prof.ceThMax;
+          prof.maxMarks.CE_PR = Math.max(prof.maxMarks.CE_PR, prof.cePrMax);
+        } else if (prof.ceThMax > 0 && prof.ceMax === prof.ceThMax) {
+          // CE TH accounts for entire CE Max -> Theory Only, NO CE PR!
+          prof.requiresCeTh = true;
+          prof.requiresCePr = false;
+        } else if (prof.cePrMax > 0 && prof.ceMax === prof.cePrMax) {
+          prof.requiresCeTh = false;
+          prof.requiresCePr = true;
+        } else if (prof.hasSeenCePr && prof.hasSeenCeTh) {
+          prof.requiresCeTh = true;
+          prof.requiresCePr = true;
+        } else if (prof.hasSeenCePr) {
+          prof.requiresCePr = true;
+        } else {
+          prof.requiresCeTh = true;
+        }
+      } else {
+        if (prof.ceThMax > 0 && prof.cePrMax > 0) {
+          prof.requiresCeTh = true;
+          prof.requiresCePr = true;
+          prof.ceMax = prof.ceThMax + prof.cePrMax;
+        } else if (prof.cePrMax > 0 && prof.ceThMax === 0) {
+          prof.requiresCeTh = false;
+          prof.requiresCePr = true;
+          prof.ceMax = prof.cePrMax;
+        } else if (prof.ceThMax > 0) {
+          prof.requiresCeTh = true;
+          prof.requiresCePr = false;
+          prof.ceMax = prof.ceThMax;
+        } else if (prof.hasSeenCePr && !prof.hasSeenCeTh) {
+          prof.requiresCePr = true;
+        } else if (prof.hasSeenCeTh) {
+          prof.requiresCeTh = true;
+        }
+      }
+
+      prof.hasEseTh = prof.requiresEseTh;
+      prof.hasEsePr = prof.requiresEsePr;
+      prof.hasCeTh = prof.requiresCeTh;
+      prof.hasCePr = prof.requiresCePr;
+      prof.isPrOnly = prof.requiresEsePr && !prof.requiresEseTh;
     });
 
     if (isAgg) {
@@ -451,11 +612,11 @@ export default function AdesResultCalculatorPage() {
         const malpracticeEntry = getMalpracticeEntry(prn, seat, code, currentMalpracticeMap);
         const absentEntry = getAbsentEntry(prn, seat, code, currentAbsentMap);
 
-        const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? (prof?.maxMarks?.ESE_PR || "");
+        const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || "") : "");
         const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
         let ese_pr_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained")) ?? "";
 
-        const ese_th_max = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax")) ?? (prof?.maxMarks?.ESE_TH || "");
+        const ese_th_max = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax")) ?? (prof?.requiresEseTh ? (prof?.maxMarks?.ESE_TH || "") : "");
         const ese_th_min = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Min", "ESETHMin")) ?? (ese_th_max !== "" ? 0 : "");
         let ese_th_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained")) ?? "";
 
@@ -463,13 +624,16 @@ export default function AdesResultCalculatorPage() {
         if (ese_max === null) {
           ese_max = (parseNumber(ese_pr_max) || 0) + (parseNumber(ese_th_max) || 0);
         }
+        if ((ese_max === null || ese_max === 0) && prof?.eseMax > 0) {
+          ese_max = prof.eseMax;
+        }
         let ese_min = parseNumber(getCell(row, currentHeaderMap, "ESE - Min", "ESEMin"));
         if (ese_min === null) {
           ese_min = Math.ceil(0.30 * ese_max);
         }
 
-        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0 || (prof?.hasEseTh ?? false);
-        const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0 || (prof?.hasEsePr ?? false);
+        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0 || (prof?.requiresEseTh ?? false);
+        const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0 || (prof?.requiresEsePr ?? false);
         const is_pr_only = has_ese_pr && !has_ese_th;
 
         let is_malpractice = false;
@@ -511,18 +675,18 @@ export default function AdesResultCalculatorPage() {
           const rawCePr = getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained");
           const rawCeTh = getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained");
 
-          if ((prof.hasEsePr || prof.isLecLab || has_ese_pr) && isBlank(rawEsePr)) {
+          if (prof.requiresEsePr && isBlank(rawEsePr)) {
             missingComponents.push("ESE-PR");
             ese_pr_obtained = "Missing";
           }
-          if ((prof.hasEseTh || prof.isLecLab || has_ese_th) && isBlank(rawEseTh)) {
+          if (prof.requiresEseTh && isBlank(rawEseTh)) {
             missingComponents.push("ESE-TH");
             ese_th_obtained = "Missing";
           }
-          if (prof.hasCePr && isBlank(rawCePr)) {
+          if (prof.requiresCePr && isBlank(rawCePr)) {
             missingComponents.push("CE-PR");
           }
-          if (prof.hasCeTh && isBlank(rawCeTh)) {
+          if (prof.requiresCeTh && isBlank(rawCeTh)) {
             missingComponents.push("CE-TH");
           }
         }
@@ -548,17 +712,20 @@ export default function AdesResultCalculatorPage() {
           }
         }
 
-        const ce_pr_max = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax")) ?? "";
+        const ce_pr_max = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax")) ?? (prof?.requiresCePr ? (prof?.maxMarks?.CE_PR || "") : "");
         const ce_pr_min = parseNumber(getCell(row, currentHeaderMap, "CE - PR Min", "CEPRMin")) ?? (ce_pr_max !== "" ? 0 : "");
-        const ce_pr_obtained = missingComponents.includes("CE-PR") ? "Missing" : (parseNumber(getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained")) ?? "");
+        const ce_pr_obtained = missingComponents.includes("CE-PR") ? "Missing" : (parseNumber(getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained")) ?? (prof?.requiresCePr ? "" : ""));
 
-        const ce_th_max = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax")) ?? "";
+        const ce_th_max = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax")) ?? (prof?.requiresCeTh ? (prof?.maxMarks?.CE_TH || "") : "");
         const ce_th_min = parseNumber(getCell(row, currentHeaderMap, "CE - TH Min", "CETHMin")) ?? (ce_th_max !== "" ? 0 : "");
-        const ce_th_obtained = missingComponents.includes("CE-TH") ? "Missing" : (parseNumber(getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained")) ?? "");
+        const ce_th_obtained = missingComponents.includes("CE-TH") ? "Missing" : (parseNumber(getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained")) ?? (prof?.requiresCeTh ? "" : ""));
 
         let ce_max = parseNumber(getCell(row, currentHeaderMap, "CE - Max", "CEMax"));
         if (ce_max === null) {
           ce_max = (parseNumber(ce_pr_max) || 0) + (parseNumber(ce_th_max) || 0);
+        }
+        if ((ce_max === null || ce_max === 0) && prof?.ceMax > 0) {
+          ce_max = prof.ceMax;
         }
         let ce_min = 0;
         let ce_obtained;
@@ -571,8 +738,8 @@ export default function AdesResultCalculatorPage() {
           }
         }
 
-        let overall_max = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax"));
-        if (overall_max === null) {
+        let overall_max = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax", "Course Max"));
+        if (overall_max === null || overall_max === 0) {
           overall_max = ese_max + ce_max;
         }
         let overall_min = parseNumber(getCell(row, currentHeaderMap, "Overall Minimum", "OverallMinimum", "OverallMin"));
@@ -686,10 +853,10 @@ export default function AdesResultCalculatorPage() {
       const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
       const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
 
-      const methodRaw = String(getCell(row, currentHeaderMap, "Assessment Method", "AssessmentMethod", "AM", "Method") || "").trim().toUpperCase();
-      const typeRaw = String(getCell(row, currentHeaderMap, "Assessment Type", "AssessmentType", "AT", "Type") || "").trim().toUpperCase();
+      const methodRaw = String(getCell(row, currentHeaderMap, "Assessment Method", "AssessmentMethod", "AM", "Method", "Assessment_Method") || "").trim().toUpperCase();
+      const typeRaw = String(getCell(row, currentHeaderMap, "Assessment Type", "AssessmentType", "AT", "Type", "Assessment_Type") || "").trim().toUpperCase();
       const marksRaw = parseNumber(getCell(row, currentHeaderMap, "Marks", "ObtainedMarks", "Mark", "Obtained"));
-      const atMaxRaw = parseNumber(getCell(row, currentHeaderMap, "AT Max Marks", "ATMaxMarks", "MaxMarks", "Max Marks", "Max"));
+      const atMaxRaw = parseNumber(getCell(row, currentHeaderMap, "AT Max Marks", "ATMaxMarks", "MaxMarks", "Max Marks", "Max", "AT Max", "AT_Max_Marks"));
       const rawMarksVal = getCell(row, currentHeaderMap, "Marks", "ObtainedMarks", "Mark", "Obtained");
 
       let method = "ESE";
@@ -750,28 +917,28 @@ export default function AdesResultCalculatorPage() {
 
       if (!is_malpractice && !is_absent && prof) {
         // Check ESE_PR
-        if (prof.hasEsePr || prof.isLecLab) {
+        if (prof.requiresEsePr) {
           const c = components["ESE_PR"];
           if (!c || !c.present || isBlank(c.rawMarksVal)) {
             missingComponents.push("ESE-PR");
           }
         }
         // Check ESE_TH
-        if (prof.hasEseTh || prof.isLecLab) {
+        if (prof.requiresEseTh) {
           const c = components["ESE_TH"];
           if (!c || !c.present || isBlank(c.rawMarksVal)) {
             missingComponents.push("ESE-TH");
           }
         }
         // Check CE_PR
-        if (prof.hasCePr) {
+        if (prof.requiresCePr) {
           const c = components["CE_PR"];
           if (!c || !c.present || isBlank(c.rawMarksVal)) {
             missingComponents.push("CE-PR");
           }
         }
         // Check CE_TH
-        if (prof.hasCeTh) {
+        if (prof.requiresCeTh) {
           const c = components["CE_TH"];
           if (!c || !c.present || isBlank(c.rawMarksVal)) {
             missingComponents.push("CE-TH");
@@ -781,12 +948,12 @@ export default function AdesResultCalculatorPage() {
       const is_held = missingComponents.length > 0;
 
       const ese_pr = components["ESE_PR"];
-      const ese_pr_max = (ese_pr && ese_pr.max !== null) ? ese_pr.max : (prof?.maxMarks?.ESE_PR || 0);
-      let ese_pr_obtained = (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : (missingComponents.includes("ESE-PR") ? "Missing" : 0);
+      const ese_pr_max = (ese_pr && ese_pr.max !== null) ? ese_pr.max : (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || 0) : 0);
+      let ese_pr_obtained = (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : (missingComponents.includes("ESE-PR") ? "Missing" : (prof?.requiresEsePr ? 0 : ""));
 
       const ese_th = components["ESE_TH"];
-      const ese_th_max = (ese_th && ese_th.max !== null) ? ese_th.max : (prof?.maxMarks?.ESE_TH || 0);
-      let ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : (missingComponents.includes("ESE-TH") ? "Missing" : 0);
+      const ese_th_max = (ese_th && ese_th.max !== null) ? ese_th.max : (prof?.requiresEseTh ? (prof?.maxMarks?.ESE_TH || 0) : 0);
+      let ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : (missingComponents.includes("ESE-TH") ? "Missing" : (prof?.requiresEseTh ? 0 : ""));
 
       if (is_malpractice && malpracticeEntry) {
         if (malpracticeEntry.isEseTh) {
@@ -804,7 +971,7 @@ export default function AdesResultCalculatorPage() {
         }
       }
 
-      const ese_max = ese_pr_max + ese_th_max;
+      const ese_max = Math.max(ese_pr_max + ese_th_max, prof?.eseMax || 0);
       const ese_min = Math.ceil(0.30 * ese_max);
 
       let ese_obtained;
@@ -825,14 +992,14 @@ export default function AdesResultCalculatorPage() {
       }
 
       const ce_pr = components["CE_PR"];
-      const ce_pr_max = (ce_pr && ce_pr.max !== null) ? ce_pr.max : (prof?.maxMarks?.CE_PR || 0);
-      const ce_pr_obtained = (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : (missingComponents.includes("CE-PR") ? "Missing" : 0);
+      const ce_pr_max = (ce_pr && ce_pr.max !== null) ? ce_pr.max : (prof?.requiresCePr ? (prof?.maxMarks?.CE_PR || 0) : 0);
+      const ce_pr_obtained = (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : (missingComponents.includes("CE-PR") ? "Missing" : (prof?.requiresCePr ? 0 : ""));
 
       const ce_th = components["CE_TH"];
-      const ce_th_max = (ce_th && ce_th.max !== null) ? ce_th.max : (prof?.maxMarks?.CE_TH || 0);
-      const ce_th_obtained = (ce_th && ce_th.marks !== null) ? ce_th.marks : (missingComponents.includes("CE-TH") ? "Missing" : 0);
+      const ce_th_max = (ce_th && ce_th.max !== null) ? ce_th.max : (prof?.requiresCeTh ? (prof?.maxMarks?.CE_TH || 0) : 0);
+      const ce_th_obtained = (ce_th && ce_th.marks !== null) ? ce_th.marks : (missingComponents.includes("CE-TH") ? "Missing" : (prof?.requiresCeTh ? 0 : ""));
 
-      const ce_max = ce_pr_max + ce_th_max;
+      const ce_max = Math.max(ce_pr_max + ce_th_max, prof?.ceMax || 0);
       const ce_min = 0;
       let ce_obtained;
       if (missingComponents.includes("CE-PR") || missingComponents.includes("CE-TH")) {
@@ -841,7 +1008,7 @@ export default function AdesResultCalculatorPage() {
         ce_obtained = (parseNumber(ce_pr_obtained) || 0) + (parseNumber(ce_th_obtained) || 0);
       }
 
-      const overall_max = ese_max + ce_max;
+      const overall_max = Math.max(ese_max + ce_max, prof?.courseMax || 0);
       const overall_min = Math.ceil(0.35 * overall_max);
       let course_overall;
       if (is_held) {
@@ -883,8 +1050,8 @@ export default function AdesResultCalculatorPage() {
         raw_course_pass = raw_ese_pass && raw_overall_pass;
       }
 
-      const has_ese_th = ese_th_max > 0 || (prof?.hasEseTh ?? false);
-      const has_ese_pr = ese_pr_max > 0 || (prof?.hasEsePr ?? false);
+      const has_ese_th = ese_th_max > 0 || (prof?.requiresEseTh ?? false);
+      const has_ese_pr = ese_pr_max > 0 || (prof?.requiresEsePr ?? false);
       const is_pr_only = has_ese_pr && !has_ese_th;
 
       baseRecords.push({
