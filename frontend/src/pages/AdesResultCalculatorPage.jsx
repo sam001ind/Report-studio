@@ -329,9 +329,109 @@ export default function AdesResultCalculatorPage() {
     return (hasEseOverall || hasCourseOverall) && !hasRawAssessment;
   };
 
+  // Helper to detect if Teaching Learning Method (TLM) requires both Theory and Practical
+  const isLecLabTlm = (tlmStr) => {
+    if (!tlmStr) return false;
+    const s = String(tlmStr).toLowerCase();
+    if (s.includes("lec-lab") || s.includes("lec - lab") || s.includes("lecture-lab") || s.includes("lecture - lab")) return true;
+    if (s.includes("lec-prac") || s.includes("lecture-practical") || s.includes("theory-practical") || s.includes("th-pr")) return true;
+    if ((s.includes("lec") || s.includes("theory") || s.includes("th")) && (s.includes("lab") || s.includes("prac") || s.includes("pr"))) {
+      const hasTh = s.includes("lec") || s.includes("theory");
+      const hasPr = s.includes("lab") || s.includes("prac");
+      if (hasTh && hasPr) return true;
+    }
+    return false;
+  };
+
   // Group raw assessment rows OR parse pre-aggregated rows into Student-Course Base Aggregates
   const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap, currentMalpracticeMap = malpracticeRecordsMap) => {
+    if (!rows || rows.length === 0) return [];
     const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
+
+    // Pass 1: Build expected component profiles for all courses present in the dataset
+    const courseExpectedComponentsMap = new Map();
+
+    rows.forEach(row => {
+      const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+      const norm = normalizeKey(code);
+      if (!norm) return;
+
+      if (!courseExpectedComponentsMap.has(norm)) {
+        courseExpectedComponentsMap.set(norm, {
+          courseCode: code,
+          isLecLab: false,
+          hasEseTh: false,
+          hasEsePr: false,
+          hasCeTh: false,
+          hasCePr: false,
+          maxMarks: {
+            ESE_TH: 0,
+            ESE_PR: 0,
+            CE_TH: 0,
+            CE_PR: 0
+          }
+        });
+      }
+
+      const prof = courseExpectedComponentsMap.get(norm);
+      const tlmRaw = String(getCell(row, currentHeaderMap, "TeachingLearningMethod", "TLM", "Teaching Learning Method", "Teaching_Learning_Method", "MethodType", "Course Type") || "").trim();
+      if (isLecLabTlm(tlmRaw)) {
+        prof.isLecLab = true;
+        prof.hasEseTh = true;
+        prof.hasEsePr = true;
+      }
+
+      if (isAgg) {
+        const ese_pr_m = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax"));
+        if (ese_pr_m !== null && ese_pr_m > 0) {
+          prof.hasEsePr = true;
+          prof.maxMarks.ESE_PR = Math.max(prof.maxMarks.ESE_PR, ese_pr_m);
+        }
+        const ese_th_m = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax"));
+        if (ese_th_m !== null && ese_th_m > 0) {
+          prof.hasEseTh = true;
+          prof.maxMarks.ESE_TH = Math.max(prof.maxMarks.ESE_TH, ese_th_m);
+        }
+        const ce_pr_m = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax"));
+        if (ce_pr_m !== null && ce_pr_m > 0) {
+          prof.hasCePr = true;
+          prof.maxMarks.CE_PR = Math.max(prof.maxMarks.CE_PR, ce_pr_m);
+        }
+        const ce_th_m = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax"));
+        if (ce_th_m !== null && ce_th_m > 0) {
+          prof.hasCeTh = true;
+          prof.maxMarks.CE_TH = Math.max(prof.maxMarks.CE_TH, ce_th_m);
+        }
+      } else {
+        const methodRaw = String(getCell(row, currentHeaderMap, "Assessment Method", "AssessmentMethod", "AM", "Method") || "").trim().toUpperCase();
+        const typeRaw = String(getCell(row, currentHeaderMap, "Assessment Type", "AssessmentType", "AT", "Type") || "").trim().toUpperCase();
+        const atMaxRaw = parseNumber(getCell(row, currentHeaderMap, "AT Max Marks", "ATMaxMarks", "MaxMarks", "Max Marks", "Max"));
+
+        let method = "ESE";
+        if (methodRaw.includes("CE") || methodRaw.includes("CA") || methodRaw.includes("IA") || methodRaw.includes("CCA") || methodRaw.includes("INTERNAL")) {
+          method = "CE";
+        } else if (methodRaw.includes("ESE") || methodRaw.includes("EXT") || methodRaw.includes("EXTERNAL") || methodRaw.includes("THEORY")) {
+          method = "ESE";
+        }
+
+        let type = "TH";
+        if (typeRaw.includes("PR") || typeRaw.includes("PRACTICAL") || typeRaw.includes("VIVA") || typeRaw.includes("LAB")) {
+          type = "PR";
+        } else if (typeRaw.includes("TH") || typeRaw.includes("THEORY")) {
+          type = "TH";
+        }
+
+        const compKey = method + "_" + type;
+        if (compKey === "ESE_TH") prof.hasEseTh = true;
+        if (compKey === "ESE_PR") prof.hasEsePr = true;
+        if (compKey === "CE_TH") prof.hasCeTh = true;
+        if (compKey === "CE_PR") prof.hasCePr = true;
+
+        if (atMaxRaw !== null && atMaxRaw > 0) {
+          prof.maxMarks[compKey] = Math.max(prof.maxMarks[compKey] || 0, atMaxRaw);
+        }
+      }
+    });
 
     if (isAgg) {
       const baseRecords = [];
@@ -344,15 +444,18 @@ export default function AdesResultCalculatorPage() {
         const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
         const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
 
+        const normCode = normalizeKey(code);
+        const prof = courseExpectedComponentsMap.get(normCode);
+
         // Check if this student-course has a malpractice or absent record
         const malpracticeEntry = getMalpracticeEntry(prn, seat, code, currentMalpracticeMap);
         const absentEntry = getAbsentEntry(prn, seat, code, currentAbsentMap);
 
-        const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? "";
+        const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? (prof?.maxMarks?.ESE_PR || "");
         const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
         let ese_pr_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained")) ?? "";
 
-        const ese_th_max = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax")) ?? "";
+        const ese_th_max = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax")) ?? (prof?.maxMarks?.ESE_TH || "");
         const ese_th_min = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Min", "ESETHMin")) ?? (ese_th_max !== "" ? 0 : "");
         let ese_th_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained")) ?? "";
 
@@ -365,8 +468,8 @@ export default function AdesResultCalculatorPage() {
           ese_min = Math.ceil(0.30 * ese_max);
         }
 
-        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0;
-        const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0;
+        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0 || (prof?.hasEseTh ?? false);
+        const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0 || (prof?.hasEsePr ?? false);
         const is_pr_only = has_ese_pr && !has_ese_th;
 
         let is_malpractice = false;
@@ -399,8 +502,36 @@ export default function AdesResultCalculatorPage() {
           }
         }
 
+        // Check for Missing Component(s)
+        const missingComponents = [];
+        if (!is_malpractice && !is_absent && prof) {
+          const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
+          const rawEsePr = getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained");
+          const rawEseTh = getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained");
+          const rawCePr = getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained");
+          const rawCeTh = getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained");
+
+          if ((prof.hasEsePr || prof.isLecLab || has_ese_pr) && isBlank(rawEsePr)) {
+            missingComponents.push("ESE-PR");
+            ese_pr_obtained = "Missing";
+          }
+          if ((prof.hasEseTh || prof.isLecLab || has_ese_th) && isBlank(rawEseTh)) {
+            missingComponents.push("ESE-TH");
+            ese_th_obtained = "Missing";
+          }
+          if (prof.hasCePr && isBlank(rawCePr)) {
+            missingComponents.push("CE-PR");
+          }
+          if (prof.hasCeTh && isBlank(rawCeTh)) {
+            missingComponents.push("CE-TH");
+          }
+        }
+        const is_held = missingComponents.length > 0;
+
         let ese_obtained;
-        if (is_malpractice && ese_th_obtained === "Malpractice (MP)" && (!has_ese_pr || ese_pr_obtained === "Malpractice (MP)")) {
+        if (is_held) {
+          ese_obtained = "Held";
+        } else if (is_malpractice && ese_th_obtained === "Malpractice (MP)" && (!has_ese_pr || ese_pr_obtained === "Malpractice (MP)")) {
           ese_obtained = "Malpractice (MP)";
         } else if (is_malpractice && ese_pr_obtained === "Malpractice (MP)" && !has_ese_th) {
           ese_obtained = "Malpractice (MP)";
@@ -419,20 +550,25 @@ export default function AdesResultCalculatorPage() {
 
         const ce_pr_max = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax")) ?? "";
         const ce_pr_min = parseNumber(getCell(row, currentHeaderMap, "CE - PR Min", "CEPRMin")) ?? (ce_pr_max !== "" ? 0 : "");
-        const ce_pr_obtained = parseNumber(getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained")) ?? "";
+        const ce_pr_obtained = missingComponents.includes("CE-PR") ? "Missing" : (parseNumber(getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained")) ?? "");
 
         const ce_th_max = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax")) ?? "";
         const ce_th_min = parseNumber(getCell(row, currentHeaderMap, "CE - TH Min", "CETHMin")) ?? (ce_th_max !== "" ? 0 : "");
-        const ce_th_obtained = parseNumber(getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained")) ?? "";
+        const ce_th_obtained = missingComponents.includes("CE-TH") ? "Missing" : (parseNumber(getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained")) ?? "");
 
         let ce_max = parseNumber(getCell(row, currentHeaderMap, "CE - Max", "CEMax"));
         if (ce_max === null) {
           ce_max = (parseNumber(ce_pr_max) || 0) + (parseNumber(ce_th_max) || 0);
         }
         let ce_min = 0;
-        let ce_obtained = parseNumber(getCell(row, currentHeaderMap, "CE Overall Marks ", "CE Overall Marks", "CEOverallMarks", "CEOverall"));
-        if (ce_obtained === null) {
-          ce_obtained = (parseNumber(ce_pr_obtained) || 0) + (parseNumber(ce_th_obtained) || 0);
+        let ce_obtained;
+        if (missingComponents.includes("CE-PR") || missingComponents.includes("CE-TH")) {
+          ce_obtained = "Held";
+        } else {
+          ce_obtained = parseNumber(getCell(row, currentHeaderMap, "CE Overall Marks ", "CE Overall Marks", "CEOverallMarks", "CEOverall"));
+          if (ce_obtained === null) {
+            ce_obtained = (parseNumber(ce_pr_obtained) || 0) + (parseNumber(ce_th_obtained) || 0);
+          }
         }
 
         let overall_max = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax"));
@@ -443,9 +579,14 @@ export default function AdesResultCalculatorPage() {
         if (overall_min === null) {
           overall_min = Math.ceil(0.35 * overall_max);
         }
-        let course_overall = parseNumber(getCell(row, currentHeaderMap, "Course Overall Marks ", "Course Overall Marks", "CourseOverallMarks"));
-        if (course_overall === null) {
-          course_overall = (parseNumber(ese_obtained) || 0) + ce_obtained;
+        let course_overall;
+        if (is_held) {
+          course_overall = "Held";
+        } else {
+          course_overall = parseNumber(getCell(row, currentHeaderMap, "Course Overall Marks ", "Course Overall Marks", "CourseOverallMarks"));
+          if (course_overall === null) {
+            course_overall = (parseNumber(ese_obtained) || 0) + (parseNumber(ce_obtained) || 0);
+          }
         }
 
         let ese_deficit = 0;
@@ -454,7 +595,13 @@ export default function AdesResultCalculatorPage() {
         let raw_overall_pass = false;
         let raw_course_pass = false;
 
-        if (is_malpractice) {
+        if (is_held) {
+          raw_ese_pass = false;
+          raw_overall_pass = false;
+          raw_course_pass = false;
+          ese_deficit = 999;
+          overall_deficit = 999;
+        } else if (is_malpractice) {
           raw_ese_pass = false;
           raw_overall_pass = false;
           raw_course_pass = false;
@@ -469,7 +616,7 @@ export default function AdesResultCalculatorPage() {
         } else {
           const numEse = parseNumber(ese_obtained) || 0;
           ese_deficit = Math.max(0, ese_min - numEse);
-          overall_deficit = Math.max(0, overall_min - course_overall);
+          overall_deficit = Math.max(0, overall_min - (parseNumber(course_overall) || 0));
           raw_ese_pass = ese_deficit === 0;
           raw_overall_pass = overall_deficit === 0;
           raw_course_pass = raw_ese_pass && raw_overall_pass;
@@ -519,7 +666,9 @@ export default function AdesResultCalculatorPage() {
           is_malpractice,
           malpractice_status,
           malpractice_remarks,
-          malpractice_date
+          malpractice_date,
+          is_held,
+          missing_components: missingComponents
         });
       });
 
@@ -541,6 +690,7 @@ export default function AdesResultCalculatorPage() {
       const typeRaw = String(getCell(row, currentHeaderMap, "Assessment Type", "AssessmentType", "AT", "Type") || "").trim().toUpperCase();
       const marksRaw = parseNumber(getCell(row, currentHeaderMap, "Marks", "ObtainedMarks", "Mark", "Obtained"));
       const atMaxRaw = parseNumber(getCell(row, currentHeaderMap, "AT Max Marks", "ATMaxMarks", "MaxMarks", "Max Marks", "Max"));
+      const rawMarksVal = getCell(row, currentHeaderMap, "Marks", "ObtainedMarks", "Mark", "Obtained");
 
       let method = "ESE";
       if (methodRaw.includes("CE") || methodRaw.includes("CA") || methodRaw.includes("IA") || methodRaw.includes("CCA") || methodRaw.includes("INTERNAL")) {
@@ -561,21 +711,29 @@ export default function AdesResultCalculatorPage() {
       if (!groups.has(groupKey)) {
         groups.set(groupKey, {
           identifiers: { faculty, program, seat, prn, code, name },
-          components: {}
+          components: {},
+          tlm: ""
         });
       }
 
       const group = groups.get(groupKey);
+      const tlmVal = String(getCell(row, currentHeaderMap, "TeachingLearningMethod", "TLM", "Teaching Learning Method", "Teaching_Learning_Method", "MethodType", "Course Type") || "").trim();
+      if (tlmVal) group.tlm = tlmVal;
+
       group.components[method + "_" + type] = {
         marks: marksRaw !== null ? marksRaw : null,
         max: atMaxRaw !== null ? atMaxRaw : null,
-        present: true
+        present: true,
+        rawMarksVal
       };
     });
 
     const baseRecords = [];
 
     groups.forEach(({ identifiers, components }) => {
+      const normCode = normalizeKey(identifiers.code);
+      const prof = courseExpectedComponentsMap.get(normCode);
+
       const malpracticeEntry = getMalpracticeEntry(identifiers.prn, identifiers.seat, identifiers.code, currentMalpracticeMap);
       const is_malpractice = !!malpracticeEntry;
       const malpractice_status = malpracticeEntry ? malpracticeEntry.status : "";
@@ -586,13 +744,49 @@ export default function AdesResultCalculatorPage() {
       const is_absent = !is_malpractice && !!absentEntry;
       const absent_status = absentEntry ? absentEntry.status : "";
 
+      // Check for Missing Component(s)
+      const missingComponents = [];
+      const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
+
+      if (!is_malpractice && !is_absent && prof) {
+        // Check ESE_PR
+        if (prof.hasEsePr || prof.isLecLab) {
+          const c = components["ESE_PR"];
+          if (!c || !c.present || isBlank(c.rawMarksVal)) {
+            missingComponents.push("ESE-PR");
+          }
+        }
+        // Check ESE_TH
+        if (prof.hasEseTh || prof.isLecLab) {
+          const c = components["ESE_TH"];
+          if (!c || !c.present || isBlank(c.rawMarksVal)) {
+            missingComponents.push("ESE-TH");
+          }
+        }
+        // Check CE_PR
+        if (prof.hasCePr) {
+          const c = components["CE_PR"];
+          if (!c || !c.present || isBlank(c.rawMarksVal)) {
+            missingComponents.push("CE-PR");
+          }
+        }
+        // Check CE_TH
+        if (prof.hasCeTh) {
+          const c = components["CE_TH"];
+          if (!c || !c.present || isBlank(c.rawMarksVal)) {
+            missingComponents.push("CE-TH");
+          }
+        }
+      }
+      const is_held = missingComponents.length > 0;
+
       const ese_pr = components["ESE_PR"];
-      const ese_pr_max = (ese_pr && ese_pr.max !== null) ? ese_pr.max : 0;
-      let ese_pr_obtained = (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : 0;
+      const ese_pr_max = (ese_pr && ese_pr.max !== null) ? ese_pr.max : (prof?.maxMarks?.ESE_PR || 0);
+      let ese_pr_obtained = (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : (missingComponents.includes("ESE-PR") ? "Missing" : 0);
 
       const ese_th = components["ESE_TH"];
-      const ese_th_max = (ese_th && ese_th.max !== null) ? ese_th.max : 0;
-      let ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : 0;
+      const ese_th_max = (ese_th && ese_th.max !== null) ? ese_th.max : (prof?.maxMarks?.ESE_TH || 0);
+      let ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : (missingComponents.includes("ESE-TH") ? "Missing" : 0);
 
       if (is_malpractice && malpracticeEntry) {
         if (malpracticeEntry.isEseTh) {
@@ -614,7 +808,9 @@ export default function AdesResultCalculatorPage() {
       const ese_min = Math.ceil(0.30 * ese_max);
 
       let ese_obtained;
-      if (is_malpractice && ese_th_obtained === "Malpractice (MP)" && (ese_pr_max === 0 || ese_pr_obtained === "Malpractice (MP)")) {
+      if (is_held) {
+        ese_obtained = "Held";
+      } else if (is_malpractice && ese_th_obtained === "Malpractice (MP)" && (ese_pr_max === 0 || ese_pr_obtained === "Malpractice (MP)")) {
         ese_obtained = "Malpractice (MP)";
       } else if (is_malpractice && ese_pr_obtained === "Malpractice (MP)" && ese_th_max === 0) {
         ese_obtained = "Malpractice (MP)";
@@ -629,20 +825,30 @@ export default function AdesResultCalculatorPage() {
       }
 
       const ce_pr = components["CE_PR"];
-      const ce_pr_max = (ce_pr && ce_pr.max !== null) ? ce_pr.max : 0;
-      const ce_pr_obtained = (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : 0;
+      const ce_pr_max = (ce_pr && ce_pr.max !== null) ? ce_pr.max : (prof?.maxMarks?.CE_PR || 0);
+      const ce_pr_obtained = (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : (missingComponents.includes("CE-PR") ? "Missing" : 0);
 
       const ce_th = components["CE_TH"];
-      const ce_th_max = (ce_th && ce_th.max !== null) ? ce_th.max : 0;
-      const ce_th_obtained = (ce_th && ce_th.marks !== null) ? ce_th.marks : 0;
+      const ce_th_max = (ce_th && ce_th.max !== null) ? ce_th.max : (prof?.maxMarks?.CE_TH || 0);
+      const ce_th_obtained = (ce_th && ce_th.marks !== null) ? ce_th.marks : (missingComponents.includes("CE-TH") ? "Missing" : 0);
 
       const ce_max = ce_pr_max + ce_th_max;
       const ce_min = 0;
-      const ce_obtained = ce_pr_obtained + ce_th_obtained;
+      let ce_obtained;
+      if (missingComponents.includes("CE-PR") || missingComponents.includes("CE-TH")) {
+        ce_obtained = "Held";
+      } else {
+        ce_obtained = (parseNumber(ce_pr_obtained) || 0) + (parseNumber(ce_th_obtained) || 0);
+      }
 
       const overall_max = ese_max + ce_max;
       const overall_min = Math.ceil(0.35 * overall_max);
-      const course_overall = (parseNumber(ese_obtained) || 0) + ce_obtained;
+      let course_overall;
+      if (is_held) {
+        course_overall = "Held";
+      } else {
+        course_overall = (parseNumber(ese_obtained) || 0) + (parseNumber(ce_obtained) || 0);
+      }
 
       let ese_deficit = 0;
       let overall_deficit = 0;
@@ -650,7 +856,13 @@ export default function AdesResultCalculatorPage() {
       let raw_overall_pass = false;
       let raw_course_pass = false;
 
-      if (is_malpractice) {
+      if (is_held) {
+        raw_ese_pass = false;
+        raw_overall_pass = false;
+        raw_course_pass = false;
+        ese_deficit = 999;
+        overall_deficit = 999;
+      } else if (is_malpractice) {
         raw_ese_pass = false;
         raw_overall_pass = false;
         raw_course_pass = false;
@@ -665,14 +877,14 @@ export default function AdesResultCalculatorPage() {
       } else {
         const numEse = parseNumber(ese_obtained) || 0;
         ese_deficit = Math.max(0, ese_min - numEse);
-        overall_deficit = Math.max(0, overall_min - course_overall);
+        overall_deficit = Math.max(0, overall_min - (parseNumber(course_overall) || 0));
         raw_ese_pass = ese_deficit === 0;
         raw_overall_pass = overall_deficit === 0;
         raw_course_pass = raw_ese_pass && raw_overall_pass;
       }
 
-      const has_ese_th = ese_th_max > 0;
-      const has_ese_pr = ese_pr_max > 0;
+      const has_ese_th = ese_th_max > 0 || (prof?.hasEseTh ?? false);
+      const has_ese_pr = ese_pr_max > 0 || (prof?.hasEsePr ?? false);
       const is_pr_only = has_ese_pr && !has_ese_th;
 
       baseRecords.push({
@@ -684,27 +896,27 @@ export default function AdesResultCalculatorPage() {
           "Course Name": identifiers.name,
           "Seat Number": identifiers.seat,
           "PRN": identifiers.prn,
-          "ESE - PR Max": (ese_pr && ese_pr.max !== null) ? ese_pr.max : "",
+          "ESE - PR Max": ese_pr_max !== 0 ? ese_pr_max : "",
           "ESE - PR Min": "",
-          "ESE - PR Obtained": (ese_pr && ese_pr_obtained === "Malpractice (MP)") ? "Malpractice (MP)" : ((ese_pr && ese_pr_obtained === "Absent (Ab)") ? "Absent (Ab)" : ((ese_pr && ese_pr.marks !== null) ? ese_pr.marks : "")),
-          "ESE - TH Max": (ese_th && ese_th.max !== null) ? ese_th.max : "",
-          "ESE - TH Min": ese_th ? 0 : "",
-          "ESE - TH Obtained": (ese_th && ese_th_obtained === "Malpractice (MP)") ? "Malpractice (MP)" : ((ese_th && ese_th_obtained === "Absent (Ab)") ? "Absent (Ab)" : ((ese_th && ese_th.marks !== null) ? ese_th.marks : "")),
+          "ESE - PR Obtained": (ese_pr && ese_pr_obtained === "Malpractice (MP)") ? "Malpractice (MP)" : ((ese_pr && ese_pr_obtained === "Absent (Ab)") ? "Absent (Ab)" : ese_pr_obtained),
+          "ESE - TH Max": ese_th_max !== 0 ? ese_th_max : "",
+          "ESE - TH Min": ese_th_max > 0 ? 0 : "",
+          "ESE - TH Obtained": (ese_th && ese_th_obtained === "Malpractice (MP)") ? "Malpractice (MP)" : ((ese_th && ese_th_obtained === "Absent (Ab)") ? "Absent (Ab)" : ese_th_obtained),
           "ESE - Max": Math.round(ese_max),
           "ESE - Min": ese_min,
-          "ESE Overall": ese_obtained === "Malpractice (MP)" ? "Malpractice (MP)" : (ese_obtained === "Absent (Ab)" ? "Absent (Ab)" : Math.round(ese_obtained)),
-          "CE - PR Max": (ce_pr && ce_pr.max !== null) ? ce_pr.max : "",
-          "CE - PR Min": ce_pr ? 0 : "",
-          "CE - PR Obtained": (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : "",
-          "CE - TH Max": (ce_th && ce_th.max !== null) ? ce_th.max : "",
-          "CE - TH Min": ce_th ? 0 : "",
-          "CE - TH Obtained": (ce_th && ce_th.marks !== null) ? ce_th.marks : "",
+          "ESE Overall": is_held ? "Held" : (ese_obtained === "Malpractice (MP)" ? "Malpractice (MP)" : (ese_obtained === "Absent (Ab)" ? "Absent (Ab)" : Math.round(ese_obtained))),
+          "CE - PR Max": ce_pr_max !== 0 ? ce_pr_max : "",
+          "CE - PR Min": ce_pr_max > 0 ? 0 : "",
+          "CE - PR Obtained": ce_pr_obtained,
+          "CE - TH Max": ce_th_max !== 0 ? ce_th_max : "",
+          "CE - TH Min": ce_th_max > 0 ? 0 : "",
+          "CE - TH Obtained": ce_th_obtained,
           "CE - Max": Math.round(ce_max),
           "CE - Min": ce_min,
-          "CE Overall Marks ": Math.round(ce_obtained),
+          "CE Overall Marks ": is_held && (ce_obtained === "Held") ? "Held" : Math.round(parseNumber(ce_obtained) || 0),
           "Overall Maximum": overall_max,
           "Overall Minimum": overall_min,
-          "Course Overall Marks ": course_overall,
+          "Course Overall Marks ": is_held ? "Held" : course_overall,
         },
         has_ese_th,
         has_ese_pr,
@@ -719,7 +931,9 @@ export default function AdesResultCalculatorPage() {
         is_malpractice,
         malpractice_status,
         malpractice_remarks,
-        malpractice_date
+        malpractice_date,
+        is_held,
+        missing_components: missingComponents
       });
     });
 
@@ -750,13 +964,17 @@ export default function AdesResultCalculatorPage() {
           rawFailed: 0,
           absentCount: 0,
           malpracticeCount: 0,
+          heldCount: 0,
           nearPassCount: 0
         });
       }
 
       const item = map.get(norm);
       item.totalStudents++;
-      if (rec.is_malpractice) {
+      if (rec.is_held) {
+        item.heldCount = (item.heldCount || 0) + 1;
+        // Held papers are uncalculated: not rawPassed and not in nearPassCount
+      } else if (rec.is_malpractice) {
         item.malpracticeCount = (item.malpracticeCount || 0) + 1;
         item.rawFailed++;
         // Malpractice students cannot be rescued by moderation; do not count in nearPassCount
@@ -785,6 +1003,31 @@ export default function AdesResultCalculatorPage() {
       const normCode = normalizeKey(rec.identifiers.code);
       const modLimit = courseModerationMap[normCode] || 0;
 
+      // Held / Missing Component Handling: Never eligible for moderation, Result Held
+      if (rec.is_held) {
+        row["ESE Pass"] = "Held";
+        row["Overall pass"] = "Held";
+        row["Course Pass/Fail"] = "Held (Missing Component)";
+        row["Moderation Marks"] = 0;
+
+        row._rawPass = false;
+        row._isModeratedPass = false;
+        row._isAbsent = false;
+        row._absentStatus = "";
+        row._isMalpractice = false;
+        row._malpracticeStatus = "";
+        row._malpracticeRemarks = "";
+        row._malpracticeDate = "";
+        row._isHeld = true;
+        row._missingComponents = rec.missing_components || [];
+        row._modLimit = modLimit;
+        row._isEligibleForMod = false;
+        row._isPrOnly = rec.is_pr_only;
+        row._eseDeficit = 999;
+        row._overallDeficit = 999;
+        return row;
+      }
+
       // Malpractice Student Handling: Never eligible for moderation, automatically Fail
       if (rec.is_malpractice) {
         row["ESE Pass"] = "Fail";
@@ -800,6 +1043,8 @@ export default function AdesResultCalculatorPage() {
         row._malpracticeStatus = rec.malpractice_status || "EHB";
         row._malpracticeRemarks = rec.malpractice_remarks || "";
         row._malpracticeDate = rec.malpractice_date || "";
+        row._isHeld = false;
+        row._missingComponents = [];
         row._modLimit = modLimit;
         row._isEligibleForMod = false;
         row._isPrOnly = rec.is_pr_only;
@@ -823,6 +1068,8 @@ export default function AdesResultCalculatorPage() {
         row._malpracticeStatus = "";
         row._malpracticeRemarks = "";
         row._malpracticeDate = "";
+        row._isHeld = false;
+        row._missingComponents = [];
         row._modLimit = modLimit;
         row._isEligibleForMod = false;
         row._isPrOnly = rec.is_pr_only;
@@ -865,6 +1112,8 @@ export default function AdesResultCalculatorPage() {
       row._malpracticeStatus = "";
       row._malpracticeRemarks = "";
       row._malpracticeDate = "";
+      row._isHeld = false;
+      row._missingComponents = [];
       row._modLimit = modLimit;
       row._isEligibleForMod = isEligibleForModeration;
       row._isPrOnly = rec.is_pr_only;
@@ -899,6 +1148,7 @@ export default function AdesResultCalculatorPage() {
           isPrOnly: rec.is_pr_only,
           isEligible: rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration),
           totalStudents: 0,
+          heldCount: 0,
           absentCount: 0,
           malpracticeCount: 0,
           rawEsePassCount: 0,       // 30% ESE Rule Pass Count
@@ -912,6 +1162,12 @@ export default function AdesResultCalculatorPage() {
 
       const item = map.get(norm);
       item.totalStudents++;
+
+      // Held (Missing Component) records are strictly excluded from pass calculations at all moderation levels
+      if (rec.is_held) {
+        item.heldCount = (item.heldCount || 0) + 1;
+        return;
+      }
 
       // Absent or Malpractice students are strictly excluded from pass counts at all moderation levels
       if (rec.is_malpractice) {
@@ -1176,6 +1432,7 @@ export default function AdesResultCalculatorPage() {
 
   // Student-Level Semester Pass/Fail Evaluation
   // Rule: A student is "Pass" in the Semester ONLY IF they pass ALL attempted papers in that semester/term.
+  // If any paper is Held (missing component), the student's semester result is Held.
   const studentSemesterData = useMemo(() => {
     const map = new Map();
 
@@ -1201,6 +1458,7 @@ export default function AdesResultCalculatorPage() {
           rawFailedCourses: 0,
           finalPassedCourses: 0,
           finalFailedCourses: 0,
+          heldCourses: 0,
           totalModerationMarks: 0,
           courses: []
         });
@@ -1212,6 +1470,10 @@ export default function AdesResultCalculatorPage() {
       const isRawCoursePass = row._rawPass;
       const isFinalCoursePass = row["Course Pass/Fail"] === "Pass";
       const modMarks = row["Moderation Marks"] || 0;
+
+      if (row._isHeld) {
+        st.heldCourses = (st.heldCourses || 0) + 1;
+      }
 
       if (isRawCoursePass) {
         st.rawPassedCourses++;
@@ -1249,6 +1511,8 @@ export default function AdesResultCalculatorPage() {
         malpracticeStatus: row._malpracticeStatus || "",
         malpracticeRemarks: row._malpracticeRemarks || "",
         malpracticeDate: row._malpracticeDate || "",
+        isHeld: !!row._isHeld,
+        missingComponents: row._missingComponents || [],
         modMarks,
         eseOverall: row["ESE Overall"],
         eseMin: row["ESE - Min"],
@@ -1258,18 +1522,34 @@ export default function AdesResultCalculatorPage() {
     });
 
     const list = Array.from(map.values()).map(st => {
-      // Semester Pass Condition: Passed ALL attempted courses
-      const rawSemesterPass = st.rawFailedCourses === 0;
-      const finalSemesterPass = st.finalFailedCourses === 0;
-      const isRescuedSemester = !rawSemesterPass && finalSemesterPass;
+      const hasHeld = (st.heldCourses || 0) > 0;
+      let semesterResult = "Fail";
+      let rawSemesterResult = "Fail";
+      let finalSemesterPass = false;
+      let rawSemesterPass = false;
+
+      if (hasHeld) {
+        semesterResult = "Held";
+        rawSemesterResult = "Held";
+        finalSemesterPass = false;
+        rawSemesterPass = false;
+      } else {
+        rawSemesterPass = st.rawFailedCourses === 0;
+        finalSemesterPass = st.finalFailedCourses === 0;
+        semesterResult = finalSemesterPass ? "Pass" : "Fail";
+        rawSemesterResult = rawSemesterPass ? "Pass" : "Fail";
+      }
+
+      const isRescuedSemester = !hasHeld && !rawSemesterPass && finalSemesterPass;
 
       return {
         ...st,
+        isHeld: hasHeld,
         rawSemesterPass,
         finalSemesterPass,
         isRescuedSemester,
-        semesterResult: finalSemesterPass ? "Pass" : "Fail",
-        rawSemesterResult: rawSemesterPass ? "Pass" : "Fail"
+        semesterResult,
+        rawSemesterResult
       };
     });
 
@@ -1293,6 +1573,8 @@ export default function AdesResultCalculatorPage() {
         finalPassedPct: "0.0",
         failedStudents: 0,
         failedPct: "0.0",
+        heldStudents: 0,
+        heldPct: "0.0",
         rescuedStudents: 0,
         rescuedPct: "0.0",
         absentStudents: 0,
@@ -1307,18 +1589,23 @@ export default function AdesResultCalculatorPage() {
     let rescuedStudents = 0;
     let absentStudents = 0;
     let malpracticeStudents = 0;
+    let heldStudents = 0;
     let totalPapersAttempted = 0;
 
     studentSemesterData.forEach(st => {
       totalPapersAttempted += st.totalCourses;
-      if (st.rawSemesterPass) rawPassedStudents++;
-      if (st.finalSemesterPass) finalPassedStudents++;
-      if (st.isRescuedSemester) rescuedStudents++;
+      if (st.isHeld) {
+        heldStudents++;
+      } else {
+        if (st.rawSemesterPass) rawPassedStudents++;
+        if (st.finalSemesterPass) finalPassedStudents++;
+        if (st.isRescuedSemester) rescuedStudents++;
+      }
       if ((st.absentCourses || 0) > 0) absentStudents++;
       if ((st.malpracticeCourses || 0) > 0) malpracticeStudents++;
     });
 
-    const failedStudents = total - finalPassedStudents;
+    const failedStudents = total - finalPassedStudents - heldStudents;
 
     return {
       totalStudents: total,
@@ -1328,6 +1615,8 @@ export default function AdesResultCalculatorPage() {
       finalPassedPct: ((finalPassedStudents / total) * 100).toFixed(1),
       failedStudents,
       failedPct: ((failedStudents / total) * 100).toFixed(1),
+      heldStudents,
+      heldPct: ((heldStudents / total) * 100).toFixed(1),
       rescuedStudents,
       rescuedPct: ((rescuedStudents / total) * 100).toFixed(1),
       absentStudents,
@@ -1344,7 +1633,9 @@ export default function AdesResultCalculatorPage() {
     if (studentFilterStatus === "PASS") {
       list = list.filter(st => st.finalSemesterPass);
     } else if (studentFilterStatus === "FAIL") {
-      list = list.filter(st => !st.finalSemesterPass);
+      list = list.filter(st => !st.finalSemesterPass && !st.isHeld);
+    } else if (studentFilterStatus === "HELD") {
+      list = list.filter(st => st.isHeld);
     } else if (studentFilterStatus === "RESCUED") {
       list = list.filter(st => st.isRescuedSemester);
     } else if (studentFilterStatus === "ABSENT") {
@@ -1360,6 +1651,7 @@ export default function AdesResultCalculatorPage() {
         st.seatNumber.toLowerCase().includes(q) ||
         st.program.toLowerCase().includes(q) ||
         st.faculty.toLowerCase().includes(q) ||
+        (q === "held" && st.isHeld) ||
         st.courses.some(c => (c.courseCode && c.courseCode.toLowerCase().includes(q)) || (c.courseName && c.courseName.toLowerCase().includes(q)))
       );
     }
@@ -2077,6 +2369,7 @@ export default function AdesResultCalculatorPage() {
       "Course Name",
       "Component Type",
       "Total Students",
+      "Held (Missing Component)",
       "30% ESE Pass (0 Mod)",
       "30% ESE Pass %",
       "35% Overall Pass (0 Mod)",
@@ -2098,6 +2391,7 @@ export default function AdesResultCalculatorPage() {
     ];
 
     let totalAllStudents = 0;
+    let totalAllHeld = 0;
     let totalAllRawEsePass = 0;
     let totalAllRawOverallPass = 0;
     let totalAllRawPass = 0;
@@ -2105,6 +2399,7 @@ export default function AdesResultCalculatorPage() {
 
     const rows = courseSimulationData.map(c => {
       totalAllStudents += c.totalStudents;
+      totalAllHeld += (c.heldCount || 0);
       totalAllRawEsePass += c.rawEsePassCount;
       totalAllRawOverallPass += c.rawOverallPassCount;
       totalAllRawPass += c.rawPassCount;
@@ -2127,6 +2422,7 @@ export default function AdesResultCalculatorPage() {
         c.courseName,
         compType,
         c.totalStudents,
+        c.heldCount || 0,
         c.rawEsePassCount,
         rawEsePct,
         c.rawOverallPassCount,
@@ -2162,6 +2458,7 @@ export default function AdesResultCalculatorPage() {
       "-",
       "-",
       totalAllStudents,
+      totalAllHeld,
       totalAllRawEsePass,
       overallRawEsePct,
       totalAllRawOverallPass,
@@ -2194,6 +2491,7 @@ export default function AdesResultCalculatorPage() {
       { wch: 32 }, // Course Name
       { wch: 16 }, // Component Type
       { wch: 14 }, // Total Students
+      { wch: 22 }, // Held (Missing Component)
       { wch: 20 }, // 30% ESE Pass
       { wch: 15 }, // 30% ESE Pass %
       { wch: 22 }, // 35% Overall Pass
@@ -2364,13 +2662,14 @@ export default function AdesResultCalculatorPage() {
   // Statistics Metrics
   const metrics = useMemo(() => {
     const total = processedRows.length;
-    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0, malpracticeCount: 0 };
+    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, heldCount: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0, malpracticeCount: 0 };
 
     const prnSet = new Set();
     let rawPassed = 0;
     let moderatedPassed = 0;
     let totalPassed = 0;
     let failed = 0;
+    let heldCount = 0;
     let eseFailed = 0;
     let overallFailed = 0;
     let absentCount = 0;
@@ -2383,6 +2682,11 @@ export default function AdesResultCalculatorPage() {
     processedRows.forEach(r => {
       if (r["PRN"]) prnSet.add(r["PRN"]);
       
+      if (r._isHeld) {
+        heldCount++;
+        return;
+      }
+
       if (r._isMalpractice) {
         malpracticeCount++;
       } else if (r._isAbsent) {
@@ -2405,6 +2709,10 @@ export default function AdesResultCalculatorPage() {
       }
     });
 
+    const evaluatedTotal = total - heldCount;
+    const passPct = evaluatedTotal > 0 ? ((totalPassed / evaluatedTotal) * 100).toFixed(1) : "0.0";
+    const rawPassPct = evaluatedTotal > 0 ? ((rawPassed / evaluatedTotal) * 100).toFixed(1) : "0.0";
+
     return {
       total,
       uniqueStudents: prnSet.size,
@@ -2412,8 +2720,9 @@ export default function AdesResultCalculatorPage() {
       moderatedPassed,
       totalPassed,
       failed,
-      passPct: ((totalPassed / total) * 100).toFixed(1),
-      rawPassPct: ((rawPassed / total) * 100).toFixed(1),
+      heldCount,
+      passPct,
+      rawPassPct,
       eseFailed,
       overallFailed,
       absentCount,
@@ -2436,6 +2745,8 @@ export default function AdesResultCalculatorPage() {
       result = result.filter(r => r._isModeratedPass);
     } else if (selectedResultFilter === "FAIL") {
       result = result.filter(r => r[coursePassKey] === "Fail");
+    } else if (selectedResultFilter === "HELD") {
+      result = result.filter(r => r._isHeld);
     } else if (selectedResultFilter === "ESE_FAIL") {
       result = result.filter(r => r[esePassKey] === "Fail");
     } else if (selectedResultFilter === "OVERALL_FAIL") {
@@ -3067,6 +3378,12 @@ export default function AdesResultCalculatorPage() {
                   <span>Course Papers Failed:</span>
                   <strong>{metrics.failed} ({(100 - metrics.passPct).toFixed(1)}%)</strong>
                 </div>
+                {metrics.heldCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#9333ea" }}>
+                    <span>Held (Missing Component):</span>
+                    <strong>{metrics.heldCount}</strong>
+                  </div>
+                )}
               </div>
 
               {/* Failure Breakdown */}
@@ -3299,6 +3616,15 @@ export default function AdesResultCalculatorPage() {
                   >
                     Rescued ({studentMetrics.rescuedStudents})
                   </button>
+                  {studentMetrics.heldStudents > 0 && (
+                    <button 
+                      type="button"
+                      onClick={() => setStudentFilterStatus("HELD")}
+                      style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "HELD" ? "#9333ea" : "transparent", color: studentFilterStatus === "HELD" ? "white" : "#9333ea" }}
+                    >
+                      Held ({studentMetrics.heldStudents})
+                    </button>
+                  )}
                   {studentMetrics.absentStudents > 0 && (
                     <button 
                       type="button"
@@ -3356,7 +3682,11 @@ export default function AdesResultCalculatorPage() {
                               style={{ 
                                 borderBottom: isExpanded ? "none" : "1px solid var(--line)", 
                                 cursor: "pointer",
-                                background: isExpanded ? "rgba(59, 130, 246, 0.05)" : "transparent"
+                                background: isExpanded 
+                                  ? "rgba(59, 130, 246, 0.05)" 
+                                  : st.isHeld 
+                                    ? "rgba(147, 51, 234, 0.04)" 
+                                    : "transparent"
                               }}
                             >
                               <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)" }}>
@@ -3393,14 +3723,18 @@ export default function AdesResultCalculatorPage() {
                               <td style={{ padding: "10px 12px", textAlign: "center" }}>
                                 <span style={{ 
                                   fontSize: "11px", 
-                                  fontWeight: 600,
-                                  color: st.rawSemesterPass ? "#10b981" : "#ef4444"
+                                  fontWeight: 600, 
+                                  color: st.isHeld ? "#7e22ce" : st.rawSemesterPass ? "#10b981" : "#ef4444" 
                                 }}>
                                   {st.rawSemesterResult}
                                 </span>
                               </td>
                               <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                                {st.isRescuedSemester ? (
+                                {st.isHeld ? (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(147, 51, 234, 0.15)", color: "#7e22ce", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
+                                    <AlertTriangle size={12} /> Held ({st.heldCourses} {st.heldCourses === 1 ? "Paper" : "Papers"} Missing)
+                                  </span>
+                                ) : st.isRescuedSemester ? (
                                   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(245, 158, 11, 0.15)", color: "#d97706", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
                                     <Sparkles size={12} /> Pass (Rescued)
                                   </span>
@@ -3443,11 +3777,15 @@ export default function AdesResultCalculatorPage() {
                                       </thead>
                                       <tbody>
                                         {st.courses.map((c, cIdx) => (
-                                          <tr key={cIdx} style={{ borderBottom: "1px solid var(--line)", background: c.coursePass === "Pass" ? "transparent" : "rgba(239, 68, 68, 0.03)" }}>
+                                          <tr key={cIdx} style={{ borderBottom: "1px solid var(--line)", background: c.coursePass === "Pass" ? "transparent" : c.isHeld ? "rgba(147, 51, 234, 0.04)" : "rgba(239, 68, 68, 0.03)" }}>
                                             <td style={{ padding: "6px 10px", fontWeight: 600 }}>{c.courseCode}</td>
                                             <td style={{ padding: "6px 10px" }}>{c.courseName}</td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.isAbsent ? (
+                                              {c.isHeld ? (
+                                                <span style={{ color: "#7e22ce", fontWeight: 700, background: "rgba(147, 51, 234, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
+                                                  Held
+                                                </span>
+                                              ) : c.isAbsent ? (
                                                 <span style={{ color: "#dc2626", fontWeight: 700, background: "rgba(239, 68, 68, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
                                                   Absent (Ab)
                                                 </span>
@@ -3456,12 +3794,18 @@ export default function AdesResultCalculatorPage() {
                                               ) : "-"}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.courseOverall !== null ? `${c.courseOverall} / ${c.overallMin ?? "-"}` : "-"}
+                                              {c.isHeld ? (
+                                                <span style={{ color: "#7e22ce", fontWeight: 700, background: "rgba(147, 51, 234, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
+                                                  Held
+                                                </span>
+                                              ) : c.courseOverall !== null ? (
+                                                `${c.courseOverall} / ${c.overallMin ?? "-"}`
+                                              ) : "-"}
                                             </td>
-                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.esePass === "Pass" ? "#10b981" : "#ef4444" }}>
+                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.isHeld ? "#7e22ce" : c.esePass === "Pass" ? "#10b981" : "#ef4444" }}>
                                               {c.esePass || "-"}
                                             </td>
-                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.overallPass === "Pass" ? "#10b981" : "#ef4444" }}>
+                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.isHeld ? "#7e22ce" : c.overallPass === "Pass" ? "#10b981" : "#ef4444" }}>
                                               {c.overallPass || "-"}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
@@ -3472,7 +3816,11 @@ export default function AdesResultCalculatorPage() {
                                               )}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.isMalpractice ? (
+                                              {c.isHeld ? (
+                                                <span style={{ color: "#7e22ce", fontWeight: 700, background: "rgba(147, 51, 234, 0.15)", padding: "2px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }} title={`Missing: ${c.missingComponents && c.missingComponents.length > 0 ? c.missingComponents.join(", ") : "Required Component"}`}>
+                                                  <AlertTriangle size={11} /> Held (Missing {c.missingComponents && c.missingComponents.length > 0 ? c.missingComponents.join(", ") : "Component"})
+                                                </span>
+                                              ) : c.isMalpractice ? (
                                                 <span style={{ color: "#b45309", fontWeight: 700, background: "rgba(245, 158, 11, 0.15)", padding: "2px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }} title={`Status: ${c.malpracticeStatus || "EHB"}${c.malpracticeRemarks ? ` | ${c.malpracticeRemarks}` : ""}${c.malpracticeDate ? ` | ${c.malpracticeDate}` : ""}`}>
                                                   <ShieldAlert size={11} /> Fail (MP)
                                                 </span>
@@ -3918,7 +4266,14 @@ export default function AdesResultCalculatorPage() {
                                 </span>
                               )}
                             </td>
-                            <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>{c.totalStudents}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>
+                              {c.totalStudents}
+                              {c.heldCount > 0 && (
+                                <div style={{ fontSize: "9.5px", color: "#9333ea", fontWeight: 600 }} title={`${c.heldCount} student paper(s) held due to missing component(s)`}>
+                                  {c.heldCount} held
+                                </div>
+                              )}
+                            </td>
                             <td style={{ padding: "8px 12px", textAlign: "center", color: c.rawFailed > 0 ? "#ef4444" : "var(--muted)", fontWeight: c.rawFailed > 0 ? 600 : 400 }}>
                               {c.rawFailed}
                             </td>
@@ -4187,7 +4542,14 @@ export default function AdesResultCalculatorPage() {
                                 <span style={{ fontSize: "10.5px", color: "var(--muted)" }}>-</span>
                               )}
                             </td>
-                            <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>{c.totalStudents}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>
+                              {c.totalStudents}
+                              {c.heldCount > 0 && (
+                                <div style={{ fontSize: "9.5px", color: "#9333ea", fontWeight: 600 }} title={`${c.heldCount} student paper(s) held due to missing component(s)`}>
+                                  {c.heldCount} held
+                                </div>
+                              )}
+                            </td>
                             <td style={{ padding: "8px 8px", textAlign: "center", color: "#6366f1", background: "rgba(99, 102, 241, 0.03)" }}>
                               {c.rawEsePassCount}
                             </td>
@@ -4359,6 +4721,15 @@ export default function AdesResultCalculatorPage() {
                           Malpractice ({metrics.malpracticeCount})
                         </button>
                       )}
+                      {metrics.heldCount > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => { setSelectedResultFilter("HELD"); setPage(0); }}
+                          style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: selectedResultFilter === "HELD" ? "#9333ea" : "transparent", color: selectedResultFilter === "HELD" ? "white" : "#9333ea" }}
+                        >
+                          Held ({metrics.heldCount})
+                        </button>
+                      )}
                     </div>
 
                     {/* Faculty Filter */}
@@ -4504,23 +4875,26 @@ export default function AdesResultCalculatorPage() {
                         const globalIdx = page * pageSize + idx + 1;
                         const isAbsent = !!row._isAbsent;
                         const isMalpractice = !!row._isMalpractice;
-                        const isPass = !isAbsent && !isMalpractice && row[coursePassKey] === "Pass";
-                        const isModPass = !isAbsent && !isMalpractice && row._isModeratedPass;
+                        const isHeld = !!row._isHeld;
+                        const isPass = !isAbsent && !isMalpractice && !isHeld && row[coursePassKey] === "Pass";
+                        const isModPass = !isAbsent && !isMalpractice && !isHeld && row._isModeratedPass;
 
                         return (
                           <tr 
                             key={globalIdx} 
                             style={{ 
                               borderBottom: "1px solid var(--line)", 
-                              background: isMalpractice
-                                ? "rgba(245, 158, 11, 0.08)"
-                                : isAbsent
-                                  ? "rgba(239, 68, 68, 0.08)"
-                                  : isModPass 
-                                    ? "rgba(245, 158, 11, 0.05)" 
-                                    : isPass 
-                                      ? "transparent" 
-                                      : "rgba(239, 68, 68, 0.04)" 
+                              background: isHeld
+                                ? "rgba(147, 51, 234, 0.08)"
+                                : isMalpractice
+                                  ? "rgba(245, 158, 11, 0.08)"
+                                  : isAbsent
+                                    ? "rgba(239, 68, 68, 0.08)"
+                                    : isModPass 
+                                      ? "rgba(245, 158, 11, 0.05)" 
+                                      : isPass 
+                                        ? "transparent" 
+                                        : "rgba(239, 68, 68, 0.04)" 
                             }}
                           >
                             <td style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center", color: "var(--muted)" }}>
@@ -4534,11 +4908,19 @@ export default function AdesResultCalculatorPage() {
                               const isModMarks = col === "Moderation Marks";
                               const isAbsentMark = val === "Absent (Ab)";
                               const isMalpracticeMark = val === "Malpractice (MP)";
+                              const isMissingMark = val === "Missing";
 
                               if (isCoursePass) {
                                 return (
                                   <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
-                                    {isMalpractice ? (
+                                    {isHeld ? (
+                                      <span 
+                                        style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(147, 51, 234, 0.18)", color: "#7e22ce", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }} 
+                                        title={`Held: Missing required component(s) [${(row._missingComponents || []).join(", ")}]`}
+                                      >
+                                        <AlertTriangle size={11} /> Held (Missing Component)
+                                      </span>
+                                    ) : isMalpractice ? (
                                       <span 
                                         style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(245, 158, 11, 0.2)", color: "#b45309", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }} 
                                         title={`Malpractice (${row._malpracticeStatus || "EHB"})${row._malpracticeRemarks ? ` - ${row._malpracticeRemarks}` : ""}${row._malpracticeDate ? ` [${row._malpracticeDate}]` : ""}`}
@@ -4562,6 +4944,24 @@ export default function AdesResultCalculatorPage() {
                                         <XCircle size={11} /> Fail
                                       </span>
                                     )}
+                                  </td>
+                                );
+                              }
+
+                              if (isMissingMark) {
+                                return (
+                                  <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
+                                    <span style={{ 
+                                      display: "inline-block", 
+                                      color: "#7e22ce", 
+                                      background: "rgba(147, 51, 234, 0.15)", 
+                                      padding: "1px 6px", 
+                                      borderRadius: "4px", 
+                                      fontWeight: 700, 
+                                      fontSize: "11px" 
+                                    }} title="Required component missing from source data">
+                                      Missing
+                                    </span>
                                   </td>
                                 );
                               }
@@ -4604,12 +5004,13 @@ export default function AdesResultCalculatorPage() {
 
                               if (isOtherPass) {
                                 const passVal = String(val);
+                                const isHeldOther = passVal === "Held";
                                 return (
                                   <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
                                     <span style={{ 
-                                      color: passVal === "Pass" ? "#10b981" : "#ef4444",
+                                      color: isHeldOther ? "#7e22ce" : passVal === "Pass" ? "#10b981" : "#ef4444",
                                       fontWeight: 600,
-                                      background: passVal === "Pass" ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
+                                      background: isHeldOther ? "rgba(147, 51, 234, 0.12)" : passVal === "Pass" ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
                                       padding: "1px 5px",
                                       borderRadius: "3px"
                                     }}>
