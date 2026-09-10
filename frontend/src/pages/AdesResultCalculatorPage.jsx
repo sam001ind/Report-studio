@@ -90,75 +90,130 @@ export const cleanCourseCode = (rawCode) => {
   if (!rawCode) return "";
   let code = String(rawCode).trim();
   code = code.replace(/^\s*[\(\[\{]\s*/, "").replace(/\s*[\)\]\}]\s*$/, "");
-  code = code.replace(/[\.\#\*\_\-\:\;\,]+$/g, "").trim();
-  code = code.replace(/^[\.\#\*\_\-\:\;\,]+/g, "").trim();
+  code = code.replace(/[\.\#\*\_\-\:\;\,]+/g, " ");
   code = code.replace(/\s+/g, "");
   code = code.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
   return code.toUpperCase();
 };
 
-// Parses raw college code and name, stripping duplicate code prefixes and embedded tags
-export const parseCollegeRaw = (rawCodeInput, rawNameInput) => {
-  let code = cleanString(rawCodeInput);
-  let name = cleanString(rawNameInput);
+// Cleans course title removing trailing special markers like # or *
+export const cleanCourseName = (rawName) => {
+  if (!rawName) return "";
+  let name = String(rawName).trim();
+  name = name.replace(/[\#\*\_\-]+$/g, "").trim();
+  return name;
+};
 
-  if (name) {
-    // Pattern 1: "[101] - Govt College" or "101 - Govt College" or "101: Govt College"
-    const prefixMatch = name.match(/^\[?([A-Za-z0-9_]+)\]?\s*[-:–—]\s*(.+)$/);
-    if (prefixMatch) {
-      if (!code) code = prefixMatch[1].trim();
-      name = prefixMatch[2].trim();
-    } else {
-      // Pattern 2: "Govt College (101)" or "Govt College [101]"
-      const suffixMatch = name.match(/^(.+?)\s*[\(\[]\s*([A-Za-z0-9_]+)\s*[\)\]]$/);
-      if (suffixMatch && !suffixMatch[1].toLowerCase().includes("autonomous") && !suffixMatch[1].toLowerCase().includes("aided")) {
-        if (!code) code = suffixMatch[2].trim();
-        name = suffixMatch[1].trim();
-      } else {
-        // Pattern 3: "101 Govt College"
-        const numStartMatch = name.match(/^(\d{2,})\s+([A-Za-z].+)$/);
-        if (numStartMatch) {
-          if (!code) code = numStartMatch[1].trim();
-          name = numStartMatch[2].trim();
-        }
-      }
+// Cleans college name: strips leading code prefixes e.g. "[101] - Name", "101 - Name", "101. Name", "101: Name"
+export const cleanCollegeName = (rawName) => {
+  if (!rawName) return "";
+  let name = cleanString(rawName);
+  // Pattern 1: "[101] - Govt College" or "101 - Govt College" or "101: Govt College" or "101. Govt College"
+  const prefixMatch = name.match(/^\[?[A-Za-z0-9_]+\]?\s*[-:–—.]\s*(.+)$/);
+  if (prefixMatch) {
+    name = prefixMatch[1].trim();
+  } else {
+    // Pattern 2: "101 Govt College"
+    const numStartMatch = name.match(/^\[?\d{2,}\]?\s*[-:–—.]?\s*([A-Za-z].+)$/);
+    if (numStartMatch) {
+      name = numStartMatch[1].trim();
     }
   }
+  return name;
+};
 
-  // Strip redundant code prefix if present in name
-  if (code && name) {
-    const escCode = code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const redRegex = new RegExp(`^(\\[?${escCode}\\]?\\s*[-:–—]?\\s*)+`, "i");
-    name = name.replace(redRegex, "").trim();
+// Parses raw college code and name
+export const parseCollegeRaw = (rawCodeInput, rawNameInput) => {
+  let code = cleanString(rawCodeInput);
+  let name = cleanCollegeName(rawNameInput);
+
+  if (!code && rawNameInput) {
+    const rawN = cleanString(rawNameInput);
+    const prefixMatch = rawN.match(/^\[?([A-Za-z0-9_]+)\]?\s*[-:–—.]\s*(.+)$/);
+    if (prefixMatch) {
+      code = prefixMatch[1].trim();
+    } else {
+      const suffixMatch = rawN.match(/^(.+?)\s*[\(\[]\s*([A-Za-z0-9_]+)\s*[\)\]]$/);
+      if (suffixMatch && !suffixMatch[1].toLowerCase().includes("autonomous") && !suffixMatch[1].toLowerCase().includes("aided")) {
+        code = suffixMatch[2].trim();
+      }
+    }
   }
 
   return { code, name };
 };
 
-// Builds a dataset-wide two-way canonical resolver that clusters and merges same colleges
-export const buildCollegeCanonicalRegistry = (rawItems = []) => {
+// Builds a dataset-wide canonical resolver using Seat Number and ADEC Name connection
+export const buildCollegeCanonicalRegistry = (rows = [], currentHeaderMap = {}, currentAbsentMap = null, currentMalpracticeMap = null, currentHeldbackMap = null) => {
+  const seatToCollege = new Map();
+  const prnToCollege = new Map();
   const codeToNames = new Map();
   const nameToCodes = new Map();
+  const allCollegeNames = new Set();
 
-  rawItems.forEach(item => {
-    if (!item) return;
-    const { code, name } = parseCollegeRaw(item.code || item.collegeCode, item.name || item.collegeName);
+  const registerEntry = (seat, prn, rawCode, rawName) => {
+    const { code, name } = parseCollegeRaw(rawCode, rawName);
+    const cleanSeat = cleanString(seat);
+    const cleanPrn = cleanString(prn);
     const normC = normalizeKey(code);
     const normN = normalizeKey(name);
 
-    if (normC && name) {
-      if (!codeToNames.has(normC)) codeToNames.set(normC, new Set());
-      codeToNames.get(normC).add(name);
+    if (name) {
+      allCollegeNames.add(name);
+      if (normC) {
+        if (!codeToNames.has(normC)) codeToNames.set(normC, new Set());
+        codeToNames.get(normC).add(name);
+      }
     }
-    if (normN && code) {
+    if (code && normN) {
       if (!nameToCodes.has(normN)) nameToCodes.set(normN, new Set());
       nameToCodes.get(normN).add(code);
+    }
+
+    if (cleanSeat && (name || code)) {
+      if (!seatToCollege.has(cleanSeat)) {
+        seatToCollege.set(cleanSeat, { code, name: name || code });
+      } else {
+        const cur = seatToCollege.get(cleanSeat);
+        if (!cur.name && name) cur.name = name;
+        if (!cur.code && code) cur.code = code;
+        if (name && cur.name && name.length > cur.name.length) cur.name = name;
+      }
+    }
+
+    if (cleanPrn && (name || code)) {
+      if (!prnToCollege.has(cleanPrn)) {
+        prnToCollege.set(cleanPrn, { code, name: name || code });
+      } else {
+        const cur = prnToCollege.get(cleanPrn);
+        if (!cur.name && name) cur.name = name;
+        if (!cur.code && code) cur.code = code;
+        if (name && cur.name && name.length > cur.name.length) cur.name = name;
+      }
+    }
+  };
+
+  // 1. Scan primary rows
+  if (Array.isArray(rows)) {
+    rows.forEach(row => {
+      const seat = getCell(row, currentHeaderMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number");
+      const prn = getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID");
+      const cCode = getCell(row, currentHeaderMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode");
+      const cName = getCell(row, currentHeaderMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department");
+      registerEntry(seat, prn, cCode, cName);
+    });
+  }
+
+  // 2. Scan external report entries
+  [currentHeldbackMap, currentMalpracticeMap, currentAbsentMap].forEach(m => {
+    if (m) {
+      m.forEach(e => {
+        registerEntry(e.seat, e.prn, e.collegeCode, e.collegeName);
+      });
     }
   });
 
   const canonicalCodeMap = new Map();
-  const canonicalNameCodeMap = new Map();
-
   codeToNames.forEach((nameSet, normC) => {
     const names = Array.from(nameSet);
     names.sort((a, b) => {
@@ -170,48 +225,51 @@ export const buildCollegeCanonicalRegistry = (rawItems = []) => {
     canonicalCodeMap.set(normC, names[0]);
   });
 
-  nameToCodes.forEach((codeSet, normN) => {
-    const codes = Array.from(codeSet);
-    codes.sort((a, b) => b.length - a.length);
-    canonicalNameCodeMap.set(normN, codes[0]);
-  });
+  const resolve = (seatInput, prnInput, rawCodeInput, rawNameInput) => {
+    const cleanSeat = cleanString(seatInput);
+    const cleanPrn = cleanString(prnInput);
 
-  const resolve = (rawCodeInput, rawNameInput) => {
+    // 1. Connection via Seat Number (ADEC Name & Seat combination)
+    if (cleanSeat && seatToCollege.has(cleanSeat)) {
+      const entry = seatToCollege.get(cleanSeat);
+      if (entry.name) {
+        return {
+          collegeCode: entry.code || "",
+          collegeName: entry.name,
+          college: entry.name
+        };
+      }
+    }
+
+    // 2. Connection via PRN
+    if (cleanPrn && prnToCollege.has(cleanPrn)) {
+      const entry = prnToCollege.get(cleanPrn);
+      if (entry.name) {
+        return {
+          collegeCode: entry.code || "",
+          collegeName: entry.name,
+          college: entry.name
+        };
+      }
+    }
+
+    // 3. Fallback to direct raw code/name resolution
     const { code, name } = parseCollegeRaw(rawCodeInput, rawNameInput);
     const normC = normalizeKey(code);
-    const normN = normalizeKey(name);
+    let finalName = name || (normC ? canonicalCodeMap.get(normC) || "" : "") || code || "";
 
-    let finalCode = code || (normN ? canonicalNameCodeMap.get(normN) || "" : "");
-    let finalName = name || (normC ? canonicalCodeMap.get(normC) || "" : "");
-
-    const normFinalC = normalizeKey(finalCode);
-    if (normFinalC && canonicalCodeMap.has(normFinalC)) {
-      finalName = canonicalCodeMap.get(normFinalC);
+    if (normC && canonicalCodeMap.has(normC)) {
+      finalName = canonicalCodeMap.get(normC);
     }
 
-    if (finalCode && finalName) {
-      return {
-        collegeCode: finalCode,
-        collegeName: finalName,
-        college: `${finalCode} - ${finalName}`
-      };
-    } else if (finalName) {
-      return {
-        collegeCode: "",
-        collegeName: finalName,
-        college: finalName
-      };
-    } else if (finalCode) {
-      return {
-        collegeCode: finalCode,
-        collegeName: "",
-        college: finalCode
-      };
-    }
-    return { collegeCode: "", collegeName: "", college: "" };
+    return {
+      collegeCode: code || "",
+      collegeName: finalName,
+      college: finalName
+    };
   };
 
-  return { resolve };
+  return { resolve, allColleges: Array.from(allCollegeNames).sort() };
 };
 
 export default function AdesResultCalculatorPage() {
@@ -601,29 +659,8 @@ export default function AdesResultCalculatorPage() {
   const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap, currentMalpracticeMap = malpracticeRecordsMap, currentHeldbackMap = heldbackRecordsMap) => {
     if (!rows || rows.length === 0) return [];
     const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
-    // Build dataset-wide canonical college registry from all rows and external reports
-    const rawCollegeItems = [];
-    rows.forEach(row => {
-      const cCode = String(getCell(row, currentHeaderMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode") || "").trim();
-      const cName = String(getCell(row, currentHeaderMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
-      if (cCode || cName) rawCollegeItems.push({ code: cCode, name: cName });
-    });
-    if (currentHeldbackMap) {
-      currentHeldbackMap.forEach(e => {
-        if (e.collegeCode || e.collegeName) rawCollegeItems.push({ code: e.collegeCode, name: e.collegeName });
-      });
-    }
-    if (currentMalpracticeMap) {
-      currentMalpracticeMap.forEach(e => {
-        if (e.collegeCode || e.collegeName) rawCollegeItems.push({ code: e.collegeCode, name: e.collegeName });
-      });
-    }
-    if (currentAbsentMap) {
-      currentAbsentMap.forEach(e => {
-        if (e.collegeCode || e.collegeName) rawCollegeItems.push({ code: e.collegeCode, name: e.collegeName });
-      });
-    }
-    const collegeRegistry = buildCollegeCanonicalRegistry(rawCollegeItems);
+    // Build dataset-wide canonical college registry from all rows and external reports connecting Seat Number and ADEC Name
+    const collegeRegistry = buildCollegeCanonicalRegistry(rows, currentHeaderMap, currentAbsentMap, currentMalpracticeMap, currentHeldbackMap);
 
     // Pass 1: Build expected component profiles for all courses present in the dataset
     const courseExpectedComponentsMap = new Map();
@@ -884,7 +921,7 @@ export default function AdesResultCalculatorPage() {
         const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
         const rawCode = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
         const code = cleanCourseCode(rawCode);
-        const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
+        const name = cleanCourseName(String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim());
 
         const normCode = normalizeKey(code);
         const prof = courseExpectedComponentsMap.get(normCode);
@@ -896,7 +933,7 @@ export default function AdesResultCalculatorPage() {
 
         const rawC = rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
         const rawN = rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
-        const { collegeCode, collegeName, college } = collegeRegistry.resolve(rawC, rawN);
+        const { collegeCode, collegeName, college } = collegeRegistry.resolve(seat, prn, rawC, rawN);
 
         const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || "") : "");
         const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
@@ -1154,7 +1191,7 @@ export default function AdesResultCalculatorPage() {
       const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
       const rawCode = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
       const code = cleanCourseCode(rawCode);
-      const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
+      const name = cleanCourseName(String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim());
 
       const methodRaw = String(getCell(row, currentHeaderMap, "Assessment Method", "AssessmentMethod", "AM", "Method", "Assessment_Method") || "").trim().toUpperCase();
       const typeRaw = String(getCell(row, currentHeaderMap, "Assessment Type", "AssessmentType", "AT", "Type", "Assessment_Type") || "").trim().toUpperCase();
@@ -1372,7 +1409,7 @@ export default function AdesResultCalculatorPage() {
 
       const rawC = identifiers.rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
       const rawN = identifiers.rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
-      const { collegeCode, collegeName, college } = collegeRegistry.resolve(rawC, rawN);
+      const { collegeCode, collegeName, college } = collegeRegistry.resolve(identifiers.seat, identifiers.prn, rawC, rawN);
 
       baseRecords.push({
         identifiers: { ...identifiers, college, collegeCode, collegeName },
@@ -2174,7 +2211,8 @@ export default function AdesResultCalculatorPage() {
 
     // 3. Course filter
     if (studentCourseFilter !== "ALL") {
-      list = list.filter(st => st.courses.some(c => c.courseCode === studentCourseFilter));
+      const cleanFilter = cleanCourseCode(studentCourseFilter);
+      list = list.filter(st => st.courses.some(c => cleanCourseCode(c.courseCode) === cleanFilter));
     }
 
     // 4. Search query
@@ -2397,13 +2435,16 @@ export default function AdesResultCalculatorPage() {
         (studentProgramFilter === "ALL" || st.program === studentProgramFilter)
       ) {
         st.courses.forEach(c => {
-          if (c.courseCode && !courseMap.has(c.courseCode)) {
-            courseMap.set(c.courseCode, c.courseName ? `${c.courseCode} - ${c.courseName}` : c.courseCode);
+          const code = cleanCourseCode(c.courseCode);
+          const name = cleanCourseName(c.courseName);
+          const norm = normalizeKey(code);
+          if (norm && !courseMap.has(norm)) {
+            courseMap.set(norm, { code, label: name ? `${code} - ${name}` : code });
           }
         });
       }
     });
-    return Array.from(courseMap.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
+    return Array.from(courseMap.values()).sort((a, b) => a.code.localeCompare(b.code));
   }, [studentSemesterData, studentCollegeFilter, studentProgramFilter]);
 
   // Final Filtered Student List (Filtered by Status)
@@ -3735,7 +3776,8 @@ export default function AdesResultCalculatorPage() {
 
     // 4. Course filter
     if (selectedCourseFilter !== "ALL") {
-      result = result.filter(r => r["Course Code"] === selectedCourseFilter);
+      const cleanFilter = cleanCourseCode(selectedCourseFilter);
+      result = result.filter(r => cleanCourseCode(r["Course Code"]) === cleanFilter);
     }
 
     // 5. Search Query
@@ -3772,7 +3814,7 @@ export default function AdesResultCalculatorPage() {
       if (
         (selectedCollegeFilter === "ALL" || col === selectedCollegeFilter) &&
         (selectedProgramFilter === "ALL" || prog === selectedProgramFilter) &&
-        (selectedCourseFilter === "ALL" || course === selectedCourseFilter)
+        (selectedCourseFilter === "ALL" || cleanCourseCode(course) === cleanCourseCode(selectedCourseFilter))
       ) {
         if (r["Faculty"]) set.add(r["Faculty"]);
       }
@@ -3789,7 +3831,7 @@ export default function AdesResultCalculatorPage() {
       if (
         (selectedFacultyFilter === "ALL" || fac === selectedFacultyFilter) &&
         (selectedProgramFilter === "ALL" || prog === selectedProgramFilter) &&
-        (selectedCourseFilter === "ALL" || course === selectedCourseFilter)
+        (selectedCourseFilter === "ALL" || cleanCourseCode(course) === cleanCourseCode(selectedCourseFilter))
       ) {
         const col = r._college || r["College Name"] || r["College Code"] || r["College"];
         if (col) set.add(col);
@@ -3807,7 +3849,7 @@ export default function AdesResultCalculatorPage() {
       if (
         (selectedFacultyFilter === "ALL" || fac === selectedFacultyFilter) &&
         (selectedCollegeFilter === "ALL" || col === selectedCollegeFilter) &&
-        (selectedCourseFilter === "ALL" || course === selectedCourseFilter)
+        (selectedCourseFilter === "ALL" || cleanCourseCode(course) === cleanCourseCode(selectedCourseFilter))
       ) {
         if (r["Program Term Name"]) set.add(r["Program Term Name"]);
       }
@@ -3821,19 +3863,20 @@ export default function AdesResultCalculatorPage() {
       const fac = r["Faculty"];
       const col = r._college || r["College Name"] || r["College Code"] || r["College"];
       const prog = r["Program Term Name"];
-      const code = r["Course Code"];
-      const name = r["Course Name"];
+      const code = cleanCourseCode(r["Course Code"]);
+      const name = cleanCourseName(r["Course Name"]);
+      const norm = normalizeKey(code);
       if (
         (selectedFacultyFilter === "ALL" || fac === selectedFacultyFilter) &&
         (selectedCollegeFilter === "ALL" || col === selectedCollegeFilter) &&
         (selectedProgramFilter === "ALL" || prog === selectedProgramFilter)
       ) {
-        if (code && !courseMap.has(code)) {
-          courseMap.set(code, name ? `${code} - ${name}` : code);
+        if (norm && !courseMap.has(norm)) {
+          courseMap.set(norm, { code, label: name ? `${code} - ${name}` : code });
         }
       }
     });
-    return Array.from(courseMap.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
+    return Array.from(courseMap.values()).sort((a, b) => a.code.localeCompare(b.code));
   }, [processedRows, selectedFacultyFilter, selectedCollegeFilter, selectedProgramFilter]);
 
   // Consolidated / Global Overall Course Metrics (Unfiltered, for sidebar)
