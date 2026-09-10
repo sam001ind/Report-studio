@@ -1949,6 +1949,10 @@ export default function AdesResultCalculatorPage() {
   // Overall Simulation Totals across filtered courses
   const simTotals = useMemo(() => {
     let totalStudents = 0;
+    let totalAbsent = 0;
+    let totalMalpractice = 0;
+    let totalHeldback = 0;
+    let totalHeld = 0;
     let rawEsePass = 0;
     let rawOverallPass = 0;
     let rawPass = 0;
@@ -1958,6 +1962,10 @@ export default function AdesResultCalculatorPage() {
 
     filteredSimulationCourses.forEach(c => {
       totalStudents += c.totalStudents;
+      totalAbsent += (c.absentCount || 0);
+      totalMalpractice += (c.malpracticeCount || 0);
+      totalHeldback += (c.heldbackCount || 0);
+      totalHeld += (c.heldCount || 0);
       rawEsePass += c.rawEsePassCount;
       rawOverallPass += c.rawOverallPassCount;
       rawPass += c.rawPassCount;
@@ -1971,6 +1979,10 @@ export default function AdesResultCalculatorPage() {
     return {
       totalCourses: filteredSimulationCourses.length,
       totalStudents,
+      totalAbsent,
+      totalMalpractice,
+      totalHeldback,
+      totalHeld,
       rawEsePass,
       rawEsePassPct: totalStudents > 0 ? ((rawEsePass / totalStudents) * 100).toFixed(1) : "0.0",
       rawOverallPass,
@@ -3314,6 +3326,8 @@ export default function AdesResultCalculatorPage() {
       "Course Name",
       "Component Type",
       "Total Students",
+      "Absent (Ab)",
+      "Malpractice (MP)",
       "Held (Heldback)",
       "Held (Missing Component)",
       "30% ESE Pass (0 Mod)",
@@ -3337,6 +3351,8 @@ export default function AdesResultCalculatorPage() {
     ];
 
     let totalAllStudents = 0;
+    let totalAllAbsent = 0;
+    let totalAllMalpractice = 0;
     let totalAllHeldback = 0;
     let totalAllHeldMissing = 0;
     let totalAllRawEsePass = 0;
@@ -3345,9 +3361,13 @@ export default function AdesResultCalculatorPage() {
     const totalAllModPass = Array(11).fill(0);
 
     const rows = courseSimulationData.map(c => {
+      const absent = c.absentCount || 0;
+      const malpractice = c.malpracticeCount || 0;
       const heldback = c.heldbackCount || 0;
       const heldMissing = Math.max(0, (c.heldCount || 0) - heldback);
       totalAllStudents += c.totalStudents;
+      totalAllAbsent += absent;
+      totalAllMalpractice += malpractice;
       totalAllHeldback += heldback;
       totalAllHeldMissing += heldMissing;
       totalAllRawEsePass += c.rawEsePassCount;
@@ -3372,6 +3392,8 @@ export default function AdesResultCalculatorPage() {
         c.courseName,
         compType,
         c.totalStudents,
+        absent,
+        malpractice,
         heldback,
         heldMissing,
         c.rawEsePassCount,
@@ -3409,6 +3431,8 @@ export default function AdesResultCalculatorPage() {
       "-",
       "-",
       totalAllStudents,
+      totalAllAbsent,
+      totalAllMalpractice,
       totalAllHeldback,
       totalAllHeldMissing,
       totalAllRawEsePass,
@@ -3443,6 +3467,8 @@ export default function AdesResultCalculatorPage() {
       { wch: 32 }, // Course Name
       { wch: 16 }, // Component Type
       { wch: 14 }, // Total Students
+      { wch: 14 }, // Absent (Ab)
+      { wch: 16 }, // Malpractice (MP)
       { wch: 18 }, // Held (Heldback)
       { wch: 22 }, // Held (Missing Component)
       { wch: 20 }, // 30% ESE Pass
@@ -6037,11 +6063,23 @@ export default function AdesResultCalculatorPage() {
               </div>
 
               {/* KPI Summary Cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>
                 <div style={{ background: "var(--panel)", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
                   <div style={{ fontSize: "10.5px", color: "var(--muted)", fontWeight: 600 }}>Total Courses</div>
                   <div style={{ fontSize: "17px", fontWeight: 700, color: "var(--ink)", marginTop: "2px" }}>{simTotals.totalCourses}</div>
                   <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>{simTotals.totalStudents} student entries</div>
+                </div>
+
+                <div style={{ background: "rgba(239, 68, 68, 0.08)", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.25)" }}>
+                  <div style={{ fontSize: "10.5px", color: "#ef4444", fontWeight: 600 }}>Absentees (Ab)</div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#ef4444", marginTop: "2px" }}>{simTotals.totalAbsent}</div>
+                  <div style={{ fontSize: "10.5px", color: "#ef4444" }}>Excluded from pass</div>
+                </div>
+
+                <div style={{ background: "rgba(249, 115, 22, 0.08)", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(249, 115, 22, 0.25)" }}>
+                  <div style={{ fontSize: "10.5px", color: "#f97316", fontWeight: 600 }}>Malpractice (MP)</div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#f97316", marginTop: "2px" }}>{simTotals.totalMalpractice}</div>
+                  <div style={{ fontSize: "10.5px", color: "#f97316" }}>Excluded from pass</div>
                 </div>
 
                 <div style={{ background: "var(--panel)", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--line)" }}>
@@ -6063,15 +6101,15 @@ export default function AdesResultCalculatorPage() {
                 </div>
 
                 <div style={{ background: "rgba(245, 158, 11, 0.1)", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(245, 158, 11, 0.3)" }}>
-                  <div style={{ fontSize: "10.5px", color: "#d97706", fontWeight: 600 }}>Pass at +5 Mod (Both Met)</div>
+                  <div style={{ fontSize: "10.5px", color: "#d97706", fontWeight: 600 }}>Pass at +5 Mod</div>
                   <div style={{ fontSize: "17px", fontWeight: 700, color: "#d97706", marginTop: "2px" }}>{simTotals.modPass[5]}</div>
-                  <div style={{ fontSize: "10.5px", color: "#d97706", fontWeight: 600 }}>{simTotals.modPassPct(5)}% (+{simTotals.rescuedAtMod(5)} rescued)</div>
+                  <div style={{ fontSize: "10.5px", color: "#d97706", fontWeight: 600 }}>{simTotals.modPassPct(5)}% (+{simTotals.rescuedAtMod(5)})</div>
                 </div>
 
                 <div style={{ background: "rgba(16, 185, 129, 0.12)", padding: "10px 12px", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.35)" }}>
-                  <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>Pass at +10 Mod (Both Met)</div>
+                  <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>Pass at +10 Mod</div>
                   <div style={{ fontSize: "17px", fontWeight: 700, color: "#10b981", marginTop: "2px" }}>{simTotals.modPass[10]}</div>
-                  <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>{simTotals.modPassPct(10)}% (+{simTotals.rescuedAtMod(10)} rescued)</div>
+                  <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>{simTotals.modPassPct(10)}% (+{simTotals.rescuedAtMod(10)})</div>
                 </div>
               </div>
 
@@ -6084,6 +6122,8 @@ export default function AdesResultCalculatorPage() {
                       <th style={{ padding: "10px 12px", textAlign: "left", color: "var(--muted)", fontWeight: 600, minWidth: "160px" }}>Course Name</th>
                       <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontWeight: 600, width: "90px" }}>Type</th>
                       <th style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)", fontWeight: 600, width: "65px" }}>Total</th>
+                      <th style={{ padding: "10px 8px", textAlign: "center", color: "#ef4444", fontWeight: 600, width: "65px", background: "rgba(239, 68, 68, 0.05)" }} title="Absent students count">Absent</th>
+                      <th style={{ padding: "10px 8px", textAlign: "center", color: "#f97316", fontWeight: 600, width: "65px", background: "rgba(249, 115, 22, 0.05)" }} title="Malpractice students count">MP</th>
                       <th style={{ padding: "10px 8px", textAlign: "center", color: "#6366f1", fontWeight: 600, width: "75px", background: "rgba(99, 102, 241, 0.05)" }}>30% ESE</th>
                       <th style={{ padding: "10px 8px", textAlign: "center", color: "#8b5cf6", fontWeight: 600, width: "75px", background: "rgba(139, 92, 246, 0.05)" }}>35% Agg</th>
                       <th style={{ padding: "10px 10px", textAlign: "center", color: "var(--ink)", fontWeight: 700, width: "95px", background: "rgba(59, 130, 246, 0.1)" }}>Normal (Both)</th>
@@ -6108,7 +6148,7 @@ export default function AdesResultCalculatorPage() {
                   <tbody>
                     {filteredSimulationCourses.length === 0 ? (
                       <tr>
-                        <td colSpan={18} style={{ padding: "32px", textAlign: "center", color: "var(--muted)" }}>
+                        <td colSpan={20} style={{ padding: "32px", textAlign: "center", color: "var(--muted)" }}>
                           No matching courses found.
                         </td>
                       </tr>
@@ -6153,6 +6193,12 @@ export default function AdesResultCalculatorPage() {
                                 </div>
                               )}
                             </td>
+                            <td style={{ padding: "8px 8px", textAlign: "center", color: (c.absentCount || 0) > 0 ? "#ef4444" : "var(--muted)", fontWeight: (c.absentCount || 0) > 0 ? 600 : 400, background: "rgba(239, 68, 68, 0.03)" }}>
+                              {c.absentCount || 0}
+                            </td>
+                            <td style={{ padding: "8px 8px", textAlign: "center", color: (c.malpracticeCount || 0) > 0 ? "#f97316" : "var(--muted)", fontWeight: (c.malpracticeCount || 0) > 0 ? 600 : 400, background: "rgba(249, 115, 22, 0.03)" }}>
+                              {c.malpracticeCount || 0}
+                            </td>
                             <td style={{ padding: "8px 8px", textAlign: "center", color: "#6366f1", background: "rgba(99, 102, 241, 0.03)" }}>
                               {c.rawEsePassCount}
                             </td>
@@ -6172,7 +6218,7 @@ export default function AdesResultCalculatorPage() {
                                   key={m} 
                                   style={{ 
                                     padding: "8px 5px", 
-                                    textAlign: "center",
+                                    textAlign: "center", 
                                     fontWeight: diff > 0 ? 600 : 400,
                                     color: diff > 0 ? (m === 10 ? "#10b981" : m >= 5 ? "#d97706" : "var(--ink)") : "var(--muted)",
                                     background: isHighlight ? (m === 10 ? "rgba(16, 185, 129, 0.05)" : "rgba(245, 158, 11, 0.05)") : "transparent"
@@ -6207,6 +6253,8 @@ export default function AdesResultCalculatorPage() {
                       <tr>
                         <td colSpan={3} style={{ padding: "10px 12px", color: "var(--ink)" }}>TOTAL (All Filtered Courses)</td>
                         <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--ink)" }}>{simTotals.totalStudents}</td>
+                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#ef4444" }}>{simTotals.totalAbsent}</td>
+                        <td style={{ padding: "10px 8px", textAlign: "center", color: "#f97316" }}>{simTotals.totalMalpractice}</td>
                         <td style={{ padding: "10px 8px", textAlign: "center", color: "#6366f1" }}>{simTotals.rawEsePass}</td>
                         <td style={{ padding: "10px 8px", textAlign: "center", color: "#8b5cf6" }}>{simTotals.rawOverallPass}</td>
                         <td style={{ padding: "10px 10px", textAlign: "center", color: "#3b82f6", background: "rgba(59, 130, 246, 0.08)" }}>
