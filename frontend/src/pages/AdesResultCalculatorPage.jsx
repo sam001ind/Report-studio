@@ -1990,9 +1990,9 @@ export default function AdesResultCalculatorPage() {
     return list;
   }, [studentSemesterData, studentCollegeFilter, studentProgramFilter, studentCourseFilter, studentSearchQuery]);
 
-  // Student Metrics calculated directly from the active scoped filters
-  const studentMetrics = useMemo(() => {
-    const total = scopedStudents.length;
+  // Consolidated / Global Overall Student Metrics (Unfiltered, for sidebar)
+  const consolidatedStudentMetrics = useMemo(() => {
+    const total = studentSemesterData.length;
     if (total === 0) {
       return {
         totalStudents: 0,
@@ -2006,10 +2006,14 @@ export default function AdesResultCalculatorPage() {
         heldPct: "0.0",
         heldbackStudents: 0,
         heldbackPct: "0.0",
+        heldMissingStudents: 0,
+        heldMissingPct: "0.0",
         rescuedStudents: 0,
         rescuedPct: "0.0",
         absentStudents: 0,
+        absentPct: "0.0",
         malpracticeStudents: 0,
+        malpracticePct: "0.0",
         totalPapersAttempted: 0,
         avgPapersPerStudent: "0.0"
       };
@@ -2022,14 +2026,16 @@ export default function AdesResultCalculatorPage() {
     let malpracticeStudents = 0;
     let heldStudents = 0;
     let heldbackStudents = 0;
+    let heldMissingStudents = 0;
     let totalPapersAttempted = 0;
 
-    scopedStudents.forEach(st => {
+    studentSemesterData.forEach(st => {
       totalPapersAttempted += st.totalCourses;
       if (st.isHeldback) {
         heldbackStudents++;
         heldStudents++;
       } else if (st.isHeld) {
+        heldMissingStudents++;
         heldStudents++;
       } else {
         if (st.rawSemesterPass) rawPassedStudents++;
@@ -2054,10 +2060,97 @@ export default function AdesResultCalculatorPage() {
       heldPct: total > 0 ? ((heldStudents / total) * 100).toFixed(1) : "0.0",
       heldbackStudents,
       heldbackPct: total > 0 ? ((heldbackStudents / total) * 100).toFixed(1) : "0.0",
+      heldMissingStudents,
+      heldMissingPct: total > 0 ? ((heldMissingStudents / total) * 100).toFixed(1) : "0.0",
       rescuedStudents,
       rescuedPct: total > 0 ? ((rescuedStudents / total) * 100).toFixed(1) : "0.0",
       absentStudents,
+      absentPct: total > 0 ? ((absentStudents / total) * 100).toFixed(1) : "0.0",
       malpracticeStudents,
+      malpracticePct: total > 0 ? ((malpracticeStudents / total) * 100).toFixed(1) : "0.0",
+      totalPapersAttempted,
+      avgPapersPerStudent: total > 0 ? (totalPapersAttempted / total).toFixed(1) : "0.0"
+    };
+  }, [studentSemesterData]);
+
+  // Student Metrics calculated directly from the active scoped filters (for main student view)
+  const studentMetrics = useMemo(() => {
+    const total = scopedStudents.length;
+    if (total === 0) {
+      return {
+        totalStudents: 0,
+        rawPassedStudents: 0,
+        rawPassedPct: "0.0",
+        finalPassedStudents: 0,
+        finalPassedPct: "0.0",
+        failedStudents: 0,
+        failedPct: "0.0",
+        heldStudents: 0,
+        heldPct: "0.0",
+        heldbackStudents: 0,
+        heldbackPct: "0.0",
+        heldMissingStudents: 0,
+        heldMissingPct: "0.0",
+        rescuedStudents: 0,
+        rescuedPct: "0.0",
+        absentStudents: 0,
+        absentPct: "0.0",
+        malpracticeStudents: 0,
+        malpracticePct: "0.0",
+        totalPapersAttempted: 0,
+        avgPapersPerStudent: "0.0"
+      };
+    }
+
+    let rawPassedStudents = 0;
+    let finalPassedStudents = 0;
+    let rescuedStudents = 0;
+    let absentStudents = 0;
+    let malpracticeStudents = 0;
+    let heldStudents = 0;
+    let heldbackStudents = 0;
+    let heldMissingStudents = 0;
+    let totalPapersAttempted = 0;
+
+    scopedStudents.forEach(st => {
+      totalPapersAttempted += st.totalCourses;
+      if (st.isHeldback) {
+        heldbackStudents++;
+        heldStudents++;
+      } else if (st.isHeld) {
+        heldMissingStudents++;
+        heldStudents++;
+      } else {
+        if (st.rawSemesterPass) rawPassedStudents++;
+        if (st.finalSemesterPass) finalPassedStudents++;
+        if (st.isRescuedSemester) rescuedStudents++;
+      }
+      if ((st.absentCourses || 0) > 0) absentStudents++;
+      if ((st.malpracticeCourses || 0) > 0) malpracticeStudents++;
+    });
+
+    const failedStudents = total - finalPassedStudents - heldStudents;
+
+    return {
+      totalStudents: total,
+      rawPassedStudents,
+      rawPassedPct: total > 0 ? ((rawPassedStudents / total) * 100).toFixed(1) : "0.0",
+      finalPassedStudents,
+      finalPassedPct: total > 0 ? ((finalPassedStudents / total) * 100).toFixed(1) : "0.0",
+      failedStudents,
+      failedPct: total > 0 ? ((failedStudents / total) * 100).toFixed(1) : "0.0",
+      heldStudents,
+      heldPct: total > 0 ? ((heldStudents / total) * 100).toFixed(1) : "0.0",
+      heldbackStudents,
+      heldbackPct: total > 0 ? ((heldbackStudents / total) * 100).toFixed(1) : "0.0",
+      heldMissingStudents,
+      heldMissingPct: total > 0 ? ((heldMissingStudents / total) * 100).toFixed(1) : "0.0",
+      rescuedStudents,
+      rescuedPct: total > 0 ? ((rescuedStudents / total) * 100).toFixed(1) : "0.0",
+      absentStudents,
+      absentPct: total > 0 ? ((absentStudents / total) * 100).toFixed(1) : "0.0",
+      malpracticeStudents,
+      malpracticePct: total > 0 ? ((malpracticeStudents / total) * 100).toFixed(1) : "0.0",
       totalPapersAttempted,
       avgPapersPerStudent: total > 0 ? (totalPapersAttempted / total).toFixed(1) : "0.0"
     };
@@ -3521,10 +3614,141 @@ export default function AdesResultCalculatorPage() {
     return Array.from(courseMap.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
   }, [processedRows, selectedFacultyFilter, selectedCollegeFilter, selectedProgramFilter]);
 
-  // Statistics Metrics (calculated from active scoped filters)
+  // Consolidated / Global Overall Course Metrics (Unfiltered, for sidebar)
+  const consolidatedCourseMetrics = useMemo(() => {
+    const total = processedRows.length;
+    if (total === 0) return { 
+      total: 0, 
+      uniqueStudents: 0, 
+      rawPassed: 0, 
+      rawPassPct: "0.0",
+      moderatedPassed: 0, 
+      moderatedPct: "0.0",
+      totalPassed: 0, 
+      passPct: "0.0", 
+      failed: 0, 
+      failedPct: "0.0",
+      heldCount: 0, 
+      heldPct: "0.0",
+      heldbackCount: 0, 
+      missingCompCount: 0, 
+      eseFailed: 0, 
+      overallFailed: 0, 
+      absentCount: 0, 
+      absentPct: "0.0",
+      malpracticeCount: 0,
+      malpracticePct: "0.0"
+    };
+
+    const prnSet = new Set();
+    let rawPassed = 0;
+    let moderatedPassed = 0;
+    let totalPassed = 0;
+    let failed = 0;
+    let heldCount = 0;
+    let heldbackCount = 0;
+    let missingCompCount = 0;
+    let eseFailed = 0;
+    let overallFailed = 0;
+    let absentCount = 0;
+    let malpracticeCount = 0;
+
+    const coursePassKey = "Course Pass/Fail";
+    const esePassKey = "ESE Pass";
+    const overallPassKey = "Overall pass";
+
+    processedRows.forEach(r => {
+      if (r["PRN"]) prnSet.add(r["PRN"]);
+      
+      if (r._isHeldback) {
+        heldbackCount++;
+        heldCount++;
+        return;
+      }
+
+      if (r._isHeld) {
+        missingCompCount++;
+        heldCount++;
+        return;
+      }
+
+      if (r._isMalpractice) {
+        malpracticeCount++;
+      } else if (r._isAbsent) {
+        absentCount++;
+      }
+
+      if (r._rawPass) {
+        rawPassed++;
+      }
+      if (r._isModeratedPass) {
+        moderatedPassed++;
+      }
+
+      if (r[coursePassKey] === "Pass") {
+        totalPassed++;
+      } else {
+        failed++;
+        if (r[esePassKey] === "Fail") eseFailed++;
+        if (r[overallPassKey] === "Fail") overallFailed++;
+      }
+    });
+
+    const evaluatedTotal = total - heldCount;
+    const passPct = evaluatedTotal > 0 ? ((totalPassed / evaluatedTotal) * 100).toFixed(1) : "0.0";
+    const rawPassPct = evaluatedTotal > 0 ? ((rawPassed / evaluatedTotal) * 100).toFixed(1) : "0.0";
+    const failedPct = evaluatedTotal > 0 ? ((failed / evaluatedTotal) * 100).toFixed(1) : "0.0";
+    const heldPct = total > 0 ? ((heldCount / total) * 100).toFixed(1) : "0.0";
+
+    return {
+      total,
+      uniqueStudents: prnSet.size,
+      rawPassed,
+      rawPassPct,
+      moderatedPassed,
+      moderatedPct: evaluatedTotal > 0 ? ((moderatedPassed / evaluatedTotal) * 100).toFixed(1) : "0.0",
+      totalPassed,
+      failed,
+      failedPct,
+      heldCount,
+      heldPct,
+      heldbackCount,
+      missingCompCount,
+      passPct,
+      eseFailed,
+      overallFailed,
+      absentCount,
+      absentPct: total > 0 ? ((absentCount / total) * 100).toFixed(1) : "0.0",
+      malpracticeCount,
+      malpracticePct: total > 0 ? ((malpracticeCount / total) * 100).toFixed(1) : "0.0"
+    };
+  }, [processedRows]);
+
+  // Statistics Metrics (calculated from active scoped filters, for Course Results view)
   const metrics = useMemo(() => {
     const total = scopedCourseRows.length;
-    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, heldCount: 0, heldbackCount: 0, missingCompCount: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0, malpracticeCount: 0 };
+    if (total === 0) return { 
+      total: 0, 
+      uniqueStudents: 0, 
+      rawPassed: 0, 
+      rawPassPct: "0.0",
+      moderatedPassed: 0, 
+      moderatedPct: "0.0",
+      totalPassed: 0, 
+      passPct: "0.0", 
+      failed: 0, 
+      failedPct: "0.0",
+      heldCount: 0, 
+      heldPct: "0.0",
+      heldbackCount: 0, 
+      missingCompCount: 0, 
+      eseFailed: 0, 
+      overallFailed: 0, 
+      absentCount: 0, 
+      absentPct: "0.0",
+      malpracticeCount: 0,
+      malpracticePct: "0.0"
+    };
 
     const prnSet = new Set();
     let rawPassed = 0;
@@ -3583,23 +3807,30 @@ export default function AdesResultCalculatorPage() {
     const evaluatedTotal = total - heldCount;
     const passPct = evaluatedTotal > 0 ? ((totalPassed / evaluatedTotal) * 100).toFixed(1) : "0.0";
     const rawPassPct = evaluatedTotal > 0 ? ((rawPassed / evaluatedTotal) * 100).toFixed(1) : "0.0";
+    const failedPct = evaluatedTotal > 0 ? ((failed / evaluatedTotal) * 100).toFixed(1) : "0.0";
+    const heldPct = total > 0 ? ((heldCount / total) * 100).toFixed(1) : "0.0";
 
     return {
       total,
       uniqueStudents: prnSet.size,
       rawPassed,
+      rawPassPct,
       moderatedPassed,
+      moderatedPct: evaluatedTotal > 0 ? ((moderatedPassed / evaluatedTotal) * 100).toFixed(1) : "0.0",
       totalPassed,
       failed,
+      failedPct,
       heldCount,
+      heldPct,
       heldbackCount,
       missingCompCount,
       passPct,
-      rawPassPct,
       eseFailed,
       overallFailed,
       absentCount,
-      malpracticeCount
+      absentPct: total > 0 ? ((absentCount / total) * 100).toFixed(1) : "0.0",
+      malpracticeCount,
+      malpracticePct: total > 0 ? ((malpracticeCount / total) * 100).toFixed(1) : "0.0"
     };
   }, [scopedCourseRows]);
 
@@ -4288,15 +4519,15 @@ export default function AdesResultCalculatorPage() {
             </div>
           </div>
 
-          {/* Result Overview Stat Card */}
+          {/* Consolidated Overall Result Stat Card (Global / No Filter) */}
           {processedRows.length > 0 && (
             <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
               <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Users size={14} color="#6366f1" /> Student (Semester) Result
+                  <Users size={14} color="#6366f1" /> Consolidated Overview
                 </span>
-                <span style={{ fontSize: "10px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
-                  All Papers Rule
+                <span style={{ fontSize: "9.5px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  All Data (No Filter)
                 </span>
               </div>
               
@@ -4304,24 +4535,28 @@ export default function AdesResultCalculatorPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "11px" }}>
                 <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)" }}>
                   <div style={{ color: "var(--muted)" }}>Unique Students</div>
-                  <strong style={{ fontSize: "15px", color: "var(--ink)" }}>{studentMetrics.totalStudents}</strong>
+                  <strong style={{ fontSize: "15px", color: "var(--ink)" }}>{consolidatedStudentMetrics.totalStudents}</strong>
+                  <div style={{ fontSize: "9.5px", color: "var(--muted)", marginTop: "1px" }}>
+                    {consolidatedStudentMetrics.totalPapersAttempted} papers (~{consolidatedStudentMetrics.avgPapersPerStudent}/st)
+                  </div>
                 </div>
 
                 <div style={{ background: "rgba(99, 102, 241, 0.08)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(99, 102, 241, 0.25)" }}>
                   <div style={{ color: "#6366f1", fontWeight: 600 }}>Semester Pass %</div>
-                  <strong style={{ fontSize: "15px", color: "#6366f1" }}>{studentMetrics.finalPassedPct}%</strong>
+                  <strong style={{ fontSize: "15px", color: "#6366f1" }}>{consolidatedStudentMetrics.finalPassedPct}%</strong>
+                  <div style={{ fontSize: "9.5px", color: "#6366f1" }}>All Papers Rule</div>
                 </div>
 
                 <div style={{ background: "rgba(16, 185, 129, 0.1)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
                   <div style={{ color: "#10b981", fontWeight: 600 }}>Passed All Papers</div>
-                  <strong style={{ fontSize: "15px", color: "#10b981" }}>{studentMetrics.finalPassedStudents}</strong>
-                  <div style={{ fontSize: "9.5px", color: "#10b981" }}>({studentMetrics.finalPassedPct}%)</div>
+                  <strong style={{ fontSize: "15px", color: "#10b981" }}>{consolidatedStudentMetrics.finalPassedStudents}</strong>
+                  <div style={{ fontSize: "9.5px", color: "#10b981" }}>({consolidatedStudentMetrics.finalPassedPct}%)</div>
                 </div>
 
                 <div style={{ background: "rgba(239, 68, 68, 0.1)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
                   <div style={{ color: "#ef4444", fontWeight: 600 }}>Failed &ge; 1 Paper</div>
-                  <strong style={{ fontSize: "15px", color: "#ef4444" }}>{studentMetrics.failedStudents}</strong>
-                  <div style={{ fontSize: "9.5px", color: "#ef4444" }}>({studentMetrics.failedPct}%)</div>
+                  <strong style={{ fontSize: "15px", color: "#ef4444" }}>{consolidatedStudentMetrics.failedStudents}</strong>
+                  <div style={{ fontSize: "9.5px", color: "#ef4444" }}>({consolidatedStudentMetrics.failedPct}%)</div>
                 </div>
               </div>
 
@@ -4332,13 +4567,52 @@ export default function AdesResultCalculatorPage() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
                   <span>Raw Passed (0 Mod):</span>
-                  <strong>{studentMetrics.rawPassedStudents} ({studentMetrics.rawPassedPct}%)</strong>
+                  <strong>{consolidatedStudentMetrics.rawPassedStudents} ({consolidatedStudentMetrics.rawPassedPct}%)</strong>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981", fontWeight: 600 }}>
                   <span>Rescued to Semester Pass:</span>
-                  <span>+{studentMetrics.rescuedStudents} students</span>
+                  <span>+{consolidatedStudentMetrics.rescuedStudents} students ({consolidatedStudentMetrics.rescuedPct}%)</span>
                 </div>
               </div>
+
+              {/* Student Cases & Special Statuses */}
+              {(consolidatedStudentMetrics.heldStudents > 0 || consolidatedStudentMetrics.absentStudents > 0 || consolidatedStudentMetrics.malpracticeStudents > 0) && (
+                <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <div style={{ fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <AlertCircle size={12} color="#c026d3" /> Special Student Statuses:
+                  </div>
+                  {consolidatedStudentMetrics.heldStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#c026d3" }}>
+                      <span>Held Students (Total):</span>
+                      <strong>{consolidatedStudentMetrics.heldStudents} ({consolidatedStudentMetrics.heldPct}%)</strong>
+                    </div>
+                  )}
+                  {consolidatedStudentMetrics.heldbackStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", paddingLeft: "8px" }}>
+                      <span>&bull; Heldback Report:</span>
+                      <strong style={{ color: "#c026d3" }}>{consolidatedStudentMetrics.heldbackStudents}</strong>
+                    </div>
+                  )}
+                  {consolidatedStudentMetrics.heldMissingStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", paddingLeft: "8px" }}>
+                      <span>&bull; Missing Component:</span>
+                      <strong style={{ color: "#9333ea" }}>{consolidatedStudentMetrics.heldMissingStudents}</strong>
+                    </div>
+                  )}
+                  {consolidatedStudentMetrics.absentStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626" }}>
+                      <span>With Absences (&ge;1 Paper):</span>
+                      <strong>{consolidatedStudentMetrics.absentStudents} ({consolidatedStudentMetrics.absentPct}%)</strong>
+                    </div>
+                  )}
+                  {consolidatedStudentMetrics.malpracticeStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#d97706" }}>
+                      <span>With Malpractice (&ge;1 Paper):</span>
+                      <strong>{consolidatedStudentMetrics.malpracticeStudents} ({consolidatedStudentMetrics.malpracticePct}%)</strong>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Course-Level Statistics Summary */}
               <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -4347,47 +4621,57 @@ export default function AdesResultCalculatorPage() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
                   <span>Total Course Papers:</span>
-                  <strong>{metrics.total}</strong>
+                  <strong>{consolidatedCourseMetrics.total}</strong>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981" }}>
                   <span>Course Papers Passed:</span>
-                  <strong>{metrics.totalPassed} ({metrics.passPct}%)</strong>
+                  <strong>{consolidatedCourseMetrics.totalPassed} ({consolidatedCourseMetrics.passPct}%)</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", fontSize: "10.5px" }}>
+                  <span>&bull; Raw / Via Mod:</span>
+                  <span><strong>{consolidatedCourseMetrics.rawPassed}</strong> / <strong style={{ color: "#10b981" }}>+{consolidatedCourseMetrics.moderatedPassed}</strong></span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "#ef4444" }}>
                   <span>Course Papers Failed:</span>
-                  <strong>{metrics.failed} ({(100 - metrics.passPct).toFixed(1)}%)</strong>
+                  <strong>{consolidatedCourseMetrics.failed} ({consolidatedCourseMetrics.failedPct}%)</strong>
                 </div>
-                {metrics.heldbackCount > 0 && (
+                {consolidatedCourseMetrics.heldbackCount > 0 && (
                   <div style={{ display: "flex", justifyContent: "space-between", color: "#c026d3" }}>
                     <span>Held (Heldback Report):</span>
-                    <strong>{metrics.heldbackCount}</strong>
+                    <strong>{consolidatedCourseMetrics.heldbackCount}</strong>
                   </div>
                 )}
-                {metrics.missingCompCount > 0 && (
+                {consolidatedCourseMetrics.missingCompCount > 0 && (
                   <div style={{ display: "flex", justifyContent: "space-between", color: "#9333ea" }}>
                     <span>Held (Missing Component):</span>
-                    <strong>{metrics.missingCompCount}</strong>
+                    <strong>{consolidatedCourseMetrics.missingCompCount}</strong>
                   </div>
                 )}
-                {metrics.heldbackCount === 0 && metrics.missingCompCount === 0 && metrics.heldCount > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "#9333ea" }}>
-                    <span>Held:</span>
-                    <strong>{metrics.heldCount}</strong>
+                {consolidatedCourseMetrics.absentCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626" }}>
+                    <span>Absent Papers:</span>
+                    <strong>{consolidatedCourseMetrics.absentCount}</strong>
+                  </div>
+                )}
+                {consolidatedCourseMetrics.malpracticeCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#d97706" }}>
+                    <span>Malpractice Papers:</span>
+                    <strong>{consolidatedCourseMetrics.malpracticeCount}</strong>
                   </div>
                 )}
               </div>
 
               {/* Failure Breakdown */}
-              {metrics.failed > 0 && (
+              {consolidatedCourseMetrics.failed > 0 && (
                 <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
                   <div style={{ fontWeight: 600, color: "var(--ink)" }}>Failure Breakdown:</div>
                   <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
                     <span>ESE Failed (&lt; 30%):</span>
-                    <strong style={{ color: "#ef4444" }}>{metrics.eseFailed}</strong>
+                    <strong style={{ color: "#ef4444" }}>{consolidatedCourseMetrics.eseFailed}</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
                     <span>Aggregate Failed (&lt; 35%):</span>
-                    <strong style={{ color: "#ef4444" }}>{metrics.overallFailed}</strong>
+                    <strong style={{ color: "#ef4444" }}>{consolidatedCourseMetrics.overallFailed}</strong>
                   </div>
                 </div>
               )}
@@ -4424,15 +4708,16 @@ export default function AdesResultCalculatorPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveTab("simulation")}
+                    onClick={() => setActiveTab("matrix")}
                     style={{
+                      flex: 1,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "4px",
                       padding: "5px 8px",
                       fontSize: "11px",
-                      background: "var(--bg)",
+                      background: "var(--panel)",
                       color: "var(--ink)",
                       border: "1px solid var(--line)",
                       borderRadius: "4px",
@@ -4567,6 +4852,48 @@ export default function AdesResultCalculatorPage() {
                     {studentMetrics.rawPassedPct}% without moderation
                   </div>
                 </div>
+
+                {studentMetrics.heldStudents > 0 && (
+                  <div style={{ background: "rgba(192, 38, 211, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(192, 38, 211, 0.3)" }}>
+                    <div style={{ fontSize: "11px", color: "#c026d3", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                      <Lock size={14} /> Held Students (Total)
+                    </div>
+                    <div style={{ fontSize: "20px", fontWeight: 700, color: "#c026d3", marginTop: "3px" }}>
+                      {studentMetrics.heldStudents}
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#c026d3" }}>
+                      {studentMetrics.heldbackStudents > 0 ? `${studentMetrics.heldbackStudents} HB` : ""}{studentMetrics.heldbackStudents > 0 && studentMetrics.heldMissingStudents > 0 ? " · " : ""}{studentMetrics.heldMissingStudents > 0 ? `${studentMetrics.heldMissingStudents} Missing` : ""} ({studentMetrics.heldPct}%)
+                    </div>
+                  </div>
+                )}
+
+                {studentMetrics.absentStudents > 0 && (
+                  <div style={{ background: "rgba(220, 38, 38, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(220, 38, 38, 0.3)" }}>
+                    <div style={{ fontSize: "11px", color: "#dc2626", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                      <AlertCircle size={14} /> With Absences
+                    </div>
+                    <div style={{ fontSize: "20px", fontWeight: 700, color: "#dc2626", marginTop: "3px" }}>
+                      {studentMetrics.absentStudents}
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#dc2626" }}>
+                      {studentMetrics.absentPct}% in ≥1 paper
+                    </div>
+                  </div>
+                )}
+
+                {studentMetrics.malpracticeStudents > 0 && (
+                  <div style={{ background: "rgba(217, 119, 6, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(217, 119, 6, 0.3)" }}>
+                    <div style={{ fontSize: "11px", color: "#d97706", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                      <AlertCircle size={14} /> With Malpractice
+                    </div>
+                    <div style={{ fontSize: "20px", fontWeight: 700, color: "#d97706", marginTop: "3px" }}>
+                      {studentMetrics.malpracticeStudents}
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#d97706" }}>
+                      {studentMetrics.malpracticePct}% in ≥1 paper
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Filters & Search Toolbar */}
