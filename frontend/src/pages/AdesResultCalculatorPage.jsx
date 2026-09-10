@@ -104,6 +104,12 @@ export default function AdesResultCalculatorPage() {
   const [bulkModValue, setBulkModValue] = useState(4);
   const modFileInputRef = useRef(null);
 
+  // Absent Students Report State
+  const [absentRecordsMap, setAbsentRecordsMap] = useState(new Map());
+  const [absentFileName, setAbsentFileName] = useState("");
+  const [absentList, setAbsentList] = useState([]);
+  const absentFileInputRef = useRef(null);
+
   // Table Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFacultyFilter, setSelectedFacultyFilter] = useState("ALL");
@@ -137,8 +143,89 @@ export default function AdesResultCalculatorPage() {
     if (val === null || val === undefined) return null;
     const s = String(val).trim();
     if (s === "") return null;
+    if (s.toLowerCase().includes("absent") || s.toLowerCase().includes("(ab)")) return null;
     const num = Number(s);
     return isNaN(num) ? null : num;
+  };
+
+  // Helper to match student course record against loaded Absent Report
+  const getAbsentEntry = (prn, seat, code, absentMap) => {
+    if (!absentMap || absentMap.size === 0) return null;
+    const normCode = normalizeKey(code);
+    if (!normCode) return null;
+
+    const normPrn = normalizeKey(prn);
+    if (normPrn) {
+      const entry = absentMap.get(`${normPrn}___${normCode}`);
+      if (entry) return entry;
+    }
+
+    const normSeat = normalizeKey(seat);
+    if (normSeat) {
+      const entry = absentMap.get(`${normSeat}___${normCode}`);
+      if (entry) return entry;
+    }
+
+    return null;
+  };
+
+  // Build lookup map and formatted list from uploaded Absent Report rows
+  const buildAbsentLookup = (rows, headerMap = {}) => {
+    const map = new Map();
+    const list = [];
+
+    rows.forEach(r => {
+      const prn = String(getCell(r, headerMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || r["PRN"] || "").trim();
+      const seat = String(getCell(r, headerMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || r["Seat Number"] || "").trim();
+      const code = String(getCell(r, headerMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Course Code"] || "").trim();
+      const courseName = String(getCell(r, headerMap, "Course Name", "CourseName", "PaperName", "SubjectName") || r["Course Name"] || "").trim();
+      const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
+
+      const am = String(getCell(r, headerMap, "AM", "Assessment Method", "AssessmentMethod") || r["AM"] || "").trim().toUpperCase();
+      const at = String(getCell(r, headerMap, "AT", "Assessment Type", "AssessmentType") || r["AT"] || "").trim().toUpperCase();
+
+      const status = String(getCell(r, headerMap, "Absent Status (categorized as)", "Absent Status", "AbsentStatus", "Status", "Remarks") || r["Absent Status (categorized as)"] || "").trim() || "Marked Absent During Mark Entry";
+
+      const normCode = normalizeKey(code);
+      const normPrn = normalizeKey(prn);
+      const normSeat = normalizeKey(seat);
+
+      const isEseTh = (am.includes("ESE") || !am) && (at.includes("TH") || !at);
+      const isEsePr = am.includes("ESE") && at.includes("PR");
+      const isCeTh = am.includes("CE") && at.includes("TH");
+      const isCePr = am.includes("CE") && at.includes("PR");
+      const isWholeEse = am.includes("ESE") && !at;
+      const isWholeCourse = !am && !at;
+
+      const details = {
+        studentName,
+        prn,
+        seat,
+        code,
+        courseName,
+        am: am || "ESE",
+        at: at || "TH",
+        status,
+        isEseTh: isEseTh || isWholeEse || isWholeCourse,
+        isEsePr: isEsePr || isWholeEse || isWholeCourse,
+        isCeTh: isCeTh || isWholeCourse,
+        isCePr: isCePr || isWholeCourse,
+        isAbsentOverall: isEseTh || isEsePr || isWholeEse || isWholeCourse
+      };
+
+      if (normPrn && normCode) {
+        map.set(`${normPrn}___${normCode}`, details);
+      }
+      if (normSeat && normCode) {
+        map.set(`${normSeat}___${normCode}`, details);
+      }
+
+      if (normCode && (normPrn || normSeat)) {
+        list.push(details);
+      }
+    });
+
+    return { map, list };
   };
 
   const isAlreadyAggregatedSheet = (hMap) => {
@@ -150,7 +237,7 @@ export default function AdesResultCalculatorPage() {
   };
 
   // Group raw assessment rows OR parse pre-aggregated rows into Student-Course Base Aggregates
-  const buildGroupedRecordsFromRows = (rows, currentHeaderMap) => {
+  const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap) => {
     const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
 
     if (isAgg) {
@@ -164,13 +251,16 @@ export default function AdesResultCalculatorPage() {
         const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
         const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
 
+        // Check if this student-course has an absent record
+        const absentEntry = getAbsentEntry(prn, seat, code, currentAbsentMap);
+
         const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? "";
         const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
-        const ese_pr_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained")) ?? "";
+        let ese_pr_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained")) ?? "";
 
         const ese_th_max = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax")) ?? "";
         const ese_th_min = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Min", "ESETHMin")) ?? (ese_th_max !== "" ? 0 : "");
-        const ese_th_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained")) ?? "";
+        let ese_th_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained")) ?? "";
 
         let ese_max = parseNumber(getCell(row, currentHeaderMap, "ESE - Max", "ESEMax"));
         if (ese_max === null) {
@@ -180,9 +270,37 @@ export default function AdesResultCalculatorPage() {
         if (ese_min === null) {
           ese_min = Math.ceil(0.30 * ese_max);
         }
-        let ese_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE Overall", "ESEOverall"));
-        if (ese_obtained === null) {
-          ese_obtained = (parseNumber(ese_pr_obtained) || 0) + (parseNumber(ese_th_obtained) || 0);
+
+        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0;
+        const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0;
+        const is_pr_only = has_ese_pr && !has_ese_th;
+
+        let is_absent = false;
+        let absent_status = "";
+
+        if (absentEntry) {
+          is_absent = true;
+          absent_status = absentEntry.status;
+          if (absentEntry.isEseTh) {
+            ese_th_obtained = "Absent (Ab)";
+          }
+          if (absentEntry.isEsePr) {
+            ese_pr_obtained = "Absent (Ab)";
+          }
+        }
+
+        let ese_obtained;
+        if (is_absent && ese_th_obtained === "Absent (Ab)" && (!has_ese_pr || ese_pr_obtained === "Absent (Ab)")) {
+          ese_obtained = "Absent (Ab)";
+        } else if (is_absent && ese_pr_obtained === "Absent (Ab)" && !has_ese_th) {
+          ese_obtained = "Absent (Ab)";
+        } else {
+          ese_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE Overall", "ESEOverall"));
+          if (ese_obtained === null) {
+            const prNum = parseNumber(ese_pr_obtained) || 0;
+            const thNum = parseNumber(ese_th_obtained) || 0;
+            ese_obtained = prNum + thNum;
+          }
         }
 
         const ce_pr_max = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax")) ?? "";
@@ -213,18 +331,29 @@ export default function AdesResultCalculatorPage() {
         }
         let course_overall = parseNumber(getCell(row, currentHeaderMap, "Course Overall Marks ", "Course Overall Marks", "CourseOverallMarks"));
         if (course_overall === null) {
-          course_overall = ese_obtained + ce_obtained;
+          course_overall = (parseNumber(ese_obtained) || 0) + ce_obtained;
         }
 
-        const ese_deficit = Math.max(0, ese_min - ese_obtained);
-        const overall_deficit = Math.max(0, overall_min - course_overall);
-        const raw_ese_pass = ese_deficit === 0;
-        const raw_overall_pass = overall_deficit === 0;
-        const raw_course_pass = raw_ese_pass && raw_overall_pass;
+        let ese_deficit = 0;
+        let overall_deficit = 0;
+        let raw_ese_pass = false;
+        let raw_overall_pass = false;
+        let raw_course_pass = false;
 
-        const has_ese_th = (parseNumber(ese_th_max) || 0) > 0;
-        const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0;
-        const is_pr_only = has_ese_pr && !has_ese_th;
+        if (is_absent) {
+          raw_ese_pass = false;
+          raw_overall_pass = false;
+          raw_course_pass = false;
+          ese_deficit = 999;
+          overall_deficit = 999;
+        } else {
+          const numEse = parseNumber(ese_obtained) || 0;
+          ese_deficit = Math.max(0, ese_min - numEse);
+          overall_deficit = Math.max(0, overall_min - course_overall);
+          raw_ese_pass = ese_deficit === 0;
+          raw_overall_pass = overall_deficit === 0;
+          raw_course_pass = raw_ese_pass && raw_overall_pass;
+        }
 
         baseRecords.push({
           identifiers: { faculty, program, seat, prn, code, name },
@@ -264,7 +393,9 @@ export default function AdesResultCalculatorPage() {
           overall_deficit,
           raw_ese_pass,
           raw_overall_pass,
-          raw_course_pass
+          raw_course_pass,
+          is_absent,
+          absent_status
         });
       });
 
@@ -321,17 +452,40 @@ export default function AdesResultCalculatorPage() {
     const baseRecords = [];
 
     groups.forEach(({ identifiers, components }) => {
+      const absentEntry = getAbsentEntry(identifiers.prn, identifiers.seat, identifiers.code, currentAbsentMap);
+      const is_absent = !!absentEntry;
+      const absent_status = absentEntry ? absentEntry.status : "";
+
       const ese_pr = components["ESE_PR"];
       const ese_pr_max = (ese_pr && ese_pr.max !== null) ? ese_pr.max : 0;
-      const ese_pr_obtained = (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : 0;
+      let ese_pr_obtained = (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : 0;
 
       const ese_th = components["ESE_TH"];
       const ese_th_max = (ese_th && ese_th.max !== null) ? ese_th.max : 0;
-      const ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : 0;
+      let ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : 0;
+
+      if (absentEntry) {
+        if (absentEntry.isEseTh) {
+          ese_th_obtained = "Absent (Ab)";
+        }
+        if (absentEntry.isEsePr) {
+          ese_pr_obtained = "Absent (Ab)";
+        }
+      }
 
       const ese_max = ese_pr_max + ese_th_max;
       const ese_min = Math.ceil(0.30 * ese_max);
-      const ese_obtained = ese_pr_obtained + ese_th_obtained;
+
+      let ese_obtained;
+      if (is_absent && ese_th_obtained === "Absent (Ab)" && (ese_pr_max === 0 || ese_pr_obtained === "Absent (Ab)")) {
+        ese_obtained = "Absent (Ab)";
+      } else if (is_absent && ese_pr_obtained === "Absent (Ab)" && ese_th_max === 0) {
+        ese_obtained = "Absent (Ab)";
+      } else {
+        const numPr = parseNumber(ese_pr_obtained) || 0;
+        const numTh = parseNumber(ese_th_obtained) || 0;
+        ese_obtained = numPr + numTh;
+      }
 
       const ce_pr = components["CE_PR"];
       const ce_pr_max = (ce_pr && ce_pr.max !== null) ? ce_pr.max : 0;
@@ -347,13 +501,28 @@ export default function AdesResultCalculatorPage() {
 
       const overall_max = ese_max + ce_max;
       const overall_min = Math.ceil(0.35 * overall_max);
-      const course_overall = ese_obtained + ce_obtained;
+      const course_overall = (parseNumber(ese_obtained) || 0) + ce_obtained;
 
-      const ese_deficit = Math.max(0, ese_min - ese_obtained);
-      const overall_deficit = Math.max(0, overall_min - course_overall);
-      const raw_ese_pass = ese_deficit === 0;
-      const raw_overall_pass = overall_deficit === 0;
-      const raw_course_pass = raw_ese_pass && raw_overall_pass;
+      let ese_deficit = 0;
+      let overall_deficit = 0;
+      let raw_ese_pass = false;
+      let raw_overall_pass = false;
+      let raw_course_pass = false;
+
+      if (is_absent) {
+        raw_ese_pass = false;
+        raw_overall_pass = false;
+        raw_course_pass = false;
+        ese_deficit = 999;
+        overall_deficit = 999;
+      } else {
+        const numEse = parseNumber(ese_obtained) || 0;
+        ese_deficit = Math.max(0, ese_min - numEse);
+        overall_deficit = Math.max(0, overall_min - course_overall);
+        raw_ese_pass = ese_deficit === 0;
+        raw_overall_pass = overall_deficit === 0;
+        raw_course_pass = raw_ese_pass && raw_overall_pass;
+      }
 
       const has_ese_th = ese_th_max > 0;
       const has_ese_pr = ese_pr_max > 0;
@@ -370,13 +539,13 @@ export default function AdesResultCalculatorPage() {
           "PRN": identifiers.prn,
           "ESE - PR Max": (ese_pr && ese_pr.max !== null) ? ese_pr.max : "",
           "ESE - PR Min": "",
-          "ESE - PR Obtained": (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : "",
+          "ESE - PR Obtained": (ese_pr && ese_pr_obtained === "Absent (Ab)") ? "Absent (Ab)" : ((ese_pr && ese_pr.marks !== null) ? ese_pr.marks : ""),
           "ESE - TH Max": (ese_th && ese_th.max !== null) ? ese_th.max : "",
           "ESE - TH Min": ese_th ? 0 : "",
-          "ESE - TH Obtained": (ese_th && ese_th.marks !== null) ? ese_th.marks : "",
+          "ESE - TH Obtained": (ese_th && ese_th_obtained === "Absent (Ab)") ? "Absent (Ab)" : ((ese_th && ese_th.marks !== null) ? ese_th.marks : ""),
           "ESE - Max": Math.round(ese_max),
           "ESE - Min": ese_min,
-          "ESE Overall": Math.round(ese_obtained),
+          "ESE Overall": ese_obtained === "Absent (Ab)" ? "Absent (Ab)" : Math.round(ese_obtained),
           "CE - PR Max": (ce_pr && ce_pr.max !== null) ? ce_pr.max : "",
           "CE - PR Min": ce_pr ? 0 : "",
           "CE - PR Obtained": (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : "",
@@ -397,7 +566,9 @@ export default function AdesResultCalculatorPage() {
         overall_deficit,
         raw_ese_pass,
         raw_overall_pass,
-        raw_course_pass
+        raw_course_pass,
+        is_absent,
+        absent_status
       });
     });
 
@@ -426,13 +597,18 @@ export default function AdesResultCalculatorPage() {
           totalStudents: 0,
           rawPassed: 0,
           rawFailed: 0,
+          absentCount: 0,
           nearPassCount: 0
         });
       }
 
       const item = map.get(norm);
       item.totalStudents++;
-      if (rec.raw_course_pass) {
+      if (rec.is_absent) {
+        item.absentCount++;
+        item.rawFailed++;
+        // Absent students cannot be rescued by moderation; do not count in nearPassCount
+      } else if (rec.raw_course_pass) {
         item.rawPassed++;
       } else {
         item.rawFailed++;
@@ -452,6 +628,25 @@ export default function AdesResultCalculatorPage() {
       const row = { ...rec.raw };
       const normCode = normalizeKey(rec.identifiers.code);
       const modLimit = courseModerationMap[normCode] || 0;
+
+      // Absent Student Handling: Never eligible for moderation, automatically Fail
+      if (rec.is_absent) {
+        row["ESE Pass"] = "Fail";
+        row["Overall pass"] = "Fail";
+        row["Course Pass/Fail"] = "Fail";
+        row["Moderation Marks"] = 0;
+
+        row._rawPass = false;
+        row._isModeratedPass = false;
+        row._isAbsent = true;
+        row._absentStatus = rec.absent_status || "Marked Absent";
+        row._modLimit = modLimit;
+        row._isEligibleForMod = false;
+        row._isPrOnly = rec.is_pr_only;
+        row._eseDeficit = rec.ese_deficit;
+        row._overallDeficit = rec.overall_deficit;
+        return row;
+      }
 
       // Moderation eligibility: Effected if course has ESE-TH, OR if it is ESE-PR only AND user enabled allowPrOnlyModeration
       const isEligibleForModeration = rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration);
@@ -481,6 +676,8 @@ export default function AdesResultCalculatorPage() {
       // Internal flags for UI rendering & statistics
       row._rawPass = rec.raw_course_pass;
       row._isModeratedPass = is_moderated_pass;
+      row._isAbsent = false;
+      row._absentStatus = "";
       row._modLimit = modLimit;
       row._isEligibleForMod = isEligibleForModeration;
       row._isPrOnly = rec.is_pr_only;
@@ -515,6 +712,7 @@ export default function AdesResultCalculatorPage() {
           isPrOnly: rec.is_pr_only,
           isEligible: rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration),
           totalStudents: 0,
+          absentCount: 0,
           rawEsePassCount: 0,       // 30% ESE Rule Pass Count
           rawOverallPassCount: 0,   // 35% Overall Course Rule Pass Count
           rawPassCount: 0,          // Combined (Both 30% ESE & 35% Overall Met)
@@ -527,9 +725,14 @@ export default function AdesResultCalculatorPage() {
       const item = map.get(norm);
       item.totalStudents++;
 
+      // Absent students are strictly excluded from pass counts at all moderation levels
+      if (rec.is_absent) {
+        item.absentCount++;
+        return;
+      }
+
       const ese_deficit = rec.ese_deficit;
       const overall_deficit = rec.overall_deficit;
-      const marks_needed = Math.max(ese_deficit, overall_deficit);
       const is_raw_ese_pass = rec.raw_ese_pass;         // 30% ESE Rule
       const is_raw_overall_pass = rec.raw_overall_pass; // 35% Overall Rule
       const is_raw_pass = rec.raw_course_pass;          // Both 30% and 35% Rules
@@ -830,6 +1033,10 @@ export default function AdesResultCalculatorPage() {
         st.finalFailedCourses++;
       }
 
+      if (row._isAbsent) {
+        st.absentCourses = (st.absentCourses || 0) + 1;
+      }
+
       st.totalModerationMarks += modMarks;
 
       st.courses.push({
@@ -840,6 +1047,8 @@ export default function AdesResultCalculatorPage() {
         coursePass: row["Course Pass/Fail"],
         rawPass: isRawCoursePass,
         isModeratedPass: row._isModeratedPass,
+        isAbsent: !!row._isAbsent,
+        absentStatus: row._absentStatus || "",
         modMarks,
         eseOverall: row["ESE Overall"],
         eseMin: row["ESE - Min"],
@@ -886,6 +1095,7 @@ export default function AdesResultCalculatorPage() {
         failedPct: "0.0",
         rescuedStudents: 0,
         rescuedPct: "0.0",
+        absentStudents: 0,
         totalPapersAttempted: 0,
         avgPapersPerStudent: "0.0"
       };
@@ -894,6 +1104,7 @@ export default function AdesResultCalculatorPage() {
     let rawPassedStudents = 0;
     let finalPassedStudents = 0;
     let rescuedStudents = 0;
+    let absentStudents = 0;
     let totalPapersAttempted = 0;
 
     studentSemesterData.forEach(st => {
@@ -901,6 +1112,7 @@ export default function AdesResultCalculatorPage() {
       if (st.rawSemesterPass) rawPassedStudents++;
       if (st.finalSemesterPass) finalPassedStudents++;
       if (st.isRescuedSemester) rescuedStudents++;
+      if ((st.absentCourses || 0) > 0) absentStudents++;
     });
 
     const failedStudents = total - finalPassedStudents;
@@ -915,6 +1127,7 @@ export default function AdesResultCalculatorPage() {
       failedPct: ((failedStudents / total) * 100).toFixed(1),
       rescuedStudents,
       rescuedPct: ((rescuedStudents / total) * 100).toFixed(1),
+      absentStudents,
       totalPapersAttempted,
       avgPapersPerStudent: (totalPapersAttempted / total).toFixed(1)
     };
@@ -930,6 +1143,8 @@ export default function AdesResultCalculatorPage() {
       list = list.filter(st => !st.finalSemesterPass);
     } else if (studentFilterStatus === "RESCUED") {
       list = list.filter(st => st.isRescuedSemester);
+    } else if (studentFilterStatus === "ABSENT") {
+      list = list.filter(st => (st.absentCourses || 0) > 0);
     }
 
     if (studentSearchQuery.trim()) {
@@ -1119,7 +1334,7 @@ export default function AdesResultCalculatorPage() {
         setHeaderMap(hMap);
         setRawRows(rows);
 
-        const baseGrouped = buildGroupedRecordsFromRows(rows, hMap);
+        const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap);
         setGroupedRecords(baseGrouped);
         setPage(0);
 
@@ -1162,7 +1377,7 @@ export default function AdesResultCalculatorPage() {
       setHeaderMap(hMap);
       setRawRows(rows);
 
-      const baseGrouped = buildGroupedRecordsFromRows(rows, hMap);
+      const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap);
       setGroupedRecords(baseGrouped);
       setPage(0);
 
@@ -1276,6 +1491,157 @@ export default function AdesResultCalculatorPage() {
 
     XLSX.writeFile(wb, "course_moderation_template.xlsx");
     setStatus("Downloaded pre-filled Course Moderation Template (.xlsx) with Course Code & Current Moderation Marks.", "success");
+  };
+
+  // Handle Upload of Absent Students Report Excel (.xlsx, .xls, .csv)
+  const handleAbsentExcelUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        const { rows, headerMap: hMap } = parseSheetWithHeaderScan(firstSheet);
+        const effectiveRows = (rows && rows.length > 0) ? rows : XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+        if (!effectiveRows || effectiveRows.length === 0) {
+          setStatus("Uploaded absent report sheet is empty.", "warning");
+          return;
+        }
+
+        const { map, list } = buildAbsentLookup(effectiveRows, hMap);
+
+        if (list.length === 0) {
+          setStatus("No valid student absent entries found in " + file.name + ". Ensure columns include PRN/Seat Number and Course Code.", "warning");
+          return;
+        }
+
+        setAbsentRecordsMap(map);
+        setAbsentList(list);
+        setAbsentFileName(file.name);
+
+        // If source records are already loaded, re-group them immediately with this absent map!
+        if (rawRows && rawRows.length > 0 && headerMap) {
+          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map);
+          setGroupedRecords(updatedGrouped);
+        }
+
+        setStatus("Successfully imported " + list.length + " absent record(s) from \"" + file.name + "\". Matching components are marked as \"Absent (Ab)\" with Fail status.", "success");
+      } catch (err) {
+        console.error("Error importing absent sheet:", err);
+        setStatus("Failed to read absent report: " + err.message, "error");
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+    if (absentFileInputRef.current) absentFileInputRef.current.value = "";
+  };
+
+  // Clear loaded Absent Data and revert source marks
+  const handleClearAbsentData = () => {
+    setAbsentRecordsMap(new Map());
+    setAbsentList([]);
+    setAbsentFileName("");
+
+    if (rawRows && rawRows.length > 0 && headerMap) {
+      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, new Map());
+      setGroupedRecords(resetGrouped);
+    }
+
+    setStatus("Cleared absent records. Source marks reverted to original.", "info");
+  };
+
+  // Download Absent Report Template (.xlsx) with standard ADES format and sample rows
+  const handleDownloadAbsentTemplate = () => {
+    const headers = [
+      "Student Name",
+      "PRN",
+      "Seat Number",
+      "Program Name",
+      "Program Branch",
+      "Program Pattern",
+      "Program Part Name",
+      "Program Term Name",
+      "Specialization",
+      "College Code",
+      "College Name",
+      "Course Code",
+      "Course Name",
+      "TLM",
+      "AM",
+      "AT",
+      "Absent Status (categorized as)"
+    ];
+
+    const sampleRows = [
+      [
+        "FATHIMATH SANAH",
+        "2024012600144595",
+        "KH24CCOR025",
+        "Bachelor of Commerce(Co-operation)",
+        "Commerce",
+        "FYUGP-2024",
+        "BCom Year II",
+        "SEMESTER IV",
+        "",
+        "KH",
+        "Khansa Women's College for Advanced Studies, Kumbla, Kasargod",
+        "KU4VACCOM101",
+        "Consumer Rights and Protection",
+        "Lec-Lab",
+        "ESE",
+        "TH",
+        "Marked Absent During Mark Entry"
+      ],
+      [
+        "FATHIMATH SANAH",
+        "2024012600144595",
+        "KH24CCOR025",
+        "Bachelor of Commerce(Co-operation)",
+        "Commerce",
+        "FYUGP-2024",
+        "BCom Year II",
+        "SEMESTER IV",
+        "",
+        "KH",
+        "Khansa Women's College for Advanced Studies, Kumbla, Kasargod",
+        "KU4SECCOM100",
+        "Office Secretaryship and Practices",
+        "Lec-Lab",
+        "ESE",
+        "TH",
+        "Marked Absent During Mark Entry"
+      ]
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+    ws["!cols"] = [
+      { wch: 22 }, // Student Name
+      { wch: 20 }, // PRN
+      { wch: 16 }, // Seat Number
+      { wch: 34 }, // Program Name
+      { wch: 18 }, // Program Branch
+      { wch: 16 }, // Program Pattern
+      { wch: 16 }, // Program Part Name
+      { wch: 16 }, // Program Term Name
+      { wch: 16 }, // Specialization
+      { wch: 14 }, // College Code
+      { wch: 38 }, // College Name
+      { wch: 18 }, // Course Code
+      { wch: 34 }, // Course Name
+      { wch: 12 }, // TLM
+      { wch: 10 }, // AM
+      { wch: 10 }, // AT
+      { wch: 34 }  // Absent Status
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Absent_Report_Template");
+    XLSX.writeFile(wb, "absent_report_template.xlsx");
+    setStatus("Downloaded Absent Report Template (.xlsx) with standard ADES columns and sample entries.", "success");
   };
 
   // Export Course-Wise Pass Simulation Report (+0 to +10 Moderation)
@@ -1579,7 +1945,7 @@ export default function AdesResultCalculatorPage() {
   // Statistics Metrics
   const metrics = useMemo(() => {
     const total = processedRows.length;
-    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0 };
+    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0 };
 
     const prnSet = new Set();
     let rawPassed = 0;
@@ -1588,6 +1954,7 @@ export default function AdesResultCalculatorPage() {
     let failed = 0;
     let eseFailed = 0;
     let overallFailed = 0;
+    let absentCount = 0;
 
     const coursePassKey = "Course Pass/Fail";
     const esePassKey = "ESE Pass";
@@ -1596,6 +1963,10 @@ export default function AdesResultCalculatorPage() {
     processedRows.forEach(r => {
       if (r["PRN"]) prnSet.add(r["PRN"]);
       
+      if (r._isAbsent) {
+        absentCount++;
+      }
+
       if (r._rawPass) {
         rawPassed++;
       }
@@ -1622,7 +1993,8 @@ export default function AdesResultCalculatorPage() {
       passPct: ((totalPassed / total) * 100).toFixed(1),
       rawPassPct: ((rawPassed / total) * 100).toFixed(1),
       eseFailed,
-      overallFailed
+      overallFailed,
+      absentCount
     };
   }, [processedRows]);
 
@@ -1645,6 +2017,8 @@ export default function AdesResultCalculatorPage() {
       result = result.filter(r => r[esePassKey] === "Fail");
     } else if (selectedResultFilter === "OVERALL_FAIL") {
       result = result.filter(r => r[overallPassKey] === "Fail");
+    } else if (selectedResultFilter === "ABSENT") {
+      result = result.filter(r => r._isAbsent);
     }
 
     // 2. Dropdown Filters
@@ -1981,6 +2355,119 @@ export default function AdesResultCalculatorPage() {
             </div>
           )}
 
+          {/* Absent Mark Entry Report Card */}
+          <div style={{ 
+            background: absentList.length > 0 ? "rgba(239, 68, 68, 0.05)" : "var(--bg)", 
+            border: absentList.length > 0 ? "1.5px solid rgba(239, 68, 68, 0.35)" : "1px solid var(--line)", 
+            borderRadius: "8px", 
+            padding: "12px", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "8px" 
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: absentList.length > 0 ? "#ef4444" : "var(--ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <UserX size={14} color={absentList.length > 0 ? "#ef4444" : "var(--muted)"} /> Absent Mark Entry
+              </div>
+              {absentList.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "#ef4444", color: "white", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {absentList.length} Absent Records
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "var(--panel)", color: "var(--muted)", padding: "1px 6px", borderRadius: "10px", border: "1px solid var(--line)" }}>
+                  Optional
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              {absentList.length > 0 ? (
+                <span>
+                  Active: <strong>{absentFileName}</strong> ({absentList.length} mapped). Mapped components show <strong style={{ color: "#ef4444" }}>Absent (Ab)</strong> &amp; <strong>Fail</strong>.
+                </span>
+              ) : (
+                "Upload absent report to replace 0 marks with \"Absent (Ab)\" and mark courses as Fail (cannot receive moderation)."
+              )}
+            </div>
+
+            <input 
+              type="file" 
+              ref={absentFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              onChange={handleAbsentExcelUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => absentFileInputRef.current?.click()}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: absentList.length > 0 ? "rgba(239, 68, 68, 0.12)" : "var(--panel)",
+                  color: absentList.length > 0 ? "#ef4444" : "var(--ink)",
+                  border: absentList.length > 0 ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {absentList.length > 0 ? "Replace File" : "Upload Absent Excel"}
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleDownloadAbsentTemplate}
+                title="Download standard absent report template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {absentList.length > 0 && (
+                <button 
+                  type="button"
+                  onClick={handleClearAbsentData}
+                  title="Clear absent data and revert to original marks"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#ef4444",
+                    border: "1px solid #ef4444",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Result Overview Stat Card */}
           {processedRows.length > 0 && (
             <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -2282,6 +2769,15 @@ export default function AdesResultCalculatorPage() {
                   >
                     Rescued ({studentMetrics.rescuedStudents})
                   </button>
+                  {studentMetrics.absentStudents > 0 && (
+                    <button 
+                      type="button"
+                      onClick={() => setStudentFilterStatus("ABSENT")}
+                      style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "ABSENT" ? "#dc2626" : "transparent", color: studentFilterStatus === "ABSENT" ? "white" : "#dc2626" }}
+                    >
+                      With Absences ({studentMetrics.absentStudents})
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2373,6 +2869,10 @@ export default function AdesResultCalculatorPage() {
                                   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
                                     <CheckCircle2 size={12} /> Pass
                                   </span>
+                                ) : st.absentCourses > 0 ? (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.15)", color: "#dc2626", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
+                                    <UserX size={12} /> Fail ({st.absentCourses} Absent{st.finalFailedCourses > st.absentCourses ? `, ${st.finalFailedCourses - st.absentCourses} failed` : ""})
+                                  </span>
                                 ) : (
                                   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
                                     <XCircle size={12} /> Fail ({st.finalFailedCourses} Failed)
@@ -2408,7 +2908,13 @@ export default function AdesResultCalculatorPage() {
                                             <td style={{ padding: "6px 10px", fontWeight: 600 }}>{c.courseCode}</td>
                                             <td style={{ padding: "6px 10px" }}>{c.courseName}</td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.eseOverall !== null ? `${c.eseOverall} / ${c.eseMin ?? "-"}` : "-"}
+                                              {c.isAbsent ? (
+                                                <span style={{ color: "#dc2626", fontWeight: 700, background: "rgba(239, 68, 68, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
+                                                  Absent (Ab)
+                                                </span>
+                                              ) : c.eseOverall !== null ? (
+                                                `${c.eseOverall} / ${c.eseMin ?? "-"}`
+                                              ) : "-"}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
                                               {c.courseOverall !== null ? `${c.courseOverall} / ${c.overallMin ?? "-"}` : "-"}
@@ -2427,7 +2933,11 @@ export default function AdesResultCalculatorPage() {
                                               )}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.isModeratedPass ? (
+                                              {c.isAbsent ? (
+                                                <span style={{ color: "#dc2626", fontWeight: 700, background: "rgba(239, 68, 68, 0.12)", padding: "2px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }} title={c.absentStatus || "Marked Absent"}>
+                                                  <UserX size={11} /> Fail (Absent)
+                                                </span>
+                                              ) : c.isModeratedPass ? (
                                                 <span style={{ color: "#d97706", fontWeight: 700 }}>Pass (Mod)</span>
                                               ) : c.coursePass === "Pass" ? (
                                                 <span style={{ color: "#10b981", fontWeight: 600 }}>Pass</span>
@@ -3288,6 +3798,15 @@ export default function AdesResultCalculatorPage() {
                       >
                         Overall Fail ({metrics.overallFailed})
                       </button>
+                      {metrics.absentCount > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => { setSelectedResultFilter("ABSENT"); setPage(0); }}
+                          style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: selectedResultFilter === "ABSENT" ? "#dc2626" : "transparent", color: selectedResultFilter === "ABSENT" ? "white" : "#dc2626" }}
+                        >
+                          Absent ({metrics.absentCount})
+                        </button>
+                      )}
                     </div>
 
                     {/* Faculty Filter */}
@@ -3431,19 +3950,22 @@ export default function AdesResultCalculatorPage() {
                     ) : (
                       pagedRows.map((row, idx) => {
                         const globalIdx = page * pageSize + idx + 1;
-                        const isPass = row[coursePassKey] === "Pass";
-                        const isModPass = row._isModeratedPass;
+                        const isAbsent = !!row._isAbsent;
+                        const isPass = !isAbsent && row[coursePassKey] === "Pass";
+                        const isModPass = !isAbsent && row._isModeratedPass;
 
                         return (
                           <tr 
                             key={globalIdx} 
                             style={{ 
                               borderBottom: "1px solid var(--line)", 
-                              background: isModPass 
-                                ? "rgba(245, 158, 11, 0.05)" 
-                                : isPass 
-                                  ? "transparent" 
-                                  : "rgba(239, 68, 68, 0.04)" 
+                              background: isAbsent
+                                ? "rgba(239, 68, 68, 0.08)"
+                                : isModPass 
+                                  ? "rgba(245, 158, 11, 0.05)" 
+                                  : isPass 
+                                    ? "transparent" 
+                                    : "rgba(239, 68, 68, 0.04)" 
                             }}
                           >
                             <td style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center", color: "var(--muted)" }}>
@@ -3455,11 +3977,16 @@ export default function AdesResultCalculatorPage() {
                               const isCoursePass = col === coursePassKey;
                               const isOtherPass = col === "ESE Pass" || col === "Overall pass";
                               const isModMarks = col === "Moderation Marks";
+                              const isAbsentMark = val === "Absent (Ab)";
 
                               if (isCoursePass) {
                                 return (
                                   <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
-                                    {isModPass ? (
+                                    {isAbsent ? (
+                                      <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(239, 68, 68, 0.2)", color: "#dc2626", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }} title={row._absentStatus || "Marked Absent"}>
+                                        <UserX size={11} /> Fail (Absent)
+                                      </span>
+                                    ) : isModPass ? (
                                       <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
                                         <CheckCircle2 size={11} /> Pass (Mod +{row["Moderation Marks"]})
                                       </span>
@@ -3472,6 +3999,24 @@ export default function AdesResultCalculatorPage() {
                                         <XCircle size={11} /> Fail
                                       </span>
                                     )}
+                                  </td>
+                                );
+                              }
+
+                              if (isAbsentMark) {
+                                return (
+                                  <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
+                                    <span style={{ 
+                                      display: "inline-block", 
+                                      color: "#dc2626", 
+                                      background: "rgba(239, 68, 68, 0.16)", 
+                                      padding: "1px 6px", 
+                                      borderRadius: "4px", 
+                                      fontWeight: 700, 
+                                      fontSize: "11px" 
+                                    }} title={row._absentStatus || "Marked Absent During Mark Entry"}>
+                                      Absent (Ab)
+                                    </span>
                                   </td>
                                 );
                               }
