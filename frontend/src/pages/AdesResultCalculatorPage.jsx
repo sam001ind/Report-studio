@@ -104,6 +104,7 @@ export default function AdesResultCalculatorPage() {
   const [studentFilterStatus, setStudentFilterStatus] = useState("ALL"); // "ALL" | "PASS" | "FAIL" | "RESCUED"
   const [studentProgramFilter, setStudentProgramFilter] = useState("ALL");
   const [studentCourseFilter, setStudentCourseFilter] = useState("ALL");
+  const [studentCollegeFilter, setStudentCollegeFilter] = useState("ALL");
   const [expandedStudents, setExpandedStudents] = useState({});
   const [bulkModValue, setBulkModValue] = useState(4);
   const modFileInputRef = useRef(null);
@@ -129,6 +130,7 @@ export default function AdesResultCalculatorPage() {
   // Table Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFacultyFilter, setSelectedFacultyFilter] = useState("ALL");
+  const [selectedCollegeFilter, setSelectedCollegeFilter] = useState("ALL");
   const [selectedProgramFilter, setSelectedProgramFilter] = useState("ALL");
   const [selectedCourseFilter, setSelectedCourseFilter] = useState("ALL");
   const [selectedResultFilter, setSelectedResultFilter] = useState("ALL");
@@ -702,6 +704,8 @@ export default function AdesResultCalculatorPage() {
       rows.forEach((row) => {
         const faculty = String(getCell(row, currentHeaderMap, "Faculty", "Fac", "FacultyName", "Department") || "").trim();
         const program = String(getCell(row, currentHeaderMap, "Program Term Name", "ProgramTermName", "ProgramTerm", "Program Term", "Degree", "Term", "Semester") || "").trim();
+        const rawCollegeCode = String(getCell(row, currentHeaderMap, "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode") || "").trim();
+        const rawCollegeName = String(getCell(row, currentHeaderMap, "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
         const seat = String(getCell(row, currentHeaderMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || "").trim();
         const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
         const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
@@ -714,6 +718,10 @@ export default function AdesResultCalculatorPage() {
         const heldbackEntry = getHeldbackEntry(prn, seat, code, currentHeldbackMap);
         const malpracticeEntry = !heldbackEntry && getMalpracticeEntry(prn, seat, code, currentMalpracticeMap);
         const absentEntry = !heldbackEntry && !malpracticeEntry && getAbsentEntry(prn, seat, code, currentAbsentMap);
+
+        const collegeCode = rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
+        const collegeName = rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
+        const college = collegeName ? (collegeCode ? `${collegeCode} - ${collegeName}` : collegeName) : collegeCode;
 
         const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || "") : "");
         const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
@@ -901,7 +909,10 @@ export default function AdesResultCalculatorPage() {
         }
 
         baseRecords.push({
-          identifiers: { faculty, program, seat, prn, code, name },
+          identifiers: { faculty, program, seat, prn, code, name, college, collegeCode, collegeName },
+          _college: college,
+          _collegeCode: collegeCode,
+          _collegeName: collegeName,
           raw: {
             "Faculty": faculty,
             "Program Term Name": program,
@@ -962,6 +973,8 @@ export default function AdesResultCalculatorPage() {
     rows.forEach((row) => {
       const faculty = String(getCell(row, currentHeaderMap, "Faculty", "Fac", "FacultyName", "Department") || "").trim();
       const program = String(getCell(row, currentHeaderMap, "Program Term Name", "ProgramTermName", "ProgramTerm", "Program Term", "Degree", "Term", "Semester") || "").trim();
+      const rawCollegeCode = String(getCell(row, currentHeaderMap, "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode") || "").trim();
+      const rawCollegeName = String(getCell(row, currentHeaderMap, "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
       const seat = String(getCell(row, currentHeaderMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || "").trim();
       const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
       const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
@@ -991,7 +1004,7 @@ export default function AdesResultCalculatorPage() {
 
       if (!groups.has(groupKey)) {
         groups.set(groupKey, {
-          identifiers: { faculty, program, seat, prn, code, name },
+          identifiers: { faculty, program, seat, prn, code, name, rawCollegeCode, rawCollegeName },
           components: {},
           tlm: ""
         });
@@ -1176,8 +1189,15 @@ export default function AdesResultCalculatorPage() {
       const has_ese_pr = ese_pr_max > 0 || (prof?.requiresEsePr ?? false);
       const is_pr_only = has_ese_pr && !has_ese_th;
 
+      const collegeCode = identifiers.rawCollegeCode || heldbackEntry?.collegeCode || malpracticeEntry?.collegeCode || absentEntry?.collegeCode || "";
+      const collegeName = identifiers.rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
+      const college = collegeName ? (collegeCode ? `${collegeCode} - ${collegeName}` : collegeName) : collegeCode;
+
       baseRecords.push({
-        identifiers,
+        identifiers: { ...identifiers, college, collegeCode, collegeName },
+        _college: college,
+        _collegeCode: collegeCode,
+        _collegeName: collegeName,
         raw: {
           "Faculty": identifiers.faculty,
           "Program Term Name": identifiers.program,
@@ -1297,6 +1317,9 @@ export default function AdesResultCalculatorPage() {
   const processedRows = useMemo(() => {
     return groupedRecords.map(rec => {
       const row = { ...rec.raw };
+      row._college = rec._college || rec.identifiers?.college || "";
+      row._collegeCode = rec._collegeCode || rec.identifiers?.collegeCode || "";
+      row._collegeName = rec._collegeName || rec.identifiers?.collegeName || "";
       const normCode = normalizeKey(rec.identifiers.code);
       const modLimit = courseModerationMap[normCode] || 0;
 
@@ -1786,6 +1809,9 @@ export default function AdesResultCalculatorPage() {
       const seat = String(row["Seat Number"] || "").trim();
       const program = String(row["Program Term Name"] || "").trim();
       const faculty = String(row["Faculty"] || "").trim();
+      const college = String(row._college || row["College Name"] || row["College Code"] || row["College"] || "").trim();
+      const collegeCode = String(row._collegeCode || row["College Code"] || "").trim();
+      const collegeName = String(row._collegeName || row["College Name"] || row["College"] || "").trim();
       
       const studentId = prn || seat || "UNKNOWN";
       const key = `${studentId}__${program}`;
@@ -1798,6 +1824,9 @@ export default function AdesResultCalculatorPage() {
           seatNumber: seat,
           faculty,
           program,
+          college,
+          collegeCode,
+          collegeName,
           totalCourses: 0,
           rawPassedCourses: 0,
           rawFailedCourses: 0,
@@ -1997,6 +2026,14 @@ export default function AdesResultCalculatorPage() {
   }, [studentSemesterData]);
 
   // Unique Lists for Student Dropdown Filters
+  const uniqueStudentColleges = useMemo(() => {
+    const set = new Set();
+    studentSemesterData.forEach(st => {
+      if (st.college) set.add(st.college);
+    });
+    return Array.from(set).sort();
+  }, [studentSemesterData]);
+
   const uniqueStudentPrograms = useMemo(() => {
     const set = new Set();
     studentSemesterData.forEach(st => {
@@ -2023,17 +2060,22 @@ export default function AdesResultCalculatorPage() {
   const filteredStudents = useMemo(() => {
     let list = studentSemesterData;
 
-    // 1. Program filter
+    // 1. College filter
+    if (studentCollegeFilter !== "ALL") {
+      list = list.filter(st => st.college === studentCollegeFilter);
+    }
+
+    // 2. Program filter
     if (studentProgramFilter !== "ALL") {
       list = list.filter(st => st.program === studentProgramFilter);
     }
 
-    // 2. Course filter
+    // 3. Course filter
     if (studentCourseFilter !== "ALL") {
       list = list.filter(st => st.courses.some(c => c.courseCode === studentCourseFilter));
     }
 
-    // 3. Status filter
+    // 4. Status filter
     if (studentFilterStatus === "PASS") {
       list = list.filter(st => st.finalSemesterPass);
     } else if (studentFilterStatus === "FAIL") {
@@ -2050,12 +2092,13 @@ export default function AdesResultCalculatorPage() {
       list = list.filter(st => (st.malpracticeCourses || 0) > 0);
     }
 
-    // 4. Search query
+    // 5. Search query
     if (studentSearchQuery.trim()) {
       const q = studentSearchQuery.toLowerCase().trim();
       list = list.filter(st => 
         st.prn.toLowerCase().includes(q) ||
         st.seatNumber.toLowerCase().includes(q) ||
+        (st.college && st.college.toLowerCase().includes(q)) ||
         st.program.toLowerCase().includes(q) ||
         st.faculty.toLowerCase().includes(q) ||
         (q === "held" && st.isHeld) ||
@@ -2066,7 +2109,7 @@ export default function AdesResultCalculatorPage() {
     }
 
     return list;
-  }, [studentSemesterData, studentProgramFilter, studentCourseFilter, studentFilterStatus, studentSearchQuery]);
+  }, [studentSemesterData, studentCollegeFilter, studentProgramFilter, studentCourseFilter, studentFilterStatus, studentSearchQuery]);
 
   const toggleStudentExpand = (key) => {
     setExpandedStudents(prev => ({
@@ -3135,6 +3178,9 @@ export default function AdesResultCalculatorPage() {
     let defaultName = "student_semester_results.xlsx";
     if (isFiltered) {
       const parts = ["student_semester_results"];
+      if (studentCollegeFilter !== "ALL") {
+        parts.push(studentCollegeFilter.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 16));
+      }
       if (studentProgramFilter !== "ALL") {
         parts.push(studentProgramFilter.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 16));
       }
@@ -3155,6 +3201,7 @@ export default function AdesResultCalculatorPage() {
     try {
       const headers = [
         "Faculty",
+        "College",
         "Program Term Name",
         "Seat Number",
         "PRN",
@@ -3200,6 +3247,7 @@ export default function AdesResultCalculatorPage() {
 
         return [
           st.faculty,
+          st.college || "-",
           st.program,
           st.seatNumber,
           st.prn,
@@ -3320,6 +3368,7 @@ export default function AdesResultCalculatorPage() {
     setColumnFilters({});
     setSortConfig({ column: null, direction: null });
     setSelectedFacultyFilter("ALL");
+    setSelectedCollegeFilter("ALL");
     setSelectedProgramFilter("ALL");
     setSelectedCourseFilter("ALL");
     setSelectedResultFilter("ALL");
@@ -3331,6 +3380,15 @@ export default function AdesResultCalculatorPage() {
   const uniqueFaculties = useMemo(() => {
     const set = new Set();
     processedRows.forEach(r => { if (r["Faculty"]) set.add(r["Faculty"]); });
+    return Array.from(set).sort();
+  }, [processedRows]);
+
+  const uniqueColleges = useMemo(() => {
+    const set = new Set();
+    processedRows.forEach(r => {
+      const col = r._college || r["College Name"] || r["College Code"] || r["College"];
+      if (col) set.add(col);
+    });
     return Array.from(set).sort();
   }, [processedRows]);
 
@@ -3474,6 +3532,9 @@ export default function AdesResultCalculatorPage() {
     if (selectedFacultyFilter !== "ALL") {
       result = result.filter(r => r["Faculty"] === selectedFacultyFilter);
     }
+    if (selectedCollegeFilter !== "ALL") {
+      result = result.filter(r => (r._college || r["College Name"] || r["College Code"] || r["College"]) === selectedCollegeFilter);
+    }
     if (selectedProgramFilter !== "ALL") {
       result = result.filter(r => r["Program Term Name"] === selectedProgramFilter);
     }
@@ -3485,6 +3546,7 @@ export default function AdesResultCalculatorPage() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(r =>
+        (r._college && r._college.toLowerCase().includes(q)) ||
         Object.values(r).some(val => String(val || "").toLowerCase().includes(q))
       );
     }
@@ -3524,7 +3586,7 @@ export default function AdesResultCalculatorPage() {
     }
 
     return result;
-  }, [processedRows, selectedResultFilter, selectedFacultyFilter, selectedProgramFilter, selectedCourseFilter, searchQuery, columnFilters, sortConfig]);
+  }, [processedRows, selectedResultFilter, selectedFacultyFilter, selectedCollegeFilter, selectedProgramFilter, selectedCourseFilter, searchQuery, columnFilters, sortConfig]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
@@ -3543,6 +3605,9 @@ export default function AdesResultCalculatorPage() {
     if (!filename) {
       if (isFiltered) {
         const parts = ["ades_course_results"];
+        if (selectedCollegeFilter !== "ALL") {
+          parts.push(selectedCollegeFilter.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 16));
+        }
         if (selectedProgramFilter !== "ALL") {
           parts.push(selectedProgramFilter.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 16));
         }
@@ -4454,6 +4519,19 @@ export default function AdesResultCalculatorPage() {
                     )}
                   </div>
 
+                  {/* College Filter */}
+                  {uniqueStudentColleges.length > 0 && (
+                    <select 
+                      value={studentCollegeFilter} 
+                      onChange={(e) => setStudentCollegeFilter(e.target.value)}
+                      style={{ padding: "6px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)", maxWidth: "200px" }}
+                      title="Filter students by College"
+                    >
+                      <option value="ALL">All Colleges ({uniqueStudentColleges.length})</option>
+                      {uniqueStudentColleges.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+
                   {/* Program Filter */}
                   {uniqueStudentPrograms.length > 0 && (
                     <select 
@@ -4483,12 +4561,13 @@ export default function AdesResultCalculatorPage() {
                     </select>
                   )}
 
-                  {(studentProgramFilter !== "ALL" || studentCourseFilter !== "ALL" || studentFilterStatus !== "ALL" || studentSearchQuery) && (
+                  {(studentCollegeFilter !== "ALL" || studentProgramFilter !== "ALL" || studentCourseFilter !== "ALL" || studentFilterStatus !== "ALL" || studentSearchQuery) && (
                     <button 
                       type="button" 
                       onClick={() => {
                         setStudentFilterStatus("ALL");
                         setStudentSearchQuery("");
+                        setStudentCollegeFilter("ALL");
                         setStudentProgramFilter("ALL");
                         setStudentCourseFilter("ALL");
                       }}
@@ -5702,6 +5781,19 @@ export default function AdesResultCalculatorPage() {
                       </select>
                     )}
 
+                    {/* College Filter */}
+                    {uniqueColleges.length > 0 && (
+                      <select 
+                        value={selectedCollegeFilter} 
+                        onChange={(e) => { setSelectedCollegeFilter(e.target.value); setPage(0); }}
+                        style={{ padding: "4px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)", maxWidth: "200px" }}
+                        title="Filter by College"
+                      >
+                        <option value="ALL">All Colleges ({uniqueColleges.length})</option>
+                        {uniqueColleges.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    )}
+
                     {/* Program Filter */}
                     {uniquePrograms.length > 0 && (
                       <select 
@@ -5732,7 +5824,7 @@ export default function AdesResultCalculatorPage() {
                       </select>
                     )}
 
-                    {(Object.keys(columnFilters).length > 0 || sortConfig.column || searchQuery || selectedResultFilter !== "ALL" || selectedFacultyFilter !== "ALL" || selectedProgramFilter !== "ALL" || selectedCourseFilter !== "ALL") && (
+                    {(Object.keys(columnFilters).length > 0 || sortConfig.column || searchQuery || selectedResultFilter !== "ALL" || selectedFacultyFilter !== "ALL" || selectedCollegeFilter !== "ALL" || selectedProgramFilter !== "ALL" || selectedCourseFilter !== "ALL") && (
                       <button 
                         type="button" 
                         onClick={clearAllFilters}
