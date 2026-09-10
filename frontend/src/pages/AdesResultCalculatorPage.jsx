@@ -102,6 +102,8 @@ export default function AdesResultCalculatorPage() {
   const [simSearchQuery, setSimSearchQuery] = useState("");
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
   const [studentFilterStatus, setStudentFilterStatus] = useState("ALL"); // "ALL" | "PASS" | "FAIL" | "RESCUED"
+  const [studentProgramFilter, setStudentProgramFilter] = useState("ALL");
+  const [studentCourseFilter, setStudentCourseFilter] = useState("ALL");
   const [expandedStudents, setExpandedStudents] = useState({});
   const [bulkModValue, setBulkModValue] = useState(4);
   const modFileInputRef = useRef(null);
@@ -1994,10 +1996,44 @@ export default function AdesResultCalculatorPage() {
     };
   }, [studentSemesterData]);
 
+  // Unique Lists for Student Dropdown Filters
+  const uniqueStudentPrograms = useMemo(() => {
+    const set = new Set();
+    studentSemesterData.forEach(st => {
+      if (st.program) set.add(st.program);
+    });
+    return Array.from(set).sort();
+  }, [studentSemesterData]);
+
+  const uniqueStudentCourses = useMemo(() => {
+    const courseMap = new Map();
+    studentSemesterData.forEach(st => {
+      if (studentProgramFilter === "ALL" || st.program === studentProgramFilter) {
+        st.courses.forEach(c => {
+          if (c.courseCode && !courseMap.has(c.courseCode)) {
+            courseMap.set(c.courseCode, c.courseName ? `${c.courseCode} - ${c.courseName}` : c.courseCode);
+          }
+        });
+      }
+    });
+    return Array.from(courseMap.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
+  }, [studentSemesterData, studentProgramFilter]);
+
   // Filtered Student List
   const filteredStudents = useMemo(() => {
     let list = studentSemesterData;
 
+    // 1. Program filter
+    if (studentProgramFilter !== "ALL") {
+      list = list.filter(st => st.program === studentProgramFilter);
+    }
+
+    // 2. Course filter
+    if (studentCourseFilter !== "ALL") {
+      list = list.filter(st => st.courses.some(c => c.courseCode === studentCourseFilter));
+    }
+
+    // 3. Status filter
     if (studentFilterStatus === "PASS") {
       list = list.filter(st => st.finalSemesterPass);
     } else if (studentFilterStatus === "FAIL") {
@@ -2014,6 +2050,7 @@ export default function AdesResultCalculatorPage() {
       list = list.filter(st => (st.malpracticeCourses || 0) > 0);
     }
 
+    // 4. Search query
     if (studentSearchQuery.trim()) {
       const q = studentSearchQuery.toLowerCase().trim();
       list = list.filter(st => 
@@ -2029,7 +2066,7 @@ export default function AdesResultCalculatorPage() {
     }
 
     return list;
-  }, [studentSemesterData, studentFilterStatus, studentSearchQuery]);
+  }, [studentSemesterData, studentProgramFilter, studentCourseFilter, studentFilterStatus, studentSearchQuery]);
 
   const toggleStudentExpand = (key) => {
     setExpandedStudents(prev => ({
@@ -3097,8 +3134,18 @@ export default function AdesResultCalculatorPage() {
     const isFiltered = studentsToExport.length !== studentSemesterData.length;
     let defaultName = "student_semester_results.xlsx";
     if (isFiltered) {
-      const filterTag = studentFilterStatus !== "ALL" ? studentFilterStatus.toLowerCase() : "filtered";
-      defaultName = `student_semester_results_${filterTag}_${studentsToExport.length}students.xlsx`;
+      const parts = ["student_semester_results"];
+      if (studentProgramFilter !== "ALL") {
+        parts.push(studentProgramFilter.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 16));
+      }
+      if (studentCourseFilter !== "ALL") {
+        parts.push(studentCourseFilter.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 14));
+      }
+      if (studentFilterStatus !== "ALL") {
+        parts.push(studentFilterStatus.toLowerCase());
+      }
+      parts.push(`${studentsToExport.length}students.xlsx`);
+      defaultName = parts.join("_");
     }
     const filename = customFilename || defaultName;
 
@@ -3294,10 +3341,21 @@ export default function AdesResultCalculatorPage() {
   }, [processedRows]);
 
   const uniqueCourses = useMemo(() => {
-    const set = new Set();
-    processedRows.forEach(r => { if (r["Course Code"]) set.add(r["Course Code"]); });
-    return Array.from(set).sort();
-  }, [processedRows]);
+    const courseMap = new Map();
+    processedRows.forEach(r => {
+      const code = r["Course Code"];
+      const name = r["Course Name"];
+      const prog = r["Program Term Name"];
+      if (code) {
+        if (selectedProgramFilter === "ALL" || prog === selectedProgramFilter) {
+          if (!courseMap.has(code)) {
+            courseMap.set(code, name ? `${code} - ${name}` : code);
+          }
+        }
+      }
+    });
+    return Array.from(courseMap.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
+  }, [processedRows, selectedProgramFilter]);
 
   // Statistics Metrics
   const metrics = useMemo(() => {
@@ -3484,8 +3542,18 @@ export default function AdesResultCalculatorPage() {
     let filename = customFilename;
     if (!filename) {
       if (isFiltered) {
-        const filterTag = selectedResultFilter !== "ALL" ? selectedResultFilter.toLowerCase() : "filtered";
-        filename = `ades_course_results_${filterTag}_${rowsToExport.length}rows.xlsx`;
+        const parts = ["ades_course_results"];
+        if (selectedProgramFilter !== "ALL") {
+          parts.push(selectedProgramFilter.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 16));
+        }
+        if (selectedCourseFilter !== "ALL") {
+          parts.push(selectedCourseFilter.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 14));
+        }
+        if (selectedResultFilter !== "ALL") {
+          parts.push(selectedResultFilter.toLowerCase());
+        }
+        parts.push(`${rowsToExport.length}rows.xlsx`);
+        filename = parts.join("_");
       } else {
         filename = "converted_output_card.xlsx";
       }
@@ -4367,25 +4435,71 @@ export default function AdesResultCalculatorPage() {
 
               {/* Filters & Search Toolbar */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
-                <div style={{ position: "relative", flex: 1, maxWidth: "380px" }}>
-                  <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-                  <input 
-                    type="text"
-                    placeholder="Search by PRN, Seat Number, Program, Course..."
-                    value={studentSearchQuery}
-                    onChange={(e) => setStudentSearchQuery(e.target.value)}
-                    style={{ width: "100%", padding: "6px 10px 6px 30px", fontSize: "12px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)" }}
-                  />
-                  {studentSearchQuery && (
-                    <X 
-                      size={13} 
-                      onClick={() => setStudentSearchQuery("")}
-                      style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "var(--muted)" }}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", flex: 1 }}>
+                  <div style={{ position: "relative", minWidth: "220px", flex: 1, maxWidth: "320px" }}>
+                    <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+                    <input 
+                      type="text"
+                      placeholder="Search by PRN, Seat Number, Program, Course..."
+                      value={studentSearchQuery}
+                      onChange={(e) => setStudentSearchQuery(e.target.value)}
+                      style={{ width: "100%", padding: "6px 10px 6px 30px", fontSize: "12px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)" }}
                     />
+                    {studentSearchQuery && (
+                      <X 
+                        size={13} 
+                        onClick={() => setStudentSearchQuery("")}
+                        style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "var(--muted)" }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Program Filter */}
+                  {uniqueStudentPrograms.length > 0 && (
+                    <select 
+                      value={studentProgramFilter} 
+                      onChange={(e) => { 
+                        setStudentProgramFilter(e.target.value); 
+                        setStudentCourseFilter("ALL"); 
+                      }}
+                      style={{ padding: "6px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)", maxWidth: "220px" }}
+                      title="Filter students by Programme"
+                    >
+                      <option value="ALL">All Programs ({uniqueStudentPrograms.length})</option>
+                      {uniqueStudentPrograms.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  )}
+
+                  {/* Course Filter */}
+                  {uniqueStudentCourses.length > 0 && (
+                    <select 
+                      value={studentCourseFilter} 
+                      onChange={(e) => setStudentCourseFilter(e.target.value)}
+                      style={{ padding: "6px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)", maxWidth: "260px" }}
+                      title="Filter students who attempted specific Course"
+                    >
+                      <option value="ALL">All Courses ({uniqueStudentCourses.length})</option>
+                      {uniqueStudentCourses.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                    </select>
+                  )}
+
+                  {(studentProgramFilter !== "ALL" || studentCourseFilter !== "ALL" || studentFilterStatus !== "ALL" || studentSearchQuery) && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setStudentFilterStatus("ALL");
+                        setStudentSearchQuery("");
+                        setStudentProgramFilter("ALL");
+                        setStudentCourseFilter("ALL");
+                      }}
+                      style={{ display: "flex", alignItems: "center", gap: "4px", padding: "5px 9px", fontSize: "11px", color: "var(--danger)", background: "var(--danger-soft)", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: 600 }}
+                    >
+                      <RefreshCw size={11} /> Reset Filters
+                    </button>
                   )}
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--panel)", padding: "3px", borderRadius: "6px", border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--panel)", padding: "3px", borderRadius: "6px", border: "1px solid var(--line)", flexWrap: "wrap" }}>
                   <button 
                     type="button"
                     onClick={() => setStudentFilterStatus("ALL")}
@@ -5576,38 +5690,45 @@ export default function AdesResultCalculatorPage() {
                     </div>
 
                     {/* Faculty Filter */}
-                    {uniqueFaculties.length > 1 && (
+                    {uniqueFaculties.length > 0 && (
                       <select 
                         value={selectedFacultyFilter} 
                         onChange={(e) => { setSelectedFacultyFilter(e.target.value); setPage(0); }}
-                        style={{ padding: "4px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)" }}
+                        style={{ padding: "4px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)", maxWidth: "180px" }}
+                        title="Filter by Faculty"
                       >
-                        <option value="ALL">All Faculties</option>
+                        <option value="ALL">All Faculties ({uniqueFaculties.length})</option>
                         {uniqueFaculties.map(f => <option key={f} value={f}>{f}</option>)}
                       </select>
                     )}
 
                     {/* Program Filter */}
-                    {uniquePrograms.length > 1 && (
+                    {uniquePrograms.length > 0 && (
                       <select 
                         value={selectedProgramFilter} 
-                        onChange={(e) => { setSelectedProgramFilter(e.target.value); setPage(0); }}
-                        style={{ padding: "4px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)" }}
+                        onChange={(e) => { 
+                          setSelectedProgramFilter(e.target.value); 
+                          setSelectedCourseFilter("ALL");
+                          setPage(0); 
+                        }}
+                        style={{ padding: "4px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)", maxWidth: "220px" }}
+                        title="Filter by Programme"
                       >
-                        <option value="ALL">All Programs</option>
+                        <option value="ALL">All Programs ({uniquePrograms.length})</option>
                         {uniquePrograms.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
                     )}
 
                     {/* Course Filter */}
-                    {uniqueCourses.length > 1 && (
+                    {uniqueCourses.length > 0 && (
                       <select 
                         value={selectedCourseFilter} 
                         onChange={(e) => { setSelectedCourseFilter(e.target.value); setPage(0); }}
-                        style={{ padding: "4px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)" }}
+                        style={{ padding: "4px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)", maxWidth: "260px" }}
+                        title="Filter by Course"
                       >
-                        <option value="ALL">All Courses</option>
-                        {uniqueCourses.map(c => <option key={c} value={c}>{c}</option>)}
+                        <option value="ALL">All Courses ({uniqueCourses.length})</option>
+                        {uniqueCourses.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                       </select>
                     )}
 
