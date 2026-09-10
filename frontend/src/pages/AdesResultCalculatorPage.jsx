@@ -2373,51 +2373,85 @@ export default function AdesResultCalculatorPage() {
     setStatus("Downloaded pre-filled Course Moderation Template (.xlsx) with Course Code & Current Moderation Marks.", "success");
   };
 
-  // Handle Upload of Absent Students Report Excel (.xlsx, .xls, .csv)
-  const handleAbsentExcelUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Helper to read multiple Excel files and extract all rows across all sheets
+  const readMultipleExcelFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    let allRows = [];
+    const parsedFileNames = [];
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
+    for (const file of files) {
       try {
-        const data = new Uint8Array(evt.target.result);
+        const buffer = await file.arrayBuffer();
+        const data = new Uint8Array(buffer);
         const wb = XLSX.read(data, { type: "array" });
-        const firstSheet = wb.Sheets[wb.SheetNames[0]];
-        const { rows, headerMap: hMap } = parseSheetWithHeaderScan(firstSheet);
-        const effectiveRows = (rows && rows.length > 0) ? rows : XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+        let fileRowsCount = 0;
 
-        if (!effectiveRows || effectiveRows.length === 0) {
-          setStatus("Uploaded absent report sheet is empty.", "warning");
-          return;
+        for (const sheetName of wb.SheetNames) {
+          const ws = wb.Sheets[sheetName];
+          if (!ws || !ws["!ref"]) continue;
+          const { rows } = parseSheetWithHeaderScan(ws);
+          const effectiveRows = (rows && rows.length > 0) ? rows : XLSX.utils.sheet_to_json(ws, { defval: "" });
+          if (effectiveRows && effectiveRows.length > 0) {
+            allRows = allRows.concat(effectiveRows);
+            fileRowsCount += effectiveRows.length;
+          }
         }
 
-        const { map, list } = buildAbsentLookup(effectiveRows, hMap);
-
-        if (list.length === 0) {
-          setStatus("No valid student absent entries found in " + file.name + ". Ensure columns include PRN/Seat Number and Course Code.", "warning");
-          return;
+        if (fileRowsCount > 0) {
+          parsedFileNames.push(file.name);
         }
-
-        setAbsentRecordsMap(map);
-        setAbsentList(list);
-        setAbsentFileName(file.name);
-
-        // If source records are already loaded, re-group them immediately with this absent map!
-        if (rawRows && rawRows.length > 0 && headerMap) {
-          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map, malpracticeRecordsMap, heldbackRecordsMap);
-          setGroupedRecords(updatedGrouped);
-        }
-
-        setStatus("Successfully imported " + list.length + " absent record(s) from \"" + file.name + "\". Matching components are marked as \"Absent (Ab)\" with Fail status.", "success");
       } catch (err) {
-        console.error("Error importing absent sheet:", err);
-        setStatus("Failed to read absent report: " + err.message, "error");
+        console.error(`Error reading file ${file.name}:`, err);
       }
-    };
+    }
 
-    reader.readAsArrayBuffer(file);
-    if (absentFileInputRef.current) absentFileInputRef.current.value = "";
+    return { allRows, parsedFileNames };
+  };
+
+  // Handle Upload of Absent Students Report Excel (.xlsx, .xls, .csv) - Supports single or multi-file uploads
+  const handleAbsentExcelUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      const { allRows, parsedFileNames } = await readMultipleExcelFiles(files);
+
+      if (allRows.length === 0) {
+        setStatus("Uploaded absent report sheet(s) are empty.", "warning");
+        if (absentFileInputRef.current) absentFileInputRef.current.value = "";
+        return;
+      }
+
+      const { map, list } = buildAbsentLookup(allRows);
+
+      if (list.length === 0) {
+        setStatus("No valid student absent entries found across uploaded file(s). Ensure columns include PRN/Seat Number and Course Code.", "warning");
+        if (absentFileInputRef.current) absentFileInputRef.current.value = "";
+        return;
+      }
+
+      const fileDisplayName = parsedFileNames.length === 1 
+        ? parsedFileNames[0] 
+        : `${parsedFileNames.length} files (${parsedFileNames.join(", ")})`;
+
+      setAbsentRecordsMap(map);
+      setAbsentList(list);
+      setAbsentFileName(fileDisplayName);
+
+      // If source records are already loaded, re-group them immediately with this absent map!
+      if (rawRows && rawRows.length > 0 && headerMap) {
+        const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map, malpracticeRecordsMap, heldbackRecordsMap);
+        setGroupedRecords(updatedGrouped);
+      }
+
+      const fileDetails = parsedFileNames.length === 1 ? `"${parsedFileNames[0]}"` : `${parsedFileNames.length} programme file(s) [${parsedFileNames.join(", ")}]`;
+      setStatus(`Successfully imported ${list.length} absent record(s) from ${fileDetails}. Matching components are marked as "Absent (Ab)" with Fail status.`, "success");
+    } catch (err) {
+      console.error("Error importing absent sheet(s):", err);
+      setStatus("Failed to read absent report: " + err.message, "error");
+    } finally {
+      if (absentFileInputRef.current) absentFileInputRef.current.value = "";
+    }
   };
 
   // Clear loaded Absent Data and revert source marks
@@ -2524,51 +2558,50 @@ export default function AdesResultCalculatorPage() {
     setStatus("Downloaded Absent Report Template (.xlsx) with standard ADES columns and sample entries.", "success");
   };
 
-  // Handle Upload of Malpractice Students Report Excel (.xlsx, .xls, .csv)
-  const handleMalpracticeExcelUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle Upload of Malpractice Students Report Excel (.xlsx, .xls, .csv) - Supports single or multi-file uploads
+  const handleMalpracticeExcelUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target.result);
-        const wb = XLSX.read(data, { type: "array" });
-        const firstSheet = wb.Sheets[wb.SheetNames[0]];
-        const { rows, headerMap: hMap } = parseSheetWithHeaderScan(firstSheet);
-        const effectiveRows = (rows && rows.length > 0) ? rows : XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+    try {
+      const { allRows, parsedFileNames } = await readMultipleExcelFiles(files);
 
-        if (!effectiveRows || effectiveRows.length === 0) {
-          setStatus("Uploaded malpractice report sheet is empty.", "warning");
-          return;
-        }
-
-        const { map, list } = buildMalpracticeLookup(effectiveRows, hMap);
-
-        if (list.length === 0) {
-          setStatus("No valid student malpractice entries found in " + file.name + ". Ensure columns include PRN/Seat Number and Course Code.", "warning");
-          return;
-        }
-
-        setMalpracticeRecordsMap(map);
-        setMalpracticeList(list);
-        setMalpracticeFileName(file.name);
-
-        // If source records are already loaded, re-group them immediately with this malpractice map!
-        if (rawRows && rawRows.length > 0 && headerMap) {
-          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, map, heldbackRecordsMap);
-          setGroupedRecords(updatedGrouped);
-        }
-
-        setStatus("Successfully imported " + list.length + " malpractice record(s) from \"" + file.name + "\". Matching components are marked as \"Malpractice (MP)\" with Fail status.", "success");
-      } catch (err) {
-        console.error("Error importing malpractice sheet:", err);
-        setStatus("Failed to read malpractice report: " + err.message, "error");
+      if (allRows.length === 0) {
+        setStatus("Uploaded malpractice report sheet(s) are empty.", "warning");
+        if (malpracticeFileInputRef.current) malpracticeFileInputRef.current.value = "";
+        return;
       }
-    };
 
-    reader.readAsArrayBuffer(file);
-    if (malpracticeFileInputRef.current) malpracticeFileInputRef.current.value = "";
+      const { map, list } = buildMalpracticeLookup(allRows);
+
+      if (list.length === 0) {
+        setStatus("No valid student malpractice entries found across uploaded file(s). Ensure columns include PRN/Seat Number and Course Code.", "warning");
+        if (malpracticeFileInputRef.current) malpracticeFileInputRef.current.value = "";
+        return;
+      }
+
+      const fileDisplayName = parsedFileNames.length === 1 
+        ? parsedFileNames[0] 
+        : `${parsedFileNames.length} files (${parsedFileNames.join(", ")})`;
+
+      setMalpracticeRecordsMap(map);
+      setMalpracticeList(list);
+      setMalpracticeFileName(fileDisplayName);
+
+      // If source records are already loaded, re-group them immediately with this malpractice map!
+      if (rawRows && rawRows.length > 0 && headerMap) {
+        const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, map, heldbackRecordsMap);
+        setGroupedRecords(updatedGrouped);
+      }
+
+      const fileDetails = parsedFileNames.length === 1 ? `"${parsedFileNames[0]}"` : `${parsedFileNames.length} programme file(s) [${parsedFileNames.join(", ")}]`;
+      setStatus(`Successfully imported ${list.length} malpractice record(s) from ${fileDetails}. Matching components are marked as "Malpractice (MP)" with Fail status.`, "success");
+    } catch (err) {
+      console.error("Error importing malpractice sheet(s):", err);
+      setStatus("Failed to read malpractice report: " + err.message, "error");
+    } finally {
+      if (malpracticeFileInputRef.current) malpracticeFileInputRef.current.value = "";
+    }
   };
 
   // Clear loaded Malpractice Data and revert source marks
@@ -2737,51 +2770,50 @@ export default function AdesResultCalculatorPage() {
     setStatus("Downloaded Malpractice Report Template (.xlsx) with standard 21 UM columns and sample entries.", "success");
   };
 
-  // Handle Upload of Heldback Students Report Excel (.xlsx, .xls, .csv)
-  const handleHeldbackExcelUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle Upload of Heldback Students Report Excel (.xlsx, .xls, .csv) - Supports single or multi-file uploads across programmes
+  const handleHeldbackExcelUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target.result);
-        const wb = XLSX.read(data, { type: "array" });
-        const firstSheet = wb.Sheets[wb.SheetNames[0]];
-        const { rows, headerMap: hMap } = parseSheetWithHeaderScan(firstSheet);
-        const effectiveRows = (rows && rows.length > 0) ? rows : XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+    try {
+      const { allRows, parsedFileNames } = await readMultipleExcelFiles(files);
 
-        if (!effectiveRows || effectiveRows.length === 0) {
-          setStatus("Uploaded heldback report sheet is empty.", "warning");
-          return;
-        }
-
-        const { map, list } = buildHeldbackLookup(effectiveRows, hMap);
-
-        if (list.length === 0) {
-          setStatus("No valid student heldback entries found in " + file.name + ". Ensure columns include PRN / Seat Number and Reason.", "warning");
-          return;
-        }
-
-        setHeldbackRecordsMap(map);
-        setHeldbackList(list);
-        setHeldbackFileName(file.name);
-
-        // If source records are already loaded, re-group them immediately with this heldback map!
-        if (rawRows && rawRows.length > 0 && headerMap) {
-          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, map);
-          setGroupedRecords(updatedGrouped);
-        }
-
-        setStatus("Successfully imported " + list.length + " heldback record(s) from \"" + file.name + "\". Matched students are locked from calculation, moderation, and pass simulation with \"Held (Heldback)\" status.", "success");
-      } catch (err) {
-        console.error("Error importing heldback sheet:", err);
-        setStatus("Failed to read heldback report: " + err.message, "error");
+      if (allRows.length === 0) {
+        setStatus("Uploaded heldback report sheet(s) are empty.", "warning");
+        if (heldbackFileInputRef.current) heldbackFileInputRef.current.value = "";
+        return;
       }
-    };
 
-    reader.readAsArrayBuffer(file);
-    if (heldbackFileInputRef.current) heldbackFileInputRef.current.value = "";
+      const { map, list } = buildHeldbackLookup(allRows);
+
+      if (list.length === 0) {
+        setStatus("No valid student heldback entries found across uploaded file(s). Ensure columns include PRN / Seat Number and Reason.", "warning");
+        if (heldbackFileInputRef.current) heldbackFileInputRef.current.value = "";
+        return;
+      }
+
+      const fileDisplayName = parsedFileNames.length === 1 
+        ? parsedFileNames[0] 
+        : `${parsedFileNames.length} files (${parsedFileNames.join(", ")})`;
+
+      setHeldbackRecordsMap(map);
+      setHeldbackList(list);
+      setHeldbackFileName(fileDisplayName);
+
+      // If source records are already loaded, re-group them immediately with this heldback map!
+      if (rawRows && rawRows.length > 0 && headerMap) {
+        const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, map);
+        setGroupedRecords(updatedGrouped);
+      }
+
+      const fileDetails = parsedFileNames.length === 1 ? `"${parsedFileNames[0]}"` : `${parsedFileNames.length} programme file(s) [${parsedFileNames.join(", ")}]`;
+      setStatus(`Successfully imported ${list.length} heldback record(s) from ${fileDetails}. Matched students are locked from calculation, moderation, and pass simulation with "Held (Heldback)" status.`, "success");
+    } catch (err) {
+      console.error("Error importing heldback sheet(s):", err);
+      setStatus("Failed to read heldback report: " + err.message, "error");
+    } finally {
+      if (heldbackFileInputRef.current) heldbackFileInputRef.current.value = "";
+    }
   };
 
   // Clear loaded Heldback Data and revert source marks
@@ -3675,7 +3707,7 @@ export default function AdesResultCalculatorPage() {
                   Active: <strong>{absentFileName}</strong> ({absentList.length} mapped). Mapped components show <strong style={{ color: "#ef4444" }}>Absent (Ab)</strong> &amp; <strong>Fail</strong>.
                 </span>
               ) : (
-                "Upload absent report to replace 0 marks with \"Absent (Ab)\" and mark courses as Fail (cannot receive moderation)."
+                "Upload one or multiple absent reports across programmes (select multiple .xlsx/.xls files) to replace 0 marks with \"Absent (Ab)\" and mark courses as Fail."
               )}
             </div>
 
@@ -3683,6 +3715,7 @@ export default function AdesResultCalculatorPage() {
               type="file" 
               ref={absentFileInputRef}
               accept=".xlsx,.xls,.csv" 
+              multiple
               onChange={handleAbsentExcelUpload}
               style={{ display: "none" }}
             />
@@ -3707,7 +3740,7 @@ export default function AdesResultCalculatorPage() {
                   cursor: "pointer"
                 }}
               >
-                <FileUp size={12} /> {absentList.length > 0 ? "Replace File" : "Upload Absent Excel"}
+                <FileUp size={12} /> {absentList.length > 0 ? "Replace / Upload Files" : "Upload Absent Excel"}
               </button>
 
               <button 
@@ -3780,7 +3813,7 @@ export default function AdesResultCalculatorPage() {
                   Active: <strong>{malpracticeFileName}</strong> ({malpracticeList.length} mapped). Mapped components show <strong style={{ color: "#b45309" }}>Malpractice (MP)</strong> &amp; <strong>Fail</strong>.
                 </span>
               ) : (
-                "Upload malpractice / unfair means report to replace marks with \"Malpractice (MP)\" and mark courses as Fail (strictly excluded from moderation)."
+                "Upload one or multiple malpractice reports across programmes (select multiple .xlsx/.xls files) to replace marks with \"Malpractice (MP)\" and mark courses as Fail."
               )}
             </div>
 
@@ -3788,6 +3821,7 @@ export default function AdesResultCalculatorPage() {
               type="file" 
               ref={malpracticeFileInputRef}
               accept=".xlsx,.xls,.csv" 
+              multiple
               onChange={handleMalpracticeExcelUpload}
               style={{ display: "none" }}
             />
@@ -3812,7 +3846,7 @@ export default function AdesResultCalculatorPage() {
                   cursor: "pointer"
                 }}
               >
-                <FileUp size={12} /> {malpracticeList.length > 0 ? "Replace File" : "Upload MP Excel"}
+                <FileUp size={12} /> {malpracticeList.length > 0 ? "Replace / Upload Files" : "Upload MP Excel"}
               </button>
 
               <button 
@@ -3885,7 +3919,7 @@ export default function AdesResultCalculatorPage() {
                   Active: <strong>{heldbackFileName}</strong> ({heldbackList.length} mapped). Matched students are locked with <strong style={{ color: "#c026d3" }}>Held (Heldback)</strong> &amp; excluded from moderation/simulations.
                 </span>
               ) : (
-                "Upload heldback report (e.g. APC within condonable limit) to lock matched students across papers from pass calculation, moderation marks, and pass simulation."
+                "Upload one or multiple heldback reports across programmes (select multiple .xlsx/.xls files together) to lock matched students across papers from pass calculation, moderation marks, and pass simulation."
               )}
             </div>
 
@@ -3893,6 +3927,7 @@ export default function AdesResultCalculatorPage() {
               type="file" 
               ref={heldbackFileInputRef}
               accept=".xlsx,.xls,.csv" 
+              multiple
               onChange={handleHeldbackExcelUpload}
               style={{ display: "none" }}
             />
@@ -3917,7 +3952,7 @@ export default function AdesResultCalculatorPage() {
                   cursor: "pointer"
                 }}
               >
-                <FileUp size={12} /> {heldbackList.length > 0 ? "Replace File" : "Upload Heldback"}
+                <FileUp size={12} /> {heldbackList.length > 0 ? "Replace / Upload Files" : "Upload Heldback"}
               </button>
 
               <button 
