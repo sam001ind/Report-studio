@@ -3480,7 +3480,7 @@ export default function AdesResultCalculatorPage() {
       return;
     }
 
-    const isFiltered = calculatedRows && rowsToExport.length !== calculatedRows.length;
+    const isFiltered = processedRows && rowsToExport.length !== processedRows.length;
     let filename = customFilename;
     if (!filename) {
       if (isFiltered) {
@@ -3704,9 +3704,9 @@ export default function AdesResultCalculatorPage() {
                   fontWeight: 600, 
                   cursor: "pointer" 
                 }}
-                title={filteredRows.length !== calculatedRows.length ? `Export current filtered view (${filteredRows.length} rows)` : "Export all 31-column ADES results"}
+                title={filteredRows.length !== processedRows.length ? `Export current filtered view (${filteredRows.length} rows)` : "Export all 31-column ADES results"}
               >
-                <Download size={14} /> Export 31-Col XLSX ({filteredRows.length !== calculatedRows.length ? `${filteredRows.length}/${calculatedRows.length}` : `${filteredRows.length} Rows`})
+                <Download size={14} /> Export 31-Col XLSX ({filteredRows.length !== processedRows.length ? `${filteredRows.length}/${processedRows.length}` : `${filteredRows.length} Rows`})
               </button>
             </div>
           )}
@@ -5627,7 +5627,7 @@ export default function AdesResultCalculatorPage() {
                       type="button" 
                       onClick={() => handleExportExcel(filteredRows)}
                       style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 9px", fontSize: "11px", borderRadius: "5px", border: "1px solid var(--accent)", background: "var(--accent-soft)", color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}
-                      title={filteredRows.length !== calculatedRows.length ? `Export current filtered view (${filteredRows.length} rows) to 31-Col ADES XLSX` : "Export all rows to 31-Col ADES XLSX"}
+                      title={filteredRows.length !== processedRows.length ? `Export current filtered view (${filteredRows.length} rows) to 31-Col ADES XLSX` : "Export all rows to 31-Col ADES XLSX"}
                     >
                       <Download size={12} /> Export Current View ({filteredRows.length})
                     </button>
