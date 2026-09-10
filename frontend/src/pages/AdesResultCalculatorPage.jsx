@@ -1952,9 +1952,47 @@ export default function AdesResultCalculatorPage() {
     });
   }, [processedRows]);
 
-  // Overall Student-Level Metrics
+  // Context-Scoped Student Data (College, Program, Course, Search)
+  const scopedStudents = useMemo(() => {
+    let list = studentSemesterData;
+
+    // 1. College filter
+    if (studentCollegeFilter !== "ALL") {
+      list = list.filter(st => st.college === studentCollegeFilter);
+    }
+
+    // 2. Program filter
+    if (studentProgramFilter !== "ALL") {
+      list = list.filter(st => st.program === studentProgramFilter);
+    }
+
+    // 3. Course filter
+    if (studentCourseFilter !== "ALL") {
+      list = list.filter(st => st.courses.some(c => c.courseCode === studentCourseFilter));
+    }
+
+    // 4. Search query
+    if (studentSearchQuery.trim()) {
+      const q = studentSearchQuery.toLowerCase().trim();
+      list = list.filter(st => 
+        st.prn.toLowerCase().includes(q) ||
+        st.seatNumber.toLowerCase().includes(q) ||
+        (st.college && st.college.toLowerCase().includes(q)) ||
+        st.program.toLowerCase().includes(q) ||
+        st.faculty.toLowerCase().includes(q) ||
+        (q === "held" && st.isHeld) ||
+        (q === "heldback" && st.isHeldback) ||
+        (st.heldbackReason && st.heldbackReason.toLowerCase().includes(q)) ||
+        st.courses.some(c => (c.courseCode && c.courseCode.toLowerCase().includes(q)) || (c.courseName && c.courseName.toLowerCase().includes(q)))
+      );
+    }
+
+    return list;
+  }, [studentSemesterData, studentCollegeFilter, studentProgramFilter, studentCourseFilter, studentSearchQuery]);
+
+  // Student Metrics calculated directly from the active scoped filters
   const studentMetrics = useMemo(() => {
-    const total = studentSemesterData.length;
+    const total = scopedStudents.length;
     if (total === 0) {
       return {
         totalStudents: 0,
@@ -1986,7 +2024,7 @@ export default function AdesResultCalculatorPage() {
     let heldbackStudents = 0;
     let totalPapersAttempted = 0;
 
-    studentSemesterData.forEach(st => {
+    scopedStudents.forEach(st => {
       totalPapersAttempted += st.totalCourses;
       if (st.isHeldback) {
         heldbackStudents++;
@@ -2007,45 +2045,58 @@ export default function AdesResultCalculatorPage() {
     return {
       totalStudents: total,
       rawPassedStudents,
-      rawPassedPct: ((rawPassedStudents / total) * 100).toFixed(1),
+      rawPassedPct: total > 0 ? ((rawPassedStudents / total) * 100).toFixed(1) : "0.0",
       finalPassedStudents,
-      finalPassedPct: ((finalPassedStudents / total) * 100).toFixed(1),
+      finalPassedPct: total > 0 ? ((finalPassedStudents / total) * 100).toFixed(1) : "0.0",
       failedStudents,
-      failedPct: ((failedStudents / total) * 100).toFixed(1),
+      failedPct: total > 0 ? ((failedStudents / total) * 100).toFixed(1) : "0.0",
       heldStudents,
-      heldPct: ((heldStudents / total) * 100).toFixed(1),
+      heldPct: total > 0 ? ((heldStudents / total) * 100).toFixed(1) : "0.0",
       heldbackStudents,
-      heldbackPct: ((heldbackStudents / total) * 100).toFixed(1),
+      heldbackPct: total > 0 ? ((heldbackStudents / total) * 100).toFixed(1) : "0.0",
       rescuedStudents,
-      rescuedPct: ((rescuedStudents / total) * 100).toFixed(1),
+      rescuedPct: total > 0 ? ((rescuedStudents / total) * 100).toFixed(1) : "0.0",
       absentStudents,
       malpracticeStudents,
       totalPapersAttempted,
-      avgPapersPerStudent: (totalPapersAttempted / total).toFixed(1)
+      avgPapersPerStudent: total > 0 ? (totalPapersAttempted / total).toFixed(1) : "0.0"
     };
-  }, [studentSemesterData]);
+  }, [scopedStudents]);
 
-  // Unique Lists for Student Dropdown Filters
+  // Contextual Unique Lists for Student Dropdown Filters
   const uniqueStudentColleges = useMemo(() => {
     const set = new Set();
     studentSemesterData.forEach(st => {
-      if (st.college) set.add(st.college);
+      if (
+        (studentProgramFilter === "ALL" || st.program === studentProgramFilter) &&
+        (studentCourseFilter === "ALL" || st.courses.some(c => c.courseCode === studentCourseFilter))
+      ) {
+        if (st.college) set.add(st.college);
+      }
     });
     return Array.from(set).sort();
-  }, [studentSemesterData]);
+  }, [studentSemesterData, studentProgramFilter, studentCourseFilter]);
 
   const uniqueStudentPrograms = useMemo(() => {
     const set = new Set();
     studentSemesterData.forEach(st => {
-      if (st.program) set.add(st.program);
+      if (
+        (studentCollegeFilter === "ALL" || st.college === studentCollegeFilter) &&
+        (studentCourseFilter === "ALL" || st.courses.some(c => c.courseCode === studentCourseFilter))
+      ) {
+        if (st.program) set.add(st.program);
+      }
     });
     return Array.from(set).sort();
-  }, [studentSemesterData]);
+  }, [studentSemesterData, studentCollegeFilter, studentCourseFilter]);
 
   const uniqueStudentCourses = useMemo(() => {
     const courseMap = new Map();
     studentSemesterData.forEach(st => {
-      if (studentProgramFilter === "ALL" || st.program === studentProgramFilter) {
+      if (
+        (studentCollegeFilter === "ALL" || st.college === studentCollegeFilter) &&
+        (studentProgramFilter === "ALL" || st.program === studentProgramFilter)
+      ) {
         st.courses.forEach(c => {
           if (c.courseCode && !courseMap.has(c.courseCode)) {
             courseMap.set(c.courseCode, c.courseName ? `${c.courseCode} - ${c.courseName}` : c.courseCode);
@@ -2054,28 +2105,12 @@ export default function AdesResultCalculatorPage() {
       }
     });
     return Array.from(courseMap.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
-  }, [studentSemesterData, studentProgramFilter]);
+  }, [studentSemesterData, studentCollegeFilter, studentProgramFilter]);
 
-  // Filtered Student List
+  // Final Filtered Student List (Filtered by Status)
   const filteredStudents = useMemo(() => {
-    let list = studentSemesterData;
+    let list = scopedStudents;
 
-    // 1. College filter
-    if (studentCollegeFilter !== "ALL") {
-      list = list.filter(st => st.college === studentCollegeFilter);
-    }
-
-    // 2. Program filter
-    if (studentProgramFilter !== "ALL") {
-      list = list.filter(st => st.program === studentProgramFilter);
-    }
-
-    // 3. Course filter
-    if (studentCourseFilter !== "ALL") {
-      list = list.filter(st => st.courses.some(c => c.courseCode === studentCourseFilter));
-    }
-
-    // 4. Status filter
     if (studentFilterStatus === "PASS") {
       list = list.filter(st => st.finalSemesterPass);
     } else if (studentFilterStatus === "FAIL") {
@@ -2092,24 +2127,8 @@ export default function AdesResultCalculatorPage() {
       list = list.filter(st => (st.malpracticeCourses || 0) > 0);
     }
 
-    // 5. Search query
-    if (studentSearchQuery.trim()) {
-      const q = studentSearchQuery.toLowerCase().trim();
-      list = list.filter(st => 
-        st.prn.toLowerCase().includes(q) ||
-        st.seatNumber.toLowerCase().includes(q) ||
-        (st.college && st.college.toLowerCase().includes(q)) ||
-        st.program.toLowerCase().includes(q) ||
-        st.faculty.toLowerCase().includes(q) ||
-        (q === "held" && st.isHeld) ||
-        (q === "heldback" && st.isHeldback) ||
-        (st.heldbackReason && st.heldbackReason.toLowerCase().includes(q)) ||
-        st.courses.some(c => (c.courseCode && c.courseCode.toLowerCase().includes(q)) || (c.courseName && c.courseName.toLowerCase().includes(q)))
-      );
-    }
-
     return list;
-  }, [studentSemesterData, studentCollegeFilter, studentProgramFilter, studentCourseFilter, studentFilterStatus, studentSearchQuery]);
+  }, [scopedStudents, studentFilterStatus]);
 
   const toggleStudentExpand = (key) => {
     setExpandedStudents(prev => ({
@@ -3380,48 +3399,131 @@ export default function AdesResultCalculatorPage() {
     setPage(0);
   };
 
-  // Unique Lists for Dropdown Filters
+  // Context-Scoped Course Rows (Faculty, College, Program, Course, Search, Column Filters)
+  const scopedCourseRows = useMemo(() => {
+    let result = [...processedRows];
+
+    // 1. Faculty filter
+    if (selectedFacultyFilter !== "ALL") {
+      result = result.filter(r => r["Faculty"] === selectedFacultyFilter);
+    }
+
+    // 2. College filter
+    if (selectedCollegeFilter !== "ALL") {
+      result = result.filter(r => (r._college || r["College Name"] || r["College Code"] || r["College"]) === selectedCollegeFilter);
+    }
+
+    // 3. Program filter
+    if (selectedProgramFilter !== "ALL") {
+      result = result.filter(r => r["Program Term Name"] === selectedProgramFilter);
+    }
+
+    // 4. Course filter
+    if (selectedCourseFilter !== "ALL") {
+      result = result.filter(r => r["Course Code"] === selectedCourseFilter);
+    }
+
+    // 5. Search Query
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(r =>
+        (r._college && r._college.toLowerCase().includes(q)) ||
+        Object.values(r).some(val => String(val || "").toLowerCase().includes(q))
+      );
+    }
+
+    // 6. Column Filters
+    const activeFilterEntries = Object.entries(columnFilters);
+    if (activeFilterEntries.length > 0) {
+      result = result.filter(r => {
+        return activeFilterEntries.every(([colKey, filterVal]) => {
+          if (!filterVal || String(filterVal).trim() === "") return true;
+          const cellVal = String(r[colKey] !== undefined && r[colKey] !== null ? r[colKey] : "").toLowerCase();
+          return cellVal.includes(String(filterVal).toLowerCase().trim());
+        });
+      });
+    }
+
+    return result;
+  }, [processedRows, selectedFacultyFilter, selectedCollegeFilter, selectedProgramFilter, selectedCourseFilter, searchQuery, columnFilters]);
+
+  // Unique Lists for Dropdown Filters (Cascading & Contextual)
   const uniqueFaculties = useMemo(() => {
     const set = new Set();
-    processedRows.forEach(r => { if (r["Faculty"]) set.add(r["Faculty"]); });
+    processedRows.forEach(r => {
+      const col = r._college || r["College Name"] || r["College Code"] || r["College"];
+      const prog = r["Program Term Name"];
+      const course = r["Course Code"];
+      if (
+        (selectedCollegeFilter === "ALL" || col === selectedCollegeFilter) &&
+        (selectedProgramFilter === "ALL" || prog === selectedProgramFilter) &&
+        (selectedCourseFilter === "ALL" || course === selectedCourseFilter)
+      ) {
+        if (r["Faculty"]) set.add(r["Faculty"]);
+      }
+    });
     return Array.from(set).sort();
-  }, [processedRows]);
+  }, [processedRows, selectedCollegeFilter, selectedProgramFilter, selectedCourseFilter]);
 
   const uniqueColleges = useMemo(() => {
     const set = new Set();
     processedRows.forEach(r => {
-      const col = r._college || r["College Name"] || r["College Code"] || r["College"];
-      if (col) set.add(col);
+      const fac = r["Faculty"];
+      const prog = r["Program Term Name"];
+      const course = r["Course Code"];
+      if (
+        (selectedFacultyFilter === "ALL" || fac === selectedFacultyFilter) &&
+        (selectedProgramFilter === "ALL" || prog === selectedProgramFilter) &&
+        (selectedCourseFilter === "ALL" || course === selectedCourseFilter)
+      ) {
+        const col = r._college || r["College Name"] || r["College Code"] || r["College"];
+        if (col) set.add(col);
+      }
     });
     return Array.from(set).sort();
-  }, [processedRows]);
+  }, [processedRows, selectedFacultyFilter, selectedProgramFilter, selectedCourseFilter]);
 
   const uniquePrograms = useMemo(() => {
     const set = new Set();
-    processedRows.forEach(r => { if (r["Program Term Name"]) set.add(r["Program Term Name"]); });
+    processedRows.forEach(r => {
+      const fac = r["Faculty"];
+      const col = r._college || r["College Name"] || r["College Code"] || r["College"];
+      const course = r["Course Code"];
+      if (
+        (selectedFacultyFilter === "ALL" || fac === selectedFacultyFilter) &&
+        (selectedCollegeFilter === "ALL" || col === selectedCollegeFilter) &&
+        (selectedCourseFilter === "ALL" || course === selectedCourseFilter)
+      ) {
+        if (r["Program Term Name"]) set.add(r["Program Term Name"]);
+      }
+    });
     return Array.from(set).sort();
-  }, [processedRows]);
+  }, [processedRows, selectedFacultyFilter, selectedCollegeFilter, selectedCourseFilter]);
 
   const uniqueCourses = useMemo(() => {
     const courseMap = new Map();
     processedRows.forEach(r => {
+      const fac = r["Faculty"];
+      const col = r._college || r["College Name"] || r["College Code"] || r["College"];
+      const prog = r["Program Term Name"];
       const code = r["Course Code"];
       const name = r["Course Name"];
-      const prog = r["Program Term Name"];
-      if (code) {
-        if (selectedProgramFilter === "ALL" || prog === selectedProgramFilter) {
-          if (!courseMap.has(code)) {
-            courseMap.set(code, name ? `${code} - ${name}` : code);
-          }
+      if (
+        (selectedFacultyFilter === "ALL" || fac === selectedFacultyFilter) &&
+        (selectedCollegeFilter === "ALL" || col === selectedCollegeFilter) &&
+        (selectedProgramFilter === "ALL" || prog === selectedProgramFilter)
+      ) {
+        if (code && !courseMap.has(code)) {
+          courseMap.set(code, name ? `${code} - ${name}` : code);
         }
       }
     });
     return Array.from(courseMap.entries()).map(([code, label]) => ({ code, label })).sort((a, b) => a.code.localeCompare(b.code));
-  }, [processedRows, selectedProgramFilter]);
+  }, [processedRows, selectedFacultyFilter, selectedCollegeFilter, selectedProgramFilter]);
 
-  // Statistics Metrics
+  // Statistics Metrics (calculated from active scoped filters)
   const metrics = useMemo(() => {
-    const total = processedRows.length;
+    const total = scopedCourseRows.length;
     if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, heldCount: 0, heldbackCount: 0, missingCompCount: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0, malpracticeCount: 0 };
 
     const prnSet = new Set();
@@ -3441,7 +3543,7 @@ export default function AdesResultCalculatorPage() {
     const esePassKey = "ESE Pass";
     const overallPassKey = "Overall pass";
 
-    processedRows.forEach(r => {
+    scopedCourseRows.forEach(r => {
       if (r["PRN"]) prnSet.add(r["PRN"]);
       
       if (r._isHeldback) {
@@ -3499,17 +3601,17 @@ export default function AdesResultCalculatorPage() {
       absentCount,
       malpracticeCount
     };
-  }, [processedRows]);
+  }, [scopedCourseRows]);
 
   // Filtered & Sorted Rows
   const filteredRows = useMemo(() => {
-    let result = [...processedRows];
+    let result = [...scopedCourseRows];
 
     const coursePassKey = "Course Pass/Fail";
     const esePassKey = "ESE Pass";
     const overallPassKey = "Overall pass";
 
-    // 1. Result Status Filter
+    // Result Status Filter
     if (selectedResultFilter === "PASS") {
       result = result.filter(r => r[coursePassKey] === "Pass");
     } else if (selectedResultFilter === "PASS_MOD") {
@@ -3532,42 +3634,7 @@ export default function AdesResultCalculatorPage() {
       result = result.filter(r => r._isMalpractice);
     }
 
-    // 2. Dropdown Filters
-    if (selectedFacultyFilter !== "ALL") {
-      result = result.filter(r => r["Faculty"] === selectedFacultyFilter);
-    }
-    if (selectedCollegeFilter !== "ALL") {
-      result = result.filter(r => (r._college || r["College Name"] || r["College Code"] || r["College"]) === selectedCollegeFilter);
-    }
-    if (selectedProgramFilter !== "ALL") {
-      result = result.filter(r => r["Program Term Name"] === selectedProgramFilter);
-    }
-    if (selectedCourseFilter !== "ALL") {
-      result = result.filter(r => r["Course Code"] === selectedCourseFilter);
-    }
-
-    // 3. Search Query
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(r =>
-        (r._college && r._college.toLowerCase().includes(q)) ||
-        Object.values(r).some(val => String(val || "").toLowerCase().includes(q))
-      );
-    }
-
-    // 4. Column Filters
-    const activeFilterEntries = Object.entries(columnFilters);
-    if (activeFilterEntries.length > 0) {
-      result = result.filter(r => {
-        return activeFilterEntries.every(([colKey, filterVal]) => {
-          if (!filterVal || String(filterVal).trim() === "") return true;
-          const cellVal = String(r[colKey] !== undefined && r[colKey] !== null ? r[colKey] : "").toLowerCase();
-          return cellVal.includes(String(filterVal).toLowerCase().trim());
-        });
-      });
-    }
-
-    // 5. Sorting
+    // Sorting
     if (sortConfig.column && sortConfig.direction) {
       const col = sortConfig.column;
       const dir = sortConfig.direction === "asc" ? 1 : -1;
@@ -3590,7 +3657,7 @@ export default function AdesResultCalculatorPage() {
     }
 
     return result;
-  }, [processedRows, selectedResultFilter, selectedFacultyFilter, selectedCollegeFilter, selectedProgramFilter, selectedCourseFilter, searchQuery, columnFilters, sortConfig]);
+  }, [scopedCourseRows, selectedResultFilter, sortConfig]);
 
   const pagedRows = useMemo(() => {
     const start = page * pageSize;
