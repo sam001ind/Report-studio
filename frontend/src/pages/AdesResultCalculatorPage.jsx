@@ -85,6 +85,18 @@ const cleanString = (str) => {
   return String(str).replace(/\s+/g, " ").trim();
 };
 
+// Cleans and canonicalizes course codes: strips ., #, *, _, -, spaces, wrapping brackets, and converts to uppercase
+export const cleanCourseCode = (rawCode) => {
+  if (!rawCode) return "";
+  let code = String(rawCode).trim();
+  code = code.replace(/^\s*[\(\[\{]\s*/, "").replace(/\s*[\)\]\}]\s*$/, "");
+  code = code.replace(/[\.\#\*\_\-\:\;\,]+$/g, "").trim();
+  code = code.replace(/^[\.\#\*\_\-\:\;\,]+/g, "").trim();
+  code = code.replace(/\s+/g, "");
+  code = code.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
+  return code.toUpperCase();
+};
+
 // Parses raw college code and name, stripping duplicate code prefixes and embedded tags
 export const parseCollegeRaw = (rawCodeInput, rawNameInput) => {
   let code = cleanString(rawCodeInput);
@@ -320,7 +332,8 @@ export default function AdesResultCalculatorPage() {
     rows.forEach(r => {
       const prn = String(getCell(r, headerMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || r["PRN"] || "").trim();
       const seat = String(getCell(r, headerMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || r["Seat Number"] || "").trim();
-      const code = String(getCell(r, headerMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Course Code"] || "").trim();
+      const rawCode = String(getCell(r, headerMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Course Code"] || "").trim();
+      const code = cleanCourseCode(rawCode);
       const courseName = String(getCell(r, headerMap, "Course Name", "CourseName", "PaperName", "SubjectName") || r["Course Name"] || "").trim();
       const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
       const rawCollegeCode = String(getCell(r, headerMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code") || r["College Code"] || r["ADEC Code"] || "").trim();
@@ -405,7 +418,8 @@ export default function AdesResultCalculatorPage() {
     rows.forEach(r => {
       const prn = String(getCell(r, headerMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || r["PRN"] || "").trim();
       const seat = String(getCell(r, headerMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || r["Seat Number"] || "").trim();
-      const code = String(getCell(r, headerMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Course Code"] || "").trim();
+      const rawCode = String(getCell(r, headerMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Course Code"] || "").trim();
+      const code = cleanCourseCode(rawCode);
       const courseName = String(getCell(r, headerMap, "Course Name", "CourseName", "PaperName", "SubjectName") || r["Course Name"] || "").trim();
       const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
       const rawCollegeCode = String(getCell(r, headerMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code") || r["College Code"] || r["ADEC Code"] || "").trim();
@@ -510,23 +524,26 @@ export default function AdesResultCalculatorPage() {
       const rawCollegeName = String(getCell(r, headerMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "Institute") || r["College Name"] || r["ADEC Name"] || "").trim();
       const { code: collegeCode, name: collegeName } = parseCollegeRaw(rawCollegeCode, rawCollegeName);
       const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
-      const paper = String(getCell(r, headerMap, "Paper", "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Paper"] || "").trim();
+      const rawPaper = String(getCell(r, headerMap, "Paper", "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Paper"] || "").trim();
+      const assessmentType = String(getCell(r, headerMap, "Assessment Type", "AssessmentType", "AT") || r["Assessment Type"] || "").trim();
       const tlm = String(getCell(r, headerMap, "Teaching Learning Method", "TeachingLearningMethod", "TLM") || r["Teaching Learning Method"] || "").trim();
       const am = String(getCell(r, headerMap, "Assessment Method", "AssessmentMethod", "AM") || r["Assessment Method"] || "").trim();
 
-      const normPrn = normalizeKey(prn);
-      const normSeat = normalizeKey(seat);
-      const normPaper = normalizeKey(paper);
-
-      const paperLower = paper.toLowerCase();
+      const paperLower = rawPaper.toLowerCase();
       const atLower = assessmentType.toLowerCase();
-      const isTermLevel = !paper || 
+      const isTermLevel = !rawPaper || 
         paperLower.includes("term-level") || 
         paperLower.includes("term level") || 
         atLower.includes("term-level") || 
         atLower.includes("term level") || 
         paperLower === "heldback" ||
         paperLower === "all";
+
+      const paper = isTermLevel ? rawPaper : cleanCourseCode(rawPaper);
+
+      const normPrn = normalizeKey(prn);
+      const normSeat = normalizeKey(seat);
+      const normPaper = normalizeKey(paper);
 
       const details = {
         studentName,
@@ -612,7 +629,8 @@ export default function AdesResultCalculatorPage() {
     const courseExpectedComponentsMap = new Map();
 
     rows.forEach(row => {
-      const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+      const rawCode = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+      const code = cleanCourseCode(rawCode);
       const norm = normalizeKey(code);
       if (!norm) return;
 
@@ -864,7 +882,8 @@ export default function AdesResultCalculatorPage() {
         const rawCollegeName = String(getCell(row, currentHeaderMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
         const seat = String(getCell(row, currentHeaderMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || "").trim();
         const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
-        const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+        const rawCode = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+        const code = cleanCourseCode(rawCode);
         const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
 
         const normCode = normalizeKey(code);
@@ -1133,7 +1152,8 @@ export default function AdesResultCalculatorPage() {
       const rawCollegeName = String(getCell(row, currentHeaderMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
       const seat = String(getCell(row, currentHeaderMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || "").trim();
       const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
-      const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+      const rawCode = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+      const code = cleanCourseCode(rawCode);
       const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
 
       const methodRaw = String(getCell(row, currentHeaderMap, "Assessment Method", "AssessmentMethod", "AM", "Method", "Assessment_Method") || "").trim().toUpperCase();
@@ -1156,7 +1176,7 @@ export default function AdesResultCalculatorPage() {
         type = "TH";
       }
 
-      const groupKey = faculty + "|||" + program + "|||" + seat + "|||" + prn + "|||" + code + "|||" + name;
+      const groupKey = faculty + "|||" + program + "|||" + seat + "|||" + prn + "|||" + code;
 
       if (!groups.has(groupKey)) {
         groups.set(groupKey, {
@@ -1168,6 +1188,7 @@ export default function AdesResultCalculatorPage() {
         const grp = groups.get(groupKey);
         if (!grp.identifiers.rawCollegeCode && rawCollegeCode) grp.identifiers.rawCollegeCode = rawCollegeCode;
         if (!grp.identifiers.rawCollegeName && rawCollegeName) grp.identifiers.rawCollegeName = rawCollegeName;
+        if ((!grp.identifiers.name || (name && name.length > grp.identifiers.name.length)) && name) grp.identifiers.name = name;
       }
 
       const group = groups.get(groupKey);
@@ -1443,6 +1464,9 @@ export default function AdesResultCalculatorPage() {
       }
 
       const item = map.get(norm);
+      if ((!item.courseName || (name && name.length > item.courseName.length)) && name) {
+        item.courseName = name;
+      }
       item.totalStudents++;
       if (rec.is_heldback) {
         item.heldbackCount = (item.heldbackCount || 0) + 1;
@@ -1682,6 +1706,9 @@ export default function AdesResultCalculatorPage() {
       }
 
       const item = map.get(norm);
+      if ((!item.courseName || (name && name.length > item.courseName.length)) && name) {
+        item.courseName = name;
+      }
       item.totalStudents++;
 
       // Heldback students are strictly locked and excluded from pass calculations at all moderation levels
@@ -2679,7 +2706,7 @@ export default function AdesResultCalculatorPage() {
           for (const [key, val] of Object.entries(row)) {
             const kNorm = normalizeKey(key);
             if (kNorm.includes("coursecode") || kNorm.includes("papercode") || kNorm.includes("subjectcode") || kNorm === "code") {
-              courseCode = String(val).trim();
+              courseCode = cleanCourseCode(val);
             } else if (kNorm.includes("currentmoderationmarks") || kNorm.includes("moderation") || kNorm.includes("modmarks") || kNorm.includes("gracemarks") || kNorm === "marks") {
               const parsed = parseInt(val, 10);
               if (!isNaN(parsed)) modMarks = Math.max(0, parsed);

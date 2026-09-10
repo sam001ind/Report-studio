@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { parseCollegeRaw, buildCollegeCanonicalRegistry } from './AdesResultCalculatorPage';
+import { parseCollegeRaw, buildCollegeCanonicalRegistry, cleanCourseCode } from './AdesResultCalculatorPage';
 import { 
   ArrowLeft, 
   Upload, 
@@ -170,7 +170,7 @@ export default function AffiliatedProgrammePage() {
           let courseName = '';
 
           if (coursePatternMatch) {
-            courseCode = (coursePatternMatch[1] || '').trim();
+            courseCode = cleanCourseCode(coursePatternMatch[1] || '');
             courseName = (coursePatternMatch[2] || '').trim();
           } else {
             courseName = courseStr;
