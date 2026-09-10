@@ -38,7 +38,8 @@ import {
   BarChart3,
   Users,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ShieldAlert
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -110,6 +111,12 @@ export default function AdesResultCalculatorPage() {
   const [absentList, setAbsentList] = useState([]);
   const absentFileInputRef = useRef(null);
 
+  // Malpractice Students Report State
+  const [malpracticeRecordsMap, setMalpracticeRecordsMap] = useState(new Map());
+  const [malpracticeFileName, setMalpracticeFileName] = useState("");
+  const [malpracticeList, setMalpracticeList] = useState([]);
+  const malpracticeFileInputRef = useRef(null);
+
   // Table Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFacultyFilter, setSelectedFacultyFilter] = useState("ALL");
@@ -143,7 +150,9 @@ export default function AdesResultCalculatorPage() {
     if (val === null || val === undefined) return null;
     const s = String(val).trim();
     if (s === "") return null;
-    if (s.toLowerCase().includes("absent") || s.toLowerCase().includes("(ab)")) return null;
+    const lower = s.toLowerCase();
+    if (lower.includes("absent") || lower.includes("(ab)")) return null;
+    if (lower.includes("malpractice") || lower.includes("(mp)") || lower.includes("smp") || lower.includes("ehb")) return null;
     const num = Number(s);
     return isNaN(num) ? null : num;
   };
@@ -228,6 +237,90 @@ export default function AdesResultCalculatorPage() {
     return { map, list };
   };
 
+  // Helper to match student course record against loaded Malpractice Report
+  const getMalpracticeEntry = (prn, seat, code, malpracticeMap) => {
+    if (!malpracticeMap || malpracticeMap.size === 0) return null;
+    const normCode = normalizeKey(code);
+    if (!normCode) return null;
+
+    const normPrn = normalizeKey(prn);
+    if (normPrn) {
+      const entry = malpracticeMap.get(`${normPrn}___${normCode}`);
+      if (entry) return entry;
+    }
+
+    const normSeat = normalizeKey(seat);
+    if (normSeat) {
+      const entry = malpracticeMap.get(`${normSeat}___${normCode}`);
+      if (entry) return entry;
+    }
+
+    return null;
+  };
+
+  // Build lookup map and formatted list from uploaded Malpractice Report rows
+  const buildMalpracticeLookup = (rows, headerMap = {}) => {
+    const map = new Map();
+    const list = [];
+
+    rows.forEach(r => {
+      const prn = String(getCell(r, headerMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || r["PRN"] || "").trim();
+      const seat = String(getCell(r, headerMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || r["Seat Number"] || "").trim();
+      const code = String(getCell(r, headerMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Course Code"] || "").trim();
+      const courseName = String(getCell(r, headerMap, "Course Name", "CourseName", "PaperName", "SubjectName") || r["Course Name"] || "").trim();
+      const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
+
+      const am = String(getCell(r, headerMap, "AM", "Assessment Method", "AssessmentMethod") || r["AM"] || "").trim().toUpperCase();
+      const at = String(getCell(r, headerMap, "AT", "Assessment Type", "AssessmentType") || r["AT"] || "").trim().toUpperCase();
+
+      const status = String(getCell(r, headerMap, "Status (e.g., Unresolved, Resolved, SPC, CPC,NP)", "Status", "UM Status", "Malpractice Status") || r["Status (e.g., Unresolved, Resolved, SPC, CPC,NP)"] || r["Status"] || "").trim() || "EHB";
+      const remarks = String(getCell(r, headerMap, "Description / Remarks", "Description", "Remarks", "Description/Remarks") || r["Description / Remarks"] || r["Remarks"] || "").trim();
+      const umMarkedDate = String(getCell(r, headerMap, "UM Marked Date", "UMMarkedDate", "Marked Date", "Date") || r["UM Marked Date"] || "").trim();
+
+      const normCode = normalizeKey(code);
+      const normPrn = normalizeKey(prn);
+      const normSeat = normalizeKey(seat);
+
+      const isEseTh = (am.includes("ESE") || !am) && (at.includes("TH") || !at);
+      const isEsePr = am.includes("ESE") && at.includes("PR");
+      const isCeTh = am.includes("CE") && at.includes("TH");
+      const isCePr = am.includes("CE") && at.includes("PR");
+      const isWholeEse = am.includes("ESE") && !at;
+      const isWholeCourse = !am && !at;
+
+      const details = {
+        studentName,
+        prn,
+        seat,
+        code,
+        courseName,
+        am: am || "ESE",
+        at: at || "TH",
+        status,
+        remarks,
+        umMarkedDate,
+        isEseTh: isEseTh || isWholeEse || isWholeCourse,
+        isEsePr: isEsePr || isWholeEse || isWholeCourse,
+        isCeTh: isCeTh || isWholeCourse,
+        isCePr: isCePr || isWholeCourse,
+        isMalpracticeOverall: isEseTh || isEsePr || isWholeEse || isWholeCourse
+      };
+
+      if (normPrn && normCode) {
+        map.set(`${normPrn}___${normCode}`, details);
+      }
+      if (normSeat && normCode) {
+        map.set(`${normSeat}___${normCode}`, details);
+      }
+
+      if (normCode && (normPrn || normSeat)) {
+        list.push(details);
+      }
+    });
+
+    return { map, list };
+  };
+
   const isAlreadyAggregatedSheet = (hMap) => {
     const keys = Object.keys(hMap);
     const hasEseOverall = keys.some(k => k.includes("eseoverall") || k.includes("esemax") || k.includes("esethobtained") || k.includes("esethmax"));
@@ -237,7 +330,7 @@ export default function AdesResultCalculatorPage() {
   };
 
   // Group raw assessment rows OR parse pre-aggregated rows into Student-Course Base Aggregates
-  const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap) => {
+  const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap, currentMalpracticeMap = malpracticeRecordsMap) => {
     const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
 
     if (isAgg) {
@@ -251,7 +344,8 @@ export default function AdesResultCalculatorPage() {
         const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
         const name = String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim();
 
-        // Check if this student-course has an absent record
+        // Check if this student-course has a malpractice or absent record
+        const malpracticeEntry = getMalpracticeEntry(prn, seat, code, currentMalpracticeMap);
         const absentEntry = getAbsentEntry(prn, seat, code, currentAbsentMap);
 
         const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? "";
@@ -275,10 +369,26 @@ export default function AdesResultCalculatorPage() {
         const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0;
         const is_pr_only = has_ese_pr && !has_ese_th;
 
+        let is_malpractice = false;
+        let malpractice_status = "";
+        let malpractice_remarks = "";
+        let malpractice_date = "";
+
         let is_absent = false;
         let absent_status = "";
 
-        if (absentEntry) {
+        if (malpracticeEntry) {
+          is_malpractice = true;
+          malpractice_status = malpracticeEntry.status;
+          malpractice_remarks = malpracticeEntry.remarks;
+          malpractice_date = malpracticeEntry.umMarkedDate;
+          if (malpracticeEntry.isEseTh) {
+            ese_th_obtained = "Malpractice (MP)";
+          }
+          if (malpracticeEntry.isEsePr) {
+            ese_pr_obtained = "Malpractice (MP)";
+          }
+        } else if (absentEntry) {
           is_absent = true;
           absent_status = absentEntry.status;
           if (absentEntry.isEseTh) {
@@ -290,7 +400,11 @@ export default function AdesResultCalculatorPage() {
         }
 
         let ese_obtained;
-        if (is_absent && ese_th_obtained === "Absent (Ab)" && (!has_ese_pr || ese_pr_obtained === "Absent (Ab)")) {
+        if (is_malpractice && ese_th_obtained === "Malpractice (MP)" && (!has_ese_pr || ese_pr_obtained === "Malpractice (MP)")) {
+          ese_obtained = "Malpractice (MP)";
+        } else if (is_malpractice && ese_pr_obtained === "Malpractice (MP)" && !has_ese_th) {
+          ese_obtained = "Malpractice (MP)";
+        } else if (is_absent && ese_th_obtained === "Absent (Ab)" && (!has_ese_pr || ese_pr_obtained === "Absent (Ab)")) {
           ese_obtained = "Absent (Ab)";
         } else if (is_absent && ese_pr_obtained === "Absent (Ab)" && !has_ese_th) {
           ese_obtained = "Absent (Ab)";
@@ -340,7 +454,13 @@ export default function AdesResultCalculatorPage() {
         let raw_overall_pass = false;
         let raw_course_pass = false;
 
-        if (is_absent) {
+        if (is_malpractice) {
+          raw_ese_pass = false;
+          raw_overall_pass = false;
+          raw_course_pass = false;
+          ese_deficit = 999;
+          overall_deficit = 999;
+        } else if (is_absent) {
           raw_ese_pass = false;
           raw_overall_pass = false;
           raw_course_pass = false;
@@ -395,7 +515,11 @@ export default function AdesResultCalculatorPage() {
           raw_overall_pass,
           raw_course_pass,
           is_absent,
-          absent_status
+          absent_status,
+          is_malpractice,
+          malpractice_status,
+          malpractice_remarks,
+          malpractice_date
         });
       });
 
@@ -452,8 +576,14 @@ export default function AdesResultCalculatorPage() {
     const baseRecords = [];
 
     groups.forEach(({ identifiers, components }) => {
+      const malpracticeEntry = getMalpracticeEntry(identifiers.prn, identifiers.seat, identifiers.code, currentMalpracticeMap);
+      const is_malpractice = !!malpracticeEntry;
+      const malpractice_status = malpracticeEntry ? malpracticeEntry.status : "";
+      const malpractice_remarks = malpracticeEntry ? malpracticeEntry.remarks : "";
+      const malpractice_date = malpracticeEntry ? malpracticeEntry.umMarkedDate : "";
+
       const absentEntry = getAbsentEntry(identifiers.prn, identifiers.seat, identifiers.code, currentAbsentMap);
-      const is_absent = !!absentEntry;
+      const is_absent = !is_malpractice && !!absentEntry;
       const absent_status = absentEntry ? absentEntry.status : "";
 
       const ese_pr = components["ESE_PR"];
@@ -464,7 +594,14 @@ export default function AdesResultCalculatorPage() {
       const ese_th_max = (ese_th && ese_th.max !== null) ? ese_th.max : 0;
       let ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : 0;
 
-      if (absentEntry) {
+      if (is_malpractice && malpracticeEntry) {
+        if (malpracticeEntry.isEseTh) {
+          ese_th_obtained = "Malpractice (MP)";
+        }
+        if (malpracticeEntry.isEsePr) {
+          ese_pr_obtained = "Malpractice (MP)";
+        }
+      } else if (is_absent && absentEntry) {
         if (absentEntry.isEseTh) {
           ese_th_obtained = "Absent (Ab)";
         }
@@ -477,7 +614,11 @@ export default function AdesResultCalculatorPage() {
       const ese_min = Math.ceil(0.30 * ese_max);
 
       let ese_obtained;
-      if (is_absent && ese_th_obtained === "Absent (Ab)" && (ese_pr_max === 0 || ese_pr_obtained === "Absent (Ab)")) {
+      if (is_malpractice && ese_th_obtained === "Malpractice (MP)" && (ese_pr_max === 0 || ese_pr_obtained === "Malpractice (MP)")) {
+        ese_obtained = "Malpractice (MP)";
+      } else if (is_malpractice && ese_pr_obtained === "Malpractice (MP)" && ese_th_max === 0) {
+        ese_obtained = "Malpractice (MP)";
+      } else if (is_absent && ese_th_obtained === "Absent (Ab)" && (ese_pr_max === 0 || ese_pr_obtained === "Absent (Ab)")) {
         ese_obtained = "Absent (Ab)";
       } else if (is_absent && ese_pr_obtained === "Absent (Ab)" && ese_th_max === 0) {
         ese_obtained = "Absent (Ab)";
@@ -509,7 +650,13 @@ export default function AdesResultCalculatorPage() {
       let raw_overall_pass = false;
       let raw_course_pass = false;
 
-      if (is_absent) {
+      if (is_malpractice) {
+        raw_ese_pass = false;
+        raw_overall_pass = false;
+        raw_course_pass = false;
+        ese_deficit = 999;
+        overall_deficit = 999;
+      } else if (is_absent) {
         raw_ese_pass = false;
         raw_overall_pass = false;
         raw_course_pass = false;
@@ -539,13 +686,13 @@ export default function AdesResultCalculatorPage() {
           "PRN": identifiers.prn,
           "ESE - PR Max": (ese_pr && ese_pr.max !== null) ? ese_pr.max : "",
           "ESE - PR Min": "",
-          "ESE - PR Obtained": (ese_pr && ese_pr_obtained === "Absent (Ab)") ? "Absent (Ab)" : ((ese_pr && ese_pr.marks !== null) ? ese_pr.marks : ""),
+          "ESE - PR Obtained": (ese_pr && ese_pr_obtained === "Malpractice (MP)") ? "Malpractice (MP)" : ((ese_pr && ese_pr_obtained === "Absent (Ab)") ? "Absent (Ab)" : ((ese_pr && ese_pr.marks !== null) ? ese_pr.marks : "")),
           "ESE - TH Max": (ese_th && ese_th.max !== null) ? ese_th.max : "",
           "ESE - TH Min": ese_th ? 0 : "",
-          "ESE - TH Obtained": (ese_th && ese_th_obtained === "Absent (Ab)") ? "Absent (Ab)" : ((ese_th && ese_th.marks !== null) ? ese_th.marks : ""),
+          "ESE - TH Obtained": (ese_th && ese_th_obtained === "Malpractice (MP)") ? "Malpractice (MP)" : ((ese_th && ese_th_obtained === "Absent (Ab)") ? "Absent (Ab)" : ((ese_th && ese_th.marks !== null) ? ese_th.marks : "")),
           "ESE - Max": Math.round(ese_max),
           "ESE - Min": ese_min,
-          "ESE Overall": ese_obtained === "Absent (Ab)" ? "Absent (Ab)" : Math.round(ese_obtained),
+          "ESE Overall": ese_obtained === "Malpractice (MP)" ? "Malpractice (MP)" : (ese_obtained === "Absent (Ab)" ? "Absent (Ab)" : Math.round(ese_obtained)),
           "CE - PR Max": (ce_pr && ce_pr.max !== null) ? ce_pr.max : "",
           "CE - PR Min": ce_pr ? 0 : "",
           "CE - PR Obtained": (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : "",
@@ -568,7 +715,11 @@ export default function AdesResultCalculatorPage() {
         raw_overall_pass,
         raw_course_pass,
         is_absent,
-        absent_status
+        absent_status,
+        is_malpractice,
+        malpractice_status,
+        malpractice_remarks,
+        malpractice_date
       });
     });
 
@@ -598,13 +749,18 @@ export default function AdesResultCalculatorPage() {
           rawPassed: 0,
           rawFailed: 0,
           absentCount: 0,
+          malpracticeCount: 0,
           nearPassCount: 0
         });
       }
 
       const item = map.get(norm);
       item.totalStudents++;
-      if (rec.is_absent) {
+      if (rec.is_malpractice) {
+        item.malpracticeCount = (item.malpracticeCount || 0) + 1;
+        item.rawFailed++;
+        // Malpractice students cannot be rescued by moderation; do not count in nearPassCount
+      } else if (rec.is_absent) {
         item.absentCount++;
         item.rawFailed++;
         // Absent students cannot be rescued by moderation; do not count in nearPassCount
@@ -629,6 +785,29 @@ export default function AdesResultCalculatorPage() {
       const normCode = normalizeKey(rec.identifiers.code);
       const modLimit = courseModerationMap[normCode] || 0;
 
+      // Malpractice Student Handling: Never eligible for moderation, automatically Fail
+      if (rec.is_malpractice) {
+        row["ESE Pass"] = "Fail";
+        row["Overall pass"] = "Fail";
+        row["Course Pass/Fail"] = "Fail";
+        row["Moderation Marks"] = 0;
+
+        row._rawPass = false;
+        row._isModeratedPass = false;
+        row._isAbsent = false;
+        row._absentStatus = "";
+        row._isMalpractice = true;
+        row._malpracticeStatus = rec.malpractice_status || "EHB";
+        row._malpracticeRemarks = rec.malpractice_remarks || "";
+        row._malpracticeDate = rec.malpractice_date || "";
+        row._modLimit = modLimit;
+        row._isEligibleForMod = false;
+        row._isPrOnly = rec.is_pr_only;
+        row._eseDeficit = rec.ese_deficit;
+        row._overallDeficit = rec.overall_deficit;
+        return row;
+      }
+
       // Absent Student Handling: Never eligible for moderation, automatically Fail
       if (rec.is_absent) {
         row["ESE Pass"] = "Fail";
@@ -640,6 +819,10 @@ export default function AdesResultCalculatorPage() {
         row._isModeratedPass = false;
         row._isAbsent = true;
         row._absentStatus = rec.absent_status || "Marked Absent";
+        row._isMalpractice = false;
+        row._malpracticeStatus = "";
+        row._malpracticeRemarks = "";
+        row._malpracticeDate = "";
         row._modLimit = modLimit;
         row._isEligibleForMod = false;
         row._isPrOnly = rec.is_pr_only;
@@ -678,6 +861,10 @@ export default function AdesResultCalculatorPage() {
       row._isModeratedPass = is_moderated_pass;
       row._isAbsent = false;
       row._absentStatus = "";
+      row._isMalpractice = false;
+      row._malpracticeStatus = "";
+      row._malpracticeRemarks = "";
+      row._malpracticeDate = "";
       row._modLimit = modLimit;
       row._isEligibleForMod = isEligibleForModeration;
       row._isPrOnly = rec.is_pr_only;
@@ -713,6 +900,7 @@ export default function AdesResultCalculatorPage() {
           isEligible: rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration),
           totalStudents: 0,
           absentCount: 0,
+          malpracticeCount: 0,
           rawEsePassCount: 0,       // 30% ESE Rule Pass Count
           rawOverallPassCount: 0,   // 35% Overall Course Rule Pass Count
           rawPassCount: 0,          // Combined (Both 30% ESE & 35% Overall Met)
@@ -725,7 +913,11 @@ export default function AdesResultCalculatorPage() {
       const item = map.get(norm);
       item.totalStudents++;
 
-      // Absent students are strictly excluded from pass counts at all moderation levels
+      // Absent or Malpractice students are strictly excluded from pass counts at all moderation levels
+      if (rec.is_malpractice) {
+        item.malpracticeCount = (item.malpracticeCount || 0) + 1;
+        return;
+      }
       if (rec.is_absent) {
         item.absentCount++;
         return;
@@ -1033,6 +1225,10 @@ export default function AdesResultCalculatorPage() {
         st.finalFailedCourses++;
       }
 
+      if (row._isMalpractice) {
+        st.malpracticeCourses = (st.malpracticeCourses || 0) + 1;
+      }
+
       if (row._isAbsent) {
         st.absentCourses = (st.absentCourses || 0) + 1;
       }
@@ -1049,6 +1245,10 @@ export default function AdesResultCalculatorPage() {
         isModeratedPass: row._isModeratedPass,
         isAbsent: !!row._isAbsent,
         absentStatus: row._absentStatus || "",
+        isMalpractice: !!row._isMalpractice,
+        malpracticeStatus: row._malpracticeStatus || "",
+        malpracticeRemarks: row._malpracticeRemarks || "",
+        malpracticeDate: row._malpracticeDate || "",
         modMarks,
         eseOverall: row["ESE Overall"],
         eseMin: row["ESE - Min"],
@@ -1096,6 +1296,7 @@ export default function AdesResultCalculatorPage() {
         rescuedStudents: 0,
         rescuedPct: "0.0",
         absentStudents: 0,
+        malpracticeStudents: 0,
         totalPapersAttempted: 0,
         avgPapersPerStudent: "0.0"
       };
@@ -1105,6 +1306,7 @@ export default function AdesResultCalculatorPage() {
     let finalPassedStudents = 0;
     let rescuedStudents = 0;
     let absentStudents = 0;
+    let malpracticeStudents = 0;
     let totalPapersAttempted = 0;
 
     studentSemesterData.forEach(st => {
@@ -1113,6 +1315,7 @@ export default function AdesResultCalculatorPage() {
       if (st.finalSemesterPass) finalPassedStudents++;
       if (st.isRescuedSemester) rescuedStudents++;
       if ((st.absentCourses || 0) > 0) absentStudents++;
+      if ((st.malpracticeCourses || 0) > 0) malpracticeStudents++;
     });
 
     const failedStudents = total - finalPassedStudents;
@@ -1128,6 +1331,7 @@ export default function AdesResultCalculatorPage() {
       rescuedStudents,
       rescuedPct: ((rescuedStudents / total) * 100).toFixed(1),
       absentStudents,
+      malpracticeStudents,
       totalPapersAttempted,
       avgPapersPerStudent: (totalPapersAttempted / total).toFixed(1)
     };
@@ -1145,6 +1349,8 @@ export default function AdesResultCalculatorPage() {
       list = list.filter(st => st.isRescuedSemester);
     } else if (studentFilterStatus === "ABSENT") {
       list = list.filter(st => (st.absentCourses || 0) > 0);
+    } else if (studentFilterStatus === "MALPRACTICE") {
+      list = list.filter(st => (st.malpracticeCourses || 0) > 0);
     }
 
     if (studentSearchQuery.trim()) {
@@ -1334,7 +1540,7 @@ export default function AdesResultCalculatorPage() {
         setHeaderMap(hMap);
         setRawRows(rows);
 
-        const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap);
+        const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap);
         setGroupedRecords(baseGrouped);
         setPage(0);
 
@@ -1377,7 +1583,7 @@ export default function AdesResultCalculatorPage() {
       setHeaderMap(hMap);
       setRawRows(rows);
 
-      const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap);
+      const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap);
       setGroupedRecords(baseGrouped);
       setPage(0);
 
@@ -1525,7 +1731,7 @@ export default function AdesResultCalculatorPage() {
 
         // If source records are already loaded, re-group them immediately with this absent map!
         if (rawRows && rawRows.length > 0 && headerMap) {
-          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map);
+          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map, malpracticeRecordsMap);
           setGroupedRecords(updatedGrouped);
         }
 
@@ -1547,7 +1753,7 @@ export default function AdesResultCalculatorPage() {
     setAbsentFileName("");
 
     if (rawRows && rawRows.length > 0 && headerMap) {
-      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, new Map());
+      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, new Map(), malpracticeRecordsMap);
       setGroupedRecords(resetGrouped);
     }
 
@@ -1642,6 +1848,219 @@ export default function AdesResultCalculatorPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Absent_Report_Template");
     XLSX.writeFile(wb, "absent_report_template.xlsx");
     setStatus("Downloaded Absent Report Template (.xlsx) with standard ADES columns and sample entries.", "success");
+  };
+
+  // Handle Upload of Malpractice Students Report Excel (.xlsx, .xls, .csv)
+  const handleMalpracticeExcelUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        const { rows, headerMap: hMap } = parseSheetWithHeaderScan(firstSheet);
+        const effectiveRows = (rows && rows.length > 0) ? rows : XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+        if (!effectiveRows || effectiveRows.length === 0) {
+          setStatus("Uploaded malpractice report sheet is empty.", "warning");
+          return;
+        }
+
+        const { map, list } = buildMalpracticeLookup(effectiveRows, hMap);
+
+        if (list.length === 0) {
+          setStatus("No valid student malpractice entries found in " + file.name + ". Ensure columns include PRN/Seat Number and Course Code.", "warning");
+          return;
+        }
+
+        setMalpracticeRecordsMap(map);
+        setMalpracticeList(list);
+        setMalpracticeFileName(file.name);
+
+        // If source records are already loaded, re-group them immediately with this malpractice map!
+        if (rawRows && rawRows.length > 0 && headerMap) {
+          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, map);
+          setGroupedRecords(updatedGrouped);
+        }
+
+        setStatus("Successfully imported " + list.length + " malpractice record(s) from \"" + file.name + "\". Matching components are marked as \"Malpractice (MP)\" with Fail status.", "success");
+      } catch (err) {
+        console.error("Error importing malpractice sheet:", err);
+        setStatus("Failed to read malpractice report: " + err.message, "error");
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+    if (malpracticeFileInputRef.current) malpracticeFileInputRef.current.value = "";
+  };
+
+  // Clear loaded Malpractice Data and revert source marks
+  const handleClearMalpracticeData = () => {
+    setMalpracticeRecordsMap(new Map());
+    setMalpracticeList([]);
+    setMalpracticeFileName("");
+
+    if (rawRows && rawRows.length > 0 && headerMap) {
+      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, new Map());
+      setGroupedRecords(resetGrouped);
+    }
+
+    setStatus("Cleared malpractice records. Source marks reverted to original.", "info");
+  };
+
+  // Download Malpractice Report Template (.xlsx) with standard university UM columns and sample rows
+  const handleDownloadMalpracticeTemplate = () => {
+    const headers = [
+      "Student Name",
+      "PRN",
+      "Seat Number",
+      "Program Name",
+      "Program Branch",
+      "Program Pattern",
+      "Program Part Name",
+      "Program Term Name",
+      "Specialization",
+      "College Code",
+      "College Name",
+      "Course Code",
+      "Center Name",
+      "Venue Name",
+      "Course Name",
+      "TLM",
+      "AM",
+      "AT",
+      "Status (e.g., Unresolved, Resolved, SPC, CPC,NP)",
+      "Description / Remarks",
+      "UM Marked Date"
+    ];
+
+    const sampleRows = [
+      [
+        "HISHAM ABDULLA V P",
+        "2024012600145181",
+        "GD24CFIR018",
+        "Bachelor of Commerce(Finance)",
+        "Commerce",
+        "FYUGP-2024",
+        "BCom Year II",
+        "SEMESTER IV",
+        "",
+        "GD",
+        "Gurudev Arts and Science College, Mathil",
+        "KU4VACCOM102",
+        "1",
+        "Gurudev Arts and Science College, Mathil",
+        "Environmental Studies and Disaster Management",
+        "Lec-Lab",
+        "ESE",
+        "TH",
+        "EHB",
+        "malpractice entered",
+        "01/09/2026"
+      ],
+      [
+        "FATHIMA SAFA C P",
+        "2024012600141337",
+        "SS24ARBR019",
+        "Bachelor of Arts in Arabic",
+        "Arabic",
+        "FYUGP-2024",
+        "BA Year II",
+        "SEMESTER IV",
+        "",
+        "SS",
+        "Sir Syed College,Taliparamba",
+        "KU4DSCARB207",
+        "1",
+        "Sir Syed College,Taliparamba",
+        "Classical and Medieval Arabic Prose",
+        "Lec-Lab",
+        "ESE",
+        "TH",
+        "EHB",
+        "",
+        "13/08/2026"
+      ],
+      [
+        "RIZA AMINA K",
+        "2024012600136085",
+        "SS24ECOR022",
+        "Bachelor of Arts in Economics",
+        "Economics",
+        "FYUGP-2024",
+        "BA Year II",
+        "SEMESTER IV",
+        "",
+        "SS",
+        "Sir Syed College,Taliparamba",
+        "KU4VACHIS203",
+        "1",
+        "Sir Syed College,Taliparamba",
+        "Gandhian Political Ideologies and Practices",
+        "Lec-Lab",
+        "ESE",
+        "TH",
+        "EHB",
+        "",
+        "13/08/2026"
+      ],
+      [
+        "YADHUKRISHNAN K K",
+        "2024012600132257",
+        "SE24CCOR042",
+        "Bachelor of Commerce(Co-operation)",
+        "Commerce",
+        "FYUGP-2024",
+        "BCom Year II",
+        "SEMESTER IV",
+        "",
+        "SE",
+        "SES College, Thaliparamba",
+        "KU4DSCCOM207",
+        "1",
+        "SES College, Thaliparamba",
+        "Cost Accounting",
+        "Lec-Lab",
+        "ESE",
+        "TH",
+        "EHB",
+        "SMP",
+        "19/08/2026"
+      ]
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+    ws["!cols"] = [
+      { wch: 22 }, // Student Name
+      { wch: 20 }, // PRN
+      { wch: 16 }, // Seat Number
+      { wch: 32 }, // Program Name
+      { wch: 18 }, // Program Branch
+      { wch: 16 }, // Program Pattern
+      { wch: 16 }, // Program Part Name
+      { wch: 16 }, // Program Term Name
+      { wch: 16 }, // Specialization
+      { wch: 14 }, // College Code
+      { wch: 38 }, // College Name
+      { wch: 18 }, // Course Code
+      { wch: 14 }, // Center Name
+      { wch: 38 }, // Venue Name
+      { wch: 36 }, // Course Name
+      { wch: 12 }, // TLM
+      { wch: 10 }, // AM
+      { wch: 10 }, // AT
+      { wch: 36 }, // Status
+      { wch: 24 }, // Description / Remarks
+      { wch: 16 }  // UM Marked Date
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Malpractice_Template");
+    XLSX.writeFile(wb, "malpractice_report_template.xlsx");
+    setStatus("Downloaded Malpractice Report Template (.xlsx) with standard 21 UM columns and sample entries.", "success");
   };
 
   // Export Course-Wise Pass Simulation Report (+0 to +10 Moderation)
@@ -1945,7 +2364,7 @@ export default function AdesResultCalculatorPage() {
   // Statistics Metrics
   const metrics = useMemo(() => {
     const total = processedRows.length;
-    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0 };
+    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0, malpracticeCount: 0 };
 
     const prnSet = new Set();
     let rawPassed = 0;
@@ -1955,6 +2374,7 @@ export default function AdesResultCalculatorPage() {
     let eseFailed = 0;
     let overallFailed = 0;
     let absentCount = 0;
+    let malpracticeCount = 0;
 
     const coursePassKey = "Course Pass/Fail";
     const esePassKey = "ESE Pass";
@@ -1963,7 +2383,9 @@ export default function AdesResultCalculatorPage() {
     processedRows.forEach(r => {
       if (r["PRN"]) prnSet.add(r["PRN"]);
       
-      if (r._isAbsent) {
+      if (r._isMalpractice) {
+        malpracticeCount++;
+      } else if (r._isAbsent) {
         absentCount++;
       }
 
@@ -1994,7 +2416,8 @@ export default function AdesResultCalculatorPage() {
       rawPassPct: ((rawPassed / total) * 100).toFixed(1),
       eseFailed,
       overallFailed,
-      absentCount
+      absentCount,
+      malpracticeCount
     };
   }, [processedRows]);
 
@@ -2019,6 +2442,8 @@ export default function AdesResultCalculatorPage() {
       result = result.filter(r => r[overallPassKey] === "Fail");
     } else if (selectedResultFilter === "ABSENT") {
       result = result.filter(r => r._isAbsent);
+    } else if (selectedResultFilter === "MALPRACTICE") {
+      result = result.filter(r => r._isMalpractice);
     }
 
     // 2. Dropdown Filters
@@ -2468,6 +2893,111 @@ export default function AdesResultCalculatorPage() {
             </div>
           </div>
 
+          {/* Malpractice Student Records Management Card */}
+          <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "var(--ink)" }}>
+                <ShieldAlert size={14} color="#d97706" /> Malpractice Record Entry
+              </div>
+              {malpracticeList.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "rgba(245, 158, 11, 0.15)", color: "#b45309", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {malpracticeList.length} MP Records
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "var(--panel)", color: "var(--muted)", padding: "1px 6px", borderRadius: "10px", border: "1px solid var(--line)" }}>
+                  Optional
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              {malpracticeList.length > 0 ? (
+                <span>
+                  Active: <strong>{malpracticeFileName}</strong> ({malpracticeList.length} mapped). Mapped components show <strong style={{ color: "#b45309" }}>Malpractice (MP)</strong> &amp; <strong>Fail</strong>.
+                </span>
+              ) : (
+                "Upload malpractice / unfair means report to replace marks with \"Malpractice (MP)\" and mark courses as Fail (strictly excluded from moderation)."
+              )}
+            </div>
+
+            <input 
+              type="file" 
+              ref={malpracticeFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              onChange={handleMalpracticeExcelUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => malpracticeFileInputRef.current?.click()}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: malpracticeList.length > 0 ? "rgba(245, 158, 11, 0.12)" : "var(--panel)",
+                  color: malpracticeList.length > 0 ? "#b45309" : "var(--ink)",
+                  border: malpracticeList.length > 0 ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {malpracticeList.length > 0 ? "Replace File" : "Upload MP Excel"}
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleDownloadMalpracticeTemplate}
+                title="Download standard malpractice report template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {malpracticeList.length > 0 && (
+                <button 
+                  type="button"
+                  onClick={handleClearMalpracticeData}
+                  title="Clear malpractice data and revert to original marks"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#b45309",
+                    border: "1px solid #b45309",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Result Overview Stat Card */}
           {processedRows.length > 0 && (
             <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -2778,6 +3308,15 @@ export default function AdesResultCalculatorPage() {
                       With Absences ({studentMetrics.absentStudents})
                     </button>
                   )}
+                  {studentMetrics.malpracticeStudents > 0 && (
+                    <button 
+                      type="button"
+                      onClick={() => setStudentFilterStatus("MALPRACTICE")}
+                      style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "MALPRACTICE" ? "#d97706" : "transparent", color: studentFilterStatus === "MALPRACTICE" ? "white" : "#d97706" }}
+                    >
+                      With Malpractice ({studentMetrics.malpracticeStudents})
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2933,7 +3472,11 @@ export default function AdesResultCalculatorPage() {
                                               )}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.isAbsent ? (
+                                              {c.isMalpractice ? (
+                                                <span style={{ color: "#b45309", fontWeight: 700, background: "rgba(245, 158, 11, 0.15)", padding: "2px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }} title={`Status: ${c.malpracticeStatus || "EHB"}${c.malpracticeRemarks ? ` | ${c.malpracticeRemarks}` : ""}${c.malpracticeDate ? ` | ${c.malpracticeDate}` : ""}`}>
+                                                  <ShieldAlert size={11} /> Fail (MP)
+                                                </span>
+                                              ) : c.isAbsent ? (
                                                 <span style={{ color: "#dc2626", fontWeight: 700, background: "rgba(239, 68, 68, 0.12)", padding: "2px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }} title={c.absentStatus || "Marked Absent"}>
                                                   <UserX size={11} /> Fail (Absent)
                                                 </span>
@@ -3807,6 +4350,15 @@ export default function AdesResultCalculatorPage() {
                           Absent ({metrics.absentCount})
                         </button>
                       )}
+                      {metrics.malpracticeCount > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => { setSelectedResultFilter("MALPRACTICE"); setPage(0); }}
+                          style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: selectedResultFilter === "MALPRACTICE" ? "#d97706" : "transparent", color: selectedResultFilter === "MALPRACTICE" ? "white" : "#d97706" }}
+                        >
+                          Malpractice ({metrics.malpracticeCount})
+                        </button>
+                      )}
                     </div>
 
                     {/* Faculty Filter */}
@@ -3951,21 +4503,24 @@ export default function AdesResultCalculatorPage() {
                       pagedRows.map((row, idx) => {
                         const globalIdx = page * pageSize + idx + 1;
                         const isAbsent = !!row._isAbsent;
-                        const isPass = !isAbsent && row[coursePassKey] === "Pass";
-                        const isModPass = !isAbsent && row._isModeratedPass;
+                        const isMalpractice = !!row._isMalpractice;
+                        const isPass = !isAbsent && !isMalpractice && row[coursePassKey] === "Pass";
+                        const isModPass = !isAbsent && !isMalpractice && row._isModeratedPass;
 
                         return (
                           <tr 
                             key={globalIdx} 
                             style={{ 
                               borderBottom: "1px solid var(--line)", 
-                              background: isAbsent
-                                ? "rgba(239, 68, 68, 0.08)"
-                                : isModPass 
-                                  ? "rgba(245, 158, 11, 0.05)" 
-                                  : isPass 
-                                    ? "transparent" 
-                                    : "rgba(239, 68, 68, 0.04)" 
+                              background: isMalpractice
+                                ? "rgba(245, 158, 11, 0.08)"
+                                : isAbsent
+                                  ? "rgba(239, 68, 68, 0.08)"
+                                  : isModPass 
+                                    ? "rgba(245, 158, 11, 0.05)" 
+                                    : isPass 
+                                      ? "transparent" 
+                                      : "rgba(239, 68, 68, 0.04)" 
                             }}
                           >
                             <td style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center", color: "var(--muted)" }}>
@@ -3978,11 +4533,19 @@ export default function AdesResultCalculatorPage() {
                               const isOtherPass = col === "ESE Pass" || col === "Overall pass";
                               const isModMarks = col === "Moderation Marks";
                               const isAbsentMark = val === "Absent (Ab)";
+                              const isMalpracticeMark = val === "Malpractice (MP)";
 
                               if (isCoursePass) {
                                 return (
                                   <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
-                                    {isAbsent ? (
+                                    {isMalpractice ? (
+                                      <span 
+                                        style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(245, 158, 11, 0.2)", color: "#b45309", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }} 
+                                        title={`Malpractice (${row._malpracticeStatus || "EHB"})${row._malpracticeRemarks ? ` - ${row._malpracticeRemarks}` : ""}${row._malpracticeDate ? ` [${row._malpracticeDate}]` : ""}`}
+                                      >
+                                        <ShieldAlert size={11} /> Fail (MP)
+                                      </span>
+                                    ) : isAbsent ? (
                                       <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(239, 68, 68, 0.2)", color: "#dc2626", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }} title={row._absentStatus || "Marked Absent"}>
                                         <UserX size={11} /> Fail (Absent)
                                       </span>
@@ -3999,6 +4562,24 @@ export default function AdesResultCalculatorPage() {
                                         <XCircle size={11} /> Fail
                                       </span>
                                     )}
+                                  </td>
+                                );
+                              }
+
+                              if (isMalpracticeMark) {
+                                return (
+                                  <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
+                                    <span style={{ 
+                                      display: "inline-block", 
+                                      color: "#b45309", 
+                                      background: "rgba(245, 158, 11, 0.2)", 
+                                      padding: "1px 6px", 
+                                      borderRadius: "4px", 
+                                      fontWeight: 700, 
+                                      fontSize: "11px" 
+                                    }} title={`Status: ${row._malpracticeStatus || "EHB"}${row._malpracticeRemarks ? ` | Remarks: ${row._malpracticeRemarks}` : ""}${row._malpracticeDate ? ` | Date: ${row._malpracticeDate}` : ""}`}>
+                                      Malpractice (MP)
+                                    </span>
                                   </td>
                                 );
                               }
