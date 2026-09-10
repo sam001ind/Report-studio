@@ -374,10 +374,10 @@ export default function AdesResultCalculatorPage() {
       const seat = String(getCell(r, headerMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || r["Seat Number"] || "").trim();
       const reason = String(getCell(r, headerMap, "Reason", "Heldback Reason", "HeldbackReason", "Remarks", "Description") || r["Reason"] || "").trim() || "APC Heldback";
       const assessmentType = String(getCell(r, headerMap, "Assessment Type", "AssessmentType", "AT") || r["Assessment Type"] || "").trim();
-      const collegeCode = String(getCell(r, headerMap, "College Code", "CollegeCode") || r["College Code"] || "").trim();
+      const collegeCode = String(getCell(r, headerMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code") || r["College Code"] || r["ADEC Code"] || "").trim();
       const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
       const paper = String(getCell(r, headerMap, "Paper", "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Paper"] || "").trim();
-      const collegeName = String(getCell(r, headerMap, "College Name", "CollegeName") || r["College Name"] || "").trim();
+      const collegeName = String(getCell(r, headerMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "Institute") || r["College Name"] || r["ADEC Name"] || "").trim();
       const tlm = String(getCell(r, headerMap, "Teaching Learning Method", "TeachingLearningMethod", "TLM") || r["Teaching Learning Method"] || "").trim();
       const am = String(getCell(r, headerMap, "Assessment Method", "AssessmentMethod", "AM") || r["Assessment Method"] || "").trim();
 
@@ -704,8 +704,8 @@ export default function AdesResultCalculatorPage() {
       rows.forEach((row) => {
         const faculty = String(getCell(row, currentHeaderMap, "Faculty", "Fac", "FacultyName", "Department") || "").trim();
         const program = String(getCell(row, currentHeaderMap, "Program Term Name", "ProgramTermName", "ProgramTerm", "Program Term", "Degree", "Term", "Semester") || "").trim();
-        const rawCollegeCode = String(getCell(row, currentHeaderMap, "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode") || "").trim();
-        const rawCollegeName = String(getCell(row, currentHeaderMap, "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
+        const rawCollegeCode = String(getCell(row, currentHeaderMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode") || "").trim();
+        const rawCollegeName = String(getCell(row, currentHeaderMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
         const seat = String(getCell(row, currentHeaderMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || "").trim();
         const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
         const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
@@ -973,8 +973,8 @@ export default function AdesResultCalculatorPage() {
     rows.forEach((row) => {
       const faculty = String(getCell(row, currentHeaderMap, "Faculty", "Fac", "FacultyName", "Department") || "").trim();
       const program = String(getCell(row, currentHeaderMap, "Program Term Name", "ProgramTermName", "ProgramTerm", "Program Term", "Degree", "Term", "Semester") || "").trim();
-      const rawCollegeCode = String(getCell(row, currentHeaderMap, "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode") || "").trim();
-      const rawCollegeName = String(getCell(row, currentHeaderMap, "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
+      const rawCollegeCode = String(getCell(row, currentHeaderMap, "ADEC Code", "ADECCode", "ADEC_Code", "ADEC", "College Code", "CollegeCode", "College_Code", "Center Code", "CenterCode", "InstCode") || "").trim();
+      const rawCollegeName = String(getCell(row, currentHeaderMap, "ADEC Name", "ADECName", "ADEC_Name", "ADEC", "College Name", "CollegeName", "College_Name", "College", "Center Name", "CenterName", "Institute", "Institute Name", "College / Department") || "").trim();
       const seat = String(getCell(row, currentHeaderMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || "").trim();
       const prn = String(getCell(row, currentHeaderMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
       const code = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
@@ -2180,6 +2180,10 @@ export default function AdesResultCalculatorPage() {
     if (normCols.some(c => c.includes("faculty") || c.includes("department"))) {
       score += 4;
       matchedHeaders.push("Faculty");
+    }
+    if (normCols.some(c => c.includes("college") || c.includes("adec") || c.includes("institute") || c.includes("center"))) {
+      score += 4;
+      matchedHeaders.push("College / ADEC");
     }
 
     // Heldback indicators

@@ -104,8 +104,8 @@ export default function AffiliatedProgrammePage() {
     let dupCount = 0;
 
     rows.forEach((row) => {
-      const collegeCode = getCell(row, currentHeaderMap, 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
-      const collegeName = getCell(row, currentHeaderMap, 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College');
+      const collegeCode = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
+      const collegeName = getCell(row, currentHeaderMap, 'ADEC Name', 'ADECName', 'ADEC_Name', 'ADEC', 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College');
       const programCode = getCell(row, currentHeaderMap, 'Program Code', 'ProgramCode', 'Program_Code', 'ProgCode', 'DegreeCode', 'Program');
       const programTerm = getCell(row, currentHeaderMap, 'Program Term', 'ProgramTerm', 'Program_Term', 'Term', 'SemesterYear', 'Sem');
       const rawCourseDetails = getCell(row, currentHeaderMap, 'Course Details', 'CourseDetails', 'Course_Details', 'Courses', 'Subjects', 'SubjectDetails');
@@ -222,11 +222,11 @@ export default function AffiliatedProgrammePage() {
       score += 6;
       matchedHeaders.push('Program Term');
     }
-    if (normCols.some(c => c.includes('collegecode') || c.includes('instcode') || c.includes('centercode') || c === 'code')) {
+    if (normCols.some(c => c.includes('collegecode') || c.includes('adeccode') || c.includes('instcode') || c.includes('centercode') || c === 'code')) {
       score += 4;
       matchedHeaders.push('College Code');
     }
-    if (normCols.some(c => c.includes('collegename') || c.includes('institutename') || c === 'college' || c === 'centername')) {
+    if (normCols.some(c => c.includes('collegename') || c.includes('adecname') || c.includes('adec') || c.includes('institutename') || c === 'college' || c === 'centername')) {
       score += 4;
       matchedHeaders.push('College Name');
     }
