@@ -41,7 +41,11 @@ import {
   ChevronRight,
   ShieldAlert,
   AlertCircle,
-  Lock
+  Lock,
+  FileCheck,
+  Scale,
+  GitCompare,
+  ArrowRightLeft
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -343,6 +347,20 @@ export default function AdesResultCalculatorPage() {
   const [heldbackList, setHeldbackList] = useState([]);
   const heldbackFileInputRef = useRef(null);
 
+  // Result & Ordinance Reconciliation Comparison Tool State
+  const [comparisonFile, setComparisonFile] = useState(null);
+  const [comparisonFileName, setComparisonFileName] = useState("");
+  const [comparisonSheetNames, setComparisonSheetNames] = useState([]);
+  const [comparisonSelectedSheet, setComparisonSelectedSheet] = useState("");
+  const [comparisonWorkbook, setComparisonWorkbook] = useState(null);
+  const [rawComparisonRows, setRawComparisonRows] = useState([]);
+  const [comparisonFilterStatus, setComparisonFilterStatus] = useState("ALL"); // "ALL" | "MISMATCH" | "MOD_DIFF" | "EXACT_MATCH" | "PASSED_HERE_FAILED_PUB" | "FAILED_HERE_PASSED_PUB" | "HELD_MISMATCH" | "NOT_IN_DATA"
+  const [comparisonCollegeFilter, setComparisonCollegeFilter] = useState("ALL");
+  const [comparisonSearch, setComparisonSearch] = useState("");
+  const [comparisonPage, setComparisonPage] = useState(0);
+  const comparisonPageSize = 50;
+  const comparisonFileInputRef = useRef(null);
+
   // Table Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFacultyFilter, setSelectedFacultyFilter] = useState("ALL");
@@ -633,6 +651,126 @@ export default function AdesResultCalculatorPage() {
     });
 
     return { map, list };
+  };
+
+  // Published University Result Summary Comparison Handlers
+  const handleComparisonFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setStatus(`Loading comparison file "${file.name}"...`, "info");
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: "array" });
+      setComparisonWorkbook(wb);
+      setComparisonFile(file);
+      setComparisonFileName(file.name);
+      setComparisonSheetNames(wb.SheetNames);
+      const initialSheet = wb.SheetNames[0] || "";
+      setComparisonSelectedSheet(initialSheet);
+      parseComparisonSheet(wb, initialSheet);
+      setStatus(`Loaded comparison file "${file.name}" successfully.`, "success");
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to read comparison file: ${err.message}`, "error");
+    }
+  };
+
+  const parseComparisonSheet = (wb, sheetName) => {
+    if (!wb || !sheetName) return;
+    const ws = wb.Sheets[sheetName];
+    if (!ws) return;
+    const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    if (!rawData || rawData.length === 0) {
+      setRawComparisonRows([]);
+      return;
+    }
+
+    // Auto-detect header row
+    let headerRowIdx = -1;
+    for (let r = 0; r < Math.min(25, rawData.length); r++) {
+      const row = rawData[r] || [];
+      const str = row.map(c => String(c || "").toLowerCase()).join(" ");
+      if (str.includes("result status") || (str.includes("ordinance") && str.includes("prn")) || (str.includes("seat") && str.includes("result"))) {
+        headerRowIdx = r;
+        break;
+      }
+    }
+
+    if (headerRowIdx === -1) headerRowIdx = 0;
+
+    const headers = rawData[headerRowIdx] || [];
+    const hMap = {};
+    headers.forEach((h, idx) => {
+      if (h) hMap[normalizeKey(h)] = idx;
+    });
+
+    const getCol = (r, ...aliases) => {
+      for (const a of aliases) {
+        const idx = hMap[normalizeKey(a)];
+        if (idx !== undefined && r[idx] !== undefined && r[idx] !== null) {
+          return String(r[idx]).trim();
+        }
+      }
+      return "";
+    };
+
+    const parsed = [];
+    for (let i = headerRowIdx + 1; i < rawData.length; i++) {
+      const row = rawData[i];
+      if (!row || row.length === 0) continue;
+      const prn = getCol(row, "PRN-Permanent Registration Number", "PRN", "PRN Number", "PRNNo", "StudentID", "RegisterNo");
+      const seat = getCol(row, "Examination Seat Number", "Seat Number", "SeatNumber", "SeatNo", "RollNo", "Roll Number");
+      if (!prn && !seat) continue;
+
+      const name = getCol(row, "Name of Student", "Student Name", "StudentName", "Candidate Name");
+      const college = getCol(row, "College Name", "CollegeName", "ADEC Name", "ADECName", "College", "Institute Name");
+      const collegeCode = getCol(row, "College Code", "CollegeCode", "ADEC Code", "ADECCode");
+      const result = getCol(row, "RESULT STATUS", "Result Status", "Result", "Status");
+      const otherStatus = getCol(row, "OTHER STATUS", "Other Status", "Remarks");
+      const ord = getCol(row, "Ordinance", "Ordinance Applied");
+      const ordTotal = parseNumber(getCol(row, "Ord Total", "OrdTotal", "Ordinance Total", "Moderation Marks")) || 0;
+      const reappear = getCol(row, "Reappear Paper Codes", "Reappear", "Failed Papers", "Failed Subjects", "Reappear Papers");
+      const failCount = parseNumber(getCol(row, "No of Fail Subjects", "Fail Subjects", "Fail Count")) || 0;
+      const grandTotal = getCol(row, "Grand Total", "GrandTotal", "Total Marks");
+      const sgpa = getCol(row, "SGPA");
+      const cgpa = getCol(row, "CGPA");
+
+      parsed.push({
+        prn,
+        seat,
+        name,
+        college: cleanCollegeName(college) || college,
+        collegeCode,
+        result: result || (otherStatus ? otherStatus : "Unknown"),
+        otherStatus,
+        ord: ord ? ord.toUpperCase() : (ordTotal > 0 ? "YES" : "NO"),
+        ordTotal,
+        reappear,
+        failCount,
+        grandTotal,
+        sgpa,
+        cgpa,
+        rawRow: row
+      });
+    }
+
+    setRawComparisonRows(parsed);
+    setComparisonPage(0);
+  };
+
+  const handleClearComparisonFile = () => {
+    setComparisonFile(null);
+    setComparisonFileName("");
+    setComparisonSheetNames([]);
+    setComparisonSelectedSheet("");
+    setComparisonWorkbook(null);
+    setRawComparisonRows([]);
+    setComparisonFilterStatus("ALL");
+    setComparisonCollegeFilter("ALL");
+    setComparisonSearch("");
+    if (comparisonFileInputRef.current) comparisonFileInputRef.current.value = "";
+    setStatus("Cleared comparison data.", "info");
   };
 
   const isAlreadyAggregatedSheet = (hMap) => {
@@ -2477,6 +2615,321 @@ export default function AdesResultCalculatorPage() {
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  // Result & Ordinance Reconciliation Comparison Dataset
+  const comparisonRecords = useMemo(() => {
+    if (rawComparisonRows.length === 0) return [];
+
+    // Map studentSemesterData by normalized PRN and Seat
+    const prnMap = new Map();
+    const seatMap = new Map();
+    studentSemesterData.forEach(st => {
+      const normPrn = normalizeKey(st.prn);
+      const normSeat = normalizeKey(st.seatNumber);
+      if (normPrn) prnMap.set(normPrn, st);
+      if (normSeat) seatMap.set(normSeat, st);
+    });
+
+    return rawComparisonRows.map(pub => {
+      const normPrn = normalizeKey(pub.prn);
+      const normSeat = normalizeKey(pub.seat);
+      const st = (normPrn && prnMap.get(normPrn)) || (normSeat && seatMap.get(normSeat)) || null;
+
+      const isFound = !!st;
+      let calcResult = "Not Loaded";
+      let calcModMarks = 0;
+      let calcFailedCourses = [];
+      let calcIsHeld = false;
+      let calcIsHeldback = false;
+      let calcHeldbackReason = "";
+      let calcIsRescued = false;
+
+      if (st) {
+        calcIsHeld = st.isHeld;
+        calcIsHeldback = st.isHeldback;
+        calcHeldbackReason = st.heldbackReason || "";
+        calcIsRescued = st.isRescuedSemester;
+        calcModMarks = st.totalModerationMarks || 0;
+        calcResult = st.isHeldback ? "Heldback" : (st.isHeld ? "Held" : (st.finalSemesterPass ? "Pass" : "Fail"));
+        calcFailedCourses = st.courses.filter(c => c.coursePass !== "Pass" && !c.isHeld && !c.isHeldback).map(c => cleanCourseCode(c.courseCode));
+      }
+
+      // Normalize published result
+      const pubResRaw = String(pub.result || "").trim();
+      let pubResultStd = "Fail";
+      if (/pass/i.test(pubResRaw)) pubResultStd = "Pass";
+      else if (/held\s*back|hold\s*back/i.test(pubResRaw) || /explicitly\s*hold\s*back/i.test(pub.otherStatus)) pubResultStd = "Heldback";
+      else if (/held|hold/i.test(pubResRaw)) pubResultStd = "Held";
+      else pubResultStd = "Fail";
+
+      const pubModMarks = pub.ordTotal || 0;
+      const pubHasOrd = pub.ord === "YES" || pubModMarks > 0;
+
+      // Discrepancy checks
+      const isResultMatch = isFound && (calcResult === pubResultStd);
+      const isModMatch = isFound && (Math.round(calcModMarks) === Math.round(pubModMarks));
+      const isExactMatch = isResultMatch && isModMatch;
+      const modDiff = isFound ? (calcModMarks - pubModMarks) : 0;
+
+      let category = "EXACT_MATCH";
+      let discrepancyDescription = "Exact Match";
+
+      if (!isFound) {
+        category = "NOT_IN_DATA";
+        discrepancyDescription = "Student record not found in our loaded dataset";
+      } else if (!isResultMatch) {
+        if (calcResult === "Pass" && pubResultStd === "Fail") {
+          category = "PASSED_HERE_FAILED_PUB";
+          discrepancyDescription = "Passed in Our System, but Marked Fail in University Published Data";
+        } else if (calcResult === "Fail" && pubResultStd === "Pass") {
+          category = "FAILED_HERE_PASSED_PUB";
+          discrepancyDescription = "Failed in Our System, but Marked Pass in University Published Data";
+        } else {
+          category = "HELD_MISMATCH";
+          discrepancyDescription = `Result status discrepancy: Our=${calcResult} vs Published=${pubResultStd}`;
+        }
+      } else if (!isModMatch) {
+        category = "MOD_DIFF";
+        discrepancyDescription = `Moderation difference: Our System=${calcModMarks} marks vs Published Ordinance=${pubModMarks} marks (Diff: ${modDiff > 0 ? "+" : ""}${modDiff})`;
+      }
+
+      return {
+        ...pub,
+        matchedStudent: st,
+        isFound,
+        calcResult,
+        calcModMarks,
+        calcFailedCourses,
+        calcIsHeld,
+        calcIsHeldback,
+        calcHeldbackReason,
+        calcIsRescued,
+        pubResultStd,
+        pubModMarks,
+        pubHasOrd,
+        isResultMatch,
+        isModMatch,
+        isExactMatch,
+        modDiff,
+        category,
+        discrepancyDescription
+      };
+    });
+  }, [rawComparisonRows, studentSemesterData]);
+
+  // Reconciliation KPIs
+  const comparisonKPIs = useMemo(() => {
+    const total = comparisonRecords.length;
+    if (total === 0) {
+      return { total: 0, matchedStudents: 0, matchRate: "0.0", resultMatches: 0, resultMatchRate: "0.0", resultMismatches: 0, modMatches: 0, modMatchRate: "0.0", modDiffs: 0, exactMatches: 0, exactMatchRate: "0.0", passedHereFailedPub: 0, failedHerePassedPub: 0, heldMismatches: 0, notInDataset: 0, totalCalcMod: 0, totalPubMod: 0, modTotalDiff: 0 };
+    }
+
+    let matchedStudents = 0;
+    let resultMatches = 0;
+    let resultMismatches = 0;
+    let modMatches = 0;
+    let modDiffs = 0;
+    let exactMatches = 0;
+    let passedHereFailedPub = 0;
+    let failedHerePassedPub = 0;
+    let heldMismatches = 0;
+    let notInDataset = 0;
+    let totalCalcMod = 0;
+    let totalPubMod = 0;
+
+    comparisonRecords.forEach(r => {
+      if (r.isFound) {
+        matchedStudents++;
+        totalCalcMod += r.calcModMarks;
+        totalPubMod += r.pubModMarks;
+        if (r.isResultMatch) resultMatches++;
+        else {
+          resultMismatches++;
+          if (r.category === "PASSED_HERE_FAILED_PUB") passedHereFailedPub++;
+          else if (r.category === "FAILED_HERE_PASSED_PUB") failedHerePassedPub++;
+          else if (r.category === "HELD_MISMATCH") heldMismatches++;
+        }
+        if (r.isModMatch) modMatches++;
+        else modDiffs++;
+        if (r.isExactMatch) exactMatches++;
+      } else {
+        notInDataset++;
+      }
+    });
+
+    return {
+      total,
+      matchedStudents,
+      matchRate: total > 0 ? ((matchedStudents / total) * 100).toFixed(1) : "0.0",
+      resultMatches,
+      resultMatchRate: matchedStudents > 0 ? ((resultMatches / matchedStudents) * 100).toFixed(1) : "0.0",
+      resultMismatches,
+      modMatches,
+      modMatchRate: matchedStudents > 0 ? ((modMatches / matchedStudents) * 100).toFixed(1) : "0.0",
+      modDiffs,
+      exactMatches,
+      exactMatchRate: matchedStudents > 0 ? ((exactMatches / matchedStudents) * 100).toFixed(1) : "0.0",
+      passedHereFailedPub,
+      failedHerePassedPub,
+      heldMismatches,
+      notInDataset,
+      totalCalcMod,
+      totalPubMod,
+      modTotalDiff: totalCalcMod - totalPubMod
+    };
+  }, [comparisonRecords]);
+
+  const uniqueComparisonColleges = useMemo(() => {
+    const set = new Set();
+    comparisonRecords.forEach(r => {
+      if (r.college) set.add(r.college);
+    });
+    return Array.from(set).sort();
+  }, [comparisonRecords]);
+
+  const filteredComparisonRecords = useMemo(() => {
+    let list = comparisonRecords;
+
+    if (comparisonCollegeFilter !== "ALL") {
+      list = list.filter(r => r.college === comparisonCollegeFilter);
+    }
+
+    if (comparisonFilterStatus === "MISMATCH") {
+      list = list.filter(r => !r.isResultMatch && r.isFound);
+    } else if (comparisonFilterStatus === "MOD_DIFF") {
+      list = list.filter(r => !r.isModMatch && r.isFound);
+    } else if (comparisonFilterStatus === "EXACT_MATCH") {
+      list = list.filter(r => r.isExactMatch);
+    } else if (comparisonFilterStatus === "PASSED_HERE_FAILED_PUB") {
+      list = list.filter(r => r.category === "PASSED_HERE_FAILED_PUB");
+    } else if (comparisonFilterStatus === "FAILED_HERE_PASSED_PUB") {
+      list = list.filter(r => r.category === "FAILED_HERE_PASSED_PUB");
+    } else if (comparisonFilterStatus === "HELD_MISMATCH") {
+      list = list.filter(r => r.category === "HELD_MISMATCH");
+    } else if (comparisonFilterStatus === "NOT_IN_DATA") {
+      list = list.filter(r => !r.isFound);
+    }
+
+    if (comparisonSearch.trim()) {
+      const q = comparisonSearch.toLowerCase().trim();
+      list = list.filter(r => 
+        (r.prn && r.prn.toLowerCase().includes(q)) ||
+        (r.seat && r.seat.toLowerCase().includes(q)) ||
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.college && r.college.toLowerCase().includes(q)) ||
+        (r.reappear && r.reappear.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [comparisonRecords, comparisonCollegeFilter, comparisonFilterStatus, comparisonSearch]);
+
+  const handleExportComparisonExcel = (recordsToExport = filteredComparisonRecords, customFilename = null) => {
+    if (!recordsToExport || recordsToExport.length === 0) {
+      setStatus("No comparison records to export.", "warning");
+      return;
+    }
+
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Detailed Comparison
+      const headers = [
+        "Examination Seat Number",
+        "PRN",
+        "Student Name",
+        "College Code",
+        "College Name",
+        "Our Calculated Result",
+        "Published Result (University)",
+        "Result Status Agreement",
+        "Our Moderation Marks Awarded",
+        "Published Ordinance (Ord Total)",
+        "Moderation Difference",
+        "Moderation Concordance",
+        "Our Failed Courses",
+        "Published Reappear Paper Codes",
+        "Reconciliation Status",
+        "Discrepancy Details"
+      ];
+
+      const rows = recordsToExport.map(r => {
+        return [
+          r.seat,
+          r.prn,
+          r.name,
+          r.collegeCode,
+          r.college,
+          r.calcResult,
+          r.pubResultStd,
+          r.isResultMatch ? "MATCH" : "MISMATCH",
+          r.calcModMarks,
+          r.pubModMarks,
+          r.modDiff > 0 ? `+${r.modDiff}` : `${r.modDiff}`,
+          r.isModMatch ? "MATCH" : "DIFF",
+          r.calcFailedCourses.join(", ") || "None",
+          r.reappear || "None",
+          r.category,
+          r.discrepancyDescription
+        ];
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws["!cols"] = [
+        { wch: 18 }, // Seat
+        { wch: 20 }, // PRN
+        { wch: 26 }, // Name
+        { wch: 14 }, // College Code
+        { wch: 36 }, // College Name
+        { wch: 22 }, // Calc Result
+        { wch: 22 }, // Pub Result
+        { wch: 18 }, // Result Agreement
+        { wch: 24 }, // Calc Mod
+        { wch: 24 }, // Pub Ord
+        { wch: 18 }, // Mod Diff
+        { wch: 18 }, // Mod Match
+        { wch: 30 }, // Calc Failed
+        { wch: 30 }, // Pub Reappear
+        { wch: 22 }, // Status
+        { wch: 40 }  // Details
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, "Comparison Details");
+
+      // Sheet 2: Summary Reconciliation KPIs
+      const summaryRows = [
+        ["RESULT RECONCILIATION & ORDINANCE COMPARISON SUMMARY"],
+        [],
+        ["Metric", "Value"],
+        ["Total Published Records Compared", comparisonKPIs.total],
+        ["Records Matched in Loaded Dataset", `${comparisonKPIs.matchedStudents} (${comparisonKPIs.matchRate}%)`],
+        ["Result Status Agreement Rate", `${comparisonKPIs.resultMatchRate}% (${comparisonKPIs.resultMatches} / ${comparisonKPIs.matchedStudents})`],
+        ["Result Status Mismatches", comparisonKPIs.resultMismatches],
+        ["  - Passed in Our System, Failed in Published", comparisonKPIs.passedHereFailedPub],
+        ["  - Failed in Our System, Passed in Published", comparisonKPIs.failedHerePassedPub],
+        ["  - Held Status Discrepancy", comparisonKPIs.heldMismatches],
+        ["Ordinance / Moderation Match Rate", `${comparisonKPIs.modMatchRate}% (${comparisonKPIs.modMatches} / ${comparisonKPIs.matchedStudents})`],
+        ["Moderation Mark Differences", comparisonKPIs.modDiffs],
+        ["Total Moderation Marks Awarded (Our System)", comparisonKPIs.totalCalcMod],
+        ["Total Ordinance Marks Awarded (University Published)", comparisonKPIs.totalPubMod],
+        ["Overall Moderation Net Difference", `${comparisonKPIs.modTotalDiff > 0 ? "+" : ""}${comparisonKPIs.modTotalDiff}`],
+        ["Full Exact Concordance (Result + Moderation Match)", `${comparisonKPIs.exactMatches} (${comparisonKPIs.exactMatchRate}%)`],
+        [],
+        ["Report Generated At", new Date().toLocaleString()]
+      ];
+
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+      wsSummary["!cols"] = [{ wch: 48 }, { wch: 28 }];
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Reconciliation Summary");
+
+      const fname = customFilename || `result_and_ordinance_comparison_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fname);
+      setStatus(`Exported ${recordsToExport.length} comparison records to ${fname}`, "success");
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to export comparison Excel: ${err.message}`, "error");
+    }
   };
 
   const scoreHeaderRow = (rowArray) => {
@@ -4337,6 +4790,25 @@ export default function AdesResultCalculatorPage() {
             >
               <TrendingUp size={13} /> Pass Simulation (+0 to +10)
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("comparison")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px 12px",
+                fontSize: "12px",
+                fontWeight: 600,
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer",
+                background: activeTab === "comparison" ? "var(--accent)" : "transparent",
+                color: activeTab === "comparison" ? "white" : "var(--muted)"
+              }}
+            >
+              <Scale size={13} /> Result & Ordinance Comparison {comparisonRecords.length > 0 ? `(${comparisonRecords.length})` : ""}
+            </button>
           </div>
 
           <button 
@@ -4347,6 +4819,29 @@ export default function AdesResultCalculatorPage() {
           >
             <HelpCircle size={14} /> Extraction Logic & Guide
           </button>
+
+          {activeTab === "comparison" && comparisonRecords.length > 0 && (
+            <button 
+              type="button" 
+              onClick={handleExportComparisonExcel}
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "6px", 
+                padding: "6px 12px", 
+                fontSize: "12px", 
+                background: "#8b5cf6", 
+                color: "white", 
+                border: "none", 
+                borderRadius: "6px", 
+                fontWeight: 600, 
+                cursor: "pointer" 
+              }}
+              title="Export Full Result & Ordinance Reconciliation Report to Excel"
+            >
+              <Download size={14} /> Export Comparison Report ({filteredComparisonRecords.length})
+            </button>
+          )}
 
           {processedRows.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -6337,6 +6832,518 @@ export default function AdesResultCalculatorPage() {
                   )}
                 </table>
               </div>
+            </div>
+          ) : activeTab === "comparison" ? (
+            /* Result & Ordinance Comparison Panel */
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", padding: "16px", gap: "16px", background: "var(--bg)" }}>
+              {/* File Upload / Status Card */}
+              {rawComparisonRows.length === 0 ? (
+                <div 
+                  style={{ 
+                    border: "2px dashed var(--line)", 
+                    borderRadius: "12px", 
+                    padding: "40px 24px", 
+                    textAlign: "center", 
+                    background: "var(--panel)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "12px",
+                    maxWidth: "700px",
+                    margin: "40px auto",
+                    width: "100%"
+                  }}
+                >
+                  <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "rgba(139, 92, 246, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b5cf6" }}>
+                    <Scale size={28} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: "0 0 6px", fontSize: "16px", fontWeight: 700, color: "var(--ink)" }}>Upload University Published Result / Ordinance Summary</h3>
+                    <p style={{ margin: 0, fontSize: "12.5px", color: "var(--muted)", maxWidth: "480px", lineHeight: "1.5" }}>
+                      Upload the official university published Excel file (e.g. <code>Student DataIV Sem(R)...xlsx</code>) containing <strong>RESULT STATUS</strong>, <strong>Ordinance</strong>, and <strong>Ord Total</strong> to automatically reconcile results and moderation marks against our calculations.
+                    </p>
+                  </div>
+                  <div style={{ marginTop: "8px" }}>
+                    <label 
+                      htmlFor="comparison-file-upload-hero"
+                      style={{ 
+                        display: "inline-flex", 
+                        alignItems: "center", 
+                        gap: "8px", 
+                        padding: "8px 18px", 
+                        background: "#8b5cf6", 
+                        color: "white", 
+                        borderRadius: "8px", 
+                        fontWeight: 600, 
+                        fontSize: "13px", 
+                        cursor: "pointer",
+                        boxShadow: "0 2px 4px rgba(139, 92, 246, 0.2)"
+                      }}
+                    >
+                      <Upload size={16} /> Choose Result Summary Excel File
+                    </label>
+                    <input 
+                      id="comparison-file-upload-hero"
+                      type="file" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handleComparisonFileUpload} 
+                      style={{ display: "none" }} 
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* Comparison Controls & KPIs */
+                <>
+                  {/* File Metadata Bar */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--panel)", padding: "10px 16px", borderRadius: "8px", border: "1px solid var(--line)", flexWrap: "wrap", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, fontSize: "13px", color: "var(--ink)" }}>
+                        <FileText size={16} color="#8b5cf6" />
+                        <span>{comparisonFileName}</span>
+                      </div>
+                      <span style={{ fontSize: "11.5px", background: "rgba(139, 92, 246, 0.1)", color: "#8b5cf6", padding: "2px 8px", borderRadius: "10px", fontWeight: 600 }}>
+                        {comparisonRecords.length} Student Records
+                      </span>
+
+                      {/* Sheet Selector if multiple sheets */}
+                      {comparisonSheetNames.length > 1 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--muted)" }}>
+                          <span>Sheet:</span>
+                          <select 
+                            value={comparisonSelectedSheet} 
+                            onChange={(e) => parseComparisonSheet(comparisonWorkbook, e.target.value)}
+                            style={{ padding: "3px 8px", fontSize: "11.5px", borderRadius: "4px", border: "1px solid var(--line)", background: "var(--bg)" }}
+                          >
+                            {comparisonSheetNames.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <label 
+                        htmlFor="comparison-file-upload-btn"
+                        style={{ 
+                          display: "inline-flex", 
+                          alignItems: "center", 
+                          gap: "5px", 
+                          padding: "5px 10px", 
+                          background: "var(--bg)", 
+                          color: "var(--ink)", 
+                          border: "1px solid var(--line)", 
+                          borderRadius: "6px", 
+                          fontSize: "11.5px", 
+                          fontWeight: 600, 
+                          cursor: "pointer" 
+                        }}
+                      >
+                        <RefreshCw size={13} /> Change File
+                      </label>
+                      <input 
+                        id="comparison-file-upload-btn"
+                        type="file" 
+                        accept=".xlsx,.xls,.csv" 
+                        onChange={handleComparisonFileUpload} 
+                        style={{ display: "none" }} 
+                      />
+                      <button 
+                        type="button" 
+                        onClick={handleClearComparisonFile}
+                        style={{ 
+                          display: "flex", 
+                          alignItems: "center", 
+                          gap: "4px", 
+                          padding: "5px 10px", 
+                          background: "rgba(239, 68, 68, 0.1)", 
+                          color: "#ef4444", 
+                          border: "1px solid rgba(239, 68, 68, 0.2)", 
+                          borderRadius: "6px", 
+                          fontSize: "11.5px", 
+                          fontWeight: 600, 
+                          cursor: "pointer" 
+                        }}
+                      >
+                        <X size={13} /> Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 5 KPI Metric Cards */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px" }}>
+                    {/* Card 1: Total Published */}
+                    <div style={{ background: "var(--panel)", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                      <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                        <Users size={14} /> Total Compared
+                      </div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--ink)", marginTop: "3px" }}>
+                        {comparisonKPIs.total}
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>
+                        {comparisonKPIs.matchedStudents} matched to active dataset ({comparisonKPIs.matchRate}%)
+                      </div>
+                    </div>
+
+                    {/* Card 2: Result Concordance */}
+                    <div style={{ background: "rgba(16, 185, 129, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                      <div style={{ fontSize: "11px", color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                        <CheckCircle2 size={14} /> Result Concordance
+                      </div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color: "#10b981", marginTop: "3px" }}>
+                        {comparisonKPIs.resultMatchRate}%
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>
+                        {comparisonKPIs.resultMatches} identical pass/fail/held decisions
+                      </div>
+                    </div>
+
+                    {/* Card 3: Result Mismatches */}
+                    <div style={{ background: comparisonKPIs.resultMismatches > 0 ? "rgba(239, 68, 68, 0.08)" : "var(--panel)", padding: "12px 14px", borderRadius: "8px", border: comparisonKPIs.resultMismatches > 0 ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid var(--line)" }}>
+                      <div style={{ fontSize: "11px", color: comparisonKPIs.resultMismatches > 0 ? "#ef4444" : "var(--muted)", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                        <AlertTriangle size={14} /> Result Mismatches
+                      </div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color: comparisonKPIs.resultMismatches > 0 ? "#ef4444" : "var(--ink)", marginTop: "3px" }}>
+                        {comparisonKPIs.resultMismatches}
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: comparisonKPIs.resultMismatches > 0 ? "#ef4444" : "var(--muted)", fontWeight: 600 }}>
+                        {comparisonKPIs.passedHereFailedPub > 0 ? `${comparisonKPIs.passedHereFailedPub} Pass/Fail · ` : ""}{comparisonKPIs.failedHerePassedPub > 0 ? `${comparisonKPIs.failedHerePassedPub} Fail/Pass · ` : ""}{comparisonKPIs.heldMismatches > 0 ? `${comparisonKPIs.heldMismatches} Held` : comparisonKPIs.resultMismatches === 0 ? "Zero discrepancies" : ""}
+                      </div>
+                    </div>
+
+                    {/* Card 4: Moderation Concordance */}
+                    <div style={{ background: "rgba(99, 102, 241, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(99, 102, 241, 0.3)" }}>
+                      <div style={{ fontSize: "11px", color: "#6366f1", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                        <Scale size={14} /> Moderation Concordance
+                      </div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color: "#6366f1", marginTop: "3px" }}>
+                        {comparisonKPIs.modMatchRate}%
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: "#6366f1", fontWeight: 600 }}>
+                        {comparisonKPIs.modMatches} exact marks ({comparisonKPIs.modDiffs} diffs)
+                      </div>
+                    </div>
+
+                    {/* Card 5: Moderation Total Comparison */}
+                    <div style={{ background: "rgba(139, 92, 246, 0.08)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(139, 92, 246, 0.3)" }}>
+                      <div style={{ fontSize: "11px", color: "#8b5cf6", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
+                        <ArrowRightLeft size={14} /> Moderation Marks Total
+                      </div>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#8b5cf6", marginTop: "5px", display: "flex", alignItems: "baseline", gap: "6px" }}>
+                        <span>Our: {comparisonKPIs.totalCalcMod}</span>
+                        <span style={{ fontSize: "12px", color: "var(--muted)" }}>vs</span>
+                        <span>Pub: {comparisonKPIs.totalPubMod}</span>
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: comparisonKPIs.modTotalDiff === 0 ? "#10b981" : "#f59e0b", fontWeight: 600 }}>
+                        Net Diff: {comparisonKPIs.modTotalDiff >= 0 ? `+${comparisonKPIs.modTotalDiff}` : comparisonKPIs.modTotalDiff} marks
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Toolbar & Filter Bar */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", flex: 1 }}>
+                      {/* Search */}
+                      <div style={{ position: "relative", minWidth: "220px", flex: 1, maxWidth: "320px" }}>
+                        <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+                        <input 
+                          type="text"
+                          placeholder="Search PRN, Seat, Student, College, Reappear..."
+                          value={comparisonSearch}
+                          onChange={(e) => { setComparisonSearch(e.target.value); setComparisonPage(0); }}
+                          style={{ width: "100%", padding: "6px 10px 6px 30px", fontSize: "12px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)" }}
+                        />
+                        {comparisonSearch && (
+                          <X 
+                            size={13} 
+                            onClick={() => { setComparisonSearch(""); setComparisonPage(0); }}
+                            style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "var(--muted)" }}
+                          />
+                        )}
+                      </div>
+
+                      {/* College Filter */}
+                      {uniqueComparisonColleges.length > 0 && (
+                        <select 
+                          value={comparisonCollegeFilter} 
+                          onChange={(e) => { setComparisonCollegeFilter(e.target.value); setComparisonPage(0); }}
+                          style={{ padding: "6px 8px", fontSize: "11.5px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--panel)", maxWidth: "200px" }}
+                          title="Filter comparison by College"
+                        >
+                          <option value="ALL">All Colleges ({uniqueComparisonColleges.length})</option>
+                          {uniqueComparisonColleges.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Filter Pills */}
+                    <div style={{ display: "flex", background: "var(--panel)", padding: "2px", borderRadius: "6px", border: "1px solid var(--line)", gap: "2px", flexWrap: "wrap" }}>
+                      <button 
+                        type="button"
+                        onClick={() => { setComparisonFilterStatus("ALL"); setComparisonPage(0); }}
+                        style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: comparisonFilterStatus === "ALL" ? "var(--accent)" : "transparent", color: comparisonFilterStatus === "ALL" ? "white" : "var(--muted)" }}
+                      >
+                        All ({comparisonRecords.length})
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => { setComparisonFilterStatus("MISMATCH"); setComparisonPage(0); }}
+                        style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: comparisonFilterStatus === "MISMATCH" ? "#ef4444" : "transparent", color: comparisonFilterStatus === "MISMATCH" ? "white" : "var(--muted)" }}
+                      >
+                        ⚠️ Result Mismatches ({comparisonKPIs.resultMismatches})
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => { setComparisonFilterStatus("MOD_DIFF"); setComparisonPage(0); }}
+                        style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: comparisonFilterStatus === "MOD_DIFF" ? "#f59e0b" : "transparent", color: comparisonFilterStatus === "MOD_DIFF" ? "white" : "var(--muted)" }}
+                      >
+                        ⚖️ Mod Diffs ({comparisonKPIs.modDiffs})
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => { setComparisonFilterStatus("EXACT_MATCH"); setComparisonPage(0); }}
+                        style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: comparisonFilterStatus === "EXACT_MATCH" ? "#10b981" : "transparent", color: comparisonFilterStatus === "EXACT_MATCH" ? "white" : "var(--muted)" }}
+                      >
+                        ✅ Exact Match ({comparisonKPIs.exactMatches})
+                      </button>
+                      {comparisonKPIs.passedHereFailedPub > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => { setComparisonFilterStatus("PASSED_HERE_FAILED_PUB"); setComparisonPage(0); }}
+                          style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: comparisonFilterStatus === "PASSED_HERE_FAILED_PUB" ? "#3b82f6" : "transparent", color: comparisonFilterStatus === "PASSED_HERE_FAILED_PUB" ? "white" : "var(--muted)" }}
+                        >
+                          Pass Here / Fail Pub ({comparisonKPIs.passedHereFailedPub})
+                        </button>
+                      )}
+                      {comparisonKPIs.failedHerePassedPub > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => { setComparisonFilterStatus("FAILED_HERE_PASSED_PUB"); setComparisonPage(0); }}
+                          style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: comparisonFilterStatus === "FAILED_HERE_PASSED_PUB" ? "#dc2626" : "transparent", color: comparisonFilterStatus === "FAILED_HERE_PASSED_PUB" ? "white" : "var(--muted)" }}
+                        >
+                          Fail Here / Pass Pub ({comparisonKPIs.failedHerePassedPub})
+                        </button>
+                      )}
+                      {comparisonKPIs.notInDataset > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => { setComparisonFilterStatus("NOT_IN_DATA"); setComparisonPage(0); }}
+                          style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: comparisonFilterStatus === "NOT_IN_DATA" ? "#64748b" : "transparent", color: comparisonFilterStatus === "NOT_IN_DATA" ? "white" : "var(--muted)" }}
+                        >
+                          Not In Dataset ({comparisonKPIs.notInDataset})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reconciliation Table */}
+                  <div style={{ background: "var(--panel)", borderRadius: "8px", border: "1px solid var(--line)", overflow: "hidden", display: "flex", flexDirection: "column", flex: 1 }}>
+                    <div style={{ overflowX: "auto", maxHeight: "calc(100vh - 380px)", overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px", textAlign: "left" }}>
+                        <thead>
+                          <tr style={{ background: "var(--bg)", borderBottom: "1px solid var(--line)", position: "sticky", top: 0, zIndex: 10 }}>
+                            <th style={{ padding: "8px 10px", width: "40px", color: "var(--muted)" }}>#</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600 }}>PRN</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600 }}>Seat No</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600 }}>Student Name</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600 }}>College</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Calculated Result</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Published Result</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Result Concordance</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Our Mod Total</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Pub Ord Total</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Mod Match</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600 }}>Our Failed Courses</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600 }}>Pub Reappear Courses</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600 }}>Reconciliation Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredComparisonRecords.length === 0 ? (
+                            <tr>
+                              <td colSpan={14} style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
+                                No student comparison records found matching the current filters.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredComparisonRecords
+                              .slice(comparisonPage * rowsPerPage, (comparisonPage + 1) * rowsPerPage)
+                              .map((rec, idx) => {
+                                const rowIdx = comparisonPage * rowsPerPage + idx + 1;
+                                const isMismatch = !rec.isResultMatch && rec.isFound;
+                                const isModDiff = !rec.isModMatch && rec.isFound;
+
+                                return (
+                                  <tr 
+                                    key={`${rec.prn}-${rec.seat}-${idx}`}
+                                    style={{ 
+                                      borderBottom: "1px solid var(--line)", 
+                                      background: isMismatch ? "rgba(239, 68, 68, 0.04)" : isModDiff ? "rgba(245, 158, 11, 0.04)" : idx % 2 === 1 ? "rgba(255, 255, 255, 0.02)" : "transparent"
+                                    }}
+                                  >
+                                    <td style={{ padding: "7px 10px", color: "var(--muted)" }}>{rowIdx}</td>
+                                    <td style={{ padding: "7px 10px", fontFamily: "monospace", fontWeight: 600 }}>{rec.prn || "-"}</td>
+                                    <td style={{ padding: "7px 10px", fontFamily: "monospace", fontWeight: 600 }}>{rec.seat || "-"}</td>
+                                    <td style={{ padding: "7px 10px", fontWeight: 500 }}>{rec.name || "-"}</td>
+                                    <td style={{ padding: "7px 10px", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={rec.college}>
+                                      {rec.college || "-"}
+                                    </td>
+                                    
+                                    {/* Calculated Result */}
+                                    <td style={{ padding: "7px 10px", textAlign: "center" }}>
+                                      {!rec.isFound ? (
+                                        <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(148, 163, 184, 0.15)", color: "#64748b", fontWeight: 600 }}>
+                                          Not Loaded
+                                        </span>
+                                      ) : rec.calcResult === "Pass" ? (
+                                        <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", fontWeight: 600 }}>
+                                          PASS {rec.calcIsRescued ? "(Mod)" : ""}
+                                        </span>
+                                      ) : rec.calcResult === "Held" || rec.calcResult === "Heldback" ? (
+                                        <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(192, 38, 211, 0.15)", color: "#c026d3", fontWeight: 600 }}>
+                                          {rec.calcResult.toUpperCase()}
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", fontWeight: 600 }}>
+                                          FAIL
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Published Result */}
+                                    <td style={{ padding: "7px 10px", textAlign: "center" }}>
+                                      {rec.pubResultStd === "Pass" ? (
+                                        <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", fontWeight: 600 }}>
+                                          PASS
+                                        </span>
+                                      ) : rec.pubResultStd === "Held" || rec.pubResultStd === "Heldback" ? (
+                                        <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(192, 38, 211, 0.15)", color: "#c026d3", fontWeight: 600 }}>
+                                          {rec.pubResultStd.toUpperCase()}
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: "10.5px", padding: "2px 6px", borderRadius: "4px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", fontWeight: 600 }}>
+                                          FAIL
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Result Match */}
+                                    <td style={{ padding: "7px 10px", textAlign: "center" }}>
+                                      {!rec.isFound ? (
+                                        <span style={{ fontSize: "10.5px", color: "#64748b" }}>—</span>
+                                      ) : rec.isResultMatch ? (
+                                        <span style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                                          <CheckCircle2 size={12} /> Match
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: "10.5px", color: "#ef4444", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                                          <AlertTriangle size={12} /> MISMATCH
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Our Mod Total */}
+                                    <td style={{ padding: "7px 10px", textAlign: "center", fontWeight: rec.calcModMarks > 0 ? 700 : 400, color: rec.calcModMarks > 0 ? "#8b5cf6" : "var(--muted)" }}>
+                                      {rec.isFound ? rec.calcModMarks.toFixed(2) : "—"}
+                                    </td>
+
+                                    {/* Pub Ord Total */}
+                                    <td style={{ padding: "7px 10px", textAlign: "center", fontWeight: rec.pubModMarks > 0 ? 700 : 400, color: rec.pubModMarks > 0 ? "#8b5cf6" : "var(--muted)" }}>
+                                      {rec.pubModMarks.toFixed(2)}
+                                      {rec.pubHasOrd && (
+                                        <span style={{ marginLeft: "4px", fontSize: "9.5px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", padding: "1px 4px", borderRadius: "3px" }}>
+                                          ORD
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Mod Match */}
+                                    <td style={{ padding: "7px 10px", textAlign: "center" }}>
+                                      {!rec.isFound ? (
+                                        <span style={{ fontSize: "10.5px", color: "#64748b" }}>—</span>
+                                      ) : rec.isModMatch ? (
+                                        <span style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>
+                                          <CheckCircle2 size={12} />
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: "10.5px", color: "#f59e0b", fontWeight: 700 }}>
+                                          {rec.modDiff > 0 ? `+${rec.modDiff}` : rec.modDiff}
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Our Failed Courses */}
+                                    <td style={{ padding: "7px 10px", maxWidth: "160px" }}>
+                                      {rec.calcFailedCourses && rec.calcFailedCourses.length > 0 ? (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "2px" }}>
+                                          {rec.calcFailedCourses.map(c => (
+                                            <span key={c} style={{ fontSize: "9.5px", background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", padding: "1px 4px", borderRadius: "3px", fontFamily: "monospace" }}>
+                                              {c}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <span style={{ color: "var(--muted)", fontSize: "10.5px" }}>None</span>
+                                      )}
+                                    </td>
+
+                                    {/* Pub Reappear Courses */}
+                                    <td style={{ padding: "7px 10px", maxWidth: "160px" }}>
+                                      {rec.reappear ? (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "2px" }}>
+                                          {rec.reappear.split(",").map(c => c.trim()).filter(Boolean).map(c => (
+                                            <span key={c} style={{ fontSize: "9.5px", background: "rgba(245, 158, 11, 0.1)", color: "#d97706", padding: "1px 4px", borderRadius: "3px", fontFamily: "monospace" }}>
+                                              {c}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <span style={{ color: "var(--muted)", fontSize: "10.5px" }}>None</span>
+                                      )}
+                                    </td>
+
+                                    {/* Reconciliation Notes */}
+                                    <td style={{ padding: "7px 10px", fontSize: "11px", color: isMismatch ? "#ef4444" : isModDiff ? "#d97706" : "var(--muted)" }}>
+                                      {rec.discrepancyDescription}
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination Footer */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderTop: "1px solid var(--line)", background: "var(--bg)", fontSize: "11.5px" }}>
+                      <div style={{ color: "var(--muted)" }}>
+                        Showing {filteredComparisonRecords.length === 0 ? 0 : comparisonPage * rowsPerPage + 1} to {Math.min((comparisonPage + 1) * rowsPerPage, filteredComparisonRecords.length)} of {filteredComparisonRecords.length} records
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <button 
+                          type="button" 
+                          disabled={comparisonPage === 0} 
+                          onClick={() => setComparisonPage(p => Math.max(0, p - 1))}
+                          style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "4px", border: "1px solid var(--line)", background: "var(--panel)", cursor: comparisonPage === 0 ? "not-allowed" : "pointer", opacity: comparisonPage === 0 ? 0.5 : 1 }}
+                        >
+                          Previous
+                        </button>
+                        <span>Page {comparisonPage + 1} of {Math.max(1, Math.ceil(filteredComparisonRecords.length / rowsPerPage))}</span>
+                        <button 
+                          type="button" 
+                          disabled={(comparisonPage + 1) * rowsPerPage >= filteredComparisonRecords.length} 
+                          onClick={() => setComparisonPage(p => p + 1)}
+                          style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "4px", border: "1px solid var(--line)", background: "var(--panel)", cursor: (comparisonPage + 1) * rowsPerPage >= filteredComparisonRecords.length ? "not-allowed" : "pointer", opacity: (comparisonPage + 1) * rowsPerPage >= filteredComparisonRecords.length ? 0.5 : 1 }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             /* Results Table & Toolbar */
