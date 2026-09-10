@@ -39,7 +39,8 @@ import {
   Users,
   ChevronDown,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Lock
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -116,6 +117,12 @@ export default function AdesResultCalculatorPage() {
   const [malpracticeFileName, setMalpracticeFileName] = useState("");
   const [malpracticeList, setMalpracticeList] = useState([]);
   const malpracticeFileInputRef = useRef(null);
+
+  // Heldback Students Report State (Term-level & Course-level)
+  const [heldbackRecordsMap, setHeldbackRecordsMap] = useState(new Map());
+  const [heldbackFileName, setHeldbackFileName] = useState("");
+  const [heldbackList, setHeldbackList] = useState([]);
+  const heldbackFileInputRef = useRef(null);
 
   // Table Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
@@ -321,6 +328,99 @@ export default function AdesResultCalculatorPage() {
     return { map, list };
   };
 
+  // Helper to match student course record against loaded Heldback Report
+  const getHeldbackEntry = (prn, seat, code, heldbackMap) => {
+    if (!heldbackMap || heldbackMap.size === 0) return null;
+    const normPrn = normalizeKey(prn);
+    const normSeat = normalizeKey(seat);
+    const normCode = normalizeKey(code);
+
+    // 1. Check term-level heldback (applies to ALL papers for student)
+    if (normPrn) {
+      const termEntry = heldbackMap.get(`${normPrn}___ALL`);
+      if (termEntry) return termEntry;
+    }
+    if (normSeat) {
+      const termEntry = heldbackMap.get(`${normSeat}___ALL`);
+      if (termEntry) return termEntry;
+    }
+
+    // 2. Check specific paper heldback
+    if (normCode) {
+      if (normPrn) {
+        const paperEntry = heldbackMap.get(`${normPrn}___${normCode}`);
+        if (paperEntry) return paperEntry;
+      }
+      if (normSeat) {
+        const paperEntry = heldbackMap.get(`${normSeat}___${normCode}`);
+        if (paperEntry) return paperEntry;
+      }
+    }
+
+    return null;
+  };
+
+  // Build lookup map and formatted list from uploaded Heldback Report rows
+  const buildHeldbackLookup = (rows, headerMap = {}) => {
+    const map = new Map();
+    const list = [];
+
+    rows.forEach(r => {
+      const prn = String(getCell(r, headerMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || r["PRN"] || "").trim();
+      const seat = String(getCell(r, headerMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || r["Seat Number"] || "").trim();
+      const reason = String(getCell(r, headerMap, "Reason", "Heldback Reason", "HeldbackReason", "Remarks", "Description") || r["Reason"] || "").trim() || "APC Heldback";
+      const assessmentType = String(getCell(r, headerMap, "Assessment Type", "AssessmentType", "AT") || r["Assessment Type"] || "").trim();
+      const collegeCode = String(getCell(r, headerMap, "College Code", "CollegeCode") || r["College Code"] || "").trim();
+      const studentName = String(getCell(r, headerMap, "Student Name", "StudentName", "Name", "CandidateName") || r["Student Name"] || "").trim();
+      const paper = String(getCell(r, headerMap, "Paper", "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || r["Paper"] || "").trim();
+      const collegeName = String(getCell(r, headerMap, "College Name", "CollegeName") || r["College Name"] || "").trim();
+      const tlm = String(getCell(r, headerMap, "Teaching Learning Method", "TeachingLearningMethod", "TLM") || r["Teaching Learning Method"] || "").trim();
+      const am = String(getCell(r, headerMap, "Assessment Method", "AssessmentMethod", "AM") || r["Assessment Method"] || "").trim();
+
+      const normPrn = normalizeKey(prn);
+      const normSeat = normalizeKey(seat);
+      const normPaper = normalizeKey(paper);
+
+      const paperLower = paper.toLowerCase();
+      const atLower = assessmentType.toLowerCase();
+      const isTermLevel = !paper || 
+        paperLower.includes("term-level") || 
+        paperLower.includes("term level") || 
+        atLower.includes("term-level") || 
+        atLower.includes("term level") || 
+        paperLower === "heldback" ||
+        paperLower === "all";
+
+      const details = {
+        studentName,
+        prn,
+        seat,
+        reason,
+        assessmentType,
+        collegeCode,
+        collegeName,
+        paper,
+        tlm,
+        am,
+        isTermLevel
+      };
+
+      if (isTermLevel) {
+        if (normPrn) map.set(`${normPrn}___ALL`, details);
+        if (normSeat) map.set(`${normSeat}___ALL`, details);
+      } else {
+        if (normPrn && normPaper) map.set(`${normPrn}___${normPaper}`, details);
+        if (normSeat && normPaper) map.set(`${normSeat}___${normPaper}`, details);
+      }
+
+      if (normPrn || normSeat) {
+        list.push(details);
+      }
+    });
+
+    return { map, list };
+  };
+
   const isAlreadyAggregatedSheet = (hMap) => {
     const keys = Object.keys(hMap);
     const hasEseOverall = keys.some(k => k.includes("eseoverall") || k.includes("esemax") || k.includes("esethobtained") || k.includes("esethmax"));
@@ -344,7 +444,7 @@ export default function AdesResultCalculatorPage() {
   };
 
   // Group raw assessment rows OR parse pre-aggregated rows into Student-Course Base Aggregates
-  const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap, currentMalpracticeMap = malpracticeRecordsMap) => {
+  const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap, currentMalpracticeMap = malpracticeRecordsMap, currentHeldbackMap = heldbackRecordsMap) => {
     if (!rows || rows.length === 0) return [];
     const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
 
@@ -608,9 +708,10 @@ export default function AdesResultCalculatorPage() {
         const normCode = normalizeKey(code);
         const prof = courseExpectedComponentsMap.get(normCode);
 
-        // Check if this student-course has a malpractice or absent record
-        const malpracticeEntry = getMalpracticeEntry(prn, seat, code, currentMalpracticeMap);
-        const absentEntry = getAbsentEntry(prn, seat, code, currentAbsentMap);
+        // Check if this student-course has a heldback, malpractice or absent record
+        const heldbackEntry = getHeldbackEntry(prn, seat, code, currentHeldbackMap);
+        const malpracticeEntry = !heldbackEntry && getMalpracticeEntry(prn, seat, code, currentMalpracticeMap);
+        const absentEntry = !heldbackEntry && !malpracticeEntry && getAbsentEntry(prn, seat, code, currentAbsentMap);
 
         const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || "") : "");
         const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
@@ -636,6 +737,9 @@ export default function AdesResultCalculatorPage() {
         const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0 || (prof?.requiresEsePr ?? false);
         const is_pr_only = has_ese_pr && !has_ese_th;
 
+        let is_heldback = false;
+        let heldback_reason = "";
+
         let is_malpractice = false;
         let malpractice_status = "";
         let malpractice_remarks = "";
@@ -644,7 +748,12 @@ export default function AdesResultCalculatorPage() {
         let is_absent = false;
         let absent_status = "";
 
-        if (malpracticeEntry) {
+        if (heldbackEntry) {
+          is_heldback = true;
+          heldback_reason = heldbackEntry.reason || "Heldback at term-level";
+          ese_th_obtained = "Held";
+          ese_pr_obtained = "Held";
+        } else if (malpracticeEntry) {
           is_malpractice = true;
           malpractice_status = malpracticeEntry.status;
           malpractice_remarks = malpracticeEntry.remarks;
@@ -668,7 +777,7 @@ export default function AdesResultCalculatorPage() {
 
         // Check for Missing Component(s)
         const missingComponents = [];
-        if (!is_malpractice && !is_absent && prof) {
+        if (!is_heldback && !is_malpractice && !is_absent && prof) {
           const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
           const rawEsePr = getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained");
           const rawEseTh = getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained");
@@ -835,6 +944,9 @@ export default function AdesResultCalculatorPage() {
           malpractice_remarks,
           malpractice_date,
           is_held,
+          is_heldback,
+          heldback_reason,
+          is_missing_component: is_missing,
           missing_components: missingComponents
         });
       });
@@ -901,21 +1013,25 @@ export default function AdesResultCalculatorPage() {
       const normCode = normalizeKey(identifiers.code);
       const prof = courseExpectedComponentsMap.get(normCode);
 
-      const malpracticeEntry = getMalpracticeEntry(identifiers.prn, identifiers.seat, identifiers.code, currentMalpracticeMap);
-      const is_malpractice = !!malpracticeEntry;
+      const heldbackEntry = getHeldbackEntry(identifiers.prn, identifiers.seat, identifiers.code, currentHeldbackMap);
+      const is_heldback = !!heldbackEntry;
+      const heldback_reason = heldbackEntry ? (heldbackEntry.reason || "Heldback at term-level") : "";
+
+      const malpracticeEntry = !is_heldback && getMalpracticeEntry(identifiers.prn, identifiers.seat, identifiers.code, currentMalpracticeMap);
+      const is_malpractice = !is_heldback && !!malpracticeEntry;
       const malpractice_status = malpracticeEntry ? malpracticeEntry.status : "";
       const malpractice_remarks = malpracticeEntry ? malpracticeEntry.remarks : "";
       const malpractice_date = malpracticeEntry ? malpracticeEntry.umMarkedDate : "";
 
-      const absentEntry = getAbsentEntry(identifiers.prn, identifiers.seat, identifiers.code, currentAbsentMap);
-      const is_absent = !is_malpractice && !!absentEntry;
+      const absentEntry = !is_heldback && !is_malpractice && getAbsentEntry(identifiers.prn, identifiers.seat, identifiers.code, currentAbsentMap);
+      const is_absent = !is_heldback && !is_malpractice && !!absentEntry;
       const absent_status = absentEntry ? absentEntry.status : "";
 
       // Check for Missing Component(s)
       const missingComponents = [];
       const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
 
-      if (!is_malpractice && !is_absent && prof) {
+      if (!is_heldback && !is_malpractice && !is_absent && prof) {
         // Check ESE_PR
         if (prof.requiresEsePr) {
           const c = components["ESE_PR"];
@@ -945,7 +1061,8 @@ export default function AdesResultCalculatorPage() {
           }
         }
       }
-      const is_held = missingComponents.length > 0;
+      const is_missing = missingComponents.length > 0;
+      const is_held = is_heldback || is_missing;
 
       const ese_pr = components["ESE_PR"];
       const ese_pr_max = (ese_pr && ese_pr.max !== null) ? ese_pr.max : (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || 0) : 0);
@@ -955,7 +1072,10 @@ export default function AdesResultCalculatorPage() {
       const ese_th_max = (ese_th && ese_th.max !== null) ? ese_th.max : (prof?.requiresEseTh ? (prof?.maxMarks?.ESE_TH || 0) : 0);
       let ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : (missingComponents.includes("ESE-TH") ? "Missing" : (prof?.requiresEseTh ? 0 : ""));
 
-      if (is_malpractice && malpracticeEntry) {
+      if (is_heldback) {
+        ese_th_obtained = "Held";
+        ese_pr_obtained = "Held";
+      } else if (is_malpractice && malpracticeEntry) {
         if (malpracticeEntry.isEseTh) {
           ese_th_obtained = "Malpractice (MP)";
         }
@@ -1100,6 +1220,9 @@ export default function AdesResultCalculatorPage() {
         malpractice_remarks,
         malpractice_date,
         is_held,
+        is_heldback,
+        heldback_reason,
+        is_missing_component: is_missing,
         missing_components: missingComponents
       });
     });
@@ -1131,6 +1254,7 @@ export default function AdesResultCalculatorPage() {
           rawFailed: 0,
           absentCount: 0,
           malpracticeCount: 0,
+          heldbackCount: 0,
           heldCount: 0,
           nearPassCount: 0
         });
@@ -1138,7 +1262,11 @@ export default function AdesResultCalculatorPage() {
 
       const item = map.get(norm);
       item.totalStudents++;
-      if (rec.is_held) {
+      if (rec.is_heldback) {
+        item.heldbackCount = (item.heldbackCount || 0) + 1;
+        item.heldCount = (item.heldCount || 0) + 1;
+        // Heldback papers are strictly reserved/uncalculated
+      } else if (rec.is_held) {
         item.heldCount = (item.heldCount || 0) + 1;
         // Held papers are uncalculated: not rawPassed and not in nearPassCount
       } else if (rec.is_malpractice) {
@@ -1170,6 +1298,34 @@ export default function AdesResultCalculatorPage() {
       const normCode = normalizeKey(rec.identifiers.code);
       const modLimit = courseModerationMap[normCode] || 0;
 
+      // Heldback Student Handling: Strictly locked from calculation, moderation, and pass simulation; Result Held
+      if (rec.is_heldback) {
+        row["ESE Pass"] = "Held";
+        row["Overall pass"] = "Held";
+        row["Course Pass/Fail"] = "Held (Heldback)";
+        row["Moderation Marks"] = 0;
+
+        row._rawPass = false;
+        row._isModeratedPass = false;
+        row._isAbsent = false;
+        row._absentStatus = "";
+        row._isMalpractice = false;
+        row._malpracticeStatus = "";
+        row._malpracticeRemarks = "";
+        row._malpracticeDate = "";
+        row._isHeld = true;
+        row._isHeldback = true;
+        row._heldbackReason = rec.heldback_reason || "Heldback at term-level";
+        row._isMissingComp = false;
+        row._missingComponents = [];
+        row._modLimit = modLimit;
+        row._isEligibleForMod = false;
+        row._isPrOnly = rec.is_pr_only;
+        row._eseDeficit = 999;
+        row._overallDeficit = 999;
+        return row;
+      }
+
       // Held / Missing Component Handling: Never eligible for moderation, Result Held
       if (rec.is_held) {
         row["ESE Pass"] = "Held";
@@ -1186,6 +1342,9 @@ export default function AdesResultCalculatorPage() {
         row._malpracticeRemarks = "";
         row._malpracticeDate = "";
         row._isHeld = true;
+        row._isHeldback = false;
+        row._heldbackReason = "";
+        row._isMissingComp = true;
         row._missingComponents = rec.missing_components || [];
         row._modLimit = modLimit;
         row._isEligibleForMod = false;
@@ -1211,6 +1370,9 @@ export default function AdesResultCalculatorPage() {
         row._malpracticeRemarks = rec.malpractice_remarks || "";
         row._malpracticeDate = rec.malpractice_date || "";
         row._isHeld = false;
+        row._isHeldback = false;
+        row._heldbackReason = "";
+        row._isMissingComp = false;
         row._missingComponents = [];
         row._modLimit = modLimit;
         row._isEligibleForMod = false;
@@ -1236,6 +1398,9 @@ export default function AdesResultCalculatorPage() {
         row._malpracticeRemarks = "";
         row._malpracticeDate = "";
         row._isHeld = false;
+        row._isHeldback = false;
+        row._heldbackReason = "";
+        row._isMissingComp = false;
         row._missingComponents = [];
         row._modLimit = modLimit;
         row._isEligibleForMod = false;
@@ -1280,6 +1445,9 @@ export default function AdesResultCalculatorPage() {
       row._malpracticeRemarks = "";
       row._malpracticeDate = "";
       row._isHeld = false;
+      row._isHeldback = false;
+      row._heldbackReason = "";
+      row._isMissingComp = false;
       row._missingComponents = [];
       row._modLimit = modLimit;
       row._isEligibleForMod = isEligibleForModeration;
@@ -1316,6 +1484,7 @@ export default function AdesResultCalculatorPage() {
           isEligible: rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration),
           totalStudents: 0,
           heldCount: 0,
+          heldbackCount: 0,
           absentCount: 0,
           malpracticeCount: 0,
           rawEsePassCount: 0,       // 30% ESE Rule Pass Count
@@ -1329,6 +1498,13 @@ export default function AdesResultCalculatorPage() {
 
       const item = map.get(norm);
       item.totalStudents++;
+
+      // Heldback students are strictly locked and excluded from pass calculations at all moderation levels
+      if (rec.is_heldback) {
+        item.heldbackCount = (item.heldbackCount || 0) + 1;
+        item.heldCount = (item.heldCount || 0) + 1;
+        return;
+      }
 
       // Held (Missing Component) records are strictly excluded from pass calculations at all moderation levels
       if (rec.is_held) {
@@ -1626,6 +1802,8 @@ export default function AdesResultCalculatorPage() {
           finalPassedCourses: 0,
           finalFailedCourses: 0,
           heldCourses: 0,
+          heldbackCourses: 0,
+          heldbackReason: "",
           totalModerationMarks: 0,
           courses: []
         });
@@ -1638,7 +1816,13 @@ export default function AdesResultCalculatorPage() {
       const isFinalCoursePass = row["Course Pass/Fail"] === "Pass";
       const modMarks = row["Moderation Marks"] || 0;
 
-      if (row._isHeld) {
+      if (row._isHeldback) {
+        st.heldbackCourses = (st.heldbackCourses || 0) + 1;
+        st.heldCourses = (st.heldCourses || 0) + 1;
+        if (!st.heldbackReason && row._heldbackReason) {
+          st.heldbackReason = row._heldbackReason;
+        }
+      } else if (row._isHeld) {
         st.heldCourses = (st.heldCourses || 0) + 1;
       }
 
@@ -1679,6 +1863,8 @@ export default function AdesResultCalculatorPage() {
         malpracticeRemarks: row._malpracticeRemarks || "",
         malpracticeDate: row._malpracticeDate || "",
         isHeld: !!row._isHeld,
+        isHeldback: !!row._isHeldback,
+        heldbackReason: row._heldbackReason || "",
         missingComponents: row._missingComponents || [],
         modMarks,
         eseOverall: row["ESE Overall"],
@@ -1689,15 +1875,21 @@ export default function AdesResultCalculatorPage() {
     });
 
     const list = Array.from(map.values()).map(st => {
+      const hasHeldback = (st.heldbackCourses || 0) > 0;
       const hasHeld = (st.heldCourses || 0) > 0;
       let semesterResult = "Fail";
       let rawSemesterResult = "Fail";
       let finalSemesterPass = false;
       let rawSemesterPass = false;
 
-      if (hasHeld) {
-        semesterResult = "Held";
-        rawSemesterResult = "Held";
+      if (hasHeldback) {
+        semesterResult = "Held (Heldback)";
+        rawSemesterResult = "Held (Heldback)";
+        finalSemesterPass = false;
+        rawSemesterPass = false;
+      } else if (hasHeld) {
+        semesterResult = "Held (Missing Component)";
+        rawSemesterResult = "Held (Missing Component)";
         finalSemesterPass = false;
         rawSemesterPass = false;
       } else {
@@ -1712,6 +1904,7 @@ export default function AdesResultCalculatorPage() {
       return {
         ...st,
         isHeld: hasHeld,
+        isHeldback: hasHeldback,
         rawSemesterPass,
         finalSemesterPass,
         isRescuedSemester,
@@ -1742,6 +1935,8 @@ export default function AdesResultCalculatorPage() {
         failedPct: "0.0",
         heldStudents: 0,
         heldPct: "0.0",
+        heldbackStudents: 0,
+        heldbackPct: "0.0",
         rescuedStudents: 0,
         rescuedPct: "0.0",
         absentStudents: 0,
@@ -1757,11 +1952,15 @@ export default function AdesResultCalculatorPage() {
     let absentStudents = 0;
     let malpracticeStudents = 0;
     let heldStudents = 0;
+    let heldbackStudents = 0;
     let totalPapersAttempted = 0;
 
     studentSemesterData.forEach(st => {
       totalPapersAttempted += st.totalCourses;
-      if (st.isHeld) {
+      if (st.isHeldback) {
+        heldbackStudents++;
+        heldStudents++;
+      } else if (st.isHeld) {
         heldStudents++;
       } else {
         if (st.rawSemesterPass) rawPassedStudents++;
@@ -1784,6 +1983,8 @@ export default function AdesResultCalculatorPage() {
       failedPct: ((failedStudents / total) * 100).toFixed(1),
       heldStudents,
       heldPct: ((heldStudents / total) * 100).toFixed(1),
+      heldbackStudents,
+      heldbackPct: ((heldbackStudents / total) * 100).toFixed(1),
       rescuedStudents,
       rescuedPct: ((rescuedStudents / total) * 100).toFixed(1),
       absentStudents,
@@ -1801,6 +2002,8 @@ export default function AdesResultCalculatorPage() {
       list = list.filter(st => st.finalSemesterPass);
     } else if (studentFilterStatus === "FAIL") {
       list = list.filter(st => !st.finalSemesterPass && !st.isHeld);
+    } else if (studentFilterStatus === "HELDBACK") {
+      list = list.filter(st => st.isHeldback);
     } else if (studentFilterStatus === "HELD") {
       list = list.filter(st => st.isHeld);
     } else if (studentFilterStatus === "RESCUED") {
@@ -1819,6 +2022,8 @@ export default function AdesResultCalculatorPage() {
         st.program.toLowerCase().includes(q) ||
         st.faculty.toLowerCase().includes(q) ||
         (q === "held" && st.isHeld) ||
+        (q === "heldback" && st.isHeldback) ||
+        (st.heldbackReason && st.heldbackReason.toLowerCase().includes(q)) ||
         st.courses.some(c => (c.courseCode && c.courseCode.toLowerCase().includes(q)) || (c.courseName && c.courseName.toLowerCase().includes(q)))
       );
     }
@@ -1895,6 +2100,16 @@ export default function AdesResultCalculatorPage() {
     if (normCols.some(c => c.includes("faculty") || c.includes("department"))) {
       score += 4;
       matchedHeaders.push("Faculty");
+    }
+
+    // Heldback indicators
+    if (normCols.some(c => c.includes("heldback") || c.includes("reason"))) {
+      score += 8;
+      matchedHeaders.push("Heldback / Reason");
+    }
+    if (normCols.some(c => c === "paper" || c.includes("paper"))) {
+      score += 6;
+      matchedHeaders.push("Paper");
     }
 
     return { score, matchedHeaders };
@@ -1999,7 +2214,7 @@ export default function AdesResultCalculatorPage() {
         setHeaderMap(hMap);
         setRawRows(rows);
 
-        const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap);
+        const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap);
         setGroupedRecords(baseGrouped);
         setPage(0);
 
@@ -2042,7 +2257,7 @@ export default function AdesResultCalculatorPage() {
       setHeaderMap(hMap);
       setRawRows(rows);
 
-      const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap);
+      const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap);
       setGroupedRecords(baseGrouped);
       setPage(0);
 
@@ -2190,7 +2405,7 @@ export default function AdesResultCalculatorPage() {
 
         // If source records are already loaded, re-group them immediately with this absent map!
         if (rawRows && rawRows.length > 0 && headerMap) {
-          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map, malpracticeRecordsMap);
+          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map, malpracticeRecordsMap, heldbackRecordsMap);
           setGroupedRecords(updatedGrouped);
         }
 
@@ -2212,7 +2427,7 @@ export default function AdesResultCalculatorPage() {
     setAbsentFileName("");
 
     if (rawRows && rawRows.length > 0 && headerMap) {
-      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, new Map(), malpracticeRecordsMap);
+      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, new Map(), malpracticeRecordsMap, heldbackRecordsMap);
       setGroupedRecords(resetGrouped);
     }
 
@@ -2341,7 +2556,7 @@ export default function AdesResultCalculatorPage() {
 
         // If source records are already loaded, re-group them immediately with this malpractice map!
         if (rawRows && rawRows.length > 0 && headerMap) {
-          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, map);
+          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, map, heldbackRecordsMap);
           setGroupedRecords(updatedGrouped);
         }
 
@@ -2363,7 +2578,7 @@ export default function AdesResultCalculatorPage() {
     setMalpracticeFileName("");
 
     if (rawRows && rawRows.length > 0 && headerMap) {
-      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, new Map());
+      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, new Map(), heldbackRecordsMap);
       setGroupedRecords(resetGrouped);
     }
 
@@ -2522,6 +2737,154 @@ export default function AdesResultCalculatorPage() {
     setStatus("Downloaded Malpractice Report Template (.xlsx) with standard 21 UM columns and sample entries.", "success");
   };
 
+  // Handle Upload of Heldback Students Report Excel (.xlsx, .xls, .csv)
+  const handleHeldbackExcelUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        const { rows, headerMap: hMap } = parseSheetWithHeaderScan(firstSheet);
+        const effectiveRows = (rows && rows.length > 0) ? rows : XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+        if (!effectiveRows || effectiveRows.length === 0) {
+          setStatus("Uploaded heldback report sheet is empty.", "warning");
+          return;
+        }
+
+        const { map, list } = buildHeldbackLookup(effectiveRows, hMap);
+
+        if (list.length === 0) {
+          setStatus("No valid student heldback entries found in " + file.name + ". Ensure columns include PRN / Seat Number and Reason.", "warning");
+          return;
+        }
+
+        setHeldbackRecordsMap(map);
+        setHeldbackList(list);
+        setHeldbackFileName(file.name);
+
+        // If source records are already loaded, re-group them immediately with this heldback map!
+        if (rawRows && rawRows.length > 0 && headerMap) {
+          const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, map);
+          setGroupedRecords(updatedGrouped);
+        }
+
+        setStatus("Successfully imported " + list.length + " heldback record(s) from \"" + file.name + "\". Matched students are locked from calculation, moderation, and pass simulation with \"Held (Heldback)\" status.", "success");
+      } catch (err) {
+        console.error("Error importing heldback sheet:", err);
+        setStatus("Failed to read heldback report: " + err.message, "error");
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+    if (heldbackFileInputRef.current) heldbackFileInputRef.current.value = "";
+  };
+
+  // Clear loaded Heldback Data and revert source marks
+  const handleClearHeldbackData = () => {
+    setHeldbackRecordsMap(new Map());
+    setHeldbackList([]);
+    setHeldbackFileName("");
+
+    if (rawRows && rawRows.length > 0 && headerMap) {
+      const resetGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, new Map());
+      setGroupedRecords(resetGrouped);
+    }
+
+    setStatus("Cleared heldback records. Student marks and evaluations restored.", "info");
+  };
+
+  // Download Heldback Report Template (.xlsx) with standard university APC / Heldback columns and sample rows
+  const handleDownloadHeldbackTemplate = () => {
+    const headers = [
+      "Seat Number",
+      "PRN",
+      "Reason",
+      "Assessment Type",
+      "College Code",
+      "Student Name",
+      "Paper",
+      "College Name",
+      "Teaching Learning Method",
+      "Assessment Method"
+    ];
+
+    const sampleRows = [
+      [
+        "NK24ECOR020",
+        "2024012600000989",
+        "APC WITHIN CONDONABLE LIMIT",
+        "Heldback at term-level",
+        "NK",
+        "AHADAL JAMEEL. V.K",
+        "Heldback at term-level",
+        "Naher Arts and Science College, Kanhirode",
+        "Heldback at term-level",
+        "Heldback at term-level"
+      ],
+      [
+        "EK24ECOR001",
+        "2024012600011711",
+        "APC WCL",
+        "Heldback at term-level",
+        "EK",
+        "AFNA RAHIMAN CA",
+        "Heldback at term-level",
+        "E.K. Nayanar Memorial Govt. College, Elerithattu",
+        "Heldback at term-level",
+        "Heldback at term-level"
+      ],
+      [
+        "EK24ECOR018",
+        "2024012600011831",
+        "APC WCL",
+        "Heldback at term-level",
+        "EK",
+        "DEVIKA P C",
+        "Heldback at term-level",
+        "E.K. Nayanar Memorial Govt. College, Elerithattu",
+        "Heldback at term-level",
+        "Heldback at term-level"
+      ],
+      [
+        "EK24ECOR029",
+        "2024012600011909",
+        "APC WCL",
+        "Heldback at term-level",
+        "EK",
+        "ARJUN SAJI",
+        "Heldback at term-level",
+        "E.K. Nayanar Memorial Govt. College, Elerithattu",
+        "Heldback at term-level",
+        "Heldback at term-level"
+      ]
+    ];
+
+    const aoa = [headers, ...sampleRows];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [
+      { wch: 16 }, // Seat Number
+      { wch: 20 }, // PRN
+      { wch: 32 }, // Reason
+      { wch: 24 }, // Assessment Type
+      { wch: 14 }, // College Code
+      { wch: 26 }, // Student Name
+      { wch: 24 }, // Paper
+      { wch: 45 }, // College Name
+      { wch: 24 }, // TLM
+      { wch: 24 }  // AM
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Heldback_Template");
+    XLSX.writeFile(wb, "heldback_report_template.xlsx");
+    setStatus("Downloaded Heldback Report Template (.xlsx) with standard term-level columns and sample entries.", "success");
+  };
+
   // Export Course-Wise Pass Simulation Report (+0 to +10 Moderation)
   const handleExportSimulationExcel = () => {
     if (!courseSimulationData || courseSimulationData.length === 0) {
@@ -2536,6 +2899,7 @@ export default function AdesResultCalculatorPage() {
       "Course Name",
       "Component Type",
       "Total Students",
+      "Held (Heldback)",
       "Held (Missing Component)",
       "30% ESE Pass (0 Mod)",
       "30% ESE Pass %",
@@ -2558,15 +2922,19 @@ export default function AdesResultCalculatorPage() {
     ];
 
     let totalAllStudents = 0;
-    let totalAllHeld = 0;
+    let totalAllHeldback = 0;
+    let totalAllHeldMissing = 0;
     let totalAllRawEsePass = 0;
     let totalAllRawOverallPass = 0;
     let totalAllRawPass = 0;
     const totalAllModPass = Array(11).fill(0);
 
     const rows = courseSimulationData.map(c => {
+      const heldback = c.heldbackCount || 0;
+      const heldMissing = Math.max(0, (c.heldCount || 0) - heldback);
       totalAllStudents += c.totalStudents;
-      totalAllHeld += (c.heldCount || 0);
+      totalAllHeldback += heldback;
+      totalAllHeldMissing += heldMissing;
       totalAllRawEsePass += c.rawEsePassCount;
       totalAllRawOverallPass += c.rawOverallPassCount;
       totalAllRawPass += c.rawPassCount;
@@ -2589,7 +2957,8 @@ export default function AdesResultCalculatorPage() {
         c.courseName,
         compType,
         c.totalStudents,
-        c.heldCount || 0,
+        heldback,
+        heldMissing,
         c.rawEsePassCount,
         rawEsePct,
         c.rawOverallPassCount,
@@ -2625,7 +2994,8 @@ export default function AdesResultCalculatorPage() {
       "-",
       "-",
       totalAllStudents,
-      totalAllHeld,
+      totalAllHeldback,
+      totalAllHeldMissing,
       totalAllRawEsePass,
       overallRawEsePct,
       totalAllRawOverallPass,
@@ -2658,6 +3028,7 @@ export default function AdesResultCalculatorPage() {
       { wch: 32 }, // Course Name
       { wch: 16 }, // Component Type
       { wch: 14 }, // Total Students
+      { wch: 18 }, // Held (Heldback)
       { wch: 22 }, // Held (Missing Component)
       { wch: 20 }, // 30% ESE Pass
       { wch: 15 }, // 30% ESE Pass %
@@ -2829,7 +3200,7 @@ export default function AdesResultCalculatorPage() {
   // Statistics Metrics
   const metrics = useMemo(() => {
     const total = processedRows.length;
-    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, heldCount: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0, malpracticeCount: 0 };
+    if (total === 0) return { total: 0, uniqueStudents: 0, rawPassed: 0, moderatedPassed: 0, totalPassed: 0, failed: 0, heldCount: 0, heldbackCount: 0, missingCompCount: 0, passPct: 0, rawPassPct: 0, eseFailed: 0, overallFailed: 0, absentCount: 0, malpracticeCount: 0 };
 
     const prnSet = new Set();
     let rawPassed = 0;
@@ -2837,6 +3208,8 @@ export default function AdesResultCalculatorPage() {
     let totalPassed = 0;
     let failed = 0;
     let heldCount = 0;
+    let heldbackCount = 0;
+    let missingCompCount = 0;
     let eseFailed = 0;
     let overallFailed = 0;
     let absentCount = 0;
@@ -2849,7 +3222,14 @@ export default function AdesResultCalculatorPage() {
     processedRows.forEach(r => {
       if (r["PRN"]) prnSet.add(r["PRN"]);
       
+      if (r._isHeldback) {
+        heldbackCount++;
+        heldCount++;
+        return;
+      }
+
       if (r._isHeld) {
+        missingCompCount++;
         heldCount++;
         return;
       }
@@ -2888,6 +3268,8 @@ export default function AdesResultCalculatorPage() {
       totalPassed,
       failed,
       heldCount,
+      heldbackCount,
+      missingCompCount,
       passPct,
       rawPassPct,
       eseFailed,
@@ -2912,6 +3294,10 @@ export default function AdesResultCalculatorPage() {
       result = result.filter(r => r._isModeratedPass);
     } else if (selectedResultFilter === "FAIL") {
       result = result.filter(r => r[coursePassKey] === "Fail");
+    } else if (selectedResultFilter === "HELDBACK") {
+      result = result.filter(r => r._isHeldback);
+    } else if (selectedResultFilter === "HELD_MISSING") {
+      result = result.filter(r => r._isMissingComp);
     } else if (selectedResultFilter === "HELD") {
       result = result.filter(r => r._isHeld);
     } else if (selectedResultFilter === "ESE_FAIL") {
@@ -3476,6 +3862,111 @@ export default function AdesResultCalculatorPage() {
             </div>
           </div>
 
+          {/* Heldback Students Records Management Card */}
+          <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "var(--ink)" }}>
+                <Lock size={14} color="#c026d3" /> Heldback Record Entry
+              </div>
+              {heldbackList.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "rgba(192, 38, 211, 0.15)", color: "#c026d3", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {heldbackList.length} Heldback
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "var(--panel)", color: "var(--muted)", padding: "1px 6px", borderRadius: "10px", border: "1px solid var(--line)" }}>
+                  Optional
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              {heldbackList.length > 0 ? (
+                <span>
+                  Active: <strong>{heldbackFileName}</strong> ({heldbackList.length} mapped). Matched students are locked with <strong style={{ color: "#c026d3" }}>Held (Heldback)</strong> &amp; excluded from moderation/simulations.
+                </span>
+              ) : (
+                "Upload heldback report (e.g. APC within condonable limit) to lock matched students across papers from pass calculation, moderation marks, and pass simulation."
+              )}
+            </div>
+
+            <input 
+              type="file" 
+              ref={heldbackFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              onChange={handleHeldbackExcelUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => heldbackFileInputRef.current?.click()}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: heldbackList.length > 0 ? "rgba(192, 38, 211, 0.12)" : "var(--panel)",
+                  color: heldbackList.length > 0 ? "#c026d3" : "var(--ink)",
+                  border: heldbackList.length > 0 ? "1px solid rgba(192, 38, 211, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {heldbackList.length > 0 ? "Replace File" : "Upload Heldback"}
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleDownloadHeldbackTemplate}
+                title="Download standard heldback / APC report template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {heldbackList.length > 0 && (
+                <button 
+                  type="button"
+                  onClick={handleClearHeldbackData}
+                  title="Clear heldback data and restore student results"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#c026d3",
+                    border: "1px solid #c026d3",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Result Overview Stat Card */}
           {processedRows.length > 0 && (
             <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -3545,9 +4036,21 @@ export default function AdesResultCalculatorPage() {
                   <span>Course Papers Failed:</span>
                   <strong>{metrics.failed} ({(100 - metrics.passPct).toFixed(1)}%)</strong>
                 </div>
-                {metrics.heldCount > 0 && (
+                {metrics.heldbackCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#c026d3" }}>
+                    <span>Held (Heldback Report):</span>
+                    <strong>{metrics.heldbackCount}</strong>
+                  </div>
+                )}
+                {metrics.missingCompCount > 0 && (
                   <div style={{ display: "flex", justifyContent: "space-between", color: "#9333ea" }}>
                     <span>Held (Missing Component):</span>
+                    <strong>{metrics.missingCompCount}</strong>
+                  </div>
+                )}
+                {metrics.heldbackCount === 0 && metrics.missingCompCount === 0 && metrics.heldCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#9333ea" }}>
+                    <span>Held:</span>
                     <strong>{metrics.heldCount}</strong>
                   </div>
                 )}
@@ -3792,6 +4295,15 @@ export default function AdesResultCalculatorPage() {
                       Held ({studentMetrics.heldStudents})
                     </button>
                   )}
+                  {studentMetrics.heldbackStudents > 0 && (
+                    <button 
+                      type="button"
+                      onClick={() => setStudentFilterStatus("HELDBACK")}
+                      style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "HELDBACK" ? "#c026d3" : "transparent", color: studentFilterStatus === "HELDBACK" ? "white" : "#c026d3" }}
+                    >
+                      Heldback ({studentMetrics.heldbackStudents})
+                    </button>
+                  )}
                   {studentMetrics.absentStudents > 0 && (
                     <button 
                       type="button"
@@ -3851,9 +4363,11 @@ export default function AdesResultCalculatorPage() {
                                 cursor: "pointer",
                                 background: isExpanded 
                                   ? "rgba(59, 130, 246, 0.05)" 
-                                  : st.isHeld 
-                                    ? "rgba(147, 51, 234, 0.04)" 
-                                    : "transparent"
+                                  : st.isHeldback
+                                    ? "rgba(192, 38, 211, 0.05)"
+                                    : st.isHeld 
+                                      ? "rgba(147, 51, 234, 0.04)" 
+                                      : "transparent"
                               }}
                             >
                               <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--muted)" }}>
@@ -3891,13 +4405,17 @@ export default function AdesResultCalculatorPage() {
                                 <span style={{ 
                                   fontSize: "11px", 
                                   fontWeight: 600, 
-                                  color: st.isHeld ? "#7e22ce" : st.rawSemesterPass ? "#10b981" : "#ef4444" 
+                                  color: st.isHeldback ? "#c026d3" : st.isHeld ? "#7e22ce" : st.rawSemesterPass ? "#10b981" : "#ef4444" 
                                 }}>
                                   {st.rawSemesterResult}
                                 </span>
                               </td>
                               <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                                {st.isHeld ? (
+                                {st.isHeldback ? (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(192, 38, 211, 0.15)", color: "#c026d3", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={st.heldbackReason || "Heldback at term-level"}>
+                                    <Lock size={12} /> Held (Heldback)
+                                  </span>
+                                ) : st.isHeld ? (
                                   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(147, 51, 234, 0.15)", color: "#7e22ce", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
                                     <AlertTriangle size={12} /> Held ({st.heldCourses} {st.heldCourses === 1 ? "Paper" : "Papers"} Missing)
                                   </span>
@@ -3944,11 +4462,15 @@ export default function AdesResultCalculatorPage() {
                                       </thead>
                                       <tbody>
                                         {st.courses.map((c, cIdx) => (
-                                          <tr key={cIdx} style={{ borderBottom: "1px solid var(--line)", background: c.coursePass === "Pass" ? "transparent" : c.isHeld ? "rgba(147, 51, 234, 0.04)" : "rgba(239, 68, 68, 0.03)" }}>
+                                          <tr key={cIdx} style={{ borderBottom: "1px solid var(--line)", background: c.coursePass === "Pass" ? "transparent" : c.isHeldback ? "rgba(192, 38, 211, 0.05)" : c.isHeld ? "rgba(147, 51, 234, 0.04)" : "rgba(239, 68, 68, 0.03)" }}>
                                             <td style={{ padding: "6px 10px", fontWeight: 600 }}>{c.courseCode}</td>
                                             <td style={{ padding: "6px 10px" }}>{c.courseName}</td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.isHeld ? (
+                                              {c.isHeldback ? (
+                                                <span style={{ color: "#c026d3", fontWeight: 700, background: "rgba(192, 38, 211, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
+                                                  Held
+                                                </span>
+                                              ) : c.isHeld ? (
                                                 <span style={{ color: "#7e22ce", fontWeight: 700, background: "rgba(147, 51, 234, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
                                                   Held
                                                 </span>
@@ -3961,7 +4483,11 @@ export default function AdesResultCalculatorPage() {
                                               ) : "-"}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.isHeld ? (
+                                              {c.isHeldback ? (
+                                                <span style={{ color: "#c026d3", fontWeight: 700, background: "rgba(192, 38, 211, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
+                                                  Held
+                                                </span>
+                                              ) : c.isHeld ? (
                                                 <span style={{ color: "#7e22ce", fontWeight: 700, background: "rgba(147, 51, 234, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
                                                   Held
                                                 </span>
@@ -3969,10 +4495,10 @@ export default function AdesResultCalculatorPage() {
                                                 `${c.courseOverall} / ${c.overallMin ?? "-"}`
                                               ) : "-"}
                                             </td>
-                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.isHeld ? "#7e22ce" : c.esePass === "Pass" ? "#10b981" : "#ef4444" }}>
+                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.isHeldback ? "#c026d3" : c.isHeld ? "#7e22ce" : c.esePass === "Pass" ? "#10b981" : "#ef4444" }}>
                                               {c.esePass || "-"}
                                             </td>
-                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.isHeld ? "#7e22ce" : c.overallPass === "Pass" ? "#10b981" : "#ef4444" }}>
+                                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: c.isHeldback ? "#c026d3" : c.isHeld ? "#7e22ce" : c.overallPass === "Pass" ? "#10b981" : "#ef4444" }}>
                                               {c.overallPass || "-"}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
@@ -3983,7 +4509,11 @@ export default function AdesResultCalculatorPage() {
                                               )}
                                             </td>
                                             <td style={{ padding: "6px 10px", textAlign: "center" }}>
-                                              {c.isHeld ? (
+                                              {c.isHeldback ? (
+                                                <span style={{ color: "#c026d3", fontWeight: 700, background: "rgba(192, 38, 211, 0.15)", padding: "2px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }} title={c.heldbackReason || "Heldback at term-level"}>
+                                                  <Lock size={11} /> Held (Heldback)
+                                                </span>
+                                              ) : c.isHeld ? (
                                                 <span style={{ color: "#7e22ce", fontWeight: 700, background: "rgba(147, 51, 234, 0.15)", padding: "2px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }} title={`Missing: ${c.missingComponents && c.missingComponents.length > 0 ? c.missingComponents.join(", ") : "Required Component"}`}>
                                                   <AlertTriangle size={11} /> Held (Missing {c.missingComponents && c.missingComponents.length > 0 ? c.missingComponents.join(", ") : "Component"})
                                                 </span>
@@ -4888,7 +5418,25 @@ export default function AdesResultCalculatorPage() {
                           Malpractice ({metrics.malpracticeCount})
                         </button>
                       )}
-                      {metrics.heldCount > 0 && (
+                      {metrics.heldbackCount > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => { setSelectedResultFilter("HELDBACK"); setPage(0); }}
+                          style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: selectedResultFilter === "HELDBACK" ? "#c026d3" : "transparent", color: selectedResultFilter === "HELDBACK" ? "white" : "#c026d3" }}
+                        >
+                          Heldback ({metrics.heldbackCount})
+                        </button>
+                      )}
+                      {metrics.missingCompCount > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => { setSelectedResultFilter("HELD_MISSING"); setPage(0); }}
+                          style={{ padding: "3px 8px", fontSize: "11px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: selectedResultFilter === "HELD_MISSING" ? "#9333ea" : "transparent", color: selectedResultFilter === "HELD_MISSING" ? "white" : "#9333ea" }}
+                        >
+                          Missing Comp ({metrics.missingCompCount})
+                        </button>
+                      )}
+                      {metrics.heldbackCount === 0 && metrics.missingCompCount === 0 && metrics.heldCount > 0 && (
                         <button 
                           type="button"
                           onClick={() => { setSelectedResultFilter("HELD"); setPage(0); }}
@@ -5040,28 +5588,31 @@ export default function AdesResultCalculatorPage() {
                     ) : (
                       pagedRows.map((row, idx) => {
                         const globalIdx = page * pageSize + idx + 1;
-                        const isAbsent = !!row._isAbsent;
-                        const isMalpractice = !!row._isMalpractice;
+                        const isHeldback = !!row._isHeldback;
                         const isHeld = !!row._isHeld;
-                        const isPass = !isAbsent && !isMalpractice && !isHeld && row[coursePassKey] === "Pass";
-                        const isModPass = !isAbsent && !isMalpractice && !isHeld && row._isModeratedPass;
+                        const isAbsent = !isHeldback && !!row._isAbsent;
+                        const isMalpractice = !isHeldback && !isAbsent && !!row._isMalpractice;
+                        const isPass = !isHeldback && !isHeld && !isAbsent && !isMalpractice && row[coursePassKey] === "Pass";
+                        const isModPass = !isHeldback && !isHeld && !isAbsent && !isMalpractice && row._isModeratedPass;
 
                         return (
                           <tr 
                             key={globalIdx} 
                             style={{ 
                               borderBottom: "1px solid var(--line)", 
-                              background: isHeld
-                                ? "rgba(147, 51, 234, 0.08)"
-                                : isMalpractice
-                                  ? "rgba(245, 158, 11, 0.08)"
-                                  : isAbsent
-                                    ? "rgba(239, 68, 68, 0.08)"
-                                    : isModPass 
-                                      ? "rgba(245, 158, 11, 0.05)" 
-                                      : isPass 
-                                        ? "transparent" 
-                                        : "rgba(239, 68, 68, 0.04)" 
+                              background: isHeldback
+                                ? "rgba(192, 38, 211, 0.08)"
+                                : isHeld
+                                  ? "rgba(147, 51, 234, 0.08)"
+                                  : isMalpractice
+                                    ? "rgba(245, 158, 11, 0.08)"
+                                    : isAbsent
+                                      ? "rgba(239, 68, 68, 0.08)"
+                                      : isModPass 
+                                        ? "rgba(245, 158, 11, 0.05)" 
+                                        : isPass 
+                                          ? "transparent" 
+                                          : "rgba(239, 68, 68, 0.04)" 
                             }}
                           >
                             <td style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center", color: "var(--muted)" }}>
@@ -5080,7 +5631,14 @@ export default function AdesResultCalculatorPage() {
                               if (isCoursePass) {
                                 return (
                                   <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
-                                    {isHeld ? (
+                                    {isHeldback ? (
+                                      <span 
+                                        style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(192, 38, 211, 0.2)", color: "#c026d3", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }} 
+                                        title={`Heldback: ${row._heldbackReason || "APC Within Condonable Limit"}`}
+                                      >
+                                        <Lock size={11} /> Held (Heldback)
+                                      </span>
+                                    ) : isHeld ? (
                                       <span 
                                         style={{ display: "inline-flex", alignItems: "center", gap: "3px", background: "rgba(147, 51, 234, 0.18)", color: "#7e22ce", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }} 
                                         title={`Held: Missing required component(s) [${(row._missingComponents || []).join(", ")}]`}
@@ -5171,13 +5729,14 @@ export default function AdesResultCalculatorPage() {
 
                               if (isOtherPass) {
                                 const passVal = String(val);
+                                const isHeldbackOther = isHeldback || passVal === "Held (Heldback)";
                                 const isHeldOther = passVal === "Held";
                                 return (
                                   <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center" }}>
                                     <span style={{ 
-                                      color: isHeldOther ? "#7e22ce" : passVal === "Pass" ? "#10b981" : "#ef4444",
+                                      color: isHeldbackOther ? "#c026d3" : isHeldOther ? "#7e22ce" : passVal === "Pass" ? "#10b981" : "#ef4444",
                                       fontWeight: 600,
-                                      background: isHeldOther ? "rgba(147, 51, 234, 0.12)" : passVal === "Pass" ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
+                                      background: isHeldbackOther ? "rgba(192, 38, 211, 0.12)" : isHeldOther ? "rgba(147, 51, 234, 0.12)" : passVal === "Pass" ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
                                       padding: "1px 5px",
                                       borderRadius: "3px"
                                     }}>
