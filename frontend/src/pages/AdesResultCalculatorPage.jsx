@@ -45,7 +45,8 @@ import {
   FileCheck,
   Scale,
   GitCompare,
-  ArrowRightLeft
+  ArrowRightLeft,
+  FileText
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
