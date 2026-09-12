@@ -223,18 +223,33 @@ h3 { font-size: 16px; font-weight: 700; }
 /* ==========================================================================
    Desktop App Window Framing & Safe Padding (macOS Electron)
    ========================================================================== */
+html.is-electron-mac,
 body.is-electron-mac {
   user-select: none;
 }
 
+html.is-electron-mac header,
 body.is-electron-mac header,
-body.is-electron-mac nav {
-  padding-left: 84px !important;
+html.is-electron-mac nav,
+body.is-electron-mac nav,
+html.is-electron-mac .app-top-header,
+body.is-electron-mac .app-top-header,
+.is-electron-mac header,
+.is-electron-mac nav,
+.is-electron-mac .app-top-header {
+  padding-left: 96px !important;
   -webkit-app-region: drag;
 }
 
+html.is-electron-mac header *,
 body.is-electron-mac header *,
-body.is-electron-mac nav * {
+html.is-electron-mac nav *,
+body.is-electron-mac nav *,
+html.is-electron-mac .app-top-header *,
+body.is-electron-mac .app-top-header *,
+.is-electron-mac header *,
+.is-electron-mac nav *,
+.is-electron-mac .app-top-header * {
   -webkit-app-region: no-drag;
 }
 

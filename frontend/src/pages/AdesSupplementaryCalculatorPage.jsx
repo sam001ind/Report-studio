@@ -7370,11 +7370,12 @@ export default function AdesSupplementaryCalculatorPage() {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", overflow: "hidden", background: "var(--bg)", color: "var(--ink)" }}>
       
       {/* Top Application Bar */}
-      <header style={{ 
+      <header className="app-top-header" style={{ 
         display: "flex", 
         justifyContent: "space-between", 
         alignItems: "center", 
         padding: "10px 24px", 
+        paddingLeft: (typeof window !== "undefined" && ((window.electronAPI && window.electronAPI.isDesktop) || /Electron/i.test(navigator.userAgent)) && /Mac/i.test(navigator.platform || navigator.userAgent)) ? "96px" : "24px",
         borderBottom: "1px solid var(--line)", 
         background: "var(--panel)", 
         flexShrink: 0,

@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Report Studio</title>
+    <script>
+      (function() {
+        try {
+          var isElectron = (typeof window !== 'undefined' && (
+            (window.electronAPI && window.electronAPI.isDesktop) ||
+            navigator.userAgent.indexOf('Electron') > -1
+          ));
+          var isMac = /Mac|iPhone|iPod|iPad/i.test(navigator.platform) || /Macintosh|Mac OS X/i.test(navigator.userAgent);
+          if (isElectron && isMac) {
+            document.documentElement.classList.add('is-electron-mac');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
