@@ -47,7 +47,14 @@ import {
   GitCompare,
   ArrowRightLeft,
   FileText,
-  Trash2
+  Trash2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Columns,
+  Maximize2,
+  Minimize2,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -446,9 +453,61 @@ export default function AdesSupplementaryCalculatorPage() {
   const [columnFilters, setColumnFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ column: null, direction: null });
   const [page, setPage] = useState(0);
-  const pageSize = 50;
+  const [pageSize, setPageSize] = useState(50);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [sheetMetadata, setSheetMetadata] = useState({});
+
+  // View Options & Sidebar Customization
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(250); // Default reduced from 320 to 250
+  const [tableDensity, setTableDensity] = useState("normal"); // "compact" | "normal" | "comfortable"
+  const [columnPreset, setColumnPreset] = useState("ALL"); // "ALL" | "ESSENTIAL" | "SCORES" | "CUSTOM"
+  const [visibleColumns, setVisibleColumns] = useState(() => new Set(ADES_OUTPUT_HEADERS));
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [isTableMaximized, setIsTableMaximized] = useState(false);
+
+  // Dynamic Column List based on user selected preset or custom picker
+  const displayedHeaders = useMemo(() => {
+    if (columnPreset === "ALL") return ADES_OUTPUT_HEADERS;
+    if (columnPreset === "ESSENTIAL") {
+      const essentialSet = new Set([
+        "Course Code",
+        "Course Name",
+        "Seat Number",
+        "PRN",
+        "ESE - TH Obtained",
+        "CE - TH Obtained",
+        "Course Overall Marks ",
+        "ESE Pass",
+        "Course Pass/Fail",
+        "Moderation Marks"
+      ]);
+      return ADES_OUTPUT_HEADERS.filter(h => essentialSet.has(h));
+    }
+    if (columnPreset === "SCORES") {
+      const scoresSet = new Set([
+        "Seat Number",
+        "PRN",
+        "Course Code",
+        "Course Name",
+        "ESE - PR Obtained",
+        "ESE - TH Obtained",
+        "ESE Overall",
+        "CE - PR Obtained",
+        "CE - TH Obtained",
+        "CE Overall Marks ",
+        "Course Overall Marks ",
+        "ESE Pass",
+        "Course Pass/Fail",
+        "Moderation Marks"
+      ]);
+      return ADES_OUTPUT_HEADERS.filter(h => scoresSet.has(h));
+    }
+    if (columnPreset === "CUSTOM") {
+      return ADES_OUTPUT_HEADERS.filter(h => visibleColumns.has(h));
+    }
+    return ADES_OUTPUT_HEADERS;
+  }, [columnPreset, visibleColumns]);
 
   const setStatus = (msg, type = "info") => {
     setStatusMsg(msg);
@@ -7285,9 +7344,10 @@ export default function AdesSupplementaryCalculatorPage() {
   }, [scopedCourseRows, selectedResultFilter, sortConfig]);
 
   const pagedRows = useMemo(() => {
-    const start = page * pageSize;
-    return filteredRows.slice(start, start + pageSize);
-  }, [filteredRows, page]);
+    const size = pageSize === "ALL" ? (filteredRows.length || 1) : Number(pageSize);
+    const start = page * size;
+    return filteredRows.slice(start, start + size);
+  }, [filteredRows, page, pageSize]);
 
   // Export to Excel Matching exact 31 columns structure with "Output file " sheet name
   const handleExportExcel = (rowsToExport = filteredRows, customFilename = null) => {
@@ -7370,131 +7430,133 @@ export default function AdesSupplementaryCalculatorPage() {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", overflow: "hidden", background: "var(--bg)", color: "var(--ink)" }}>
       
       {/* Top Application Bar */}
-      <header className="app-top-header" style={{ 
-        display: "flex", 
-        justifyContent: "space-between", 
-        alignItems: "center", 
-        padding: "10px 24px", 
-        paddingLeft: (typeof window !== "undefined" && ((window.electronAPI && window.electronAPI.isDesktop) || /Electron/i.test(navigator.userAgent)) && /Mac/i.test(navigator.platform || navigator.userAgent)) ? "96px" : "24px",
-        borderBottom: "1px solid var(--line)", 
-        background: "var(--panel)", 
-        flexShrink: 0,
-        gap: "12px",
-        flexWrap: "wrap"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
-          <Link to="/" style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            gap: "6px", 
-            color: "var(--ink)", 
-            textDecoration: "none", 
-            fontSize: "12.5px", 
-            fontWeight: 600,
-            padding: "5px 12px",
-            borderRadius: "8px",
-            background: "var(--bg)",
-            border: "1px solid var(--line)",
-            transition: "all 0.15s ease"
-          }}>
-            <ArrowLeft size={15} /> Back
-          </Link>
-          <div style={{ height: "20px", width: "1px", background: "var(--line)" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ 
-              width: "32px", 
-              height: "32px", 
-              borderRadius: "8px", 
-              background: "rgba(99, 102, 241, 0.12)", 
+      {!isTableMaximized && (
+        <header className="app-top-header" style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center", 
+          padding: "10px 24px", 
+          paddingLeft: (typeof window !== "undefined" && ((window.electronAPI && window.electronAPI.isDesktop) || /Electron/i.test(navigator.userAgent)) && /Mac/i.test(navigator.platform || navigator.userAgent)) ? "96px" : "24px",
+          borderBottom: "1px solid var(--line)", 
+          background: "var(--panel)", 
+          flexShrink: 0,
+          gap: "12px",
+          flexWrap: "wrap"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+            <Link to="/" style={{ 
               display: "flex", 
               alignItems: "center", 
-              justifyContent: "center",
-              flexShrink: 0 
+              gap: "6px", 
+              color: "var(--ink)", 
+              textDecoration: "none", 
+              fontSize: "12.5px", 
+              fontWeight: 600,
+              padding: "5px 12px",
+              borderRadius: "8px",
+              background: "var(--bg)",
+              border: "1px solid var(--line)",
+              transition: "all 0.15s ease"
             }}>
-              <Calculator size={18} color="#6366f1" />
+              <ArrowLeft size={15} /> Back
+            </Link>
+            <div style={{ height: "20px", width: "1px", background: "var(--line)" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ 
+                width: "32px", 
+                height: "32px", 
+                borderRadius: "8px", 
+                background: "rgba(99, 102, 241, 0.12)", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                flexShrink: 0 
+              }}>
+                <Calculator size={18} color="#6366f1" />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <h2 style={{ fontSize: "15px", fontWeight: 700, margin: 0, color: "var(--ink)", letterSpacing: "-0.2px" }}>
+                  ADES Supplementary / Improvement Calculator
+                </h2>
+                <span style={{ fontSize: "10.5px", background: "rgba(99, 102, 241, 0.15)", color: "#6366f1", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
+                  Multi-Event Baseline
+                </span>
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <h2 style={{ fontSize: "15px", fontWeight: 700, margin: 0, color: "var(--ink)", letterSpacing: "-0.2px" }}>
-                ADES Supplementary / Improvement Calculator
-              </h2>
-              <span style={{ fontSize: "10.5px", background: "rgba(99, 102, 241, 0.15)", color: "#6366f1", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
-                Multi-Event Baseline
+
+            {/* Mode Switcher Pill */}
+            <div style={{ display: "flex", gap: "3px", background: "var(--bg)", padding: "3px", borderRadius: "9px", border: "1px solid var(--line)" }}>
+              <Link 
+                to="/ades-result-calculator"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  padding: "3px 9px",
+                  fontSize: "11.5px",
+                  fontWeight: 600,
+                  color: "var(--muted)",
+                  borderRadius: "6px",
+                  textDecoration: "none"
+                }}
+              >
+                🎓 Regular Event
+              </Link>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  padding: "3px 9px",
+                  fontSize: "11.5px",
+                  fontWeight: 700,
+                  background: "#6366f1",
+                  color: "white",
+                  borderRadius: "6px",
+                  boxShadow: "0 1px 3px rgba(99, 102, 241, 0.3)"
+                }}
+              >
+                🔄 Supplementary &amp; Improvement
               </span>
             </div>
           </div>
 
-          {/* Mode Switcher Pill */}
-          <div style={{ display: "flex", gap: "3px", background: "var(--bg)", padding: "3px", borderRadius: "9px", border: "1px solid var(--line)" }}>
-            <Link 
-              to="/ades-result-calculator"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "5px",
-                padding: "3px 9px",
-                fontSize: "11.5px",
-                fontWeight: 600,
-                color: "var(--muted)",
-                borderRadius: "6px",
-                textDecoration: "none"
-              }}
-            >
-              🎓 Regular Event
-            </Link>
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "5px",
-                padding: "3px 9px",
-                fontSize: "11.5px",
-                fontWeight: 700,
-                background: "#6366f1",
-                color: "white",
-                borderRadius: "6px",
-                boxShadow: "0 1px 3px rgba(99, 102, 241, 0.3)"
-              }}
-            >
-              🔄 Supplementary &amp; Improvement
-            </span>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-          <button 
-            type="button" 
-            className="secondary" 
-            onClick={() => setShowHelpModal(true)}
-            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px", borderRadius: "8px" }}
-          >
-            <HelpCircle size={14} /> Guide
-          </button>
-
-          {processedRows.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <button 
               type="button" 
-              onClick={() => handleExportExcel(filteredRows)}
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                gap: "6px", 
-                padding: "6px 14px", 
-                fontSize: "12.5px", 
-                background: "var(--accent)", 
-                color: "white", 
-                border: "none", 
-                borderRadius: "8px", 
-                fontWeight: 600, 
-                cursor: "pointer",
-                boxShadow: "0 2px 6px rgba(0,0,0,0.08)"
-              }}
-              title={filteredRows.length !== processedRows.length ? `Export current filtered view (${filteredRows.length} rows)` : "Export all 31-column ADES results"}
+              className="secondary" 
+              onClick={() => setShowHelpModal(true)}
+              style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px", borderRadius: "8px" }}
             >
-              <Download size={14} /> Export 31-Col XLSX ({filteredRows.length !== processedRows.length ? `${filteredRows.length}/${processedRows.length}` : `${filteredRows.length}`})
+              <HelpCircle size={14} /> Guide
             </button>
-          )}
-        </div>
-      </header>
+
+            {processedRows.length > 0 && (
+              <button 
+                type="button" 
+                onClick={() => handleExportExcel(filteredRows)}
+                style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "6px", 
+                  padding: "6px 14px", 
+                  fontSize: "12.5px", 
+                  background: "var(--accent)", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: "8px", 
+                  fontWeight: 600, 
+                  cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.08)"
+                }}
+                title={filteredRows.length !== processedRows.length ? `Export current filtered view (${filteredRows.length} rows)` : "Export all 31-column ADES results"}
+              >
+                <Download size={14} /> Export 31-Col XLSX ({filteredRows.length !== processedRows.length ? `${filteredRows.length}/${processedRows.length}` : `${filteredRows.length}`})
+              </button>
+            )}
+          </div>
+        </header>
+      )}
 
       {/* Sub-Header: Segmented Tab Bar & Secondary Export Actions */}
       <div style={{ 
@@ -7690,14 +7752,94 @@ export default function AdesSupplementaryCalculatorPage() {
               <Download size={13} /> Export Simulation (+0..+10)
             </button>
           )}
+
+          {/* Sidebar Collapse/Expand Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed(c => !c)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 10px",
+              fontSize: "11.5px",
+              fontWeight: 600,
+              background: isSidebarCollapsed ? "var(--accent-soft)" : "var(--bg)",
+              color: isSidebarCollapsed ? "var(--accent)" : "var(--ink)",
+              border: `1px solid ${isSidebarCollapsed ? "var(--accent)" : "var(--line)"}`,
+              borderRadius: "7px",
+              cursor: "pointer",
+              transition: "all 0.15s ease"
+            }}
+            title={isSidebarCollapsed ? "Expand files and configuration sidebar" : "Collapse sidebar to maximize table width"}
+          >
+            {isSidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+            <span>{isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}</span>
+          </button>
         </div>
       </div>
 
       {/* Main Workspace Layout */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
         
         {/* Left Sidebar / Config Panel */}
-        <aside style={{ width: "320px", borderRight: "1px solid var(--line)", background: "var(--panel)", display: "flex", flexDirection: "column", flexShrink: 0, overflowY: "auto", padding: "16px", gap: "16px" }}>
+        <aside style={{ 
+          width: isSidebarCollapsed ? "0px" : `${sidebarWidth}px`, 
+          borderRight: isSidebarCollapsed ? "none" : "1px solid var(--line)", 
+          background: "var(--panel)", 
+          display: isSidebarCollapsed ? "none" : "flex", 
+          flexDirection: "column", 
+          flexShrink: 0, 
+          overflowY: "auto", 
+          overflowX: "hidden",
+          padding: isSidebarCollapsed ? "0" : "12px", 
+          gap: "12px",
+          transition: "width 0.2s ease" 
+        }}>
+          
+          {/* Sidebar Header with Width Presets and Close Button */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--line)", paddingBottom: "8px", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Layers size={14} color="var(--accent)" />
+              <span style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--ink)" }}>Files &amp; Controls</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <div style={{ display: "flex", background: "var(--bg)", borderRadius: "4px", padding: "1px", border: "1px solid var(--line)" }}>
+                <button
+                  type="button"
+                  onClick={() => setSidebarWidth(220)}
+                  title="Slim Sidebar (220px)"
+                  style={{ padding: "2px 5px", fontSize: "9.5px", fontWeight: 600, border: "none", borderRadius: "3px", cursor: "pointer", background: sidebarWidth === 220 ? "var(--accent)" : "transparent", color: sidebarWidth === 220 ? "white" : "var(--muted)" }}
+                >
+                  Slim
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarWidth(250)}
+                  title="Default Sidebar (250px)"
+                  style={{ padding: "2px 5px", fontSize: "9.5px", fontWeight: 600, border: "none", borderRadius: "3px", cursor: "pointer", background: sidebarWidth === 250 ? "var(--accent)" : "transparent", color: sidebarWidth === 250 ? "white" : "var(--muted)" }}
+                >
+                  250px
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarWidth(300)}
+                  title="Wide Sidebar (300px)"
+                  style={{ padding: "2px 5px", fontSize: "9.5px", fontWeight: 600, border: "none", borderRadius: "3px", cursor: "pointer", background: sidebarWidth === 300 ? "var(--accent)" : "transparent", color: sidebarWidth === 300 ? "white" : "var(--muted)" }}
+                >
+                  300px
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(true)}
+                title="Collapse sidebar to maximize table width"
+                style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", padding: "3px", borderRadius: "4px", display: "flex", alignItems: "center" }}
+              >
+                <PanelLeftClose size={14} />
+              </button>
+            </div>
+          </div>
           
           {/* File Upload Box */}
           <div style={{ 
@@ -11146,7 +11288,198 @@ export default function AdesSupplementaryCalculatorPage() {
                     )}
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    
+                    {/* View Controls Group */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                      
+                      {/* Column Preset Pills */}
+                      <div style={{ display: "flex", alignItems: "center", background: "var(--bg)", borderRadius: "6px", border: "1px solid var(--line)", padding: "2px", gap: "2px" }}>
+                        <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--muted)", padding: "0 4px" }}>Cols:</span>
+                        <button
+                          type="button"
+                          onClick={() => setColumnPreset("ALL")}
+                          style={{
+                            padding: "3px 7px",
+                            fontSize: "10.5px",
+                            fontWeight: 600,
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            background: columnPreset === "ALL" ? "var(--accent)" : "transparent",
+                            color: columnPreset === "ALL" ? "white" : "var(--muted)"
+                          }}
+                          title="Show all 31 university output columns"
+                        >
+                          All (31)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setColumnPreset("ESSENTIAL")}
+                          style={{
+                            padding: "3px 7px",
+                            fontSize: "10.5px",
+                            fontWeight: 600,
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            background: columnPreset === "ESSENTIAL" ? "var(--accent)" : "transparent",
+                            color: columnPreset === "ESSENTIAL" ? "white" : "var(--muted)"
+                          }}
+                          title="Show only key columns: Code, Name, Seat, PRN, ESE Obt, CE Obt, Total, Status, Mod"
+                        >
+                          ⭐ Essential (10)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setColumnPreset("SCORES")}
+                          style={{
+                            padding: "3px 7px",
+                            fontSize: "10.5px",
+                            fontWeight: 600,
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            background: columnPreset === "SCORES" ? "var(--accent)" : "transparent",
+                            color: columnPreset === "SCORES" ? "white" : "var(--muted)"
+                          }}
+                          title="Show student identifiers and all obtained marks breakdown"
+                        >
+                          📊 Scores (14)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowColumnPicker(v => !v)}
+                          style={{
+                            padding: "3px 7px",
+                            fontSize: "10.5px",
+                            fontWeight: 600,
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            background: (columnPreset === "CUSTOM" || showColumnPicker) ? "var(--accent)" : "transparent",
+                            color: (columnPreset === "CUSTOM" || showColumnPicker) ? "white" : "var(--muted)"
+                          }}
+                          title="Customize column visibility with checkboxes"
+                        >
+                          <Columns size={11} /> {columnPreset === "CUSTOM" ? `Custom (${visibleColumns.size})` : "Pick..."}
+                        </button>
+                      </div>
+
+                      {/* Density Selector */}
+                      <div style={{ display: "flex", alignItems: "center", background: "var(--bg)", borderRadius: "6px", border: "1px solid var(--line)", padding: "2px", gap: "2px" }}>
+                        <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--muted)", padding: "0 4px" }}>Density:</span>
+                        <button
+                          type="button"
+                          onClick={() => setTableDensity("compact")}
+                          style={{
+                            padding: "3px 6px",
+                            fontSize: "10.5px",
+                            fontWeight: 600,
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            background: tableDensity === "compact" ? "var(--accent)" : "transparent",
+                            color: tableDensity === "compact" ? "white" : "var(--muted)"
+                          }}
+                          title="Compact row spacing to view more data on screen"
+                        >
+                          Compact
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTableDensity("normal")}
+                          style={{
+                            padding: "3px 6px",
+                            fontSize: "10.5px",
+                            fontWeight: 600,
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            background: tableDensity === "normal" ? "var(--accent)" : "transparent",
+                            color: tableDensity === "normal" ? "white" : "var(--muted)"
+                          }}
+                          title="Standard row spacing"
+                        >
+                          Normal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTableDensity("comfortable")}
+                          style={{
+                            padding: "3px 6px",
+                            fontSize: "10.5px",
+                            fontWeight: 600,
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            background: tableDensity === "comfortable" ? "var(--accent)" : "transparent",
+                            color: tableDensity === "comfortable" ? "white" : "var(--muted)"
+                          }}
+                          title="Roomy spacing"
+                        >
+                          Roomy
+                        </button>
+                      </div>
+
+                      {/* Page Size Dropdown */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>Rows:</span>
+                        <select
+                          value={pageSize}
+                          onChange={(e) => {
+                            const val = e.target.value === "ALL" ? "ALL" : Number(e.target.value);
+                            setPageSize(val);
+                            setPage(0);
+                          }}
+                          style={{
+                            padding: "3px 6px",
+                            fontSize: "11px",
+                            borderRadius: "5px",
+                            border: "1px solid var(--line)",
+                            background: "var(--bg)",
+                            cursor: "pointer"
+                          }}
+                        >
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                          <option value={250}>250</option>
+                          <option value="ALL">All ({filteredRows.length})</option>
+                        </select>
+                      </div>
+
+                      {/* Focus / Maximize Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsTableMaximized(v => !v);
+                          if (!isTableMaximized) setIsSidebarCollapsed(true);
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "4px 8px",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          borderRadius: "5px",
+                          border: `1px solid ${isTableMaximized ? "var(--accent)" : "var(--line)"}`,
+                          background: isTableMaximized ? "var(--accent-soft)" : "var(--bg)",
+                          color: isTableMaximized ? "var(--accent)" : "var(--muted)",
+                          cursor: "pointer"
+                        }}
+                        title={isTableMaximized ? "Restore standard view" : "Focus Mode: maximize table to full workspace"}
+                      >
+                        {isTableMaximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                        <span>{isTableMaximized ? "Restore" : "Focus"}</span>
+                      </button>
+
+                    </div>
+
                     <button 
                       type="button" 
                       onClick={() => handleExportExcel(filteredRows)}
@@ -11156,41 +11489,170 @@ export default function AdesSupplementaryCalculatorPage() {
                       <Download size={12} /> Export Current View ({filteredRows.length})
                     </button>
 
-                    <span style={{ fontSize: "12px", color: "var(--muted)" }}>
-                      Showing {filteredRows.length > 0 ? page * pageSize + 1 : 0} - {Math.min((page + 1) * pageSize, filteredRows.length)} of {filteredRows.length} rows
+                    <span style={{ fontSize: "11.5px", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                      Showing {filteredRows.length > 0 ? page * (pageSize === "ALL" ? filteredRows.length : pageSize) + 1 : 0} - {pageSize === "ALL" ? filteredRows.length : Math.min((page + 1) * pageSize, filteredRows.length)} of {filteredRows.length} rows
                     </span>
 
                     {/* Pagination Controls */}
-                    <div style={{ display: "flex", gap: "4px" }}>
-                      <button 
-                        type="button" 
-                        disabled={page === 0}
-                        onClick={() => setPage(p => Math.max(0, p - 1))}
-                        style={{ padding: "3px 8px", fontSize: "11px", borderRadius: "4px", border: "1px solid var(--line)", background: "var(--bg)", cursor: page === 0 ? "not-allowed" : "pointer", opacity: page === 0 ? 0.5 : 1 }}
-                      >
-                        Prev
-                      </button>
-                      <button 
-                        type="button" 
-                        disabled={(page + 1) * pageSize >= filteredRows.length}
-                        onClick={() => setPage(p => p + 1)}
-                        style={{ padding: "3px 8px", fontSize: "11px", borderRadius: "4px", border: "1px solid var(--line)", background: "var(--bg)", cursor: (page + 1) * pageSize >= filteredRows.length ? "not-allowed" : "pointer", opacity: (page + 1) * pageSize >= filteredRows.length ? 0.5 : 1 }}
-                      >
-                        Next
-                      </button>
-                    </div>
+                    {pageSize !== "ALL" && (
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        <button 
+                          type="button" 
+                          disabled={page === 0}
+                          onClick={() => setPage(p => Math.max(0, p - 1))}
+                          style={{ padding: "3px 8px", fontSize: "11px", borderRadius: "4px", border: "1px solid var(--line)", background: "var(--bg)", cursor: page === 0 ? "not-allowed" : "pointer", opacity: page === 0 ? 0.5 : 1 }}
+                        >
+                          Prev
+                        </button>
+                        <button 
+                          type="button" 
+                          disabled={(page + 1) * pageSize >= filteredRows.length}
+                          onClick={() => setPage(p => p + 1)}
+                          style={{ padding: "3px 8px", fontSize: "11px", borderRadius: "4px", border: "1px solid var(--line)", background: "var(--bg)", cursor: (page + 1) * pageSize >= filteredRows.length ? "not-allowed" : "pointer", opacity: (page + 1) * pageSize >= filteredRows.length ? 0.5 : 1 }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                 </div>
+
+                {/* Column Picker Modal / Popover */}
+                {showColumnPicker && (
+                  <div 
+                    style={{
+                      position: "absolute",
+                      right: "20px",
+                      top: "85px",
+                      zIndex: 60,
+                      background: "var(--panel)",
+                      border: "1px solid var(--line)",
+                      borderRadius: "10px",
+                      boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+                      width: "320px",
+                      maxHeight: "440px",
+                      display: "flex",
+                      flexDirection: "column",
+                      padding: "12px"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", borderBottom: "1px solid var(--line)", paddingBottom: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Columns size={14} color="var(--accent)" />
+                        <span style={{ fontSize: "12px", fontWeight: 700 }}>Choose Columns ({visibleColumns.size}/{ADES_OUTPUT_HEADERS.length})</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowColumnPicker(false)}
+                        style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", padding: "2px" }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVisibleColumns(new Set(ADES_OUTPUT_HEADERS));
+                          setColumnPreset("ALL");
+                        }}
+                        style={{ flex: 1, padding: "3px 6px", fontSize: "10.5px", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "4px", cursor: "pointer", fontWeight: 600 }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setColumnPreset("ESSENTIAL");
+                          setVisibleColumns(new Set([
+                            "Course Code", "Course Name", "Seat Number", "PRN", 
+                            "ESE - TH Obtained", "CE - TH Obtained", "Course Overall Marks ", 
+                            "ESE Pass", "Course Pass/Fail", "Moderation Marks"
+                          ]));
+                        }}
+                        style={{ flex: 1, padding: "3px 6px", fontSize: "10.5px", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "4px", cursor: "pointer", fontWeight: 600 }}
+                      >
+                        Essential
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setColumnPreset("SCORES");
+                          setVisibleColumns(new Set([
+                            "Seat Number", "PRN", "Course Code", "Course Name",
+                            "ESE - PR Obtained", "ESE - TH Obtained", "ESE Overall",
+                            "CE - PR Obtained", "CE - TH Obtained", "CE Overall Marks ",
+                            "Course Overall Marks ", "ESE Pass", "Course Pass/Fail", "Moderation Marks"
+                          ]));
+                        }}
+                        style={{ flex: 1, padding: "3px 6px", fontSize: "10.5px", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "4px", cursor: "pointer", fontWeight: 600 }}
+                      >
+                        Scores
+                      </button>
+                    </div>
+
+                    <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px", paddingRight: "4px" }}>
+                      {ADES_OUTPUT_HEADERS.map((col) => {
+                        const isChecked = visibleColumns.has(col);
+                        return (
+                          <label 
+                            key={col} 
+                            style={{ 
+                              display: "flex", 
+                              alignItems: "center", 
+                              gap: "8px", 
+                              fontSize: "11px", 
+                              padding: "3px 6px", 
+                              borderRadius: "4px", 
+                              cursor: "pointer",
+                              background: isChecked ? "var(--bg)" : "transparent"
+                            }}
+                          >
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const next = new Set(visibleColumns);
+                                if (e.target.checked) next.add(col);
+                                else next.delete(col);
+                                setVisibleColumns(next);
+                                setColumnPreset("CUSTOM");
+                              }}
+                              style={{ cursor: "pointer" }}
+                            />
+                            <span style={{ color: isChecked ? "var(--ink)" : "var(--muted)", fontWeight: isChecked ? 600 : 400 }}>{col}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px", borderTop: "1px solid var(--line)", paddingTop: "8px" }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowColumnPicker(false)}
+                        style={{ padding: "4px 12px", fontSize: "11px", fontWeight: 600, background: "var(--accent)", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Data Table Grid */}
               <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px", whiteSpace: "nowrap" }}>
+                <table style={{ 
+                  width: "100%", 
+                  borderCollapse: "collapse", 
+                  fontSize: tableDensity === "compact" ? "10.5px" : tableDensity === "comfortable" ? "12px" : "11.5px", 
+                  whiteSpace: "nowrap" 
+                }}>
                   <thead style={{ position: "sticky", top: 0, background: "var(--panel)", zIndex: 10, borderBottom: "1px solid var(--line)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                     <tr>
-                      <th style={{ padding: "6px 8px", borderRight: "1px solid var(--line)", textAlign: "center", width: "40px", color: "var(--muted)" }}>#</th>
-                      {ADES_OUTPUT_HEADERS.map((header) => {
+                      <th style={{ padding: tableDensity === "compact" ? "3px 6px" : tableDensity === "comfortable" ? "8px 10px" : "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center", width: "40px", color: "var(--muted)" }}>#</th>
+                      {displayedHeaders.map((header) => {
                         const isSorted = sortConfig.column === header;
                         const isPassCol = header.includes("Pass") || header.includes("Pass/Fail");
                         const isModCol = header === "Moderation Marks";
@@ -11199,7 +11661,7 @@ export default function AdesSupplementaryCalculatorPage() {
                           <th 
                             key={header} 
                             style={{ 
-                              padding: "6px 8px", 
+                              padding: tableDensity === "compact" ? "3px 6px" : tableDensity === "comfortable" ? "8px 10px" : "5px 8px", 
                               borderRight: "1px solid var(--line)", 
                               textAlign: "left", 
                               color: isPassCol ? "var(--ink)" : isModCol ? "#f59e0b" : "var(--muted)", 
@@ -11240,7 +11702,7 @@ export default function AdesSupplementaryCalculatorPage() {
                   <tbody>
                     {pagedRows.length === 0 ? (
                       <tr>
-                        <td colSpan={ADES_OUTPUT_HEADERS.length + 1} style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
+                        <td colSpan={displayedHeaders.length + 1} style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
                           {processedRows.length === 0 
                             ? "Upload an ADES Marks Excel sheet (.xlsx, .xls) to view calculated student course results and apply moderation." 
                             : "No student records match the active search or column filters."}
@@ -11248,7 +11710,7 @@ export default function AdesSupplementaryCalculatorPage() {
                       </tr>
                     ) : (
                       pagedRows.map((row, idx) => {
-                        const globalIdx = page * pageSize + idx + 1;
+                        const globalIdx = page * (pageSize === "ALL" ? filteredRows.length : pageSize) + idx + 1;
                         const isHeldback = !!row._isHeldback;
                         const isHeld = !!row._isHeld;
                         const isAbsent = !isHeldback && !!row._isAbsent;
@@ -11276,11 +11738,11 @@ export default function AdesSupplementaryCalculatorPage() {
                                           : "rgba(239, 68, 68, 0.04)" 
                             }}
                           >
-                            <td style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center", color: "var(--muted)" }}>
+                            <td style={{ padding: tableDensity === "compact" ? "3px 6px" : tableDensity === "comfortable" ? "8px 10px" : "5px 8px", borderRight: "1px solid var(--line)", textAlign: "center", color: "var(--muted)" }}>
                               {globalIdx}
                             </td>
 
-                            {ADES_OUTPUT_HEADERS.map((col) => {
+                            {displayedHeaders.map((col) => {
                               const val = row[col];
                               const isCoursePass = col === coursePassKey;
 
