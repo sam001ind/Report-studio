@@ -98,18 +98,18 @@ export const PROGRAM_LOOKUP = {
 };
 
 export const COLLEGE_LOOKUP = {
-  '347': { code: '347', name: 'Government College Madappally' },
-  '358': { code: '358', name: 'Government Arts & Science College Calicut' },
-  '397': { code: '397', name: 'Government Brennen College Dharmadam' },
-  '351': { code: '351', name: 'Government College Kasaragod' },
-  '404': { code: '404', name: 'Government Victoria College Palakkad' },
-  '447': { code: '447', name: 'University Campus Study Center' },
-  '304': { code: '304', name: 'Government College Mananthavady' },
-  'madappally': { code: '347', name: 'Government College Madappally' },
-  'brennen': { code: '397', name: 'Government Brennen College Dharmadam' },
-  'kasaragod': { code: '351', name: 'Government College Kasaragod' },
-  'victoria': { code: '404', name: 'Government Victoria College Palakkad' },
-  'calicut': { code: '358', name: 'Government Arts & Science College Calicut' }
+  '101': { code: '101', name: 'Alpha Arts and Science College' },
+  '102': { code: '102', name: 'Beta Commerce and Science College' },
+  '103': { code: '103', name: 'Gamma Government College' },
+  '104': { code: '104', name: 'Delta Arts College' },
+  '105': { code: '105', name: 'Epsilon Science College' },
+  '106': { code: '106', name: 'University Campus Study Center' },
+  '107': { code: '107', name: 'Zeta Government College' },
+  'alpha': { code: '101', name: 'Alpha Arts and Science College' },
+  'gamma': { code: '103', name: 'Gamma Government College' },
+  'delta': { code: '104', name: 'Delta Arts College' },
+  'epsilon': { code: '105', name: 'Epsilon Science College' },
+  'beta': { code: '102', name: 'Beta Commerce and Science College' }
 };
 
 export const TARGET_COLUMNS = [

@@ -10,7 +10,7 @@ export const DEFAULT_REPORT_TEMPLATE = {
     width: 18
   },
   headersList: [
-    { id: 'h1', text: 'Kannur University', size: 15, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' },
+    { id: 'h1', text: 'Sample University', size: 15, bold: true, italic: false, align: 'center', color: '#000000', font: 'helvetica' },
     { id: 'h2', text: '(Examination Branch)', size: 11, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
     { id: 'h3', text: 'Custom Examination Consolidated Report', size: 10, bold: true, italic: false, align: 'center', color: '#111111', font: 'helvetica' },
     { id: 'h4', text: 'Academic Session 2024 - 2026', size: 9.5, bold: false, italic: false, align: 'center', color: '#222222', font: 'helvetica' }
@@ -46,7 +46,7 @@ export const TEMPLATE_ARCHETYPES = {
 
 /**
  * Intelligent column detector for uploaded Excel columns
- * Fully supports Kannur University, SLL Private Registration, and General University datasets
+ * Fully supports University, SLL Private Registration, and General University datasets
  */
 export function autoDetectDatasetColumns(headers = []) {
   const norm = headers.map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));

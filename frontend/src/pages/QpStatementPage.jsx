@@ -34,7 +34,7 @@ const QpStatementPage = () => {
   const [statusType, setStatusType] = useState('normal'); // 'normal' | 'error' | 'success'
 
   // Header and Configuration settings (Venue-Wise by Default)
-  const [universityName, setUniversityName] = useState('Kannur University');
+  const [universityName, setUniversityName] = useState('Sample University');
   const [branchName, setBranchName] = useState('(Examination Branch)');
   const [examTitle, setExamTitle] = useState('QP Statement for 1st Semester Degree Private Registration Regular/Supplementary Examination');
   const [sessionName, setSessionName] = useState('November 2025');
@@ -799,7 +799,7 @@ const QpStatementPage = () => {
                 type="text" 
                 value={universityName} 
                 onChange={(e) => setUniversityName(e.target.value)} 
-                placeholder="e.g. Kannur University"
+                placeholder="e.g. Sample University"
               />
             </div>
             <div className="form-group">

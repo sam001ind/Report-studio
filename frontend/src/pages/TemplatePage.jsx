@@ -220,11 +220,11 @@ const TemplatePage = ({ dataset = { columns: [], rows: [] }, initialTemplate }) 
   // Realistic Mock Fallback when no dataset is loaded
   const sampleRows = useMemo(() => {
     return [
-      { 'slNo': 1, 'seatNo': '4PR24BB001', 'name': 'ADITHYA K', 'course': 'KU4VACBBA200 - Disaster Management', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Sree Narayana Guru College, Thottada' },
-      { 'slNo': 2, 'seatNo': '4PR24BB002', 'name': 'ANANYA RAJEEV', 'course': 'KU4SECBBA201 - Soft Skills & Personality', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Sree Narayana Guru College, Thottada' },
-      { 'slNo': 3, 'seatNo': '4PR24BB003', 'name': 'FARHAN MOHAMMED', 'course': 'KU4MDCBBA202 - Digital Marketing & E-Commerce', 'status': 'Registered', 'Department': 'Commerce', 'Venue': 'Govt. Brennen College, Thalassery' },
-      { 'slNo': 4, 'seatNo': '4PR24BB004', 'name': 'GAYATHRI S', 'course': 'KU4AECBBA203 - Business Ethics', 'status': 'Registered', 'Department': 'Commerce', 'Venue': 'Govt. Brennen College, Thalassery' },
-      { 'slNo': 5, 'seatNo': '4PR24BB005', 'name': 'HARIKRISHNAN P', 'course': 'KU4VACBBA200 - Disaster Management', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Sree Narayana Guru College, Thottada' }
+      { 'slNo': 1, 'seatNo': 'XT99BB001', 'name': 'STUDENT ALPHA', 'course': 'XT9VACBBA200 - Project Management', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Alpha Arts and Science College, Sample Town' },
+      { 'slNo': 2, 'seatNo': 'XT99BB002', 'name': 'STUDENT BETA', 'course': 'XT9SECBBA201 - Soft Skills & Personality', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Alpha Arts and Science College, Sample Town' },
+      { 'slNo': 3, 'seatNo': 'XT99BB003', 'name': 'STUDENT GAMMA', 'course': 'XT9MDCBBA202 - Digital Marketing & E-Commerce', 'status': 'Registered', 'Department': 'Commerce', 'Venue': 'Beta Commerce and Science College, Example City' },
+      { 'slNo': 4, 'seatNo': 'XT99BB004', 'name': 'STUDENT DELTA', 'course': 'XT9AECBBA203 - Business Ethics', 'status': 'Registered', 'Department': 'Commerce', 'Venue': 'Beta Commerce and Science College, Example City' },
+      { 'slNo': 5, 'seatNo': 'XT99BB005', 'name': 'STUDENT EPSILON', 'course': 'XT9VACBBA200 - Project Management', 'status': 'Registered', 'Department': 'Management Studies', 'Venue': 'Alpha Arts and Science College, Sample Town' }
     ];
   }, []);
 

@@ -30,9 +30,31 @@ const LandingPage = () => {
 
   return (
     <div style={styles.container}>
-      {/* Decorative Background Gradients */}
-      <div style={{...styles.blob, top: '-10%', left: '-10%', background: 'rgba(23, 107, 135, 0.1)'}} />
-      <div style={{...styles.blob, bottom: '-10%', right: '-10%', background: 'rgba(92, 187, 212, 0.1)'}} />
+      {/* High-Performance Decorative Background Gradients (No GPU Blur Repaint) */}
+      <div style={{
+        position: 'absolute',
+        top: '-15%',
+        left: '-10%',
+        width: '55vw',
+        height: '55vw',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(23, 107, 135, 0.08) 0%, transparent 70%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+        transform: 'translateZ(0)'
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '-15%',
+        right: '-10%',
+        width: '55vw',
+        height: '55vw',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(92, 187, 212, 0.08) 0%, transparent 70%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+        transform: 'translateZ(0)'
+      }} />
 
       <nav style={styles.navbar}>
         <div style={styles.logo}>
@@ -319,13 +341,32 @@ const LandingPage = () => {
             onClick={() => navigate('/ades-result-calculator')}
           >
             <div style={styles.featureIcon}><Calculator size={24} color="var(--accent)" /></div>
-            <h3 style={styles.featureTitle}>ADES Result calculator</h3>
-            <p style={styles.featureText}>Aggregate student-course assessments with ESE (30% rule), CE, and 35% aggregate pass logic across 30 master columns.</p>
+            <h3 style={styles.featureTitle}>ADES Result Calculator (Regular)</h3>
+            <p style={styles.featureText}>Aggregate regular student-course assessments with ESE (30% rule), CE, and 35% aggregate pass logic across 30 master columns.</p>
             <div style={styles.cardFooter}>
               <button 
                 type="button" 
                 style={styles.guideBtn} 
                 onClick={(e) => { e.stopPropagation(); setActiveGuideKey('ades-result-calculator'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
+          {/* 15b. ADES Supplementary & Improvement Calculator */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid #6366f1', background: 'linear-gradient(135deg, rgba(99,102,241,0.08), transparent)'}} 
+            onClick={() => navigate('/ades-supplementary-calculator')}
+          >
+            <div style={styles.featureIcon}><Calculator size={24} color="#6366f1" /></div>
+            <h3 style={styles.featureTitle}>ADES Supplementary / Improvement</h3>
+            <p style={styles.featureText}>Aggregate supplementary and improvement exams with multi-event historical carry-forward for CE and ESE components.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('ades-supplementary-calculator'); }}
               >
                 <HelpCircle size={13} /> Extraction Logic & Guide
               </button>
@@ -401,7 +442,7 @@ const LandingPage = () => {
             </div>
 
             <div style={{ padding: '20px', overflowY: 'auto', fontSize: '12.5px', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {selectedGuide.sections.map((sec, idx) => (
+              {(selectedGuide.sections || []).map((sec, idx) => (
                 <div key={idx} style={{ background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px', padding: '12px 14px' }}>
                   <strong style={{ fontSize: '12.5px', color: 'var(--accent)', display: 'block', marginBottom: '4px' }}>
                     {sec.heading}
@@ -439,6 +480,8 @@ const LandingPage = () => {
                   else if (key === 'admission-import') navigate('/admission-import');
                   else if (key === 'course-master-import') navigate('/course-master-import');
                   else if (key === 'affiliated-programs') navigate('/affiliated-programs');
+                  else if (key === 'ades-result-calculator') navigate('/ades-result-calculator');
+                  else if (key === 'ades-supplementary-calculator') navigate('/ades-supplementary-calculator');
                   else if (key === 'scheduler') navigate('/scheduler');
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', background: 'var(--accent)', color: 'white', borderRadius: '6px', border: 'none', fontWeight: 600, fontSize: '12px', cursor: 'pointer' }}
@@ -464,16 +507,19 @@ const styles = {
     overflowX: 'hidden',
     overflowY: 'auto',
     display: 'flex',
-    flexDirection: 'column'
+    flexDirection: 'column',
+    WebkitFontSmoothing: 'antialiased',
+    MozOsxFontSmoothing: 'grayscale',
+    textRendering: 'optimizeLegibility'
   },
   blob: {
     position: 'absolute',
-    width: '60vw',
-    height: '60vw',
+    width: '55vw',
+    height: '55vw',
     borderRadius: '50%',
-    filter: 'blur(100px)',
     zIndex: 0,
-    pointerEvents: 'none'
+    pointerEvents: 'none',
+    transform: 'translateZ(0)'
   },
   navbar: {
     position: 'relative',
@@ -483,8 +529,9 @@ const styles = {
     alignItems: 'center',
     padding: '16px 32px',
     borderBottom: '1px solid var(--line)',
-    background: 'rgba(255, 255, 255, 0.7)',
-    backdropFilter: 'blur(10px)'
+    background: 'var(--panel)',
+    backdropFilter: 'blur(8px)',
+    contain: 'layout style'
   },
   logo: {
     display: 'flex',
@@ -529,8 +576,10 @@ const styles = {
     border: '1px solid var(--line)',
     borderRadius: '12px',
     padding: '20px',
-    transition: 'all 0.2s ease',
+    transition: 'transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s ease',
     boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+    willChange: 'transform',
+    contain: 'paint layout'
   },
   featureIcon: {
     backgroundColor: 'var(--accent-soft)',

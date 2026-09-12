@@ -25,16 +25,16 @@ import {
 import { readSpreadsheetFile } from '../utils/excelParser';
 
 const SAMPLE_NOMINAL_DATA = [
-  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Government College Kasaragod", "Seat_No": "1001", "Student_Name": "Muhammed Rashid K", "Course_Code": "ENG1B01", "Course_Title": "Reading Poetry", "Session": "FN" },
-  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Government College Kasaragod", "Seat_No": "1001", "Student_Name": "Muhammed Rashid K", "Course_Code": "ENG1A01", "Course_Title": "Communication Skills in English", "Session": "AN" },
-  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Government College Kasaragod", "Seat_No": "1002", "Student_Name": "Ananya S Nair", "Course_Code": "ENG1B01", "Course_Title": "Reading Poetry", "Session": "FN" },
-  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Government College Kasaragod", "Seat_No": "1002", "Student_Name": "Ananya S Nair", "Course_Code": "MAL1A07", "Course_Title": "Malayala Bhashayum Sahithyavum", "Session": "AN" },
-  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Government College Kasaragod", "Seat_No": "1003", "Student_Name": "Fathima Hameed", "Course_Code": "ENG1B01", "Course_Title": "Reading Poetry", "Session": "FN" },
-  { "Programme": "B.Sc. Computer Science", "Venue_Code": "102", "Venue_Name": "Payyanur College", "Seat_No": "2001", "Student_Name": "Abhijith T", "Course_Code": "BCS1B01", "Course_Title": "Computer Fundamentals & HTML", "Session": "FN" },
-  { "Programme": "B.Sc. Computer Science", "Venue_Code": "102", "Venue_Name": "Payyanur College", "Seat_No": "2001", "Student_Name": "Abhijith T", "Course_Code": "MAT1C01", "Course_Title": "Mathematics I", "Session": "AN" },
-  { "Programme": "B.Sc. Computer Science", "Venue_Code": "102", "Venue_Name": "Payyanur College", "Seat_No": "2002", "Student_Name": "Devika Menon", "Course_Code": "BCS1B01", "Course_Title": "Computer Fundamentals & HTML", "Session": "FN" },
-  { "Programme": "B.Com Finance", "Venue_Code": "103", "Venue_Name": "Sir Syed College Taliparamba", "Seat_No": "3001", "Student_Name": "Rahul K V", "Course_Code": "BCM1B01", "Course_Title": "Management Concepts & Business Ethics", "Session": "FN" },
-  { "Programme": "B.Com Finance", "Venue_Code": "103", "Venue_Name": "Sir Syed College Taliparamba", "Seat_No": "3002", "Student_Name": "Sneha Prakash", "Course_Code": "BCM1B01", "Course_Title": "Management Concepts & Business Ethics", "Session": "FN" }
+  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Alpha Arts and Science College", "Seat_No": "1001", "Student_Name": "Student Alpha", "Course_Code": "ENG1B01", "Course_Title": "Reading Poetry", "Session": "FN" },
+  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Alpha Arts and Science College", "Seat_No": "1001", "Student_Name": "Student Alpha", "Course_Code": "ENG1A01", "Course_Title": "Communication Skills in English", "Session": "AN" },
+  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Alpha Arts and Science College", "Seat_No": "1002", "Student_Name": "Student Beta", "Course_Code": "ENG1B01", "Course_Title": "Reading Poetry", "Session": "FN" },
+  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Alpha Arts and Science College", "Seat_No": "1002", "Student_Name": "Student Beta", "Course_Code": "LNG1A07", "Course_Title": "Language and Literature", "Session": "AN" },
+  { "Programme": "B.A. English (Private Registration)", "Venue_Code": "101", "Venue_Name": "Alpha Arts and Science College", "Seat_No": "1003", "Student_Name": "Student Gamma", "Course_Code": "ENG1B01", "Course_Title": "Reading Poetry", "Session": "FN" },
+  { "Programme": "B.Sc. Computer Science", "Venue_Code": "102", "Venue_Name": "Beta Commerce and Science College", "Seat_No": "2001", "Student_Name": "Student Delta", "Course_Code": "BCS1B01", "Course_Title": "Computer Fundamentals & HTML", "Session": "FN" },
+  { "Programme": "B.Sc. Computer Science", "Venue_Code": "102", "Venue_Name": "Beta Commerce and Science College", "Seat_No": "2001", "Student_Name": "Student Delta", "Course_Code": "MAT1C01", "Course_Title": "Mathematics I", "Session": "AN" },
+  { "Programme": "B.Sc. Computer Science", "Venue_Code": "102", "Venue_Name": "Beta Commerce and Science College", "Seat_No": "2002", "Student_Name": "Student Epsilon", "Course_Code": "BCS1B01", "Course_Title": "Computer Fundamentals & HTML", "Session": "FN" },
+  { "Programme": "B.Com Finance", "Venue_Code": "103", "Venue_Name": "Gamma Government College", "Seat_No": "3001", "Student_Name": "Student Zeta", "Course_Code": "BCM1B01", "Course_Title": "Management Concepts & Business Ethics", "Session": "FN" },
+  { "Programme": "B.Com Finance", "Venue_Code": "103", "Venue_Name": "Gamma Government College", "Seat_No": "3002", "Student_Name": "Student Eta", "Course_Code": "BCM1B01", "Course_Title": "Management Concepts & Business Ethics", "Session": "FN" }
 ];
 
 const SllNominalPage = () => {
@@ -47,7 +47,7 @@ const SllNominalPage = () => {
   const [statusType, setStatusType] = useState('normal'); // 'normal' | 'error' | 'success'
 
   // Header & Title Configuration
-  const [universityName, setUniversityName] = useState('Kannur University');
+  const [universityName, setUniversityName] = useState('Sample University');
   const [branchName, setBranchName] = useState('(Examination Branch)');
   const [examTitle, setExamTitle] = useState('Venue-Wise Candidate Nominal Roll & Attendance Record');
   const [sessionName, setSessionName] = useState('I Semester Degree Examination - November 2025');

@@ -30,25 +30,25 @@ import { parseWorkbookFromBuffer } from '../utils/excelParser';
 import { normalizeText, stringSimilarity, calculateCompositeSimilarity } from '../utils/fuzzyMatch';
 
 const SAMPLE_DATASET_A = [
-  { "PRN": "KU2025001", "StudentName": "Muhammed Rashid K", "CourseCode": "ENG101", "CourseTitle": "English Literature", "College": "Government College Kasaragod", "Marks": "85" },
-  { "PRN": "KU2025002", "StudentName": "Ananya S Nair", "CourseCode": "MAL102", "CourseTitle": "Malayalam Poetry", "College": "Sree Narayana Guru College", "Marks": "78" },
-  { "PRN": "KU2025003", "StudentName": "Fathima Hameed", "CourseCode": "ARB103", "CourseTitle": "Arabic Grammar", "College": "Sir Syed College Taliparamba", "Marks": "92" },
-  { "PRN": "KU2025004", "StudentName": "Abhijith T", "CourseCode": "CS104", "CourseTitle": "Data Structures", "College": "Government Brennen College", "Marks": "95" },
-  { "PRN": "KU2025005", "StudentName": "Devika Menon", "CourseCode": "PHY105", "CourseTitle": "Modern Physics", "College": "Payyanur College", "Marks": "64" },
-  { "PRN": "KU2025006", "StudentName": "Rahul K V", "CourseCode": "CHE106", "CourseTitle": "Organic Chemistry", "College": "Nehru Arts & Science College", "Marks": "88" },
-  { "PRN": "KU2025007", "StudentName": "Sruthi Radhakrishnan", "CourseCode": "MAT107", "CourseTitle": "Calculus & Matrices", "College": "Krishna Menon Memorial College", "Marks": "72" },
-  { "PRN": "KU2025008", "StudentName": "Gokul Prasad", "CourseCode": "HIS108", "CourseTitle": "World History", "College": "SES College Sreekandapuram", "Marks": "60" }
+  { "PRN": "XT2099001", "StudentName": "Student Alpha", "CourseCode": "ENG101", "CourseTitle": "English Literature", "College": "Alpha Arts and Science College", "Marks": "85" },
+  { "PRN": "XT2099002", "StudentName": "Student Beta", "CourseCode": "MAL102", "CourseTitle": "Language Studies", "College": "Beta Commerce and Science College", "Marks": "78" },
+  { "PRN": "XT2099003", "StudentName": "Student Gamma", "CourseCode": "ARB103", "CourseTitle": "Classical Studies", "College": "Gamma Government College", "Marks": "92" },
+  { "PRN": "XT2099004", "StudentName": "Student Delta", "CourseCode": "CS104", "CourseTitle": "Data Structures", "College": "Delta Arts College", "Marks": "95" },
+  { "PRN": "XT2099005", "StudentName": "Student Epsilon", "CourseCode": "PHY105", "CourseTitle": "Modern Physics", "College": "Epsilon Science College", "Marks": "64" },
+  { "PRN": "XT2099006", "StudentName": "Student Zeta", "CourseCode": "CHE106", "CourseTitle": "Organic Chemistry", "College": "Zeta Government College", "Marks": "88" },
+  { "PRN": "XT2099007", "StudentName": "Student Eta", "CourseCode": "MAT107", "CourseTitle": "Calculus & Matrices", "College": "Alpha Arts and Science College", "Marks": "72" },
+  { "PRN": "XT2099008", "StudentName": "Student Theta", "CourseCode": "HIS108", "CourseTitle": "World History", "College": "Beta Commerce and Science College", "Marks": "60" }
 ];
 
 const SAMPLE_DATASET_B = [
-  { "RegisterNo": "KU2025001", "CandidateName": "Mohammed Rashid K.", "SubjectCode": "ENG101", "SubjectTitle": "English Literature", "ExamCentre": "Govt College Kasaragod", "Score": "85" },
-  { "RegisterNo": "KU2025002", "CandidateName": "Ananya S Nair", "SubjectCode": "MAL102", "SubjectTitle": "Malayalam Poetry", "ExamCentre": "Sree Narayana Guru College", "Score": "78" },
-  { "RegisterNo": "KU2025003", "CandidateName": "Fathima Hameed M", "SubjectCode": "ARB103", "SubjectTitle": "Arabic Grammar", "ExamCentre": "Sir Syed College", "Score": "90" }, // Score discrepancy
-  { "RegisterNo": "KU2025004", "CandidateName": "Abhijith T", "SubjectCode": "CS104", "SubjectTitle": "Data Structures & Algorithms", "ExamCentre": "Govt Brennen College Dharmadam", "Score": "95" },
-  { "RegisterNo": "KU2025005", "CandidateName": "Devika M.", "SubjectCode": "PHY105", "SubjectTitle": "Modern Physics", "ExamCentre": "Payyanur College", "Score": "64" },
-  { "RegisterNo": "KU2025006", "CandidateName": "Rahul K V", "SubjectCode": "CHE106", "SubjectTitle": "Organic Chemistry", "ExamCentre": "Nehru Arts and Science College", "Score": "88" },
-  { "RegisterNo": "KU2025009", "CandidateName": "Vishnu Mohan", "SubjectCode": "COM109", "SubjectTitle": "Financial Accounting", "ExamCentre": "PRNSS College Mattannur", "Score": "81" }, // Unmatched Right
-  { "RegisterNo": "KU2025010", "CandidateName": "Aiswarya K", "SubjectCode": "ZOO110", "SubjectTitle": "Animal Diversity", "ExamCentre": "St. Pius X College Rajapuram", "Score": "89" } // Unmatched Right
+  { "RegisterNo": "XT2099001", "CandidateName": "Student Alpha", "SubjectCode": "ENG101", "SubjectTitle": "English Literature", "ExamCentre": "Alpha Arts College", "Score": "85" },
+  { "RegisterNo": "XT2099002", "CandidateName": "Student Beta", "SubjectCode": "MAL102", "SubjectTitle": "Language Studies", "ExamCentre": "Beta Science College", "Score": "78" },
+  { "RegisterNo": "XT2099003", "CandidateName": "Student Gamma X", "SubjectCode": "ARB103", "SubjectTitle": "Classical Studies", "ExamCentre": "Gamma College", "Score": "90" }, // Score discrepancy
+  { "RegisterNo": "XT2099004", "CandidateName": "Student Delta", "SubjectCode": "CS104", "SubjectTitle": "Data Structures & Algorithms", "ExamCentre": "Delta Arts College", "Score": "95" },
+  { "RegisterNo": "XT2099005", "CandidateName": "Student Epsilon M.", "SubjectCode": "PHY105", "SubjectTitle": "Modern Physics", "ExamCentre": "Epsilon Science College", "Score": "64" },
+  { "RegisterNo": "XT2099006", "CandidateName": "Student Zeta", "SubjectCode": "CHE106", "SubjectTitle": "Organic Chemistry", "ExamCentre": "Zeta Government College", "Score": "88" },
+  { "RegisterNo": "XT2099009", "CandidateName": "Student Iota", "SubjectCode": "COM109", "SubjectTitle": "Financial Accounting", "ExamCentre": "Iota Commerce College", "Score": "81" }, // Unmatched Right
+  { "RegisterNo": "XT2099010", "CandidateName": "Student Kappa", "SubjectCode": "ZOO110", "SubjectTitle": "Animal Diversity", "ExamCentre": "Kappa Science College", "Score": "89" } // Unmatched Right
 ];
 
 const DataComparisonPage = () => {

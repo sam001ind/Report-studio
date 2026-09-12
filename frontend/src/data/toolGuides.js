@@ -273,6 +273,32 @@ export const TOOL_GUIDES = {
       }
     ]
   },
+  'ades-supplementary-calculator': {
+    title: 'ADES Supplementary & Improvement Calculator Guide',
+    description: 'Specialized examination result calculator for combined Supplementary and Improvement sessions with multi-event baseline carry-forward.',
+    sections: [
+      {
+        heading: '1. Dual-Report Architecture',
+        content: 'Upload the current session ADES marks Excel along with one or more previous event ADES reports (earlier regular or supplementary sessions).'
+      },
+      {
+        heading: '2. Improvement Repetition & Carry-Forward Rule',
+        content: 'For Improvement candidates, only the ESE-TH component is repeated. All other components (CE-TH, CE-PR, and ESE-PR) are strictly carried forward from the student’s previous event record.'
+      },
+      {
+        heading: '3. Supplementary Repetition & Carry-Forward Rule',
+        content: 'For Supplementary candidates, ESE-TH and ESE-PR are repeated. Continuous evaluation marks (CE-TH, CE-PR) are strictly carried forward from the earlier event record.'
+      },
+      {
+        heading: '4. Multi-Event Historical Baseline Index',
+        content: 'Supports multiple earlier regular or supplementary event files indexed by PRN + Course Code to automatically resolve prior marks.'
+      },
+      {
+        heading: '5. Configurable Improvement Scoring Policy',
+        content: 'Choose between "Current Attempt Marks" (default) or "Best of Both" (higher of current and previous ESE-TH marks).'
+      }
+    ]
+  },
   'ades-result-calculator': {
     title: 'ADES Result Calculator - Calculation & Moderation Guide',
     icon: 'Calculator',

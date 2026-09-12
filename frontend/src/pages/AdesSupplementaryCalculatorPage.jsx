@@ -114,10 +114,33 @@ export const parseNumber = (val) => {
   return isNaN(num) ? null : num;
 };
 
-// Cleans and canonicalizes course codes: strips ., #, *, _, -, spaces, wrapping brackets, and converts to uppercase
+// Robust parser for moderation/ordinance marks across various gazette representations:
+// e.g. 3, "3", "3*", "*3", "O.4 (3)", "O.5042 : 3", "3 Marks", "+3"
+export const parseOrdMarks = (val) => {
+  if (val === null || val === undefined || val === "") return 0;
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  const str = String(val).trim();
+  if (!str) return 0;
+  const directNum = Number(str);
+  if (!isNaN(directNum)) return directNum;
+  
+  const colonMatch = str.match(/:\s*(\d+(\.\d+)?)/);
+  if (colonMatch) return Number(colonMatch[1]) || 0;
+  const parenMatch = str.match(/\((\d+(\.\d+)?)\)/);
+  if (parenMatch) return Number(parenMatch[1]) || 0;
+  const numMatch = str.match(/(\d+(\.\d+)?)/);
+  if (numMatch) return Number(numMatch[1]) || 0;
+  return 0;
+};
+
+// Cleans and canonicalizes course codes: strips component suffixes like (TH), (PR), (T), (P), [TH], -TH,
+// strips ., #, *, _, -, spaces, wrapping brackets, and converts to uppercase
 export const cleanCourseCode = (rawCode) => {
   if (!rawCode) return "";
   let code = String(rawCode).trim();
+  code = code.replace(/\s*\((TH|PR|T|P|THEORY|PRACTICAL|ESE|CE)\)\s*/gi, "");
+  code = code.replace(/\s*\[(TH|PR|T|P|THEORY|PRACTICAL|ESE|CE)\]\s*/gi, "");
+  code = code.replace(/[-_](TH|PR|T|P|THEORY|PRACTICAL|ESE|CE)\b/gi, "");
   code = code.replace(/^\s*[\(\[\{]\s*/, "").replace(/\s*[\)\]\}]\s*$/, "");
   code = code.replace(/[\.\#\*\_\-\:\;\,]+/g, " ");
   code = code.replace(/\s+/g, "");
@@ -131,6 +154,40 @@ export const cleanCourseName = (rawName) => {
   let name = String(rawName).trim();
   name = name.replace(/[\#\*\_\-]+$/g, "").trim();
   return name;
+};
+
+// Checks whether a candidate's course (by code or name) matches a gazette reappear entry
+export const isCourseReappearInGazetteEntry = (courseCode, courseName, entry) => {
+  if (!entry) return false;
+  const targetCode = cleanCourseCode(courseCode);
+  const targetName = cleanCourseName(courseName);
+  const normTargetName = normalizeKey(targetName);
+
+  // 1. Direct code check in parsed codes
+  if (targetCode && (entry.reappearCodes || []).includes(targetCode)) {
+    return true;
+  }
+
+  // 2. Check if rawReappear text contains the course code
+  const rawUpper = String(entry.rawReappear || "").toUpperCase();
+  if (targetCode && rawUpper.includes(targetCode)) {
+    return true;
+  }
+
+  // 3. Title check in parsed titles or rawReappear text
+  if (normTargetName && normTargetName.length >= 4) {
+    for (const t of (entry.reappearTitles || [])) {
+      const normT = normalizeKey(t);
+      if (normT === normTargetName || normT.includes(normTargetName) || normTargetName.includes(normT)) {
+        return true;
+      }
+    }
+    if (normalizeKey(rawUpper).includes(normTargetName)) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 // Cleans college name: strips leading code prefixes e.g. "[101] - Name", "101 - Name", "101. Name", "101: Name"
@@ -258,9 +315,9 @@ export const buildCollegeCanonicalRegistry = (rows = [], currentHeaderMap = {}, 
     const cleanSeat = cleanString(seatInput);
     const cleanPrn = cleanString(prnInput);
 
-    // 1. Connection via Seat Number (ADEC Name & Seat combination)
-    if (cleanSeat && seatToCollege.has(cleanSeat)) {
-      const entry = seatToCollege.get(cleanSeat);
+    // 1. Connection via PRN (Constant permanent identifier across exam sessions)
+    if (cleanPrn && prnToCollege.has(cleanPrn)) {
+      const entry = prnToCollege.get(cleanPrn);
       if (entry.name) {
         return {
           collegeCode: entry.code || "",
@@ -270,9 +327,9 @@ export const buildCollegeCanonicalRegistry = (rows = [], currentHeaderMap = {}, 
       }
     }
 
-    // 2. Connection via PRN
-    if (cleanPrn && prnToCollege.has(cleanPrn)) {
-      const entry = prnToCollege.get(cleanPrn);
+    // 2. Fallback via Seat Number only if PRN did not match or is absent
+    if (cleanSeat && seatToCollege.has(cleanSeat)) {
+      const entry = seatToCollege.get(cleanSeat);
       if (entry.name) {
         return {
           collegeCode: entry.code || "",
@@ -301,13 +358,15 @@ export const buildCollegeCanonicalRegistry = (rows = [], currentHeaderMap = {}, 
   return { resolve, allColleges: Array.from(allCollegeNames).sort() };
 };
 
-export default function AdesResultCalculatorPage() {
+export default function AdesSupplementaryCalculatorPage() {
   const [sourceFile, setSourceFile] = useState(null);
   const [sheetNames, setSheetNames] = useState([]);
   const [selectedSheet, setSelectedSheet] = useState("");
   const [workbook, setWorkbook] = useState(null);
   const [rawRows, setRawRows] = useState([]);
-  const [groupedRecords, setGroupedRecords] = useState([]);
+  // Note: groupedRecords is computed dynamically and reactively via useMemo below
+  const setGroupedRecords = () => {};
+  const sourceFileInputRef = useRef(null);
   const [headerMap, setHeaderMap] = useState({});
   const [statusMsg, setStatusMsg] = useState("Ready");
   const [statusType, setStatusType] = useState("info");
@@ -349,6 +408,19 @@ export default function AdesResultCalculatorPage() {
   const [heldbackList, setHeldbackList] = useState([]);
   const heldbackFileInputRef = useRef(null);
 
+  // Historical / Previous Events ADES Reports State (Multi-Report Baseline for Carry Forward)
+  const [previousReports, setPreviousReports] = useState([]); // array of { id, fileName, recordCount, courseCount, parsedRecords, courseProfiles, uploadTime }
+  const [historicalRecordsMap, setHistoricalRecordsMap] = useState(new Map());
+  const [historicalCourseProfilesMap, setHistoricalCourseProfilesMap] = useState(new Map()); // Map of confirmed course component structures & counts
+  const [improvementScoringMode, setImprovementScoringMode] = useState("current"); // "current" | "best"
+  const [attemptTypeFilter, setAttemptTypeFilter] = useState("ALL"); // "ALL" | "IMPROVEMENT" | "SUPPLEMENTARY" | "NO_BASELINE"
+  const prevReportsFileInputRef = useRef(null);
+
+  // Previous Semester University Result Gazette Reports State (Optional Reappear Assurance)
+  const [gazetteReports, setGazetteReports] = useState([]); // array of { id, fileName, recordCount, reappearCount, parsedGazetteRecords, uploadTime }
+  const [historicalGazetteMap, setHistoricalGazetteMap] = useState(new Map()); // Map of cleanIdKey(prn/seat) => Array of gazette entries
+  const gazetteFileInputRef = useRef(null);
+
   // Result & Ordinance Reconciliation Comparison Tool State
   const [comparisonFile, setComparisonFile] = useState(null);
   const [comparisonFileName, setComparisonFileName] = useState("");
@@ -384,7 +456,7 @@ export default function AdesResultCalculatorPage() {
   };
 
 
-  // Helper to match student course record against loaded Absent Report
+  // Helper to match student course record against loaded Absent Report (PRN is constant)
   const getAbsentEntry = (prn, seat, code, absentMap) => {
     if (!absentMap || absentMap.size === 0) return null;
     const normCode = normalizeKey(code);
@@ -394,6 +466,7 @@ export default function AdesResultCalculatorPage() {
     if (normPrn) {
       const entry = absentMap.get(`${normPrn}___${normCode}`);
       if (entry) return entry;
+      return null; // PRN is the constant authoritative identifier; do not fall back to potentially mismatched seat
     }
 
     const normSeat = normalizeKey(seat);
@@ -470,7 +543,7 @@ export default function AdesResultCalculatorPage() {
     return { map, list };
   };
 
-  // Helper to match student course record against loaded Malpractice Report
+  // Helper to match student course record against loaded Malpractice Report (PRN is constant)
   const getMalpracticeEntry = (prn, seat, code, malpracticeMap) => {
     if (!malpracticeMap || malpracticeMap.size === 0) return null;
     const normCode = normalizeKey(code);
@@ -480,6 +553,7 @@ export default function AdesResultCalculatorPage() {
     if (normPrn) {
       const entry = malpracticeMap.get(`${normPrn}___${normCode}`);
       if (entry) return entry;
+      return null; // PRN is the constant authoritative identifier
     }
 
     const normSeat = normalizeKey(seat);
@@ -560,30 +634,31 @@ export default function AdesResultCalculatorPage() {
     return { map, list };
   };
 
-  // Helper to match student course record against loaded Heldback Report
+  // Helper to match student course record against loaded Heldback Report (PRN is constant)
   const getHeldbackEntry = (prn, seat, code, heldbackMap) => {
     if (!heldbackMap || heldbackMap.size === 0) return null;
     const normPrn = normalizeKey(prn);
     const normSeat = normalizeKey(seat);
     const normCode = normalizeKey(code);
 
-    // 1. Check term-level heldback (applies to ALL papers for student)
+    // 1. If PRN is present, use PRN as the constant authoritative identifier
     if (normPrn) {
       const termEntry = heldbackMap.get(`${normPrn}___ALL`);
       if (termEntry) return termEntry;
-    }
-    if (normSeat) {
-      const termEntry = heldbackMap.get(`${normSeat}___ALL`);
-      if (termEntry) return termEntry;
-    }
 
-    // 2. Check specific paper heldback
-    if (normCode) {
-      if (normPrn) {
+      if (normCode) {
         const paperEntry = heldbackMap.get(`${normPrn}___${normCode}`);
         if (paperEntry) return paperEntry;
       }
-      if (normSeat) {
+      return null; // PRN is authoritative; do not fall back to potentially mismatched seat
+    }
+
+    // 2. Only if PRN is completely missing, fall back to seat number
+    if (normSeat) {
+      const termEntry = heldbackMap.get(`${normSeat}___ALL`);
+      if (termEntry) return termEntry;
+
+      if (normCode) {
         const paperEntry = heldbackMap.get(`${normSeat}___${normCode}`);
         if (paperEntry) return paperEntry;
       }
@@ -805,8 +880,821 @@ export default function AdesResultCalculatorPage() {
     return false;
   };
 
+  // Helper to normalize Student ID / Seat / PRN immune to Excel .0 or whitespace or scientific notation
+  const cleanIdKey = (val) => {
+    if (val === null || val === undefined) return "";
+    let s = String(val).trim();
+    if (/^[0-9]+(\.[0-9]+)?e\+[0-9]+$/i.test(s)) {
+      try {
+        s = BigInt(Math.round(Number(s))).toString();
+      } catch (e) {}
+    }
+    return s.replace(/\.0+$/, "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  };
+
+  // Lookup student-course record from historical baseline map (PRN is the constant identifier)
+  const getHistoricalEntry = (prn, seat, code, histMap) => {
+    if (!histMap || histMap.size === 0) return null;
+    const cleanP = cleanIdKey(prn);
+    const cleanS = cleanIdKey(seat);
+    const cleanC = cleanIdKey(cleanCourseCode(code));
+    if (!cleanC) return null;
+    
+    // PRN is constant across exam sessions; prioritize PRN lookup!
+    if (cleanP) {
+      const key1 = `${cleanP}_${cleanC}`;
+      if (histMap.has(key1)) return histMap.get(key1);
+      return null; // PRN is constant; do not fall back to a different student's seat
+    }
+    // Only fall back to seat number if PRN is completely missing
+    if (cleanS) {
+      const key2 = `${cleanS}_${cleanC}`;
+      if (histMap.has(key2)) return histMap.get(key2);
+    }
+    return null;
+  };
+
+  // Helper to detect if an uploaded sheet is a University Semester Tabulation Gazette / Result Summary Register
+  const isGazetteOrTabulationSheet = (hMap) => {
+    if (!hMap) return false;
+    const keys = Object.keys(hMap);
+    const hasReappear = keys.some(k => k.includes("reappear") || k.includes("failsubject") || k.includes("nooffail") || k.includes("arrear") || k.includes("backlog"));
+    const hasResultStatus = keys.some(k => k.includes("resultstatus") || k.includes("statementnumber") || k.includes("result") || k.includes("status"));
+    const hasPrnOrSeat = keys.some(k => k.includes("prn") || k.includes("seat") || k.includes("reg") || k.includes("roll"));
+    return hasPrnOrSeat && (hasReappear || hasResultStatus);
+  };
+
+  // Extract student-level result gazette and reappear records from a previous semester tabulation register
+  const extractGazetteRecordsFromRows = (rows, hMap, fileName) => {
+    const list = [];
+    if (!rows || rows.length === 0 || !hMap) return list;
+
+    // Discover column keys once per sheet for fast row iteration
+    const hKeys = Object.keys(hMap);
+    const fuzzyPrnKey = hKeys.find(k => k.includes("prn") || (k.includes("reg") && !k.includes("regular")));
+    const fuzzySeatKey = hKeys.find(k => k.includes("seat") || k.includes("roll") || k.includes("hallticket") || k.includes("usn"));
+    const fuzzyNameKey = hKeys.find(k => k.includes("studentname") || k.includes("candidatename") || (k.includes("name") && !k.includes("course") && !k.includes("program") && !k.includes("college")));
+    const fuzzyReappearKey = hKeys.find(k => k.includes("reappear") || k.includes("backlog") || k.includes("fail") || k.includes("arrear") || k.includes("supplementary") || k.includes("duepaper"));
+    const fuzzyStatusKey = hKeys.find(k => k.includes("resultstatus") || k === "result" || k.includes("status") || k.includes("remark"));
+    const fuzzyTermKey = hKeys.find(k => k.includes("term") || k.includes("semester") || k.includes("sem"));
+    const fuzzyOrdKey = hKeys.find(k => 
+      k.includes("ordtotal") || 
+      k.includes("ordinancetotal") || 
+      k.includes("modmarks") || 
+      k.includes("moderationmarks") || 
+      k.includes("gracemarks") || 
+      k.includes("moderation") ||
+      k.includes("condonation") ||
+      (k.includes("ord") && !k.includes("order") && !k.includes("accord") && !k.includes("record") && !k.includes("board") && !k.includes("coord") && !k.includes("word") && !k.includes("ford"))
+    );
+
+    rows.forEach(row => {
+      let prn = String(getCell(row, hMap, 
+        "PRN-Permanent Registration Number", 
+        "PRN - Permanent Registration Number",
+        "Permanent Registration Number",
+        "Candidate Register Number",
+        "Candidate Register No",
+        "University Register Number",
+        "Univ Reg No",
+        "PRN Number", 
+        "PRN No", 
+        "PRN", 
+        "PRNNo", 
+        "Registration Number",
+        "Register Number",
+        "Register No",
+        "RegisterNo",
+        "Reg No",
+        "RegNo",
+        "Regd No",
+        "Regd Number",
+        "Enrollment No",
+        "Enrollment Number",
+        "Candidate Code",
+        "StudentID", 
+        "Student ID"
+      ) || "").trim();
+
+      if (!prn && fuzzyPrnKey && hMap[fuzzyPrnKey]) {
+        prn = String(row[hMap[fuzzyPrnKey]] || "").trim();
+      }
+
+      let seat = String(getCell(row, hMap, 
+        "Examination Seat Number", 
+        "Exam Seat Number",
+        "Exam Seat No",
+        "Candidate Seat Number",
+        "Seat Number", 
+        "SeatNumber", 
+        "Seat No", 
+        "SeatNo", 
+        "Seat",
+        "Roll Number", 
+        "Roll No", 
+        "RollNo",
+        "Hall Ticket Number",
+        "Hall Ticket No",
+        "HallTicketNo",
+        "Hall Ticket",
+        "USN"
+      ) || "").trim();
+
+      if (!seat && fuzzySeatKey && hMap[fuzzySeatKey]) {
+        seat = String(row[hMap[fuzzySeatKey]] || "").trim();
+      }
+
+      if (!prn && !seat) return;
+
+      let studentName = String(getCell(row, hMap, "Name of Student", "Student Name", "StudentName", "Candidate Name", "Name") || "").trim();
+      if (!studentName && fuzzyNameKey && hMap[fuzzyNameKey]) {
+        studentName = String(row[hMap[fuzzyNameKey]] || "").trim();
+      }
+
+      let term = String(getCell(row, hMap, "Program Part Term", "ProgramPartTerm", "Term", "Semester", "Sem") || "").trim();
+      if (!term && fuzzyTermKey && hMap[fuzzyTermKey]) {
+        term = String(row[hMap[fuzzyTermKey]] || "").trim();
+      }
+
+      const examEvent = String(getCell(row, hMap, "Exam Event", "ExamEvent", "Event", "Session") || "").trim();
+
+      let program = String(getCell(row, hMap, "Program Name", "Program Full Name", "Program", "Programme", "Degree", "Course") || "").trim();
+      if (!program && fuzzyProgKey && hMap[fuzzyProgKey]) {
+        program = String(row[hMap[fuzzyProgKey]] || "").trim();
+      }
+
+      let resultStatus = String(getCell(row, hMap, "RESULT STATUS", "Result Status", "Result", "Status", "Remarks") || "").trim();
+      if (!resultStatus && fuzzyStatusKey && hMap[fuzzyStatusKey]) {
+        resultStatus = String(row[hMap[fuzzyStatusKey]] || "").trim();
+      }
+
+      let rawReappear = String(getCell(row, hMap, 
+        "Reappear Paper Codes", 
+        "Reappear Paper Code", 
+        "Reappear Papers", 
+        "Reappear Paper", 
+        "Reappear", 
+        "Failed Papers", 
+        "Failed Paper", 
+        "Failed Subjects", 
+        "Failed Subject", 
+        "Fail Subjects", 
+        "Backlog Papers",
+        "Backlogs",
+        "Arrear Papers",
+        "Arrears",
+        "Supplementary Papers"
+      ) || "").trim();
+      if (!rawReappear && fuzzyReappearKey && hMap[fuzzyReappearKey]) {
+        rawReappear = String(row[hMap[fuzzyReappearKey]] || "").trim();
+      }
+
+      let rawOrd = parseOrdMarks(getCell(row, hMap, 
+        "Ord Total", 
+        "OrdTotal", 
+        "Ordinance Total", 
+        "Ordinance Marks",
+        "Ord Marks",
+        "Moderation Marks", 
+        "Moderation Total", 
+        "Mod Total", 
+        "Mod Marks", 
+        "Total Moderation Marks", 
+        "Total Mod Marks",
+        "Ordinance (Total)",
+        "Ordinance(Total)",
+        "Grace Marks", 
+        "Grace", 
+        "Condonation Marks",
+        "Ordinance", 
+        "Ord"
+      ));
+      if ((!rawOrd || rawOrd === 0) && fuzzyOrdKey && hMap[fuzzyOrdKey]) {
+        rawOrd = parseOrdMarks(row[hMap[fuzzyOrdKey]]);
+      }
+      if (!rawOrd || rawOrd === 0) {
+        for (const k of Object.keys(row)) {
+          const normK = normalizeKey(k);
+          if (
+            (normK.includes("ordinance") || normK.includes("ordtotal") || normK.includes("modmark") || normK.includes("moderation")) &&
+            !normK.includes("record") && !normK.includes("order") && !normK.includes("coord")
+          ) {
+            const v = parseOrdMarks(row[k]);
+            if (v > 0) {
+              rawOrd = v;
+              break;
+            }
+          }
+        }
+      }
+      const ordTotal = rawOrd || 0;
+
+      const rawFailCount = getCell(row, hMap, "No of Fail Subjects", "Fail Subjects", "Fail Count", "Backlog Count", "No of Arrears");
+      const rawText = rawReappear.trim();
+      const codes = new Set();
+      const titles = new Set();
+
+      if (rawText) {
+        // 1. Extract alphanumeric course codes via regex (e.g. KU2DSCCSC110, 24CCAR038, etc.)
+        const codeMatches = rawText.match(/[A-Za-z]{1,6}\d{1,2}[A-Za-z0-9]{3,}/g) || [];
+        codeMatches.forEach(m => {
+          const cleaned = cleanCourseCode(m);
+          if (cleaned) codes.add(cleaned);
+        });
+
+        // 2. Split by comma, semicolon, newline, slash, pipe, or bullet
+        const chunks = rawText.split(/[,;\n\r|•]+|\s*\/\s*/).map(s => s.trim()).filter(Boolean);
+        chunks.forEach(chunk => {
+          if (chunk.includes("-") || chunk.includes(":")) {
+            const parts = chunk.split(/[-:]+/).map(p => p.trim());
+            parts.forEach(p => {
+              const cleaned = cleanCourseCode(p);
+              if (cleaned && cleaned.length >= 5 && /\d/.test(cleaned)) {
+                codes.add(cleaned);
+              } else if (p.length > 2) {
+                titles.add(p);
+              }
+            });
+          } else {
+            const cleaned = cleanCourseCode(chunk);
+            if (cleaned && cleaned.length >= 5 && /\d/.test(cleaned)) {
+              codes.add(cleaned);
+            } else if (chunk.length > 2) {
+              titles.add(chunk);
+            }
+          }
+        });
+      }
+
+      const reappearCodes = Array.from(codes);
+      const reappearTitles = Array.from(titles);
+      const failCount = rawFailCount !== "" && rawFailCount !== null && rawFailCount !== undefined 
+        ? (parseInt(rawFailCount, 10) || 0) 
+        : (reappearCodes.length > 0 ? reappearCodes.length : reappearTitles.length);
+
+      list.push({
+        prn,
+        seat,
+        studentName,
+        term,
+        examEvent,
+        program,
+        resultStatus: resultStatus ? resultStatus.toUpperCase() : "UNKNOWN",
+        reappearCodes,
+        reappearTitles,
+        rawReappear: rawText,
+        failCount,
+        ordTotal,
+        grandTotal: String(getCell(row, hMap, "Grand Total", "Total Marks", "Total") || "").trim(),
+        sgpa: String(getCell(row, hMap, "SGPA") || "").trim(),
+        cgpa: String(getCell(row, hMap, "CGPA") || "").trim(),
+        sourceFile: fileName
+      });
+    });
+
+    return list;
+  };
+
+  // Rebuild the unified historical gazette composite map across all uploaded previous event reports
+  const rebuildHistoricalGazetteMap = (reports) => {
+    const map = new Map();
+    (reports || []).forEach(rep => {
+      const records = rep.parsedGazetteRecords || rep.records || [];
+      if (Array.isArray(records)) {
+        records.forEach(entry => {
+          const cleanP = cleanIdKey(entry.prn);
+          const cleanS = cleanIdKey(entry.seat);
+          const cleanN = cleanIdKey(entry.studentName);
+          if (cleanP) {
+            if (!map.has(cleanP)) map.set(cleanP, []);
+            map.get(cleanP).push(entry);
+          }
+          if (cleanS && cleanS !== cleanP) {
+            if (!map.has(cleanS)) map.set(cleanS, []);
+            map.get(cleanS).push(entry);
+          }
+          if (cleanN && cleanN !== cleanP && cleanN !== cleanS && cleanN.length > 3) {
+            if (!map.has(cleanN)) map.set(cleanN, []);
+            map.get(cleanN).push(entry);
+          }
+        });
+      }
+    });
+    return map;
+  };
+
+  // Cross-verify a candidate's course attempt against uploaded Gazette/Tabulation records (PRN is constant)
+  const verifyCourseAttempt = (prn, seat, courseCode, gazetteMap, courseName = "", studentName = "") => {
+    if (!gazetteMap || gazetteMap.size === 0) return null;
+    const cleanP = cleanIdKey(prn);
+    const cleanS = cleanIdKey(seat);
+    const cleanN = cleanIdKey(studentName);
+    
+    // PRN is constant across exam sessions; strictly prioritize PRN lookup!
+    let entries = cleanP ? (gazetteMap.get(cleanP) || []) : [];
+    
+    // Fall back to seat number or name if PRN lookup yielded no entries
+    if (entries.length === 0 && cleanS) {
+      entries = gazetteMap.get(cleanS) || [];
+    }
+    if (entries.length === 0 && cleanN && cleanN.length > 3) {
+      entries = gazetteMap.get(cleanN) || [];
+    }
+    if (entries.length === 0) return null;
+
+    const targetCode = cleanCourseCode(courseCode);
+    const targetName = cleanCourseName(courseName);
+    const normTargetName = normalizeKey(targetName);
+    let isVerifiedReappear = false;
+    let matchingTerm = null;
+    let matchingEvent = null;
+    let allPendingReappears = [];
+    let isPriorPass = false;
+
+    for (const entry of entries) {
+      const isReappear = isCourseReappearInGazetteEntry(courseCode, courseName, entry);
+      if (isReappear) {
+        isVerifiedReappear = true;
+        matchingTerm = entry.term;
+        matchingEvent = entry.examEvent;
+      }
+
+      // Prior pass check: ONLY if this entry does NOT list this course as a reappear,
+      // and the entry explicitly has a PASS result status and 0 fails
+      if (!isReappear && (entry.resultStatus === "PASS" || (entry.failCount === 0 && (entry.reappearCodes || []).length === 0 && entry.resultStatus !== "FAIL"))) {
+        isPriorPass = true;
+      }
+
+      (entry.reappearCodes || []).forEach(code => {
+        if (code !== targetCode && !allPendingReappears.includes(code)) {
+          allPendingReappears.push(code);
+        }
+      });
+      (entry.reappearTitles || []).forEach(title => {
+        const normT = normalizeKey(title);
+        if (normT && normT !== normTargetName && !allPendingReappears.includes(title)) {
+          allPendingReappears.push(title);
+        }
+      });
+    }
+
+    // A course can NEVER be a Prior Pass (Improvement) if it is officially a Verified Reappear (Supplementary)!
+    if (isVerifiedReappear) {
+      isPriorPass = false;
+    }
+
+    return {
+      hasGazetteRecord: true,
+      isVerifiedReappear,
+      isPriorPass,
+      matchingTerm,
+      matchingEvent,
+      allPendingReappears,
+      latestStatus: entries[0].resultStatus,
+      failCount: entries[0].failCount,
+      sourceFile: entries[0].sourceFile
+    };
+  };
+
+  // Rebuild the unified historical composite map from all uploaded previous event reports
+  const rebuildHistoricalMap = (reports) => {
+    const map = new Map();
+    reports.forEach(rep => {
+      (rep.parsedRecords || []).forEach(rec => {
+        const cleanP = cleanIdKey(rec.prn);
+        const cleanS = cleanIdKey(rec.seat);
+        const cleanC = cleanIdKey(cleanCourseCode(rec.code));
+        if (cleanP && cleanC) {
+          map.set(`${cleanP}_${cleanC}`, rec);
+        }
+        if (cleanS && cleanC) {
+          map.set(`${cleanS}_${cleanC}`, rec);
+        }
+      });
+    });
+    return map;
+  };
+
+  // Extract verified course component structures & component counts from a previous event report
+  const extractHistoricalCourseProfilesFromRows = (rows, hMap, fileName) => {
+    const profiles = new Map();
+    const isAgg = isAlreadyAggregatedSheet(hMap);
+
+    rows.forEach(row => {
+      const rawCode = String(getCell(row, hMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+      const code = cleanCourseCode(rawCode);
+      const norm = normalizeKey(code);
+      if (!norm) return;
+
+      const courseName = cleanCourseName(String(getCell(row, hMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim());
+
+      if (!profiles.has(norm)) {
+        profiles.set(norm, {
+          courseCode: code,
+          courseName,
+          hasSeenEseTh: false,
+          hasSeenEsePr: false,
+          hasSeenCeTh: false,
+          hasSeenCePr: false,
+          eseThMax: 0,
+          eseThMin: 0,
+          esePrMax: 0,
+          esePrMin: 0,
+          ceThMax: 0,
+          ceThMin: 0,
+          cePrMax: 0,
+          cePrMin: 0,
+          eseMax: 0,
+          eseMin: 0,
+          ceMax: 0,
+          ceMin: 0,
+          courseMax: 0,
+          courseMin: 0,
+          sourceFiles: new Set([fileName])
+        });
+      }
+
+      const p = profiles.get(norm);
+      p.sourceFiles.add(fileName);
+      if (courseName && !p.courseName) p.courseName = courseName;
+
+      if (isAgg) {
+        const ese_th_m = parseNumber(getCell(row, hMap, "ESE - TH Max", "ESETHMax", "ESE-TH Max", "ESE_TH Max", "ESE TH Max", "Theory Max", "TH Max"));
+        const ese_th_min = parseNumber(getCell(row, hMap, "ESE - TH Min", "ESETHMin", "ESE-TH Min", "ESE_TH Min", "ESE TH Min", "Theory Min", "TH Min"));
+        const ese_pr_m = parseNumber(getCell(row, hMap, "ESE - PR Max", "ESEPRMax", "ESE-PR Max", "ESE_PR Max", "ESE PR Max", "Practical Max", "PR Max"));
+        const ese_pr_min = parseNumber(getCell(row, hMap, "ESE - PR Min", "ESEPRMin", "ESE-PR Min", "ESE_PR Min", "ESE PR Min", "Practical Min", "PR Min"));
+        const raw_ce_th_m = parseNumber(getCell(row, hMap, "CE - TH Max", "CETHMax", "CE-TH Max", "CE_TH Max", "CE TH Max", "Internal Max", "CA Max", "IA Max"));
+        const raw_ce_th_min = parseNumber(getCell(row, hMap, "CE - TH Min", "CETHMin", "CE-TH Min", "CE_TH Min", "CE TH Min", "Internal Min", "CA Min", "IA Min"));
+        const ce_pr_m = parseNumber(getCell(row, hMap, "CE - PR Max", "CEPRMax", "CE-PR Max", "CE_PR Max", "CE PR Max", "Practical Internal Max"));
+        const ce_pr_min = parseNumber(getCell(row, hMap, "CE - PR Min", "CEPRMin", "CE-PR Min", "CE_PR Min", "CE PR Min", "Practical Internal Min"));
+        const ese_m = parseNumber(getCell(row, hMap, "ESE - Max", "ESEMax", "ESE Max", "ESE_Max", "ESE-Max", "External Max"));
+        const ese_min = parseNumber(getCell(row, hMap, "ESE - Min", "ESEMin", "ESE Min", "ESE_Min", "ESE-Min", "External Min"));
+        const ce_m_raw = parseNumber(getCell(row, hMap, "CE - Max", "CEMax", "CE Max", "CE_Max", "CE-Max", "Internal Max", "CA Max", "Continuous Evaluation Max"));
+        const ce_min_raw = parseNumber(getCell(row, hMap, "CE - Min", "CEMin", "CE Min", "CE_Min", "CE-Min", "Internal Min", "CA Min"));
+        const overall_m = parseNumber(getCell(row, hMap, "Overall Maximum", "OverallMax", "Overall Max", "Course Max", "CourseMax", "Total Max", "Max Marks"));
+        const overall_min = parseNumber(getCell(row, hMap, "Overall Minimum", "OverallMin", "Overall Min", "Course Min", "CourseMin", "Total Min", "Min Marks"));
+
+        const ce_th_m = raw_ce_th_m !== null ? raw_ce_th_m : ((ce_pr_m === null || ce_pr_m === 0) ? ce_m_raw : null);
+        const ce_th_min = raw_ce_th_min !== null ? raw_ce_th_min : ((ce_pr_min === null || ce_pr_min === 0) ? ce_min_raw : null);
+        const ce_m = ce_m_raw !== null ? ce_m_raw : ((ce_th_m || 0) + (ce_pr_m || 0) || null);
+        const ce_min = ce_min_raw !== null ? ce_min_raw : null;
+
+        if (ese_th_min !== null) p.eseThMin = ese_th_min;
+        if (ese_pr_min !== null) p.esePrMin = ese_pr_min;
+        if (ce_th_min !== null) p.ceThMin = ce_th_min;
+        if (ce_pr_min !== null) p.cePrMin = ce_pr_min;
+        if (ese_m !== null && ese_m > 0) {
+          const calcEseMin = Math.ceil(0.30 * ese_m);
+          p.eseMin = Math.max(ese_min || 0, calcEseMin);
+        } else if (ese_min !== null) {
+          p.eseMin = ese_min;
+        }
+        if (ce_min !== null) p.ceMin = ce_min;
+        if (overall_m !== null && overall_m > 0) {
+          const calcCourseMin = Math.ceil(0.35 * overall_m);
+          p.courseMin = Math.max(overall_min || 0, calcCourseMin);
+        } else if (overall_min !== null) {
+          p.courseMin = overall_min;
+        }
+
+        const ese_th_obt = getCell(row, hMap, "ESE - TH Obtained", "ESETHObtained", "ESE-TH Obtained", "ESE_TH Obtained", "ESE TH Obtained", "ESE - TH Marks", "ESE-TH Marks", "ESE TH Marks", "ESE - TH", "ESE-TH", "ESE_TH", "ESE TH", "ESE Theory", "Theory Obtained", "Theory");
+        const ese_pr_obt = getCell(row, hMap, "ESE - PR Obtained", "ESEPRObtained", "ESE-PR Obtained", "ESE_PR Obtained", "ESE PR Obtained", "ESE - PR Marks", "ESE-PR Marks", "ESE PR Marks", "ESE - PR", "ESE-PR", "ESE_PR", "ESE PR", "ESE Practical", "Practical Obtained", "Practical", "PR Obtained", "PR");
+        const ce_th_obt = getCell(row, hMap, "CE - TH Obtained", "CETHObtained", "CE-TH Obtained", "CE_TH Obtained", "CE TH Obtained", "CE - TH Marks", "CE-TH Marks", "CE TH Marks", "CE - TH", "CE-TH", "CE_TH", "CE TH", "CE Obtained", "CE Marks", "CA", "IA");
+        const ce_pr_obt = getCell(row, hMap, "CE - PR Obtained", "CEPRObtained", "CE-PR Obtained", "CE_PR Obtained", "CE PR Obtained", "CE - PR Marks", "CE-PR Marks", "CE PR Marks", "CE - PR", "CE-PR", "CE_PR", "CE PR", "CE Practical");
+
+        if ((ese_th_m !== null && ese_th_m > 0) || (ese_th_obt !== undefined && ese_th_obt !== null && String(ese_th_obt).trim() !== "")) {
+          p.hasSeenEseTh = true;
+          if (ese_th_m > 0) p.eseThMax = Math.max(p.eseThMax, ese_th_m);
+        }
+        if ((ese_pr_m !== null && ese_pr_m > 0) || (ese_pr_obt !== undefined && ese_pr_obt !== null && String(ese_pr_obt).trim() !== "")) {
+          p.hasSeenEsePr = true;
+          if (ese_pr_m > 0) p.esePrMax = Math.max(p.esePrMax, ese_pr_m);
+        }
+        if ((ce_th_m !== null && ce_th_m > 0) || (ce_th_obt !== undefined && ce_th_obt !== null && String(ce_th_obt).trim() !== "")) {
+          p.hasSeenCeTh = true;
+          if (ce_th_m > 0) p.ceThMax = Math.max(p.ceThMax, ce_th_m);
+        }
+        if ((ce_pr_m !== null && ce_pr_m > 0) || (ce_pr_obt !== undefined && ce_pr_obt !== null && String(ce_pr_obt).trim() !== "")) {
+          p.hasSeenCePr = true;
+          if (ce_pr_m > 0) p.cePrMax = Math.max(p.cePrMax, ce_pr_m);
+        }
+        if (ese_m > 0) p.eseMax = Math.max(p.eseMax, ese_m);
+        if (ce_m > 0) p.ceMax = Math.max(p.ceMax, ce_m);
+        if (overall_m > 0) p.courseMax = Math.max(p.courseMax, overall_m);
+      } else {
+        const methodRaw = String(getCell(row, hMap, "Assessment Method", "AssessmentMethod", "AM", "Method") || "").trim().toUpperCase();
+        const typeRaw = String(getCell(row, hMap, "Assessment Type", "AssessmentType", "AT", "Type") || "").trim().toUpperCase();
+        const atMaxRaw = parseNumber(getCell(row, hMap, "AT Max Marks", "ATMaxMarks", "MaxMarks", "Max Marks", "Max", "AT Max"));
+        const amMaxRaw = parseNumber(getCell(row, hMap, "AM Max Marks", "AMMaxMarks", "AM Max"));
+        const courseMaxRaw = parseNumber(getCell(row, hMap, "Course Max", "CourseMax", "Overall Maximum", "OverallMax"));
+
+        const isEse = methodRaw.includes("ESE") || methodRaw.includes("EXT") || methodRaw.includes("EXTERNAL") || methodRaw.includes("THEORY");
+        const isCe = methodRaw.includes("CE") || methodRaw.includes("CA") || methodRaw.includes("IA") || methodRaw.includes("INTERNAL");
+        const isPr = typeRaw.includes("PR") || typeRaw.includes("PRACTICAL") || typeRaw.includes("VIVA") || typeRaw.includes("LAB");
+        const isTh = typeRaw.includes("TH") || typeRaw.includes("THEORY");
+
+        if (isEse) {
+          if (isTh || (!isPr && !isTh)) {
+            p.hasSeenEseTh = true;
+            if (atMaxRaw > 0) p.eseThMax = Math.max(p.eseThMax, atMaxRaw);
+          }
+          if (isPr) {
+            p.hasSeenEsePr = true;
+            if (atMaxRaw > 0) p.esePrMax = Math.max(p.esePrMax, atMaxRaw);
+          }
+          if (amMaxRaw > 0) p.eseMax = Math.max(p.eseMax, amMaxRaw);
+        } else if (isCe) {
+          if (isTh || (!isPr && !isTh)) {
+            p.hasSeenCeTh = true;
+            if (atMaxRaw > 0) p.ceThMax = Math.max(p.ceThMax, atMaxRaw);
+          }
+          if (isPr) {
+            p.hasSeenCePr = true;
+            if (atMaxRaw > 0) p.cePrMax = Math.max(p.cePrMax, atMaxRaw);
+          }
+          if (amMaxRaw > 0) p.ceMax = Math.max(p.ceMax, amMaxRaw);
+        }
+        if (courseMaxRaw > 0) p.courseMax = Math.max(p.courseMax, courseMaxRaw);
+      }
+    });
+
+    profiles.forEach(p => {
+      if (p.eseMax > 0 && p.eseThMax > 0 && p.eseMax > p.eseThMax) {
+        p.requiresEseTh = true;
+        p.requiresEsePr = true;
+        if (p.esePrMax === 0) p.esePrMax = p.eseMax - p.eseThMax;
+      } else if (p.hasSeenEseTh && p.hasSeenEsePr) {
+        p.requiresEseTh = true;
+        p.requiresEsePr = true;
+      } else if (p.hasSeenEsePr && !p.hasSeenEseTh) {
+        p.requiresEseTh = false;
+        p.requiresEsePr = true;
+      } else {
+        p.requiresEseTh = true;
+        p.requiresEsePr = false;
+      }
+
+      if (p.ceMax > 0 && p.ceThMax > 0 && p.ceMax > p.ceThMax) {
+        p.requiresCeTh = true;
+        p.requiresCePr = true;
+        if (p.cePrMax === 0) p.cePrMax = p.ceMax - p.ceThMax;
+      } else if (p.hasSeenCeTh && p.hasSeenCePr) {
+        p.requiresCeTh = true;
+        p.requiresCePr = true;
+      } else if (p.hasSeenCePr && !p.hasSeenCeTh) {
+        p.requiresCeTh = false;
+        p.requiresCePr = true;
+      } else {
+        p.requiresCeTh = true;
+        p.requiresCePr = false;
+      }
+
+      if (p.requiresCeTh && !p.requiresCePr && (p.ceThMax === 0 || !p.ceThMax) && p.ceMax > 0) {
+        p.ceThMax = p.ceMax;
+      }
+      if (p.requiresCePr && !p.requiresCeTh && (p.cePrMax === 0 || !p.cePrMax) && p.ceMax > 0) {
+        p.cePrMax = p.ceMax;
+      }
+      if (p.requiresEseTh && !p.requiresEsePr && (p.eseThMax === 0 || !p.eseThMax) && p.eseMax > 0) {
+        p.eseThMax = p.eseMax;
+      }
+      if (p.requiresEsePr && !p.requiresEseTh && (p.esePrMax === 0 || !p.esePrMax) && p.eseMax > 0) {
+        p.esePrMax = p.eseMax;
+      }
+
+      const expectedComps = [];
+      if (p.requiresCeTh) expectedComps.push("CE-TH");
+      if (p.requiresCePr) expectedComps.push("CE-PR");
+      if (p.requiresEseTh) expectedComps.push("ESE-TH");
+      if (p.requiresEsePr) expectedComps.push("ESE-PR");
+
+      p.expectedComponents = expectedComps;
+      p.componentCount = expectedComps.length;
+      p.sourceFiles = Array.from(p.sourceFiles);
+    });
+
+    return profiles;
+  };
+
+  // Combine course profiles across all uploaded previous reports
+  const rebuildHistoricalCourseProfiles = (reports) => {
+    const map = new Map();
+    reports.forEach(rep => {
+      if (rep.courseProfiles) {
+        rep.courseProfiles.forEach((prof, k) => {
+          if (!map.has(k)) {
+            map.set(k, { ...prof, sourceFiles: [...prof.sourceFiles] });
+          } else {
+            const existing = map.get(k);
+            existing.requiresEseTh = existing.requiresEseTh || prof.requiresEseTh;
+            existing.requiresEsePr = existing.requiresEsePr || prof.requiresEsePr;
+            existing.requiresCeTh = existing.requiresCeTh || prof.requiresCeTh;
+            existing.requiresCePr = existing.requiresCePr || prof.requiresCePr;
+            existing.eseThMax = Math.max(existing.eseThMax, prof.eseThMax);
+            existing.esePrMax = Math.max(existing.esePrMax, prof.esePrMax);
+            existing.ceThMax = Math.max(existing.ceThMax, prof.ceThMax);
+            existing.cePrMax = Math.max(existing.cePrMax, prof.cePrMax);
+            existing.eseMax = Math.max(existing.eseMax, prof.eseMax);
+            existing.ceMax = Math.max(existing.ceMax, prof.ceMax);
+            existing.courseMax = Math.max(existing.courseMax, prof.courseMax);
+            prof.sourceFiles.forEach(f => {
+              if (!existing.sourceFiles.includes(f)) existing.sourceFiles.push(f);
+            });
+            const expectedComps = [];
+            if (existing.requiresCeTh) expectedComps.push("CE-TH");
+            if (existing.requiresCePr) expectedComps.push("CE-PR");
+            if (existing.requiresEseTh) expectedComps.push("ESE-TH");
+            if (existing.requiresEsePr) expectedComps.push("ESE-PR");
+            existing.expectedComponents = expectedComps;
+            existing.componentCount = expectedComps.length;
+          }
+        });
+      }
+    });
+    return map;
+  };
+
+  // Extract historical course records from a previous event worksheet
+  const extractHistoricalRecordsFromRows = (rows, hMap, fileName) => {
+    const list = [];
+    const isAgg = isAlreadyAggregatedSheet(hMap);
+    
+    if (isAgg) {
+      rows.forEach(row => {
+        const prn = String(getCell(row, hMap, "PRN", "PRN Number", "PRNNo", "RegisterNo", "RegNo", "StudentID") || "").trim();
+        const seat = String(getCell(row, hMap, "Seat Number", "SeatNumber", "SeatNo", "Seat_Number", "RollNo", "Roll Number") || "").trim();
+        const rawCode = String(getCell(row, hMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
+        const code = cleanCourseCode(rawCode);
+        const name = cleanCourseName(String(getCell(row, hMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim());
+        if (!code || (!prn && !seat)) return;
+
+        const ese_th_obtained = parseNumber(getCell(row, hMap, 
+          "ESE - TH Obtained", "ESETHObtained", "ESE-TH Obtained", "ESE_TH Obtained", "ESE TH Obtained", 
+          "ESE - TH Marks", "ESE-TH Marks", "ESE_TH Marks", "ESE TH Marks", "ESE TH Mark", 
+          "ESE - TH", "ESE-TH", "ESE_TH", "ESE TH", 
+          "ESE Theory Obtained", "ESE Theory Marks", "ESE Theory", 
+          "Theory Obtained", "Theory Marks", "Theory Mark", "Theory", 
+          "TH Obtained", "TH Marks", "TH Mark", "TH"
+        )) ?? "";
+
+        let ese_pr_obtained = parseNumber(getCell(row, hMap, 
+          "ESE - PR Obtained", "ESEPRObtained", "ESE-PR Obtained", "ESE_PR Obtained", "ESE PR Obtained", 
+          "ESE - PR Marks", "ESE-PR Marks", "ESE_PR Marks", "ESE PR Marks", "ESE PR Mark", 
+          "ESE - PR", "ESE-PR", "ESE_PR", "ESE PR", 
+          "ESE Practical Obtained", "ESE Practical Marks", "ESE Practical", 
+          "Practical Obtained", "Practical Marks", "Practical Mark", "Practical", "Practicals", 
+          "PR Obtained", "PR Marks", "PR Mark", "PR", "Lab Obtained", "Lab Marks", "Lab"
+        )) ?? "";
+
+        let ese_obtained = parseNumber(getCell(row, hMap, "ESE Overall", "ESEOverall", "ESE Overall Marks ", "ESE Overall Marks", "ESE Total", "ESE", "ESE Marks"));
+        if (ese_obtained === null && (ese_pr_obtained !== "" || ese_th_obtained !== "")) {
+          ese_obtained = (parseNumber(ese_pr_obtained) || 0) + (parseNumber(ese_th_obtained) || 0);
+        }
+        // If sheet has ESE Overall and ESE-TH but ESE-PR column was omitted/blank, infer ESE-PR
+        if (ese_pr_obtained === "" && ese_obtained !== null && ese_th_obtained !== "" && ese_obtained > parseNumber(ese_th_obtained)) {
+          ese_pr_obtained = ese_obtained - parseNumber(ese_th_obtained);
+        }
+        let ce_th_obtained = parseNumber(getCell(row, hMap, "CE - TH Obtained", "CETHObtained", "CE-TH Obtained", "CE_TH Obtained", "CE TH Obtained", "CE-TH", "CE_TH", "CE TH", "CE Obtained", "CE Marks", "CE Total", "CA", "IA", "Internal", "Continuous Evaluation")) ?? "";
+        let ce_pr_obtained = parseNumber(getCell(row, hMap, "CE - PR Obtained", "CEPRObtained", "CE-PR Obtained", "CE_PR Obtained", "CE PR Obtained", "CE-PR", "CE_PR", "CE PR", "CE Practical Obtained", "CE Practical")) ?? "";
+        let ce_obtained = parseNumber(getCell(row, hMap, "CE Overall Marks ", "CE Overall Marks", "CEOverallMarks", "CEOverall", "CE Total", "CE Marks", "CE Obtained", "CE"));
+        if (ce_obtained === null) {
+          ce_obtained = (parseNumber(ce_pr_obtained) || 0) + (parseNumber(ce_th_obtained) || 0);
+        }
+        // If sheet has CE Overall and no separate CE-PR, infer CE-TH from CE Overall
+        if (ce_th_obtained === "" && ce_obtained !== null && (ce_pr_obtained === "" || ce_pr_obtained === 0)) {
+          ce_th_obtained = ce_obtained;
+        }
+        let course_overall = parseNumber(getCell(row, hMap, "Course Overall Marks ", "Course Overall Marks", "CourseOverallMarks"));
+        if (course_overall === null) {
+          course_overall = (parseNumber(ese_obtained) || 0) + (parseNumber(ce_obtained) || 0);
+        }
+
+        const rawEseThMax = parseNumber(getCell(row, hMap, "ESE - TH Max", "ESETHMax", "ESE-TH Max", "ESE_TH Max", "ESE TH Max", "Theory Max", "TH Max"));
+        const rawEseThMin = parseNumber(getCell(row, hMap, "ESE - TH Min", "ESETHMin", "ESE-TH Min", "ESE_TH Min", "ESE TH Min", "Theory Min", "TH Min"));
+        const rawEsePrMax = parseNumber(getCell(row, hMap, "ESE - PR Max", "ESEPRMax", "ESE-PR Max", "ESE_PR Max", "ESE PR Max", "Practical Max", "PR Max"));
+        const rawEsePrMin = parseNumber(getCell(row, hMap, "ESE - PR Min", "ESEPRMin", "ESE-PR Min", "ESE_PR Min", "ESE PR Min", "Practical Min", "PR Min"));
+        const rawEseMax = parseNumber(getCell(row, hMap, "ESE - Max", "ESEMax", "ESE Max", "ESE_Max", "ESE-Max", "External Max"));
+        const rawEseMin = parseNumber(getCell(row, hMap, "ESE - Min", "ESEMin", "ESE Min", "ESE_Min", "ESE-Min", "External Min"));
+
+        const ese_max = rawEseMax ?? ((rawEsePrMax || 0) + (rawEseThMax || 0) || 50);
+        const calculatedEseMin = Math.ceil(0.30 * (ese_max || 0));
+        const ese_min = Math.max(rawEseMin || 0, calculatedEseMin);
+
+        const rawCeThMax = parseNumber(getCell(row, hMap, "CE - TH Max", "CETHMax", "CE-TH Max", "CE_TH Max", "CE TH Max", "Internal Max", "CA Max", "IA Max"));
+        const rawCeThMin = parseNumber(getCell(row, hMap, "CE - TH Min", "CETHMin", "CE-TH Min", "CE_TH Min", "CE TH Min", "Internal Min", "CA Min", "IA Min"));
+        const rawCePrMax = parseNumber(getCell(row, hMap, "CE - PR Max", "CEPRMax", "CE-PR Max", "CE_PR Max", "CE PR Max", "Practical Internal Max"));
+        const rawCePrMin = parseNumber(getCell(row, hMap, "CE - PR Min", "CEPRMin", "CE-PR Min", "CE_PR Min", "CE PR Min", "Practical Internal Min"));
+        const rawCeMax = parseNumber(getCell(row, hMap, "CE - Max", "CEMax", "CE Max", "CE_Max", "CE-Max", "Internal Max", "CA Max", "Continuous Evaluation Max"));
+        const rawCeMin = parseNumber(getCell(row, hMap, "CE - Min", "CEMin", "CE Min", "CE_Min", "CE-Min", "Internal Min", "CA Min"));
+
+        const ce_max = rawCeMax ?? ((rawCePrMax || 0) + (rawCeThMax || 0) || null);
+        const ce_min = rawCeMin ?? 0;
+        const effectiveCeThMax = rawCeThMax !== null ? rawCeThMax : ((rawCePrMax === null || rawCePrMax === 0) && ce_max !== null ? ce_max : null);
+        const effectiveCeThMin = rawCeThMin !== null ? rawCeThMin : ((rawCePrMin === null || rawCePrMin === 0) && ce_min !== null ? ce_min : 0);
+        const effectiveEseThMax = rawEseThMax !== null ? rawEseThMax : ((rawEsePrMax === null || rawEsePrMax === 0) && ese_max !== null ? ese_max : null);
+        const effectiveEseThMin = rawEseThMin !== null ? rawEseThMin : ((rawEsePrMin === null || rawEsePrMin === 0) && ese_min !== null ? ese_min : 0);
+
+        const rawOverallMax = parseNumber(getCell(row, hMap, "Overall Maximum", "OverallMax", "Overall Max", "Course Max", "CourseMax", "Total Max", "Max Marks"));
+        const rawOverallMin = parseNumber(getCell(row, hMap, "Overall Minimum", "OverallMin", "Overall Min", "Course Min", "CourseMin", "Total Min", "Min Marks"));
+
+        const overall_max = rawOverallMax ?? ((ese_max || 0) + (ce_max || 0) || 100);
+        const calculatedOverallMin = Math.ceil(0.35 * (overall_max || 0));
+        const overall_min = Math.max(rawOverallMin || 0, calculatedOverallMin);
+
+        const numEse = parseNumber(ese_obtained) || 0;
+        const numOverall = parseNumber(course_overall) || 0;
+        const raw_ese_pass = numEse > 0 && numEse >= ese_min;
+        const raw_overall_pass = numOverall >= overall_min;
+        const raw_course_pass = raw_ese_pass && raw_overall_pass;
+
+        list.push({
+          prn,
+          seat,
+          code,
+          name,
+          ese_pr_obtained,
+          ese_th_obtained,
+          ese_obtained,
+          ce_pr_obtained,
+          ce_th_obtained,
+          ce_obtained,
+          course_overall,
+          raw_ese_pass,
+          raw_overall_pass,
+          raw_course_pass,
+          ese_pr_max: rawEsePrMax,
+          ese_pr_min: rawEsePrMin,
+          ese_th_max: effectiveEseThMax,
+          ese_th_min: effectiveEseThMin,
+          ese_max,
+          ese_min,
+          ce_pr_max: rawCePrMax,
+          ce_pr_min: rawCePrMin,
+          ce_th_max: effectiveCeThMax,
+          ce_th_min: effectiveCeThMin,
+          ce_max,
+          ce_min,
+          overall_max,
+          overall_min,
+          sourceFile: fileName
+        });
+      });
+    } else {
+      const tempGroup = new Map();
+      rows.forEach(row => {
+        const prn = String(getCell(row, hMap, "PRN", "PRN Number", "PRNNo", "RegisterNo") || "").trim();
+        const seat = String(getCell(row, hMap, "Seat Number", "SeatNumber", "SeatNo") || "").trim();
+        const rawCode = String(getCell(row, hMap, "Course Code", "CourseCode", "PaperCode") || "").trim();
+        const code = cleanCourseCode(rawCode);
+        if (!code || (!prn && !seat)) return;
+
+        const k = `${prn}_${code}`;
+        if (!tempGroup.has(k)) {
+          tempGroup.set(k, {
+            prn,
+            seat,
+            code,
+            name: cleanCourseName(String(getCell(row, hMap, "Course Name", "CourseName") || "").trim()),
+            ese_pr_obtained: "",
+            ese_th_obtained: "",
+            ce_pr_obtained: "",
+            ce_th_obtained: "",
+            sourceFile: fileName
+          });
+        }
+        const item = tempGroup.get(k);
+        const am = String(getCell(row, hMap, "Assessment Method", "AssessmentMethod", "AM", "Method", "Assessment_Method") || "").toUpperCase();
+        const at = String(getCell(row, hMap, "Assessment Type", "AssessmentType", "AT", "Type", "Assessment_Type") || "").toUpperCase();
+        const marks = parseNumber(getCell(row, hMap, "Assessment Marks", "Marks", "ObtainedMarks", "Mark", "Obtained"));
+        const isEse = am.includes("ESE") || am.includes("EXT") || am.includes("THEORY");
+        const isCe = am.includes("CE") || am.includes("CA") || am.includes("IA") || am.includes("INTERNAL");
+        const isPr = at.includes("PR") || at.includes("PRACTICAL") || at.includes("VIVA") || at.includes("LAB");
+        const isTh = at.includes("TH") || (!isPr && isEse);
+        if (isEse && isTh) item.ese_th_obtained = marks ?? item.ese_th_obtained;
+        if (isEse && isPr) item.ese_pr_obtained = marks ?? item.ese_pr_obtained;
+        if (isCe && isTh) item.ce_th_obtained = marks ?? item.ce_th_obtained;
+        if (isCe && isPr) item.ce_pr_obtained = marks ?? item.ce_pr_obtained;
+      });
+
+      tempGroup.forEach(item => {
+        const ese_obtained = (parseNumber(item.ese_pr_obtained) || 0) + (parseNumber(item.ese_th_obtained) || 0);
+        const ce_obtained = (parseNumber(item.ce_pr_obtained) || 0) + (parseNumber(item.ce_th_obtained) || 0);
+        const course_overall = ese_obtained + ce_obtained;
+        item.ese_obtained = ese_obtained;
+        item.ce_obtained = ce_obtained;
+        item.course_overall = course_overall;
+        item.raw_ese_pass = ese_obtained >= 15;
+        item.raw_overall_pass = course_overall >= 35;
+        item.raw_course_pass = item.raw_ese_pass && item.raw_overall_pass;
+        list.push(item);
+      });
+    }
+
+    return list;
+  };
+
   // Group raw assessment rows OR parse pre-aggregated rows into Student-Course Base Aggregates
-  const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap, currentMalpracticeMap = malpracticeRecordsMap, currentHeldbackMap = heldbackRecordsMap) => {
+  const buildGroupedRecordsFromRows = (rows, currentHeaderMap, currentAbsentMap = absentRecordsMap, currentMalpracticeMap = malpracticeRecordsMap, currentHeldbackMap = heldbackRecordsMap, currentHistoricalMap = historicalRecordsMap, currentImprovementMode = improvementScoringMode, currentHistoricalCourseProfiles = historicalCourseProfilesMap, currentGazetteMap = historicalGazetteMap) => {
     if (!rows || rows.length === 0) return [];
     const isAgg = isAlreadyAggregatedSheet(currentHeaderMap);
     // Build dataset-wide canonical college registry from all rows and external reports connecting Seat Number and ADEC Name
@@ -859,13 +1747,14 @@ export default function AdesResultCalculatorPage() {
       if (tlmRaw) prof.tlm = tlmRaw;
 
       if (isAgg) {
-        const ese_max_raw = parseNumber(getCell(row, currentHeaderMap, "ESE - Max", "ESEMax", "ESE Max", "ESE_Max"));
-        const ese_th_m = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax", "ESE TH Max", "ESE_TH_Max"));
-        const ese_pr_m = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax", "ESE PR Max", "ESE_PR_Max"));
-        const ce_max_raw = parseNumber(getCell(row, currentHeaderMap, "CE - Max", "CEMax", "CE Max", "CE_Max"));
-        const ce_th_m = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax", "CE TH Max", "CE_TH_Max"));
-        const ce_pr_m = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax", "CE PR Max", "CE_PR_Max"));
-        const overall_max_raw = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax", "Course Max", "CourseMax", "Total Max"));
+        const ese_max_raw = parseNumber(getCell(row, currentHeaderMap, "ESE - Max", "ESEMax", "ESE Max", "ESE_Max", "External Max"));
+        const ese_th_m = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax", "ESE-TH Max", "ESE_TH Max", "ESE TH Max", "ESE_TH_Max", "Theory Max", "TH Max"));
+        const ese_pr_m = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax", "ESE-PR Max", "ESE_PR Max", "ESE PR Max", "ESE_PR_Max", "Practical Max", "PR Max"));
+        const ce_max_raw = parseNumber(getCell(row, currentHeaderMap, "CE - Max", "CEMax", "CE Max", "CE_Max", "CE-Max", "Internal Max", "CA Max", "Continuous Evaluation Max"));
+        const raw_ce_th_m = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax", "CE-TH Max", "CE_TH Max", "CE TH Max", "CE_TH_Max", "Internal Max", "CA Max", "IA Max"));
+        const ce_pr_m = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax", "CE-PR Max", "CE_PR Max", "CE PR Max", "CE_PR_Max", "Practical Internal Max"));
+        const ce_th_m = raw_ce_th_m !== null ? raw_ce_th_m : ((ce_pr_m === null || ce_pr_m === 0) ? ce_max_raw : null);
+        const overall_max_raw = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax", "Course Max", "CourseMax", "Total Max", "Max Marks"));
 
         if (ese_max_raw !== null && ese_max_raw > 0) prof.eseMax = Math.max(prof.eseMax, ese_max_raw);
         if (ese_th_m !== null && ese_th_m > 0) {
@@ -950,7 +1839,7 @@ export default function AdesResultCalculatorPage() {
     });
 
     // Finalize expected components deduction for each course based on mathematical marks rules
-    courseExpectedComponentsMap.forEach(prof => {
+    courseExpectedComponentsMap.forEach((prof, norm) => {
       // 1. Cross-check with Course Max if available
       if (prof.courseMax > 0) {
         if (prof.eseMax > 0 && prof.ceMax === 0 && prof.courseMax > prof.eseMax) {
@@ -1032,6 +1921,16 @@ export default function AdesResultCalculatorPage() {
         } else {
           prof.requiresCeTh = true;
         }
+
+        // Propagate ceMax to ceThMax when course has no practical
+        if (prof.requiresCeTh && !prof.requiresCePr && (prof.ceThMax === 0 || !prof.ceThMax) && prof.ceMax > 0) {
+          prof.ceThMax = prof.ceMax;
+          prof.maxMarks.CE_TH = prof.ceMax;
+        }
+        if (prof.requiresCePr && !prof.requiresCeTh && (prof.cePrMax === 0 || !prof.cePrMax) && prof.ceMax > 0) {
+          prof.cePrMax = prof.ceMax;
+          prof.maxMarks.CE_PR = prof.ceMax;
+        }
       } else {
         if (prof.ceThMax > 0 && prof.cePrMax > 0) {
           prof.requiresCeTh = true;
@@ -1049,7 +1948,123 @@ export default function AdesResultCalculatorPage() {
           prof.requiresCePr = true;
         } else if (prof.hasSeenCeTh) {
           prof.requiresCeTh = true;
+        } else {
+          // Mandatory University Course Rule:
+          // Every university degree course in CBCSS/FYUGP/ADES requires Continuous Evaluation (CE)!
+          // In Supplementary & Improvement exams, CE is conducted in the regular semester and is NOT re-tested here.
+          // Therefore, if CE marks/columns were omitted from the current supplementary upload,
+          // the course STILL requires CE (CE-PR if practical-only, otherwise CE-TH).
+          if (prof.isPrOnly || (prof.hasSeenEsePr && !prof.hasSeenEseTh)) {
+            prof.requiresCePr = true;
+            prof.requiresCeTh = false;
+          } else {
+            prof.requiresCeTh = true;
+            prof.requiresCePr = false;
+          }
+          if (prof.ceMax === 0) {
+            const courseStr = `${prof.courseCode || ""} ${norm || ""} ${prof.courseName || ""}`.toUpperCase();
+            const isAec = courseStr.includes("AEC");
+            const isVac = courseStr.includes("VAC");
+            const isMdc = courseStr.includes("MDC");
+
+            if (prof.courseMax > 0 && prof.courseMax > prof.eseMax) {
+              prof.ceMax = prof.courseMax - prof.eseMax;
+            } else if (isAec || isVac) {
+              // Ability Enhancement Courses (AEC) and Value Added Courses (VAC) in Kerala FYUGP / ADES regulations have CE Max = 15!
+              prof.ceMax = 15;
+              prof.courseMax = (prof.eseMax || 0) + 15;
+            } else if (isMdc) {
+              // Multi-Disciplinary Courses (MDC): 3 credits, ESE 50, CE 25, Total 75
+              prof.ceMax = 25;
+              prof.courseMax = (prof.eseMax || 0) + 25;
+            } else if (prof.eseMax === 75) {
+              prof.ceMax = 25;
+              prof.courseMax = 100;
+            } else if (prof.eseMax === 70) {
+              prof.ceMax = 30;
+              prof.courseMax = 100;
+            } else if (prof.eseMax === 80) {
+              prof.ceMax = 20;
+              prof.courseMax = 100;
+            } else if (prof.eseMax === 60) {
+              prof.ceMax = 40;
+              prof.courseMax = 100;
+            } else if (prof.eseMax === 50) {
+              if (isAec || isVac) {
+                prof.ceMax = 15;
+                prof.courseMax = 65;
+              } else {
+                prof.ceMax = 25;
+                prof.courseMax = 75;
+              }
+            } else if (prof.eseMax > 0) {
+              prof.ceMax = Math.round(prof.eseMax / 3);
+              prof.courseMax = prof.eseMax + prof.ceMax;
+            }
+          }
+          if (prof.requiresCeTh && prof.ceThMax === 0) {
+            prof.ceThMax = prof.ceMax;
+            prof.maxMarks.CE_TH = prof.ceMax;
+          }
+          if (prof.requiresCePr && prof.cePrMax === 0) {
+            prof.cePrMax = prof.ceMax;
+            prof.maxMarks.CE_PR = prof.ceMax;
+          }
         }
+      }
+
+      // Cross-check & Confirm course component requirements from uploaded previous event report baseline
+      const normKey = norm || normalizeKey(prof?.courseCode);
+      const histProf = currentHistoricalCourseProfiles?.get(normKey);
+      if (histProf) {
+        prof.requiresEseTh = histProf.requiresEseTh;
+        prof.requiresEsePr = histProf.requiresEsePr;
+        prof.requiresCeTh = histProf.requiresCeTh;
+        prof.requiresCePr = histProf.requiresCePr;
+        prof.expectedComponents = [...histProf.expectedComponents];
+        prof.componentCount = histProf.componentCount;
+        prof.confirmedFromPrevious = true;
+        if (histProf.eseThMax > 0) prof.eseThMax = histProf.eseThMax;
+        else if (histProf.eseMax > 0 && !histProf.requiresEsePr) prof.eseThMax = histProf.eseMax;
+        if (histProf.eseThMin !== undefined) prof.eseThMin = histProf.eseThMin;
+        if (histProf.esePrMax > 0) prof.esePrMax = histProf.esePrMax;
+        else if (histProf.eseMax > 0 && histProf.requiresEsePr && !histProf.requiresEseTh) prof.esePrMax = histProf.eseMax;
+        if (histProf.esePrMin !== undefined) prof.esePrMin = histProf.esePrMin;
+        if (histProf.ceThMax > 0) prof.ceThMax = histProf.ceThMax;
+        else if (histProf.ceMax > 0 && !histProf.requiresCePr) prof.ceThMax = histProf.ceMax;
+        if (histProf.ceThMin !== undefined) prof.ceThMin = histProf.ceThMin;
+        if (histProf.cePrMax > 0) prof.cePrMax = histProf.cePrMax;
+        else if (histProf.ceMax > 0 && histProf.requiresCePr && !histProf.requiresCeTh) prof.cePrMax = histProf.ceMax;
+        if (histProf.cePrMin !== undefined) prof.cePrMin = histProf.cePrMin;
+        if (histProf.eseMax > 0) prof.eseMax = histProf.eseMax;
+        if (histProf.eseMin !== undefined) prof.eseMin = histProf.eseMin;
+        if (histProf.ceMax > 0) prof.ceMax = histProf.ceMax;
+        if (histProf.ceMin !== undefined) prof.ceMin = histProf.ceMin;
+        if (histProf.courseMax > 0) prof.courseMax = histProf.courseMax;
+        if (histProf.courseMin !== undefined) prof.courseMin = histProf.courseMin;
+
+        if (prof.ceThMax > 0) prof.maxMarks.CE_TH = prof.ceThMax;
+        if (prof.cePrMax > 0) prof.maxMarks.CE_PR = prof.cePrMax;
+        if (prof.eseThMax > 0) prof.maxMarks.ESE_TH = prof.eseThMax;
+        if (prof.esePrMax > 0) prof.maxMarks.ESE_PR = prof.esePrMax;
+      } else {
+        const expectedComps = [];
+        if (prof.requiresCeTh) expectedComps.push("CE-TH");
+        if (prof.requiresCePr) expectedComps.push("CE-PR");
+        if (prof.requiresEseTh) expectedComps.push("ESE-TH");
+        if (prof.requiresEsePr) expectedComps.push("ESE-PR");
+        prof.expectedComponents = expectedComps;
+        prof.componentCount = expectedComps.length;
+        prof.confirmedFromPrevious = false;
+      }
+
+      if (prof.eseMax > 0) {
+        const calcEseMin = Math.ceil(0.30 * prof.eseMax);
+        prof.eseMin = Math.max(prof.eseMin || 0, calcEseMin);
+      }
+      if (prof.courseMax > 0) {
+        const calcCourseMin = Math.ceil(0.35 * prof.courseMax);
+        prof.courseMin = Math.max(prof.courseMin || 0, calcCourseMin);
       }
 
       prof.hasEseTh = prof.requiresEseTh;
@@ -1076,6 +2091,36 @@ export default function AdesResultCalculatorPage() {
         const normCode = normalizeKey(code);
         const prof = courseExpectedComponentsMap.get(normCode);
 
+        // Historical baseline lookup & Attempt Type determination
+        const rawCat = String(getCell(row, currentHeaderMap, "Exam Category", "ExamCategory", "Appearance Type", "AppearanceType", "Exam Type", "ExamType", "Appearance", "Exam_Category", "Exam_Type") || "").trim().toUpperCase();
+        const hist = getHistoricalEntry(prn, seat, code, currentHistoricalMap);
+        const gazetteAssurance = verifyCourseAttempt(prn, seat, code, currentGazetteMap, name);
+
+        const hasImp = rawCat.includes("IMP") || rawCat.includes("IMPROVE");
+        const hasSupp = rawCat.includes("SUPP") || rawCat.includes("BACKLOG") || rawCat.includes("REPEATER") || rawCat.includes("RE-APPEAR") || rawCat.includes("REAPPEAR");
+
+        let is_improvement = false;
+        let attempt_type = "SUPPLEMENTARY";
+        if (gazetteAssurance && gazetteAssurance.isVerifiedReappear) {
+          is_improvement = false;
+          attempt_type = "SUPPLEMENTARY";
+        } else if (hasImp && !hasSupp) {
+          is_improvement = true;
+          attempt_type = "IMPROVEMENT";
+        } else if (hasSupp) {
+          is_improvement = false;
+          attempt_type = "SUPPLEMENTARY";
+        } else if (gazetteAssurance && gazetteAssurance.isPriorPass && !hasSupp) {
+          is_improvement = true;
+          attempt_type = "IMPROVEMENT";
+        } else if (hist && (hist.raw_course_pass === true || (hist.course_overall !== null && hist.course_overall >= 35 && hist.raw_ese_pass))) {
+          is_improvement = true;
+          attempt_type = "IMPROVEMENT";
+        } else {
+          is_improvement = false;
+          attempt_type = "SUPPLEMENTARY";
+        }
+
         // Check if this student-course has a heldback, malpractice or absent record
         const heldbackEntry = getHeldbackEntry(prn, seat, code, currentHeldbackMap);
         const malpracticeEntry = !heldbackEntry && getMalpracticeEntry(prn, seat, code, currentMalpracticeMap);
@@ -1085,24 +2130,199 @@ export default function AdesResultCalculatorPage() {
         const rawN = rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
         const { collegeCode, collegeName, college } = collegeRegistry.resolve(seat, prn, rawC, rawN);
 
-        const ese_pr_max = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax")) ?? (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || "") : "");
-        const ese_pr_min = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin")) ?? "";
-        let ese_pr_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained")) ?? "";
+        const rowEsePrMax = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Max", "ESEPRMax", "ESE-PR Max", "ESE_PR Max", "ESE PR Max", "Practical Max", "PR Max"));
+        const ese_pr_max = rowEsePrMax !== null ? rowEsePrMax : (hist?.ese_pr_max ?? (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || prof?.esePrMax || "") : ""));
 
-        const ese_th_max = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax")) ?? (prof?.requiresEseTh ? (prof?.maxMarks?.ESE_TH || "") : "");
-        const ese_th_min = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Min", "ESETHMin")) ?? (ese_th_max !== "" ? 0 : "");
-        let ese_th_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained")) ?? "";
+        const rowEsePrMin = parseNumber(getCell(row, currentHeaderMap, "ESE - PR Min", "ESEPRMin", "ESE-PR Min", "ESE_PR Min", "ESE PR Min", "Practical Min", "PR Min"));
+        const ese_pr_min = rowEsePrMin !== null ? rowEsePrMin : (hist?.ese_pr_min ?? (prof?.esePrMin ?? (ese_pr_max !== "" ? 0 : "")));
 
-        let ese_max = parseNumber(getCell(row, currentHeaderMap, "ESE - Max", "ESEMax"));
-        if (ese_max === null) {
-          ese_max = (parseNumber(ese_pr_max) || 0) + (parseNumber(ese_th_max) || 0);
+        let ese_pr_obtained = parseNumber(getCell(row, currentHeaderMap, 
+          "ESE - PR Obtained", "ESEPRObtained", "ESE-PR Obtained", "ESE_PR Obtained", "ESE PR Obtained", 
+          "ESE - PR Marks", "ESE-PR Marks", "ESE_PR Marks", "ESE PR Marks", "ESE PR Mark", 
+          "ESE - PR", "ESE-PR", "ESE_PR", "ESE PR", 
+          "ESE Practical Obtained", "ESE Practical Marks", "ESE Practical", 
+          "Practical Obtained", "Practical Marks", "Practical Mark", "Practical", "Practicals", 
+          "PR Obtained", "PR Marks", "PR Mark", "PR", "Lab Obtained", "Lab Marks", "Lab"
+        )) ?? "";
+
+        const rowEseThMax = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Max", "ESETHMax", "ESE-TH Max", "ESE_TH Max", "ESE TH Max", "Theory Max", "TH Max"));
+        const ese_th_max = rowEseThMax !== null ? rowEseThMax : (hist?.ese_th_max ?? (prof?.requiresEseTh ? (prof?.maxMarks?.ESE_TH || prof?.eseThMax || "") : ""));
+
+        const rowEseThMin = parseNumber(getCell(row, currentHeaderMap, "ESE - TH Min", "ESETHMin", "ESE-TH Min", "ESE_TH Min", "ESE TH Min", "Theory Min", "TH Min"));
+        const ese_th_min = rowEseThMin !== null ? rowEseThMin : (hist?.ese_th_min ?? (prof?.eseThMin ?? (ese_th_max !== "" ? 0 : "")));
+
+        let ese_th_obtained = parseNumber(getCell(row, currentHeaderMap, 
+          "ESE - TH Obtained", "ESETHObtained", "ESE-TH Obtained", "ESE_TH Obtained", "ESE TH Obtained", 
+          "ESE - TH Marks", "ESE-TH Marks", "ESE_TH Marks", "ESE TH Marks", "ESE TH Mark", 
+          "ESE - TH", "ESE-TH", "ESE_TH", "ESE TH", 
+          "ESE Theory Obtained", "ESE Theory Marks", "ESE Theory", 
+          "Theory Obtained", "Theory Marks", "Theory Mark", "Theory", 
+          "TH Obtained", "TH Marks", "TH Mark", "TH"
+        )) ?? "";
+
+        const rowCePrMax = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax", "CE-PR Max", "CE_PR Max", "CE PR Max", "Practical Internal Max"));
+        const ce_pr_max = rowCePrMax !== null ? rowCePrMax : (hist?.ce_pr_max ?? (prof?.requiresCePr ? (prof?.maxMarks?.CE_PR || prof?.cePrMax || "") : ""));
+
+        const rowCePrMin = parseNumber(getCell(row, currentHeaderMap, "CE - PR Min", "CEPRMin", "CE-PR Min", "CE_PR Min", "CE PR Min", "Practical Internal Min"));
+        const ce_pr_min = rowCePrMin !== null ? rowCePrMin : (hist?.ce_pr_min ?? (prof?.cePrMin ?? (ce_pr_max !== "" ? 0 : "")));
+
+        const rowCePr = parseNumber(getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained", "CE-PR Obtained", "CE_PR Obtained", "CE PR Obtained", "CE-PR", "CE_PR", "CE PR", "CE Practical Obtained", "CE Practical"));
+
+        const rowCeThMax = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax", "CE-TH Max", "CE_TH Max", "CE TH Max", "CE - Max", "CEMax", "CE Max", "CE_Max", "Internal Max", "CA Max", "IA Max"));
+        const ce_th_max = rowCeThMax !== null ? rowCeThMax : (hist?.ce_th_max ?? (prof?.requiresCeTh ? (prof?.maxMarks?.CE_TH || prof?.ceThMax || (!prof?.requiresCePr ? (prof?.ceMax || hist?.ce_max) : null) || "") : ""));
+
+        const rowCeThMin = parseNumber(getCell(row, currentHeaderMap, "CE - TH Min", "CETHMin", "CE-TH Min", "CE_TH Min", "CE TH Min", "CE - Min", "CEMin", "CE Min", "Internal Min", "CA Min", "IA Min"));
+        const ce_th_min = rowCeThMin !== null ? rowCeThMin : (hist?.ce_th_min ?? (prof?.ceThMin ?? (ce_th_max !== "" ? 0 : "")));
+
+        const rowCeTh = parseNumber(getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained", "CE-TH Obtained", "CE_TH Obtained", "CE TH Obtained", "CE-TH", "CE_TH", "CE TH", "CE Obtained", "CE Marks", "CA", "IA", "Internal"));
+        const rowCeOverall = parseNumber(getCell(row, currentHeaderMap, "CE Overall Marks ", "CE Overall Marks", "CEOverallMarks", "CEOverall", "CE Total", "CE Marks", "CE Obtained", "CE"));
+
+        let ce_th_raw = rowCeTh !== null ? rowCeTh : ((rowCeOverall !== null && !prof?.requiresCePr) ? rowCeOverall : "");
+        let ce_pr_raw = rowCePr !== null ? rowCePr : "";
+
+        let carriedForwardComponents = [];
+        let repeatedComponents = [];
+        const missingComponents = [];
+        const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
+
+        // Verify Candidate Components against Confirmed Course Structure
+        if (is_improvement) {
+          // Improvement candidate: ONLY ESE-TH is taken from current attempt
+          repeatedComponents.push("ESE-TH");
+          if (prof?.requiresEseTh) {
+            const rawTh = getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained", "ESE Overall", "ESEOverall");
+            if (isBlank(rawTh)) {
+              missingComponents.push("ESE-TH");
+              ese_th_obtained = "Missing";
+            } else {
+              const currVal = parseNumber(rawTh) || 0;
+              if (currentImprovementMode === "best" && hist && hist.ese_th_obtained !== "" && hist.ese_th_obtained !== null) {
+                const histVal = parseNumber(hist.ese_th_obtained);
+                ese_th_obtained = (histVal !== null && currVal < histVal) ? histVal : currVal;
+              } else {
+                ese_th_obtained = currVal;
+              }
+            }
+          }
+          // ESE-PR: strictly carried forward from previous baseline along with CE component
+          if (prof?.requiresEsePr || (hist && !isBlank(hist.ese_pr_obtained))) {
+            if (hist && !isBlank(hist.ese_pr_obtained)) {
+              ese_pr_obtained = hist.ese_pr_obtained;
+              carriedForwardComponents.push("ESE-PR");
+            } else if (hist && hist.ese_obtained !== null && !isBlank(hist.ese_th_obtained) && hist.ese_obtained > parseNumber(hist.ese_th_obtained)) {
+              ese_pr_obtained = hist.ese_obtained - parseNumber(hist.ese_th_obtained);
+              carriedForwardComponents.push("ESE-PR");
+            } else if (!isBlank(ese_pr_obtained)) {
+              // already in current row
+            } else {
+              missingComponents.push("ESE-PR");
+              ese_pr_obtained = "Missing";
+            }
+          }
+          // CE-TH: check current row first, or carry forward from hist
+          if (prof?.requiresCeTh) {
+            if (!isBlank(ce_th_raw)) {
+              // Present in current attempt row
+            } else if (hist && !isBlank(hist.ce_th_obtained)) {
+              ce_th_raw = hist.ce_th_obtained;
+              carriedForwardComponents.push("CE-TH");
+            } else if (hist && !isBlank(hist.ce_obtained) && !prof?.requiresCePr) {
+              ce_th_raw = hist.ce_obtained;
+              carriedForwardComponents.push("CE-TH");
+            } else {
+              missingComponents.push("CE-TH");
+              ce_th_raw = "Missing";
+            }
+          }
+          // CE-PR: check current row first, or carry forward from hist
+          if (prof?.requiresCePr) {
+            if (!isBlank(ce_pr_raw)) {
+              // Present in current attempt row
+            } else if (hist && !isBlank(hist.ce_pr_obtained)) {
+              ce_pr_raw = hist.ce_pr_obtained;
+              carriedForwardComponents.push("CE-PR");
+            } else {
+              missingComponents.push("CE-PR");
+              ce_pr_raw = "Missing";
+            }
+          }
+        } else {
+          // Supplementary candidate: BOTH ESE-TH and ESE-PR are taken from current attempt!
+          if (prof?.requiresEseTh) {
+            const rawTh = getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained", "ESE Overall", "ESEOverall");
+            if (isBlank(rawTh)) {
+              missingComponents.push("ESE-TH");
+              ese_th_obtained = "Missing";
+            } else {
+              ese_th_obtained = parseNumber(rawTh);
+              repeatedComponents.push("ESE-TH");
+            }
+          }
+          if (prof?.requiresEsePr) {
+            const rawPr = getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained");
+            if (isBlank(rawPr)) {
+              // If blank in current row, check if hist has it
+              if (hist && !isBlank(hist.ese_pr_obtained)) {
+                ese_pr_obtained = hist.ese_pr_obtained;
+                carriedForwardComponents.push("ESE-PR");
+              } else {
+                missingComponents.push("ESE-PR");
+                ese_pr_obtained = "Missing";
+              }
+            } else {
+              ese_pr_obtained = parseNumber(rawPr);
+              repeatedComponents.push("ESE-PR");
+            }
+          }
+          // CE-TH: check current row first, or carry forward from hist
+          if (prof?.requiresCeTh) {
+            if (!isBlank(ce_th_raw)) {
+              // Present in current attempt row
+            } else if (hist && !isBlank(hist.ce_th_obtained)) {
+              ce_th_raw = hist.ce_th_obtained;
+              carriedForwardComponents.push("CE-TH");
+            } else if (hist && !isBlank(hist.ce_obtained) && !prof?.requiresCePr) {
+              ce_th_raw = hist.ce_obtained;
+              carriedForwardComponents.push("CE-TH");
+            } else {
+              missingComponents.push("CE-TH");
+              ce_th_raw = "Missing";
+            }
+          }
+          // CE-PR: check current row first, or carry forward from hist
+          if (prof?.requiresCePr) {
+            if (!isBlank(ce_pr_raw)) {
+              // Present in current attempt row
+            } else if (hist && !isBlank(hist.ce_pr_obtained)) {
+              ce_pr_raw = hist.ce_pr_obtained;
+              carriedForwardComponents.push("CE-PR");
+            } else {
+              missingComponents.push("CE-PR");
+              ce_pr_raw = "Missing";
+            }
+          }
         }
-        if ((ese_max === null || ese_max === 0) && prof?.eseMax > 0) {
-          ese_max = prof.eseMax;
+
+        let ese_max = parseNumber(getCell(row, currentHeaderMap, "ESE - Max", "ESEMax", "ESE Max", "ESE_Max", "ESE-Max", "External Max"));
+        if (ese_max === null || ese_max === 0) {
+          if (hist && hist.ese_max !== null && hist.ese_max !== undefined && hist.ese_max > 0) {
+            ese_max = hist.ese_max;
+          } else if (prof?.eseMax > 0) {
+            ese_max = prof.eseMax;
+          } else {
+            ese_max = (parseNumber(ese_pr_max) || 0) + (parseNumber(ese_th_max) || 0);
+          }
         }
-        let ese_min = parseNumber(getCell(row, currentHeaderMap, "ESE - Min", "ESEMin"));
-        if (ese_min === null) {
-          ese_min = Math.ceil(0.30 * ese_max);
+        let ese_min = parseNumber(getCell(row, currentHeaderMap, "ESE - Min", "ESEMin", "ESE Min", "ESE_Min", "ESE-Min", "External Min"));
+        const calculatedEseMin = Math.ceil(0.30 * (ese_max || 0));
+        if (ese_min === null || ese_min === 0 || ese_min < calculatedEseMin) {
+          if (hist && hist.ese_min !== null && hist.ese_min !== undefined && hist.ese_min >= calculatedEseMin) {
+            ese_min = hist.ese_min;
+          } else if (prof?.eseMin > 0 && prof.eseMin >= calculatedEseMin) {
+            ese_min = prof.eseMin;
+          } else {
+            ese_min = calculatedEseMin;
+          }
         }
 
         const has_ese_pr = (parseNumber(ese_pr_max) || 0) > 0 || (prof?.requiresEsePr ?? false);
@@ -1147,31 +2367,6 @@ export default function AdesResultCalculatorPage() {
           }
         }
 
-        // Check for Missing Component(s)
-        // Runs for ALL students including heldback — so we know if marks are actually present
-        const missingComponents = [];
-        if (!is_malpractice && !is_absent && prof) {
-          const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
-          const rawEsePr = getCell(row, currentHeaderMap, "ESE - PR Obtained", "ESEPRObtained");
-          const rawEseTh = getCell(row, currentHeaderMap, "ESE - TH Obtained", "ESETHObtained");
-          const rawCePr = getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained");
-          const rawCeTh = getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained");
-
-          if (prof.requiresEsePr && isBlank(rawEsePr)) {
-            missingComponents.push("ESE-PR");
-            ese_pr_obtained = "Missing";
-          }
-          if (prof.requiresEseTh && isBlank(rawEseTh)) {
-            missingComponents.push("ESE-TH");
-            ese_th_obtained = "Missing";
-          }
-          if (prof.requiresCePr && isBlank(rawCePr)) {
-            missingComponents.push("CE-PR");
-          }
-          if (prof.requiresCeTh && isBlank(rawCeTh)) {
-            missingComponents.push("CE-TH");
-          }
-        }
         // is_held = marks are actually missing (regardless of heldback status)
         // heldback students with ALL marks present are NOT treated as held — they get pass/fail calculated
         const is_missing = missingComponents.length > 0;
@@ -1189,55 +2384,86 @@ export default function AdesResultCalculatorPage() {
         } else if (is_absent && ese_pr_obtained === "Absent (Ab)" && !has_ese_th) {
           ese_obtained = "Absent (Ab)";
         } else {
-          ese_obtained = parseNumber(getCell(row, currentHeaderMap, "ESE Overall", "ESEOverall"));
-          if (ese_obtained === null) {
-            const prNum = parseNumber(ese_pr_obtained) || 0;
-            const thNum = parseNumber(ese_th_obtained) || 0;
+          const prNum = parseNumber(ese_pr_obtained) || 0;
+          const thNum = parseNumber(ese_th_obtained) || 0;
+          if (parseNumber(ese_th_obtained) !== null || parseNumber(ese_pr_obtained) !== null) {
             ese_obtained = prNum + thNum;
+          } else {
+            const rawOverall = parseNumber(getCell(row, currentHeaderMap, "ESE Overall", "ESEOverall", "ESE Overall Marks ", "ESE Overall Marks", "ESE Total", "ESE"));
+            ese_obtained = rawOverall !== null ? rawOverall : (prNum + thNum);
           }
         }
 
-        const ce_pr_max = parseNumber(getCell(row, currentHeaderMap, "CE - PR Max", "CEPRMax")) ?? (prof?.requiresCePr ? (prof?.maxMarks?.CE_PR || "") : "");
-        const ce_pr_min = parseNumber(getCell(row, currentHeaderMap, "CE - PR Min", "CEPRMin")) ?? (ce_pr_max !== "" ? 0 : "");
-        const ce_pr_obtained = missingComponents.includes("CE-PR") ? "Missing" : (parseNumber(getCell(row, currentHeaderMap, "CE - PR Obtained", "CEPRObtained")) ?? (prof?.requiresCePr ? "" : ""));
+        // Component marks finalized
 
-        const ce_th_max = parseNumber(getCell(row, currentHeaderMap, "CE - TH Max", "CETHMax")) ?? (prof?.requiresCeTh ? (prof?.maxMarks?.CE_TH || "") : "");
-        const ce_th_min = parseNumber(getCell(row, currentHeaderMap, "CE - TH Min", "CETHMin")) ?? (ce_th_max !== "" ? 0 : "");
-        const ce_th_obtained = missingComponents.includes("CE-TH") ? "Missing" : (parseNumber(getCell(row, currentHeaderMap, "CE - TH Obtained", "CETHObtained")) ?? (prof?.requiresCeTh ? "" : ""));
 
-        let ce_max = parseNumber(getCell(row, currentHeaderMap, "CE - Max", "CEMax"));
+        const ce_pr_obtained = missingComponents.includes("CE-PR") ? "Missing" : ce_pr_raw;
+        const ce_th_obtained = missingComponents.includes("CE-TH") ? "Missing" : ce_th_raw;
+
+        let ce_max = parseNumber(getCell(row, currentHeaderMap, "CE - Max", "CEMax", "CE Max", "CE_Max", "CE-Max", "Internal Max", "CA Max", "Continuous Evaluation Max"));
         if (ce_max === null) {
-          ce_max = (parseNumber(ce_pr_max) || 0) + (parseNumber(ce_th_max) || 0);
+          if (hist && hist.ce_max !== null && hist.ce_max !== undefined) {
+            ce_max = hist.ce_max;
+          } else if (prof?.ceMax > 0) {
+            ce_max = prof.ceMax;
+          } else {
+            ce_max = (parseNumber(ce_pr_max) || 0) + (parseNumber(ce_th_max) || 0);
+          }
         }
-        if ((ce_max === null || ce_max === 0) && prof?.ceMax > 0) {
-          ce_max = prof.ceMax;
+        let ce_min = parseNumber(getCell(row, currentHeaderMap, "CE - Min", "CEMin", "CE Min", "CE_Min", "CE-Min"));
+        if (ce_min === null) {
+          ce_min = hist?.ce_min ?? prof?.ceMin ?? 0;
         }
-        let ce_min = 0;
         let ce_obtained;
         if (missingComponents.includes("CE-PR") || missingComponents.includes("CE-TH")) {
           ce_obtained = "Held";
         } else {
-          ce_obtained = parseNumber(getCell(row, currentHeaderMap, "CE Overall Marks ", "CE Overall Marks", "CEOverallMarks", "CEOverall"));
-          if (ce_obtained === null) {
-            ce_obtained = (parseNumber(ce_pr_obtained) || 0) + (parseNumber(ce_th_obtained) || 0);
+          const numPr = parseNumber(ce_pr_obtained) || 0;
+          const numTh = parseNumber(ce_th_obtained) || 0;
+          if (ce_th_obtained !== "" || ce_pr_obtained !== "") {
+            ce_obtained = numPr + numTh;
+          } else if (rowCeOverall !== null) {
+            ce_obtained = rowCeOverall;
+          } else if (hist && hist.ce_obtained !== null && hist.ce_obtained !== "") {
+            ce_obtained = hist.ce_obtained;
+          } else {
+            ce_obtained = parseNumber(getCell(row, currentHeaderMap, "CE Overall Marks ", "CE Overall Marks", "CEOverallMarks", "CEOverall", "CE Total", "CE Marks", "CE Obtained", "CE"));
+            if (ce_obtained === null) ce_obtained = numPr + numTh;
           }
         }
 
-        let overall_max = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax", "Course Max"));
+        let overall_max = parseNumber(getCell(row, currentHeaderMap, "Overall Maximum", "OverallMaximum", "OverallMax", "Overall Max", "Course Max", "CourseMax", "Total Max"));
         if (overall_max === null || overall_max === 0) {
-          overall_max = ese_max + ce_max;
+          if (hist && hist.overall_max) {
+            overall_max = hist.overall_max;
+          } else if (prof?.courseMax > 0) {
+            overall_max = prof.courseMax;
+          } else {
+            overall_max = (parseNumber(ese_max) || 0) + (parseNumber(ce_max) || 0);
+          }
         }
-        let overall_min = parseNumber(getCell(row, currentHeaderMap, "Overall Minimum", "OverallMinimum", "OverallMin"));
-        if (overall_min === null) {
-          overall_min = Math.ceil(0.35 * overall_max);
+        let overall_min = parseNumber(getCell(row, currentHeaderMap, "Overall Minimum", "OverallMinimum", "OverallMin", "Overall Min", "Course Min", "CourseMin", "Total Min"));
+        const calculatedOverallMin = Math.ceil(0.35 * (overall_max || 0));
+        if (overall_min === null || overall_min === 0 || overall_min < calculatedOverallMin) {
+          if (hist && hist.overall_min && hist.overall_min >= calculatedOverallMin) {
+            overall_min = hist.overall_min;
+          } else if (prof?.courseMin > 0 && prof.courseMin >= calculatedOverallMin) {
+            overall_min = prof.courseMin;
+          } else {
+            overall_min = calculatedOverallMin;
+          }
         }
         let course_overall;
         if (is_held) {
           course_overall = "Held";
         } else {
-          course_overall = parseNumber(getCell(row, currentHeaderMap, "Course Overall Marks ", "Course Overall Marks", "CourseOverallMarks"));
-          if (course_overall === null) {
+          if (is_improvement || carriedForwardComponents.length > 0 || repeatedComponents.length > 0) {
             course_overall = (parseNumber(ese_obtained) || 0) + (parseNumber(ce_obtained) || 0);
+          } else {
+            course_overall = parseNumber(getCell(row, currentHeaderMap, "Course Overall Marks ", "Course Overall Marks", "CourseOverallMarks", "Course Overall", "Course Total"));
+            if (course_overall === null) {
+              course_overall = (parseNumber(ese_obtained) || 0) + (parseNumber(ce_obtained) || 0);
+            }
           }
         }
 
@@ -1267,15 +2493,26 @@ export default function AdesResultCalculatorPage() {
           overall_deficit = 999;
         } else {
           const numEse = parseNumber(ese_obtained) || 0;
-          // If both ese_max and ese_obtained are 0, no marks exist → cannot satisfy 30% ESE rule
+          const requiresEse = (ese_max > 0) || (prof?.requiresEseTh ?? true) || (prof?.requiresEsePr ?? false);
           const eseHasNoMarks = (ese_max === 0 || ese_max === null) && numEse === 0;
-          ese_deficit = eseHasNoMarks ? 999 : Math.max(0, ese_min - numEse);
+          if (requiresEse && numEse === 0) {
+            ese_deficit = Math.max(ese_min, calculatedEseMin, 1);
+            raw_ese_pass = false;
+          } else {
+            ese_deficit = eseHasNoMarks ? 999 : Math.max(0, ese_min - numEse);
+            raw_ese_pass = ese_deficit === 0 && (!requiresEse || numEse >= calculatedEseMin);
+          }
+
           const numOverall = parseNumber(course_overall) || 0;
           const overallHasNoMarks = (overall_max === 0 || overall_max === null) && numOverall === 0;
           overall_deficit = overallHasNoMarks ? 999 : Math.max(0, overall_min - numOverall);
-          raw_ese_pass = ese_deficit === 0;
-          raw_overall_pass = overall_deficit === 0;
+          raw_overall_pass = overall_deficit === 0 && (numOverall >= overall_min);
           raw_course_pass = raw_ese_pass && raw_overall_pass;
+        }
+
+        if (gazetteAssurance && gazetteAssurance.isVerifiedReappear) {
+          is_improvement = false;
+          attempt_type = "SUPPLEMENTARY";
         }
 
         baseRecords.push({
@@ -1283,6 +2520,16 @@ export default function AdesResultCalculatorPage() {
           _college: college,
           _collegeCode: collegeCode,
           _collegeName: collegeName,
+          attempt_type,
+          is_improvement,
+          has_historical_record: !!hist,
+          historical_source: hist ? hist.sourceFile : null,
+          carried_forward_components: Array.from(new Set(carriedForwardComponents)),
+          repeated_components: Array.from(new Set(repeatedComponents)),
+          expected_components: prof?.expectedComponents || [],
+          expected_component_count: prof?.componentCount || 0,
+          available_component_count: (prof?.expectedComponents || []).filter(c => !missingComponents.includes(c)).length,
+          is_finalized: missingComponents.length === 0 && !is_heldback && !is_malpractice && !is_absent,
           raw: {
             "Faculty": faculty,
             "Program Term Name": program,
@@ -1311,6 +2558,13 @@ export default function AdesResultCalculatorPage() {
             "Overall Maximum": overall_max,
             "Overall Minimum": overall_min,
             "Course Overall Marks ": course_overall,
+            "Attempt Type": attempt_type,
+            "Historical Baseline": hist ? `Linked (${hist.sourceFile})` : "Fresh / No Prior Record",
+            "Carried Forward Components": Array.from(new Set(carriedForwardComponents)).join(", ") || "None",
+            "Components Expected": (prof?.expectedComponents || []).join(", ") || "None",
+            "Component Count": `${(prof?.expectedComponents || []).filter(c => !missingComponents.includes(c)).length}/${prof?.componentCount || 0}`,
+            "Attempt Status": missingComponents.length === 0 ? "Finalized" : `Held (Missing: ${missingComponents.join(", ")})`,
+            "Gazette Reappear Status": gazetteAssurance ? (gazetteAssurance.isVerifiedReappear ? `Verified Reappear (${gazetteAssurance.matchingTerm || 'Gazette'})` : (gazetteAssurance.isPriorPass ? `Prior Pass (${gazetteAssurance.matchingTerm || 'Improvement'})` : `Unlisted in Gazette (${gazetteAssurance.latestStatus})`)) : "N/A",
           },
           has_ese_th,
           has_ese_pr,
@@ -1330,7 +2584,8 @@ export default function AdesResultCalculatorPage() {
           is_heldback,
           heldback_reason,
           is_missing_component: is_missing,
-          missing_components: missingComponents
+          missing_components: missingComponents,
+          gazette_assurance: gazetteAssurance
         });
       });
 
@@ -1350,6 +2605,7 @@ export default function AdesResultCalculatorPage() {
       const rawCode = String(getCell(row, currentHeaderMap, "Course Code", "CourseCode", "PaperCode", "SubjectCode", "Course") || "").trim();
       const code = cleanCourseCode(rawCode);
       const name = cleanCourseName(String(getCell(row, currentHeaderMap, "Course Name", "CourseName", "PaperName", "SubjectName", "CourseTitle") || "").trim());
+      const rawCat = String(getCell(row, currentHeaderMap, "Exam Category", "ExamCategory", "Appearance Type", "AppearanceType", "Exam Type", "ExamType", "Appearance", "Exam_Category", "Exam_Type") || "").trim().toUpperCase();
 
       const methodRaw = String(getCell(row, currentHeaderMap, "Assessment Method", "AssessmentMethod", "AM", "Method", "Assessment_Method") || "").trim().toUpperCase();
       const typeRaw = String(getCell(row, currentHeaderMap, "Assessment Type", "AssessmentType", "AT", "Type", "Assessment_Type") || "").trim().toUpperCase();
@@ -1371,16 +2627,19 @@ export default function AdesResultCalculatorPage() {
         type = "TH";
       }
 
-      const groupKey = faculty + "|||" + program + "|||" + seat + "|||" + prn + "|||" + code;
+      const studentId = prn || seat;
+      const groupKey = faculty + "|||" + program + "|||" + studentId + "|||" + code;
 
       if (!groups.has(groupKey)) {
         groups.set(groupKey, {
-          identifiers: { faculty, program, seat, prn, code, name, rawCollegeCode, rawCollegeName },
+          identifiers: { faculty, program, seat, prn, code, name, rawCollegeCode, rawCollegeName, rawCat },
           components: {},
           tlm: ""
         });
       } else {
         const grp = groups.get(groupKey);
+        if (!grp.identifiers.prn && prn) grp.identifiers.prn = prn;
+        if (!grp.identifiers.seat && seat) grp.identifiers.seat = seat;
         if (!grp.identifiers.rawCollegeCode && rawCollegeCode) grp.identifiers.rawCollegeCode = rawCollegeCode;
         if (!grp.identifiers.rawCollegeName && rawCollegeName) grp.identifiers.rawCollegeName = rawCollegeName;
         if ((!grp.identifiers.name || (name && name.length > grp.identifiers.name.length)) && name) grp.identifiers.name = name;
@@ -1404,6 +2663,167 @@ export default function AdesResultCalculatorPage() {
       const normCode = normalizeKey(identifiers.code);
       const prof = courseExpectedComponentsMap.get(normCode);
 
+      // Historical baseline lookup & Attempt Type determination
+      const hist = getHistoricalEntry(identifiers.prn, identifiers.seat, identifiers.code, currentHistoricalMap);
+      const gazetteAssurance = verifyCourseAttempt(identifiers.prn, identifiers.seat, identifiers.code, currentGazetteMap, identifiers.name);
+      const rawCat = (identifiers.rawCat || "").toUpperCase();
+
+      const hasImp = rawCat.includes("IMP") || rawCat.includes("IMPROVE");
+      const hasSupp = rawCat.includes("SUPP") || rawCat.includes("BACKLOG") || rawCat.includes("REPEATER") || rawCat.includes("RE-APPEAR") || rawCat.includes("REAPPEAR");
+
+      let is_improvement = false;
+      let attempt_type = "SUPPLEMENTARY";
+      if (gazetteAssurance && gazetteAssurance.isVerifiedReappear) {
+        is_improvement = false;
+        attempt_type = "SUPPLEMENTARY";
+      } else if (hasImp && !hasSupp) {
+        is_improvement = true;
+        attempt_type = "IMPROVEMENT";
+      } else if (hasSupp) {
+        is_improvement = false;
+        attempt_type = "SUPPLEMENTARY";
+      } else if (gazetteAssurance && gazetteAssurance.isPriorPass && !hasSupp) {
+        is_improvement = true;
+        attempt_type = "IMPROVEMENT";
+      } else if (hist && (hist.raw_course_pass === true || (hist.course_overall !== null && hist.course_overall >= 35 && hist.raw_ese_pass))) {
+        is_improvement = true;
+        attempt_type = "IMPROVEMENT";
+      } else {
+        is_improvement = false;
+        attempt_type = "SUPPLEMENTARY";
+      }
+
+      let carriedForwardComponents = [];
+      let repeatedComponents = [];
+      const missingComponents = [];
+      const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
+
+      // Verify Candidate Components against Confirmed Course Structure
+      if (is_improvement) {
+        repeatedComponents.push("ESE-TH");
+        if (prof?.requiresEseTh) {
+          const cTh = components["ESE_TH"];
+          if (!cTh || !cTh.present || isBlank(cTh.rawMarksVal)) {
+            missingComponents.push("ESE-TH");
+          } else {
+            if (currentImprovementMode === "best" && hist && hist.ese_th_obtained !== "" && hist.ese_th_obtained !== null) {
+              const histVal = parseNumber(hist.ese_th_obtained);
+              const currVal = parseNumber(cTh.marks) || 0;
+              if (histVal !== null && currVal < histVal) {
+                cTh.marks = histVal;
+                cTh.rawMarksVal = histVal;
+              }
+            }
+          }
+        }
+        // ESE-PR strictly carried forward from previous baseline along with CE component
+        if (prof?.requiresEsePr || (hist && !isBlank(hist.ese_pr_obtained))) {
+          if (hist && !isBlank(hist.ese_pr_obtained)) {
+            if (!components["ESE_PR"]) components["ESE_PR"] = { present: true };
+            components["ESE_PR"].marks = hist.ese_pr_obtained;
+            components["ESE_PR"].rawMarksVal = hist.ese_pr_obtained;
+            carriedForwardComponents.push("ESE-PR");
+          } else if (hist && hist.ese_obtained !== null && !isBlank(hist.ese_th_obtained) && hist.ese_obtained > parseNumber(hist.ese_th_obtained)) {
+            const inferredPr = hist.ese_obtained - parseNumber(hist.ese_th_obtained);
+            if (!components["ESE_PR"]) components["ESE_PR"] = { present: true };
+            components["ESE_PR"].marks = inferredPr;
+            components["ESE_PR"].rawMarksVal = inferredPr;
+            carriedForwardComponents.push("ESE-PR");
+          } else {
+            const cPr = components["ESE_PR"];
+            if (cPr && cPr.present && !isBlank(cPr.rawMarksVal)) {
+              // present in current attempt
+            } else {
+              missingComponents.push("ESE-PR");
+            }
+          }
+        }
+        // CE-TH: check current attempt first, or carry forward from hist
+        if (prof?.requiresCeTh) {
+          const cTh = components["CE_TH"];
+          if (cTh && cTh.present && !isBlank(cTh.rawMarksVal)) {
+            // Present in current attempt
+          } else if (hist && !isBlank(hist.ce_th_obtained)) {
+            if (!components["CE_TH"]) components["CE_TH"] = { present: true };
+            components["CE_TH"].marks = hist.ce_th_obtained;
+            components["CE_TH"].rawMarksVal = hist.ce_th_obtained;
+            carriedForwardComponents.push("CE-TH");
+          } else if (hist && !isBlank(hist.ce_obtained) && !prof?.requiresCePr) {
+            if (!components["CE_TH"]) components["CE_TH"] = { present: true };
+            components["CE_TH"].marks = hist.ce_obtained;
+            components["CE_TH"].rawMarksVal = hist.ce_obtained;
+            carriedForwardComponents.push("CE-TH");
+          } else {
+            missingComponents.push("CE-TH");
+          }
+        }
+        // CE-PR: check current attempt first, or carry forward from hist
+        if (prof?.requiresCePr) {
+          const cPr = components["CE_PR"];
+          if (cPr && cPr.present && !isBlank(cPr.rawMarksVal)) {
+            // Present in current attempt
+          } else if (hist && !isBlank(hist.ce_pr_obtained)) {
+            if (!components["CE_PR"]) components["CE_PR"] = { present: true };
+            components["CE_PR"].marks = hist.ce_pr_obtained;
+            components["CE_PR"].rawMarksVal = hist.ce_pr_obtained;
+            carriedForwardComponents.push("CE-PR");
+          } else {
+            missingComponents.push("CE-PR");
+          }
+        }
+      } else {
+        // Supplementary candidate: BOTH ESE-TH and ESE-PR are taken from current attempt!
+        if (prof?.requiresEseTh) {
+          const cTh = components["ESE_TH"];
+          if (!cTh || !cTh.present || isBlank(cTh.rawMarksVal)) {
+            missingComponents.push("ESE-TH");
+          } else {
+            repeatedComponents.push("ESE-TH");
+          }
+        }
+        if (prof?.requiresEsePr) {
+          const cPr = components["ESE_PR"];
+          if (!cPr || !cPr.present || isBlank(cPr.rawMarksVal)) {
+            missingComponents.push("ESE-PR");
+          } else {
+            repeatedComponents.push("ESE-PR");
+          }
+        }
+        // CE-TH: check current attempt first, or carry forward from hist
+        if (prof?.requiresCeTh) {
+          const cTh = components["CE_TH"];
+          if (cTh && cTh.present && !isBlank(cTh.rawMarksVal)) {
+            // Present in current attempt
+          } else if (hist && !isBlank(hist.ce_th_obtained)) {
+            if (!components["CE_TH"]) components["CE_TH"] = { present: true };
+            components["CE_TH"].marks = hist.ce_th_obtained;
+            components["CE_TH"].rawMarksVal = hist.ce_th_obtained;
+            carriedForwardComponents.push("CE-TH");
+          } else if (hist && !isBlank(hist.ce_obtained) && !prof?.requiresCePr) {
+            if (!components["CE_TH"]) components["CE_TH"] = { present: true };
+            components["CE_TH"].marks = hist.ce_obtained;
+            components["CE_TH"].rawMarksVal = hist.ce_obtained;
+            carriedForwardComponents.push("CE-TH");
+          } else {
+            missingComponents.push("CE-TH");
+          }
+        }
+        // CE-PR: check current attempt first, or carry forward from hist
+        if (prof?.requiresCePr) {
+          const cPr = components["CE_PR"];
+          if (cPr && cPr.present && !isBlank(cPr.rawMarksVal)) {
+            // Present in current attempt
+          } else if (hist && !isBlank(hist.ce_pr_obtained)) {
+            if (!components["CE_PR"]) components["CE_PR"] = { present: true };
+            components["CE_PR"].marks = hist.ce_pr_obtained;
+            components["CE_PR"].rawMarksVal = hist.ce_pr_obtained;
+            carriedForwardComponents.push("CE-PR");
+          } else {
+            missingComponents.push("CE-PR");
+          }
+        }
+      }
+
       const heldbackEntry = getHeldbackEntry(identifiers.prn, identifiers.seat, identifiers.code, currentHeldbackMap);
       const is_heldback = !!heldbackEntry;
       const heldback_reason = heldbackEntry ? (heldbackEntry.reason || "Heldback at term-level") : "";
@@ -1417,52 +2837,18 @@ export default function AdesResultCalculatorPage() {
       const absentEntry = !is_heldback && !is_malpractice && getAbsentEntry(identifiers.prn, identifiers.seat, identifiers.code, currentAbsentMap);
       const is_absent = !is_heldback && !is_malpractice && !!absentEntry;
       const absent_status = absentEntry ? absentEntry.status : "";
-
-      // Check for Missing Component(s)
-      // Runs for ALL students including heldback — so we know if marks are actually present
-      const missingComponents = [];
-      const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
-
-      if (!is_malpractice && !is_absent && prof) {
-        // Check ESE_PR
-        if (prof.requiresEsePr) {
-          const c = components["ESE_PR"];
-          if (!c || !c.present || isBlank(c.rawMarksVal)) {
-            missingComponents.push("ESE-PR");
-          }
-        }
-        // Check ESE_TH
-        if (prof.requiresEseTh) {
-          const c = components["ESE_TH"];
-          if (!c || !c.present || isBlank(c.rawMarksVal)) {
-            missingComponents.push("ESE-TH");
-          }
-        }
-        // Check CE_PR
-        if (prof.requiresCePr) {
-          const c = components["CE_PR"];
-          if (!c || !c.present || isBlank(c.rawMarksVal)) {
-            missingComponents.push("CE-PR");
-          }
-        }
-        // Check CE_TH
-        if (prof.requiresCeTh) {
-          const c = components["CE_TH"];
-          if (!c || !c.present || isBlank(c.rawMarksVal)) {
-            missingComponents.push("CE-TH");
-          }
-        }
-      }
       // is_held = marks are actually missing (heldback with all marks present is NOT held)
       const is_missing = missingComponents.length > 0;
       const is_held = is_missing;
 
       const ese_pr = components["ESE_PR"];
-      const ese_pr_max = (ese_pr && ese_pr.max !== null) ? ese_pr.max : (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || 0) : 0);
+      const ese_pr_max = (ese_pr && ese_pr.max !== null && ese_pr.max > 0) ? ese_pr.max : (hist?.ese_pr_max ?? (prof?.requiresEsePr ? (prof?.maxMarks?.ESE_PR || prof?.esePrMax || "") : ""));
+      const ese_pr_min = hist?.ese_pr_min ?? (prof?.esePrMin ?? (ese_pr_max !== "" ? 0 : ""));
       let ese_pr_obtained = (ese_pr && ese_pr.marks !== null) ? ese_pr.marks : (missingComponents.includes("ESE-PR") ? "Missing" : (prof?.requiresEsePr ? 0 : ""));
 
       const ese_th = components["ESE_TH"];
-      const ese_th_max = (ese_th && ese_th.max !== null) ? ese_th.max : (prof?.requiresEseTh ? (prof?.maxMarks?.ESE_TH || 0) : 0);
+      const ese_th_max = (ese_th && ese_th.max !== null && ese_th.max > 0) ? ese_th.max : (hist?.ese_th_max ?? (prof?.requiresEseTh ? (prof?.maxMarks?.ESE_TH || prof?.eseThMax || "") : ""));
+      const ese_th_min = hist?.ese_th_min ?? (prof?.eseThMin ?? (ese_th_max !== "" ? 0 : ""));
       let ese_th_obtained = (ese_th && ese_th.marks !== null) ? ese_th.marks : (missingComponents.includes("ESE-TH") ? "Missing" : (prof?.requiresEseTh ? 0 : ""));
 
       if (is_malpractice && malpracticeEntry) {
@@ -1481,8 +2867,18 @@ export default function AdesResultCalculatorPage() {
         }
       }
 
-      const ese_max = Math.max(ese_pr_max + ese_th_max, prof?.eseMax || 0);
-      const ese_min = Math.ceil(0.30 * ese_max);
+      const ese_max = Math.max((parseNumber(ese_pr_max) || 0) + (parseNumber(ese_th_max) || 0), hist?.ese_max || 0, prof?.eseMax || 0);
+      const calculatedEseMin = Math.ceil(0.30 * (ese_max || 0));
+      let ese_min = hist?.ese_min ?? (prof?.eseMin ?? calculatedEseMin);
+      if (ese_min === null || ese_min === 0 || ese_min < calculatedEseMin) {
+        if (hist && hist.ese_min && hist.ese_min >= calculatedEseMin) {
+          ese_min = hist.ese_min;
+        } else if (prof?.eseMin > 0 && prof.eseMin >= calculatedEseMin) {
+          ese_min = prof.eseMin;
+        } else {
+          ese_min = calculatedEseMin;
+        }
+      }
 
       let ese_obtained;
       if (is_held) {
@@ -1502,15 +2898,17 @@ export default function AdesResultCalculatorPage() {
       }
 
       const ce_pr = components["CE_PR"];
-      const ce_pr_max = (ce_pr && ce_pr.max !== null) ? ce_pr.max : (prof?.requiresCePr ? (prof?.maxMarks?.CE_PR || 0) : 0);
+      const ce_pr_max = (ce_pr && ce_pr.max !== null && ce_pr.max > 0) ? ce_pr.max : (hist?.ce_pr_max ?? (prof?.requiresCePr ? (prof?.maxMarks?.CE_PR || prof?.cePrMax || "") : ""));
+      const ce_pr_min = hist?.ce_pr_min ?? (prof?.cePrMin ?? (ce_pr_max !== "" ? 0 : ""));
       const ce_pr_obtained = (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : (missingComponents.includes("CE-PR") ? "Missing" : (prof?.requiresCePr ? 0 : ""));
 
       const ce_th = components["CE_TH"];
-      const ce_th_max = (ce_th && ce_th.max !== null) ? ce_th.max : (prof?.requiresCeTh ? (prof?.maxMarks?.CE_TH || 0) : 0);
+      const ce_th_max = (ce_th && ce_th.max !== null && ce_th.max > 0) ? ce_th.max : (hist?.ce_th_max ?? (prof?.requiresCeTh ? (prof?.maxMarks?.CE_TH || prof?.ceThMax || (!prof?.requiresCePr ? (prof?.ceMax || hist?.ce_max) : null) || "") : ""));
+      const ce_th_min = hist?.ce_th_min ?? (prof?.ceThMin ?? (ce_th_max !== "" ? 0 : ""));
       const ce_th_obtained = (ce_th && ce_th.marks !== null) ? ce_th.marks : (missingComponents.includes("CE-TH") ? "Missing" : (prof?.requiresCeTh ? 0 : ""));
 
-      const ce_max = Math.max(ce_pr_max + ce_th_max, prof?.ceMax || 0);
-      const ce_min = 0;
+      const ce_max = Math.max((parseNumber(ce_pr_max) || 0) + (parseNumber(ce_th_max) || 0), hist?.ce_max || 0, prof?.ceMax || 0);
+      const ce_min = hist?.ce_min ?? (prof?.ceMin ?? 0);
       let ce_obtained;
       if (missingComponents.includes("CE-PR") || missingComponents.includes("CE-TH")) {
         ce_obtained = "Held";
@@ -1518,8 +2916,18 @@ export default function AdesResultCalculatorPage() {
         ce_obtained = (parseNumber(ce_pr_obtained) || 0) + (parseNumber(ce_th_obtained) || 0);
       }
 
-      const overall_max = Math.max(ese_max + ce_max, prof?.courseMax || 0);
-      const overall_min = Math.ceil(0.35 * overall_max);
+      const overall_max = Math.max(ese_max + ce_max, hist?.overall_max || 0, prof?.courseMax || 0);
+      const calculatedOverallMin = Math.ceil(0.35 * (overall_max || 0));
+      let overall_min = hist?.overall_min ?? (prof?.courseMin ?? calculatedOverallMin);
+      if (overall_min === null || overall_min === 0 || overall_min < calculatedOverallMin) {
+        if (hist && hist.overall_min && hist.overall_min >= calculatedOverallMin) {
+          overall_min = hist.overall_min;
+        } else if (prof?.courseMin > 0 && prof.courseMin >= calculatedOverallMin) {
+          overall_min = prof.courseMin;
+        } else {
+          overall_min = calculatedOverallMin;
+        }
+      }
       let course_overall;
       if (is_held) {
         course_overall = "Held";
@@ -1553,14 +2961,20 @@ export default function AdesResultCalculatorPage() {
         overall_deficit = 999;
       } else {
         const numEse = parseNumber(ese_obtained) || 0;
-        // If both ese_max and ese_obtained are 0, no marks exist → cannot satisfy 30% ESE rule
+        const requiresEse = (ese_max > 0) || (prof?.requiresEseTh ?? true) || (prof?.requiresEsePr ?? false);
         const eseHasNoMarks = (ese_max === 0 || ese_max === null) && numEse === 0;
-        ese_deficit = eseHasNoMarks ? 999 : Math.max(0, ese_min - numEse);
+        if (requiresEse && numEse === 0) {
+          ese_deficit = Math.max(ese_min, calculatedEseMin, 1);
+          raw_ese_pass = false;
+        } else {
+          ese_deficit = eseHasNoMarks ? 999 : Math.max(0, ese_min - numEse);
+          raw_ese_pass = ese_deficit === 0 && (!requiresEse || numEse >= calculatedEseMin);
+        }
+
         const numOverall = parseNumber(course_overall) || 0;
         const overallHasNoMarks = (overall_max === 0 || overall_max === null) && numOverall === 0;
         overall_deficit = overallHasNoMarks ? 999 : Math.max(0, overall_min - numOverall);
-        raw_ese_pass = ese_deficit === 0;
-        raw_overall_pass = overall_deficit === 0;
+        raw_overall_pass = overall_deficit === 0 && (numOverall >= overall_min);
         raw_course_pass = raw_ese_pass && raw_overall_pass;
       }
 
@@ -1572,11 +2986,26 @@ export default function AdesResultCalculatorPage() {
       const rawN = identifiers.rawCollegeName || heldbackEntry?.collegeName || malpracticeEntry?.collegeName || absentEntry?.collegeName || "";
       const { collegeCode, collegeName, college } = collegeRegistry.resolve(identifiers.seat, identifiers.prn, rawC, rawN);
 
+      if (gazetteAssurance && gazetteAssurance.isVerifiedReappear) {
+        is_improvement = false;
+        attempt_type = "SUPPLEMENTARY";
+      }
+
       baseRecords.push({
         identifiers: { ...identifiers, college, collegeCode, collegeName },
         _college: college,
         _collegeCode: collegeCode,
         _collegeName: collegeName,
+        attempt_type,
+        is_improvement,
+        has_historical_record: !!hist,
+        historical_source: hist ? hist.sourceFile : null,
+        carried_forward_components: Array.from(new Set(carriedForwardComponents)),
+        repeated_components: Array.from(new Set(repeatedComponents)),
+        expected_components: prof?.expectedComponents || [],
+        expected_component_count: prof?.componentCount || 0,
+        available_component_count: (prof?.expectedComponents || []).filter(c => !missingComponents.includes(c)).length,
+        is_finalized: missingComponents.length === 0 && !is_heldback && !is_malpractice && !is_absent,
         raw: {
           "Faculty": identifiers.faculty,
           "Program Term Name": identifiers.program,
@@ -1584,11 +3013,11 @@ export default function AdesResultCalculatorPage() {
           "Course Name": identifiers.name,
           "Seat Number": identifiers.seat,
           "PRN": identifiers.prn,
-          "ESE - PR Max": ese_pr_max !== 0 ? ese_pr_max : "",
-          "ESE - PR Min": "",
+          "ESE - PR Max": ese_pr_max !== 0 && ese_pr_max !== "" ? ese_pr_max : "",
+          "ESE - PR Min": ese_pr_min !== "" && ese_pr_min !== null ? ese_pr_min : (ese_pr_max !== "" && ese_pr_max > 0 ? 0 : ""),
           "ESE - PR Obtained": (ese_pr && ese_pr_obtained === "Malpractice (MP)") ? "Malpractice (MP)" : ((ese_pr && ese_pr_obtained === "Absent (Ab)") ? "Absent (Ab)" : ese_pr_obtained),
-          "ESE - TH Max": ese_th_max !== 0 ? ese_th_max : "",
-          "ESE - TH Min": ese_th_max > 0 ? 0 : "",
+          "ESE - TH Max": ese_th_max !== 0 && ese_th_max !== "" ? ese_th_max : "",
+          "ESE - TH Min": ese_th_min !== "" && ese_th_min !== null ? ese_th_min : (ese_th_max !== "" && ese_th_max > 0 ? 0 : ""),
           "ESE - TH Obtained": (ese_th && ese_th_obtained === "Malpractice (MP)") ? "Malpractice (MP)" : ((ese_th && ese_th_obtained === "Absent (Ab)") ? "Absent (Ab)" : ese_th_obtained),
           "ESE - Max": Math.round(ese_max),
           "ESE - Min": ese_min,
@@ -1605,6 +3034,13 @@ export default function AdesResultCalculatorPage() {
           "Overall Maximum": overall_max,
           "Overall Minimum": overall_min,
           "Course Overall Marks ": is_held ? "Held" : course_overall,
+          "Attempt Type": attempt_type,
+          "Historical Baseline": hist ? `Linked (${hist.sourceFile})` : "Fresh / No Prior Record",
+          "Carried Forward Components": Array.from(new Set(carriedForwardComponents)).join(", ") || "None",
+          "Components Expected": (prof?.expectedComponents || []).join(", ") || "None",
+          "Component Count": `${(prof?.expectedComponents || []).filter(c => !missingComponents.includes(c)).length}/${prof?.componentCount || 0}`,
+          "Attempt Status": missingComponents.length === 0 ? "Finalized" : `Held (Missing: ${missingComponents.join(", ")})`,
+          "Gazette Reappear Status": gazetteAssurance ? (gazetteAssurance.isVerifiedReappear ? `Verified Reappear (${gazetteAssurance.matchingTerm || 'Gazette'})` : (gazetteAssurance.isPriorPass ? `Prior Pass (${gazetteAssurance.matchingTerm || 'Improvement'})` : `Unlisted in Gazette (${gazetteAssurance.latestStatus})`)) : "N/A",
         },
         has_ese_th,
         has_ese_pr,
@@ -1624,12 +3060,39 @@ export default function AdesResultCalculatorPage() {
         is_heldback,
         heldback_reason,
         is_missing_component: is_missing,
-        missing_components: missingComponents
+        missing_components: missingComponents,
+        gazette_assurance: gazetteAssurance
       });
     });
 
     return baseRecords;
   };
+
+  // Dynamically compute groupedRecords from active marks and all supporting datasets
+  const groupedRecords = useMemo(() => {
+    if (!rawRows || rawRows.length === 0 || !headerMap) return [];
+    return buildGroupedRecordsFromRows(
+      rawRows,
+      headerMap,
+      absentRecordsMap,
+      malpracticeRecordsMap,
+      heldbackRecordsMap,
+      historicalRecordsMap,
+      improvementScoringMode,
+      historicalCourseProfilesMap,
+      historicalGazetteMap
+    );
+  }, [
+    rawRows,
+    headerMap,
+    absentRecordsMap,
+    malpracticeRecordsMap,
+    heldbackRecordsMap,
+    historicalRecordsMap,
+    improvementScoringMode,
+    historicalCourseProfilesMap,
+    historicalGazetteMap
+  ]);
 
   // Distinct Courses extracted from loaded data
   const distinctCourses = useMemo(() => {
@@ -1714,9 +3177,19 @@ export default function AdesResultCalculatorPage() {
   const processedRows = useMemo(() => {
     return groupedRecords.map(rec => {
       const row = { ...rec.raw };
+      row._prn = rec.identifiers?.prn || row["PRN"] || "";
+      row._seat = rec.identifiers?.seat || row["Seat Number"] || "";
+      row._studentName = rec.identifiers?.name || row["Student Name"] || "";
       row._college = rec._college || rec.identifiers?.college || "";
       row._collegeCode = rec._collegeCode || rec.identifiers?.collegeCode || "";
       row._collegeName = rec._collegeName || rec.identifiers?.collegeName || "";
+      row._attemptType = rec.attempt_type || "SUPPLEMENTARY";
+      row._isImprovement = rec.is_improvement || false;
+      row._hasHistoricalRecord = rec.has_historical_record || false;
+      row._historicalSource = rec.historical_source || "";
+      row._carriedForwardComponents = rec.carried_forward_components || [];
+      row._repeatedComponents = rec.repeated_components || [];
+      row._gazetteAssurance = rec.gazette_assurance || null;
       const normCode = normalizeKey(rec.identifiers.code);
       const modLimit = courseModerationMap[normCode] || 0;
 
@@ -1847,7 +3320,9 @@ export default function AdesResultCalculatorPage() {
       }
 
       // Moderation eligibility: Effected if course has ESE-TH, OR if it is ESE-PR only AND user enabled allowPrOnlyModeration
-      const isEligibleForModeration = rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration);
+      // Students with 0 marks in ESE are strictly ineligible for moderation
+      const numRawEse = parseNumber(rec.raw["ESE Overall"]) ?? ((parseNumber(rec.raw["ESE - TH Obtained"]) || 0) + (parseNumber(rec.raw["ESE - PR Obtained"]) || 0));
+      const isEligibleForModeration = (rec.has_ese_th || (rec.is_pr_only && allowPrOnlyModeration)) && numRawEse > 0;
 
       let moderation_awarded = 0;
       let final_ese_pass = rec.raw_ese_pass ? "Pass" : "Fail";
@@ -2260,8 +3735,9 @@ export default function AdesResultCalculatorPage() {
     const map = new Map();
 
     processedRows.forEach(row => {
-      const prn = String(row["PRN"] || "").trim();
-      const seat = String(row["Seat Number"] || "").trim();
+      const prn = String(row._prn || row["PRN"] || "").trim();
+      const seat = String(row._seat || row["Seat Number"] || "").trim();
+      const studentName = String(row._studentName || row["Student Name"] || row["Candidate Name"] || row["Name"] || "").trim();
       const program = String(row["Program Term Name"] || "").trim();
       const faculty = String(row["Faculty"] || "").trim();
       const college = String(row._college || row["College Name"] || row["College Code"] || row["College"] || "").trim();
@@ -2277,12 +3753,15 @@ export default function AdesResultCalculatorPage() {
           studentId,
           prn,
           seatNumber: seat,
+          studentName,
           faculty,
           program,
           college,
           collegeCode,
           collegeName,
           totalCourses: 0,
+          improvementCourses: 0,
+          supplementaryCourses: 0,
           rawPassedCourses: 0,
           rawFailedCourses: 0,
           finalPassedCourses: 0,
@@ -2297,6 +3776,14 @@ export default function AdesResultCalculatorPage() {
 
       const st = map.get(key);
       st.totalCourses++;
+
+      const isVerifiedReappear = !!(row._gazetteAssurance && row._gazetteAssurance.isVerifiedReappear);
+      const isImprovement = isVerifiedReappear ? false : !!(row._isImprovement || row._attemptType === "IMPROVEMENT");
+      if (isImprovement) {
+        st.improvementCourses = (st.improvementCourses || 0) + 1;
+      } else {
+        st.supplementaryCourses = (st.supplementaryCourses || 0) + 1;
+      }
 
       const isRawCoursePass = !!row._rawPass;
       const isFinalCoursePass = row["Course Pass/Fail"] === "Pass" || (row._isHeldback && String(row["Course Pass/Fail"]).startsWith("Pass"));
@@ -2337,6 +3824,8 @@ export default function AdesResultCalculatorPage() {
       st.courses.push({
         courseCode: row["Course Code"],
         courseName: row["Course Name"],
+        attemptType: isVerifiedReappear ? "SUPPLEMENTARY" : (row._attemptType || (isImprovement ? "IMPROVEMENT" : "SUPPLEMENTARY")),
+        isImprovement: isImprovement,
         esePass: row["ESE Pass"],
         overallPass: row["Overall pass"],
         coursePass: row["Course Pass/Fail"],
@@ -2359,40 +3848,153 @@ export default function AdesResultCalculatorPage() {
         eseOverall: row["ESE Overall"],
         eseMin: row["ESE - Min"],
         courseOverall: row["Course Overall Marks "],
-        overallMin: row["Overall Minimum"]
+        overallMin: row["Overall Minimum"],
+        eseThObtained: row["ESE - TH Obtained"],
+        eseThMax: row["ESE - TH Max"],
+        eseThMin: row["ESE - TH Min"],
+        ceThObtained: row["CE - TH Obtained"],
+        ceThMax: row["CE - TH Max"],
+        ceThMin: row["CE - TH Min"],
+        esePrObtained: row["ESE - PR Obtained"],
+        esePrMax: row["ESE - PR Max"],
+        esePrMin: row["ESE - PR Min"],
+        cePrObtained: row["CE - PR Obtained"],
+        cePrMax: row["CE - PR Max"],
+        cePrMin: row["CE - PR Min"],
+        ceOverall: row["CE Overall Marks "],
+        ceMax: row["CE - Max"],
+        ceMin: row["CE - Min"],
+        carriedForwardComponents: row._carriedForwardComponents || [],
+        repeatedComponents: row._repeatedComponents || [],
+        gazetteAssurance: row._gazetteAssurance || null
       });
     });
 
     const list = Array.from(map.values()).map(st => {
       const hasHeldback = (st.heldbackCourses || 0) > 0;
       const hasMissingMarks = (st.heldCourses || 0) > 0;
-      let semesterResult = "Fail";
-      let rawSemesterResult = "Fail";
+      let semesterResult = "";
+      let rawSemesterResult = "";
       let finalSemesterPass = false;
       let rawSemesterPass = false;
+      let pendingGazetteBacklogs = [];
+      let hasGazetteAssurance = false;
 
-      if (hasMissingMarks) {
+      // Result Gazette Reappear Assurance:
+      // Academic Rule: Semester result should ONLY be collected if the Result Gazette (Reappear Assurance) is uploaded; otherwise keep it blank.
+      const isGazetteUploaded = (historicalGazetteMap && historicalGazetteMap.size > 0) || (gazetteReports && gazetteReports.length > 0);
+
+      if (isGazetteUploaded) {
+        const cleanP = cleanIdKey(st.prn);
+        const cleanS = cleanIdKey(st.seatNumber);
+        const cleanN = cleanIdKey(st.studentName);
+
+        // PRN is constant across exam sessions; strictly prioritize PRN lookup!
+        let gazetteEntries = cleanP ? (historicalGazetteMap.get(cleanP) || []) : [];
+
+        // Fall back to seat number or name if PRN lookup yielded no entries
+        if (gazetteEntries.length === 0 && cleanS) {
+          gazetteEntries = historicalGazetteMap.get(cleanS) || [];
+        }
+        if (gazetteEntries.length === 0 && cleanN && cleanN.length > 3) {
+          gazetteEntries = historicalGazetteMap.get(cleanN) || [];
+        }
+
+        if (gazetteEntries.length > 0) {
+          hasGazetteAssurance = true;
+          const matchingEntries = gazetteEntries.filter(entry => {
+            const hasMatchingCourse = st.courses.some(c => isCourseReappearInGazetteEntry(c.courseCode, c.courseName, entry));
+            if (hasMatchingCourse) return true;
+            if (entry.term && st.program) {
+              const normEntryTerm = entry.term.toUpperCase().replace(/[^A-Z0-9]/g, "");
+              const normProgTerm = st.program.toUpperCase().replace(/[^A-Z0-9]/g, "");
+              if (normProgTerm.includes(normEntryTerm) || normEntryTerm.includes(normProgTerm)) return true;
+            }
+            return false;
+          });
+
+          // Use matched entries if found; otherwise all student gazette entries apply
+          const relevantEntries = matchingEntries.length > 0 ? matchingEntries : gazetteEntries;
+
+          // Extract regular event moderation from relevant gazette entries or student's gazette records
+          const regularModMarks = Math.max(
+            relevantEntries.reduce((maxOrd, e) => Math.max(maxOrd, parseOrdMarks(e.ordTotal) || 0), 0),
+            gazetteEntries.reduce((maxOrd, e) => Math.max(maxOrd, parseOrdMarks(e.ordTotal) || 0), 0)
+          );
+          st.regularModerationMarks = regularModMarks;
+
+          const declaredReappearItems = [];
+          relevantEntries.forEach(entry => {
+            const list = (entry.reappearCodes && entry.reappearCodes.length > 0) ? entry.reappearCodes : (entry.reappearTitles || []);
+            list.forEach(item => {
+              if (item && !declaredReappearItems.some(existing => cleanCourseCode(existing) === cleanCourseCode(item))) {
+                declaredReappearItems.push(item);
+              }
+            });
+          });
+
+          // Current courses that passed
+          const currentPassedCourses = st.courses.filter(c => c.coursePass === "Pass" || (c.isHeldback && String(c.coursePass).startsWith("Pass")));
+
+          // Any declared reappear not passed in the current session remains an outstanding backlog
+          pendingGazetteBacklogs = declaredReappearItems.filter(item => {
+            const isCleared = currentPassedCourses.some(c => {
+              const codeMatch = cleanCourseCode(c.courseCode) === cleanCourseCode(item);
+              const nameMatch = c.courseName && item && (
+                cleanCourseName(c.courseName).includes(cleanCourseName(item)) ||
+                cleanCourseName(item).includes(cleanCourseName(c.courseName))
+              );
+              return codeMatch || nameMatch;
+            });
+            return !isCleared;
+          });
+        }
+      }
+
+      const hasPendingBacklogs = pendingGazetteBacklogs.length > 0;
+      const regularModMarks = st.regularModerationMarks || 0;
+      const eventModMarks = st.totalModerationMarks || 0;
+      const cumulativeModMarks = regularModMarks + eventModMarks;
+
+      if (!isGazetteUploaded) {
+        // Result Gazette NOT uploaded: per academic requirement, semester result is NOT evaluated and must remain blank
+        rawSemesterPass = false;
+        finalSemesterPass = false;
+        semesterResult = "";
+        rawSemesterResult = "";
+      } else if (hasMissingMarks) {
         // Collect missing component details across all held courses (CE-TH, CE-PR, ESE-TH, ESE-PR)
         const heldCourses = st.courses.filter(c => c.isHeld);
         const allMissingComps = Array.from(new Set(heldCourses.flatMap(c => c.missingComponents || [])));
         const missingCompsSummary = allMissingComps.length > 0 ? allMissingComps.join(", ") : "Marks Incomplete";
-        const missingDetailStr = heldCourses.map(c => {
-          const comps = (c.missingComponents && c.missingComponents.length > 0) ? c.missingComponents.join(", ") : "Incomplete";
-          return `${cleanCourseCode(c.courseCode)} [Missing: ${comps}]`;
-        }).join("; ");
 
         // Missing marks: considered Failed because marks are incomplete, but held status, reason and heldback are shown
         rawSemesterPass = false;
         finalSemesterPass = false;
         if (hasHeldback) {
-          semesterResult = `Fail (Held - Missing: ${missingCompsSummary}, Heldback)`;
+          semesterResult = `Fail (Held - Missing: ${missingCompsSummary}${hasPendingBacklogs ? `, Pending: ${pendingGazetteBacklogs.join(", ")}` : ""}, Heldback)`;
           rawSemesterResult = `Fail (Held - Missing: ${missingCompsSummary}, Heldback)`;
         } else {
-          semesterResult = `Fail (Held - Missing: ${missingCompsSummary})`;
+          semesterResult = `Fail (Held - Missing: ${missingCompsSummary}${hasPendingBacklogs ? `, Pending: ${pendingGazetteBacklogs.join(", ")}` : ""})`;
           rawSemesterResult = `Fail (Held - Missing: ${missingCompsSummary})`;
         }
+      } else if (hasPendingBacklogs) {
+        // If student has pending backlogs in the Gazette, semester CANNOT BE PASS!
+        rawSemesterPass = false;
+        finalSemesterPass = false;
+        if (st.finalFailedCourses === 0) {
+          semesterResult = `Fail (Pending Backlog${pendingGazetteBacklogs.length > 1 ? "s" : ""}: ${pendingGazetteBacklogs.join(", ")})`;
+          rawSemesterResult = `Fail (Pending Backlogs)`;
+        } else {
+          semesterResult = `Fail (${st.finalFailedCourses} Failed, Pending: ${pendingGazetteBacklogs.join(", ")})`;
+          rawSemesterResult = `Fail (${st.rawFailedCourses} Failed, Pending Backlogs)`;
+        }
+        if (hasHeldback) {
+          semesterResult += " (Heldback)";
+          rawSemesterResult += " (Heldback)";
+        }
       } else {
-        // All marks are available: calculate raw and final semester pass/fail
+        // Gazette IS uploaded and 0 pending backlogs!
         rawSemesterPass = st.rawFailedCourses === 0;
         finalSemesterPass = st.finalFailedCourses === 0;
 
@@ -2413,7 +4015,7 @@ export default function AdesResultCalculatorPage() {
         }
       }
 
-      const isRescuedSemester = !hasMissingMarks && !rawSemesterPass && finalSemesterPass;
+      const isRescuedSemester = isGazetteUploaded && !hasMissingMarks && !hasPendingBacklogs && !rawSemesterPass && finalSemesterPass;
 
       const heldCourses = st.courses.filter(c => c.isHeld);
       const allMissingComps = Array.from(new Set(heldCourses.flatMap(c => c.missingComponents || [])));
@@ -2424,6 +4026,11 @@ export default function AdesResultCalculatorPage() {
 
       return {
         ...st,
+        eventModerationMarks: eventModMarks,
+        regularModerationMarks: regularModMarks,
+        cumulativeModerationMarks: cumulativeModMarks,
+        totalModerationMarks: cumulativeModMarks,
+        ourModTotal: cumulativeModMarks,
         isHeld: hasMissingMarks,
         isHeldback: hasHeldback,
         rawSemesterPass,
@@ -2432,7 +4039,10 @@ export default function AdesResultCalculatorPage() {
         semesterResult,
         rawSemesterResult,
         missingComponents: allMissingComps,
-        missingDetailStr
+        missingDetailStr,
+        pendingGazetteBacklogs,
+        hasGazetteAssurance,
+        isGazetteUploaded
       };
     });
 
@@ -2442,7 +4052,7 @@ export default function AdesResultCalculatorPage() {
       }
       return String(a.prn).localeCompare(String(b.prn), undefined, { numeric: true });
     });
-  }, [processedRows]);
+  }, [processedRows, historicalGazetteMap, gazetteReports]);
 
   // Context-Scoped Student Data (College, Program, Course, Search)
   const scopedStudents = useMemo(() => {
@@ -2485,9 +4095,11 @@ export default function AdesResultCalculatorPage() {
 
   // Consolidated / Global Overall Student Metrics (Unfiltered, for sidebar)
   const consolidatedStudentMetrics = useMemo(() => {
+    const isGazetteUploaded = (historicalGazetteMap && historicalGazetteMap.size > 0) || (gazetteReports && gazetteReports.length > 0);
     const total = studentSemesterData.length;
     if (total === 0) {
       return {
+        isGazetteUploaded,
         totalStudents: 0,
         rawPassedStudents: 0,
         rawPassedPct: "0.0",
@@ -2501,13 +4113,19 @@ export default function AdesResultCalculatorPage() {
         heldbackPct: "0.0",
         heldMissingStudents: 0,
         heldMissingPct: "0.0",
+        pendingBacklogStudents: 0,
+        pendingBacklogPct: "0.0",
         rescuedStudents: 0,
         rescuedPct: "0.0",
         absentStudents: 0,
         absentPct: "0.0",
         malpracticeStudents: 0,
         malpracticePct: "0.0",
+        improvementStudents: 0,
+        supplementaryStudents: 0,
         totalPapersAttempted: 0,
+        totalImprovementPapers: 0,
+        totalSupplementaryPapers: 0,
         avgPapersPerStudent: "0.0"
       };
     }
@@ -2520,15 +4138,28 @@ export default function AdesResultCalculatorPage() {
     let heldStudents = 0;
     let heldbackStudents = 0;
     let heldMissingStudents = 0;
+    let pendingBacklogStudents = 0;
+    let improvementStudents = 0;
+    let supplementaryStudents = 0;
     let totalPapersAttempted = 0;
+    let totalImprovementPapers = 0;
+    let totalSupplementaryPapers = 0;
 
     studentSemesterData.forEach(st => {
       totalPapersAttempted += st.totalCourses;
+      totalImprovementPapers += (st.improvementCourses || 0);
+      totalSupplementaryPapers += (st.supplementaryCourses || 0);
+      if ((st.improvementCourses || 0) > 0) improvementStudents++;
+      if ((st.supplementaryCourses || 0) > 0) supplementaryStudents++;
+
+      if ((st.pendingGazetteBacklogs || []).length > 0) {
+        pendingBacklogStudents++;
+      }
       if (st.isHeldback) {
         heldbackStudents++;
         if (st.isHeld) {
           heldStudents++;
-        } else {
+        } else if (isGazetteUploaded) {
           if (st.rawSemesterPass) rawPassedStudents++;
           if (st.finalSemesterPass) finalPassedStudents++;
           if (st.isRescuedSemester) rescuedStudents++;
@@ -2536,7 +4167,7 @@ export default function AdesResultCalculatorPage() {
       } else if (st.isHeld) {
         heldMissingStudents++;
         heldStudents++;
-      } else {
+      } else if (isGazetteUploaded) {
         if (st.rawSemesterPass) rawPassedStudents++;
         if (st.finalSemesterPass) finalPassedStudents++;
         if (st.isRescuedSemester) rescuedStudents++;
@@ -2545,38 +4176,47 @@ export default function AdesResultCalculatorPage() {
       if ((st.malpracticeCourses || 0) > 0) malpracticeStudents++;
     });
 
-    const failedStudents = total - finalPassedStudents - heldStudents;
+    const failedStudents = isGazetteUploaded ? (total - finalPassedStudents - heldStudents) : 0;
 
     return {
+      isGazetteUploaded,
       totalStudents: total,
-      rawPassedStudents,
-      rawPassedPct: total > 0 ? ((rawPassedStudents / total) * 100).toFixed(1) : "0.0",
-      finalPassedStudents,
-      finalPassedPct: total > 0 ? ((finalPassedStudents / total) * 100).toFixed(1) : "0.0",
+      rawPassedStudents: isGazetteUploaded ? rawPassedStudents : 0,
+      rawPassedPct: total > 0 && isGazetteUploaded ? ((rawPassedStudents / total) * 100).toFixed(1) : "0.0",
+      finalPassedStudents: isGazetteUploaded ? finalPassedStudents : 0,
+      finalPassedPct: total > 0 && isGazetteUploaded ? ((finalPassedStudents / total) * 100).toFixed(1) : "0.0",
       failedStudents,
-      failedPct: total > 0 ? ((failedStudents / total) * 100).toFixed(1) : "0.0",
+      failedPct: total > 0 && isGazetteUploaded ? ((failedStudents / total) * 100).toFixed(1) : "0.0",
       heldStudents,
       heldPct: total > 0 ? ((heldStudents / total) * 100).toFixed(1) : "0.0",
       heldbackStudents,
       heldbackPct: total > 0 ? ((heldbackStudents / total) * 100).toFixed(1) : "0.0",
       heldMissingStudents,
       heldMissingPct: total > 0 ? ((heldMissingStudents / total) * 100).toFixed(1) : "0.0",
-      rescuedStudents,
-      rescuedPct: total > 0 ? ((rescuedStudents / total) * 100).toFixed(1) : "0.0",
+      pendingBacklogStudents,
+      pendingBacklogPct: total > 0 ? ((pendingBacklogStudents / total) * 100).toFixed(1) : "0.0",
+      rescuedStudents: isGazetteUploaded ? rescuedStudents : 0,
+      rescuedPct: total > 0 && isGazetteUploaded ? ((rescuedStudents / total) * 100).toFixed(1) : "0.0",
       absentStudents,
       absentPct: total > 0 ? ((absentStudents / total) * 100).toFixed(1) : "0.0",
       malpracticeStudents,
       malpracticePct: total > 0 ? ((malpracticeStudents / total) * 100).toFixed(1) : "0.0",
+      improvementStudents,
+      supplementaryStudents,
       totalPapersAttempted,
+      totalImprovementPapers,
+      totalSupplementaryPapers,
       avgPapersPerStudent: total > 0 ? (totalPapersAttempted / total).toFixed(1) : "0.0"
     };
-  }, [studentSemesterData]);
+  }, [studentSemesterData, historicalGazetteMap, gazetteReports]);
 
   // Student Metrics calculated directly from the active scoped filters (for main student view)
   const studentMetrics = useMemo(() => {
+    const isGazetteUploaded = (historicalGazetteMap && historicalGazetteMap.size > 0) || (gazetteReports && gazetteReports.length > 0);
     const total = scopedStudents.length;
     if (total === 0) {
       return {
+        isGazetteUploaded,
         totalStudents: 0,
         rawPassedStudents: 0,
         rawPassedPct: "0.0",
@@ -2590,13 +4230,19 @@ export default function AdesResultCalculatorPage() {
         heldbackPct: "0.0",
         heldMissingStudents: 0,
         heldMissingPct: "0.0",
+        pendingBacklogStudents: 0,
+        pendingBacklogPct: "0.0",
         rescuedStudents: 0,
         rescuedPct: "0.0",
         absentStudents: 0,
         absentPct: "0.0",
         malpracticeStudents: 0,
         malpracticePct: "0.0",
+        improvementStudents: 0,
+        supplementaryStudents: 0,
         totalPapersAttempted: 0,
+        totalImprovementPapers: 0,
+        totalSupplementaryPapers: 0,
         avgPapersPerStudent: "0.0"
       };
     }
@@ -2609,15 +4255,28 @@ export default function AdesResultCalculatorPage() {
     let heldStudents = 0;
     let heldbackStudents = 0;
     let heldMissingStudents = 0;
+    let pendingBacklogStudents = 0;
+    let improvementStudents = 0;
+    let supplementaryStudents = 0;
     let totalPapersAttempted = 0;
+    let totalImprovementPapers = 0;
+    let totalSupplementaryPapers = 0;
 
     scopedStudents.forEach(st => {
       totalPapersAttempted += st.totalCourses;
+      totalImprovementPapers += (st.improvementCourses || 0);
+      totalSupplementaryPapers += (st.supplementaryCourses || 0);
+      if ((st.improvementCourses || 0) > 0) improvementStudents++;
+      if ((st.supplementaryCourses || 0) > 0) supplementaryStudents++;
+
+      if ((st.pendingGazetteBacklogs || []).length > 0) {
+        pendingBacklogStudents++;
+      }
       if (st.isHeldback) {
         heldbackStudents++;
         if (st.isHeld) {
           heldStudents++;
-        } else {
+        } else if (isGazetteUploaded) {
           if (st.rawSemesterPass) rawPassedStudents++;
           if (st.finalSemesterPass) finalPassedStudents++;
           if (st.isRescuedSemester) rescuedStudents++;
@@ -2625,7 +4284,7 @@ export default function AdesResultCalculatorPage() {
       } else if (st.isHeld) {
         heldMissingStudents++;
         heldStudents++;
-      } else {
+      } else if (isGazetteUploaded) {
         if (st.rawSemesterPass) rawPassedStudents++;
         if (st.finalSemesterPass) finalPassedStudents++;
         if (st.isRescuedSemester) rescuedStudents++;
@@ -2634,32 +4293,39 @@ export default function AdesResultCalculatorPage() {
       if ((st.malpracticeCourses || 0) > 0) malpracticeStudents++;
     });
 
-    const failedStudents = total - finalPassedStudents - heldStudents;
+    const failedStudents = isGazetteUploaded ? (total - finalPassedStudents - heldStudents) : 0;
 
     return {
+      isGazetteUploaded,
       totalStudents: total,
-      rawPassedStudents,
-      rawPassedPct: total > 0 ? ((rawPassedStudents / total) * 100).toFixed(1) : "0.0",
-      finalPassedStudents,
-      finalPassedPct: total > 0 ? ((finalPassedStudents / total) * 100).toFixed(1) : "0.0",
+      rawPassedStudents: isGazetteUploaded ? rawPassedStudents : 0,
+      rawPassedPct: total > 0 && isGazetteUploaded ? ((rawPassedStudents / total) * 100).toFixed(1) : "0.0",
+      finalPassedStudents: isGazetteUploaded ? finalPassedStudents : 0,
+      finalPassedPct: total > 0 && isGazetteUploaded ? ((finalPassedStudents / total) * 100).toFixed(1) : "0.0",
       failedStudents,
-      failedPct: total > 0 ? ((failedStudents / total) * 100).toFixed(1) : "0.0",
+      failedPct: total > 0 && isGazetteUploaded ? ((failedStudents / total) * 100).toFixed(1) : "0.0",
       heldStudents,
       heldPct: total > 0 ? ((heldStudents / total) * 100).toFixed(1) : "0.0",
       heldbackStudents,
       heldbackPct: total > 0 ? ((heldbackStudents / total) * 100).toFixed(1) : "0.0",
       heldMissingStudents,
       heldMissingPct: total > 0 ? ((heldMissingStudents / total) * 100).toFixed(1) : "0.0",
-      rescuedStudents,
-      rescuedPct: total > 0 ? ((rescuedStudents / total) * 100).toFixed(1) : "0.0",
+      pendingBacklogStudents,
+      pendingBacklogPct: total > 0 ? ((pendingBacklogStudents / total) * 100).toFixed(1) : "0.0",
+      rescuedStudents: isGazetteUploaded ? rescuedStudents : 0,
+      rescuedPct: total > 0 && isGazetteUploaded ? ((rescuedStudents / total) * 100).toFixed(1) : "0.0",
       absentStudents,
       absentPct: total > 0 ? ((absentStudents / total) * 100).toFixed(1) : "0.0",
       malpracticeStudents,
       malpracticePct: total > 0 ? ((malpracticeStudents / total) * 100).toFixed(1) : "0.0",
+      improvementStudents,
+      supplementaryStudents,
       totalPapersAttempted,
+      totalImprovementPapers,
+      totalSupplementaryPapers,
       avgPapersPerStudent: total > 0 ? (totalPapersAttempted / total).toFixed(1) : "0.0"
     };
-  }, [scopedStudents]);
+  }, [scopedStudents, historicalGazetteMap, gazetteReports]);
 
   // Contextual Unique Lists for Student Dropdown Filters
   const uniqueStudentColleges = useMemo(() => {
@@ -2716,6 +4382,12 @@ export default function AdesResultCalculatorPage() {
       list = list.filter(st => st.finalSemesterPass);
     } else if (studentFilterStatus === "FAIL") {
       list = list.filter(st => !st.finalSemesterPass && !st.isHeld);
+    } else if (studentFilterStatus === "PENDING_BACKLOG") {
+      list = list.filter(st => (st.pendingGazetteBacklogs || []).length > 0);
+    } else if (studentFilterStatus === "IMPROVEMENT") {
+      list = list.filter(st => (st.improvementCourses || 0) > 0);
+    } else if (studentFilterStatus === "SUPPLEMENTARY") {
+      list = list.filter(st => (st.supplementaryCourses || 0) > 0);
     } else if (studentFilterStatus === "HELDBACK") {
       list = list.filter(st => st.isHeldback);
     } else if (studentFilterStatus === "HELD") {
@@ -2757,9 +4429,11 @@ export default function AdesResultCalculatorPage() {
       const normSeat = normalizeKey(pub.seat);
       const st = (normPrn && prnMap.get(normPrn)) || (normSeat && seatMap.get(normSeat)) || null;
 
-      const isFound = !!st;
+      let isFound = !!st;
       let calcResult = "Not Loaded";
       let calcModMarks = 0;
+      let calcEventModMarks = 0;
+      let calcRegularModMarks = 0;
       let calcFailedCourses = [];
       let calcIsHeld = false;
       let calcIsHeldback = false;
@@ -2783,6 +4457,8 @@ export default function AdesResultCalculatorPage() {
           calcHeldbackHasMarks = !hasAnyHeldCourse;
           // No moderation is applied to heldback students — always 0
           calcModMarks = 0;
+          calcEventModMarks = 0;
+          calcRegularModMarks = 0;
           if (calcHeldbackHasMarks) {
             // All marks present → show raw pass/fail result (no moderation)
             calcResult = st.rawSemesterPass ? "Pass (Heldback)" : "Fail (Heldback)";
@@ -2798,15 +4474,41 @@ export default function AdesResultCalculatorPage() {
           calcFailedCourses = [...regularFailed, ...missingCodes];
         } else if (st.isHeld) {
           calcModMarks = 0;
+          calcEventModMarks = 0;
+          calcRegularModMarks = 0;
           calcResult = "Fail (Held - Missing)";
           calcFailedCourses = st.courses.filter(c => c.isHeld).map(c => {
             const comps = (c.missingComponents && c.missingComponents.length > 0) ? c.missingComponents.join(", ") : "Incomplete";
             return `${cleanCourseCode(c.courseCode)} (Missing: ${comps})`;
           });
         } else {
-          calcModMarks = st.totalModerationMarks || 0;
+          calcEventModMarks = st.eventModerationMarks || 0;
+          calcRegularModMarks = st.regularModerationMarks || 0;
+          calcModMarks = st.totalModerationMarks !== undefined ? st.totalModerationMarks : (calcRegularModMarks + calcEventModMarks);
           calcResult = st.finalSemesterPass ? "Pass" : "Fail";
           calcFailedCourses = st.courses.filter(c => c.coursePass !== "Pass" && !c.isHeld && !c.isHeldback).map(c => cleanCourseCode(c.courseCode));
+        }
+
+        // Direct Gazette Check: if calcRegularModMarks is still 0, check historicalGazetteMap by PRN or Seat directly
+        if (calcRegularModMarks === 0) {
+          const cleanP = cleanIdKey(pub.prn) || (st ? cleanIdKey(st.prn) : "");
+          const cleanS = cleanIdKey(pub.seat) || (st ? cleanIdKey(st.seatNumber) : "");
+          let gEntries = cleanP ? (historicalGazetteMap.get(cleanP) || []) : [];
+          if (gEntries.length === 0 && cleanS) gEntries = historicalGazetteMap.get(cleanS) || [];
+          if (gEntries.length > 0) {
+            calcRegularModMarks = gEntries.reduce((maxOrd, e) => Math.max(maxOrd, parseOrdMarks(e.ordTotal) || 0), 0);
+            calcModMarks = calcRegularModMarks + calcEventModMarks;
+          }
+        }
+      } else {
+        // Fallback: check if regular moderation exists in historical gazette map
+        const cleanP = cleanIdKey(pub.prn);
+        const cleanS = cleanIdKey(pub.seat);
+        let gEntries = cleanP ? (historicalGazetteMap.get(cleanP) || []) : [];
+        if (gEntries.length === 0 && cleanS) gEntries = historicalGazetteMap.get(cleanS) || [];
+        if (gEntries.length > 0) {
+          calcRegularModMarks = gEntries.reduce((maxOrd, e) => Math.max(maxOrd, parseOrdMarks(e.ordTotal) || 0), 0);
+          calcModMarks = calcRegularModMarks;
         }
       }
 
@@ -2863,14 +4565,19 @@ export default function AdesResultCalculatorPage() {
       // Base published result for comparison
       const pubResultStd = (pubAcademicResult === "Pass" || pubAcademicResult === "Fail") ? pubAcademicResult : (isPubHeldback ? "Heldback" : pubAcademicResult);
 
-      const pubModMarks = pub.ordTotal || 0;
+      const pubModMarks = pub.ordTotal || 0; // Total Published Ordinance
       const pubHasOrd = pub.ord === "YES" || pubModMarks > 0;
+      const pubRegularModMarks = calcRegularModMarks;
+      // Event Moderation in university published result: difference of total published ordinance and original event moderation
+      const pubEventModMarks = Math.max(0, pubModMarks - pubRegularModMarks);
 
       // Heldback students: result is not published → comparison is N/A, not a real mismatch
       let isResultMatch = null; // null = N/A
       let isModMatch = null;    // null = N/A
+      let isEventModMatch = null;
       let isExactMatch = null;  // null = N/A
       let modDiff = 0;
+      let eventModDiff = 0;
 
       let category = "EXACT_MATCH";
       let discrepancyDescription = "Exact Match";
@@ -2879,6 +4586,7 @@ export default function AdesResultCalculatorPage() {
         category = "NOT_IN_DATA";
         isResultMatch = false;
         isModMatch = false;
+        isEventModMatch = false;
         isExactMatch = false;
         discrepancyDescription = "Student record not found in our loaded dataset";
       } else if (calcIsHeldback) {
@@ -2892,7 +4600,9 @@ export default function AdesResultCalculatorPage() {
           if (pubResultStd === "Fail" || pubResultStd === "Heldback" || pubExactResult.startsWith("Fail")) {
             isResultMatch = true;
             isModMatch = Math.round(pubModMarks) === 0;
+            isEventModMatch = Math.round(pubEventModMarks) === 0;
             modDiff = -pubModMarks;
+            eventModDiff = -pubEventModMarks;
             isExactMatch = isResultMatch && isModMatch;
             category = isExactMatch ? "EXACT_MATCH" : "MOD_DIFF";
             discrepancyDescription = isExactMatch
@@ -2901,7 +4611,9 @@ export default function AdesResultCalculatorPage() {
           } else {
             isResultMatch = false;
             isModMatch = Math.round(pubModMarks) === 0;
+            isEventModMatch = Math.round(pubEventModMarks) === 0;
             modDiff = -pubModMarks;
+            eventModDiff = -pubEventModMarks;
             isExactMatch = false;
             category = "FAILED_HERE_PASSED_PUB";
             discrepancyDescription = `Heldback student — marks missing on our side (Fail), but university published: ${pubExactResult}`;
@@ -2910,7 +4622,9 @@ export default function AdesResultCalculatorPage() {
           // University sheet only specified "Heldback" with no explicit marks/reappear info
           isResultMatch = true;
           isModMatch = Math.round(pubModMarks) === 0;
+          isEventModMatch = Math.round(pubEventModMarks) === 0;
           modDiff = -pubModMarks;
+          eventModDiff = -pubEventModMarks;
           isExactMatch = isResultMatch && isModMatch;
           category = isExactMatch ? "EXACT_MATCH" : "MOD_DIFF";
           discrepancyDescription = isExactMatch
@@ -2920,7 +4634,9 @@ export default function AdesResultCalculatorPage() {
           // Published shows concrete academic outcome ("Pass" or "Fail")
           isResultMatch = baseRawResult === pubResultStd;
           isModMatch = Math.round(pubModMarks) === 0;
+          isEventModMatch = Math.round(pubEventModMarks) === 0;
           modDiff = -pubModMarks;
+          eventModDiff = -pubEventModMarks;
           isExactMatch = isResultMatch && isModMatch;
 
           if (!isResultMatch) {
@@ -2948,7 +4664,9 @@ export default function AdesResultCalculatorPage() {
         const basePubStd = pubResultStd.startsWith("Pass") ? "Pass" : (pubResultStd === "Held" || pubResultStd === "Heldback") ? pubResultStd : "Fail";
         isResultMatch = baseCalcStd === basePubStd;
         modDiff = calcModMarks - pubModMarks;
+        eventModDiff = calcEventModMarks - pubEventModMarks;
         isModMatch = Math.round(calcModMarks) === Math.round(pubModMarks);
+        isEventModMatch = Math.round(calcEventModMarks) === Math.round(pubEventModMarks);
         isExactMatch = isResultMatch && isModMatch;
 
         if (!isResultMatch) {
@@ -2964,7 +4682,7 @@ export default function AdesResultCalculatorPage() {
           }
         } else if (!isModMatch) {
           category = "MOD_DIFF";
-          discrepancyDescription = `Moderation difference: Our System=${calcModMarks} marks vs Published Ordinance=${pubModMarks} marks (Diff: ${modDiff > 0 ? "+" : ""}${modDiff})`;
+          discrepancyDescription = `Moderation difference: Our Mod Total=${calcModMarks.toFixed(2)} (Event: ${calcEventModMarks.toFixed(2)}, Reg: ${calcRegularModMarks.toFixed(2)}) vs Published Ord Total=${pubModMarks.toFixed(2)} (Pub Event: ${pubEventModMarks.toFixed(2)}, Reg: ${pubRegularModMarks.toFixed(2)}), Diff: ${modDiff > 0 ? "+" : ""}${modDiff.toFixed(2)}`;
         }
       }
 
@@ -2974,6 +4692,12 @@ export default function AdesResultCalculatorPage() {
         isFound,
         calcResult,
         calcModMarks,
+        calcRegularModMarks,
+        calcEventModMarks,
+        pubRegularModMarks,
+        pubEventModMarks,
+        eventModDiff,
+        isEventModMatch,
         calcFailedCourses,
         calcIsHeld,
         calcIsHeldback,
@@ -2994,13 +4718,13 @@ export default function AdesResultCalculatorPage() {
         discrepancyDescription
       };
     });
-  }, [rawComparisonRows, studentSemesterData]);
+  }, [rawComparisonRows, studentSemesterData, historicalGazetteMap]);
 
   // Reconciliation KPIs
   const comparisonKPIs = useMemo(() => {
     const total = comparisonRecords.length;
     if (total === 0) {
-      return { total: 0, matchedStudents: 0, matchRate: "0.0", resultMatches: 0, resultMatchRate: "0.0", resultMismatches: 0, modMatches: 0, modMatchRate: "0.0", modDiffs: 0, exactMatches: 0, exactMatchRate: "0.0", passedHereFailedPub: 0, failedHerePassedPub: 0, heldMismatches: 0, notInDataset: 0, heldbackCount: 0, totalCalcMod: 0, totalPubMod: 0, modTotalDiff: 0 };
+      return { total: 0, matchedStudents: 0, matchRate: "0.0", resultMatches: 0, resultMatchRate: "0.0", resultMismatches: 0, modMatches: 0, modMatchRate: "0.0", modDiffs: 0, eventModMatches: 0, eventModMatchRate: "0.0", eventModDiffs: 0, exactMatches: 0, exactMatchRate: "0.0", passedHereFailedPub: 0, failedHerePassedPub: 0, heldMismatches: 0, notInDataset: 0, heldbackCount: 0, totalCalcMod: 0, totalPubMod: 0, totalCalcEventMod: 0, totalPubEventMod: 0, totalRegMod: 0, modTotalDiff: 0, eventModTotalDiff: 0 };
     }
 
     let matchedStudents = 0;
@@ -3008,6 +4732,8 @@ export default function AdesResultCalculatorPage() {
     let resultMismatches = 0;
     let modMatches = 0;
     let modDiffs = 0;
+    let eventModMatches = 0;
+    let eventModDiffs = 0;
     let exactMatches = 0;
     let passedHereFailedPub = 0;
     let failedHerePassedPub = 0;
@@ -3016,6 +4742,9 @@ export default function AdesResultCalculatorPage() {
     let heldbackCount = 0; // informational: how many heldback students are in the dataset
     let totalCalcMod = 0;
     let totalPubMod = 0;
+    let totalCalcEventMod = 0;
+    let totalPubEventMod = 0;
+    let totalRegMod = 0;
 
     comparisonRecords.forEach(r => {
       if (!r.isFound) { notInDataset++; return; }
@@ -3023,6 +4752,10 @@ export default function AdesResultCalculatorPage() {
       if (r.calcIsHeldback) heldbackCount++;
       totalCalcMod += r.calcModMarks;
       totalPubMod += r.pubModMarks;
+      totalCalcEventMod += (r.calcEventModMarks || 0);
+      totalPubEventMod += (r.pubEventModMarks || 0);
+      totalRegMod += (r.calcRegularModMarks || 0);
+
       if (r.isResultMatch) resultMatches++;
       else {
         resultMismatches++;
@@ -3032,6 +4765,10 @@ export default function AdesResultCalculatorPage() {
       }
       if (r.isModMatch) modMatches++;
       else modDiffs++;
+
+      if (r.isEventModMatch) eventModMatches++;
+      else eventModDiffs++;
+
       if (r.isExactMatch) exactMatches++;
     });
 
@@ -3045,6 +4782,9 @@ export default function AdesResultCalculatorPage() {
       modMatches,
       modMatchRate: matchedStudents > 0 ? ((modMatches / matchedStudents) * 100).toFixed(1) : "0.0",
       modDiffs,
+      eventModMatches,
+      eventModMatchRate: matchedStudents > 0 ? ((eventModMatches / matchedStudents) * 100).toFixed(1) : "0.0",
+      eventModDiffs,
       exactMatches,
       exactMatchRate: matchedStudents > 0 ? ((exactMatches / matchedStudents) * 100).toFixed(1) : "0.0",
       passedHereFailedPub,
@@ -3052,9 +4792,13 @@ export default function AdesResultCalculatorPage() {
       heldMismatches,
       notInDataset,
       heldbackCount,
-      totalCalcMod,
-      totalPubMod,
-      modTotalDiff: totalCalcMod - totalPubMod
+      totalCalcMod: Math.round(totalCalcMod * 100) / 100,
+      totalPubMod: Math.round(totalPubMod * 100) / 100,
+      totalCalcEventMod: Math.round(totalCalcEventMod * 100) / 100,
+      totalPubEventMod: Math.round(totalPubEventMod * 100) / 100,
+      totalRegMod: Math.round(totalRegMod * 100) / 100,
+      modTotalDiff: Math.round((totalCalcMod - totalPubMod) * 100) / 100,
+      eventModTotalDiff: Math.round((totalCalcEventMod - totalPubEventMod) * 100) / 100
     };
   }, [comparisonRecords]);
 
@@ -3124,7 +4868,10 @@ export default function AdesResultCalculatorPage() {
         "Our Calculated Result",
         "Published Result (University)",
         "Result Status Agreement",
-        "Our Moderation Marks Awarded",
+        "Regular Event Mod (Gazette)",
+        "Our Event Mod (Supplementary)",
+        "Published Event Mod (Supplementary)",
+        "Our Mod Total (Regular + Supp)",
         "Published Ordinance (Ord Total)",
         "Moderation Difference",
         "Moderation Concordance",
@@ -3144,9 +4891,12 @@ export default function AdesResultCalculatorPage() {
           r.calcResult,
           r.pubExactResult || r.pubResultStd,
           r.isResultMatch ? "MATCH" : "MISMATCH",
+          r.calcRegularModMarks || 0,
+          r.calcEventModMarks || 0,
+          r.pubEventModMarks || 0,
           r.calcModMarks,
           r.pubModMarks,
-          r.modDiff > 0 ? `+${r.modDiff}` : `${r.modDiff}`,
+          r.modDiff > 0 ? `+${r.modDiff.toFixed(2)}` : `${r.modDiff.toFixed(2)}`,
           r.isModMatch ? "MATCH" : "DIFF",
           r.calcFailedCourses.join(", ") || "None",
           r.reappear || "None",
@@ -3165,8 +4915,11 @@ export default function AdesResultCalculatorPage() {
         { wch: 22 }, // Calc Result
         { wch: 22 }, // Pub Result
         { wch: 18 }, // Result Agreement
-        { wch: 24 }, // Calc Mod
-        { wch: 24 }, // Pub Ord
+        { wch: 20 }, // Reg Mod (Gazette)
+        { wch: 22 }, // Our Event Mod
+        { wch: 22 }, // Pub Event Mod
+        { wch: 24 }, // Our Mod Total
+        { wch: 24 }, // Pub Ord Total
         { wch: 18 }, // Mod Diff
         { wch: 18 }, // Mod Match
         { wch: 30 }, // Calc Failed
@@ -3191,8 +4944,11 @@ export default function AdesResultCalculatorPage() {
         ["  - Held Status Discrepancy", comparisonKPIs.heldMismatches],
         ["Ordinance / Moderation Match Rate", `${comparisonKPIs.modMatchRate}% (${comparisonKPIs.modMatches} / ${comparisonKPIs.matchedStudents})`],
         ["Moderation Mark Differences", comparisonKPIs.modDiffs],
-        ["Total Moderation Marks Awarded (Our System)", comparisonKPIs.totalCalcMod],
-        ["Total Ordinance Marks Awarded (University Published)", comparisonKPIs.totalPubMod],
+        ["Event Moderation Marks (Our System)", comparisonKPIs.totalCalcEventMod],
+        ["Event Moderation Marks (University Published)", comparisonKPIs.totalPubEventMod],
+        ["Regular Event Moderation Marks (Uploaded Gazette)", comparisonKPIs.totalRegMod],
+        ["Total Moderation Marks Awarded (Our Mod Total)", comparisonKPIs.totalCalcMod],
+        ["Total Ordinance Marks Awarded (Pub Ord Total)", comparisonKPIs.totalPubMod],
         ["Overall Moderation Net Difference", `${comparisonKPIs.modTotalDiff > 0 ? "+" : ""}${comparisonKPIs.modTotalDiff}`],
         ["Full Exact Concordance (Result + Moderation Match)", `${comparisonKPIs.exactMatches} (${comparisonKPIs.exactMatchRate}%)`],
         [],
@@ -3290,6 +5046,20 @@ export default function AdesResultCalculatorPage() {
       matchedHeaders.push("Paper");
     }
 
+    // Gazette / Tabulation Register indicators
+    if (normCols.some(c => c.includes("reappear") || c.includes("failsubject"))) {
+      score += 10;
+      matchedHeaders.push("Reappear Papers");
+    }
+    if (normCols.some(c => c.includes("resultstatus") || c === "result" || c.includes("result"))) {
+      score += 8;
+      matchedHeaders.push("Result Status");
+    }
+    if (normCols.some(c => c.includes("sgpa") || c.includes("cgpa") || c.includes("grandtotal"))) {
+      score += 6;
+      matchedHeaders.push("Marks / SGPA");
+    }
+
     return { score, matchedHeaders };
   };
 
@@ -3302,7 +5072,7 @@ export default function AdesResultCalculatorPage() {
     let maxScore = -1;
     let bestMatchedHeaders = [];
 
-    for (let r = 0; r < Math.min(aoa.length, 15); r++) {
+    for (let r = 0; r < Math.min(aoa.length, 50); r++) {
       const rowArr = aoa[r];
       if (!Array.isArray(rowArr) || rowArr.length === 0) continue;
       const { score, matchedHeaders } = scoreHeaderRow(rowArr);
@@ -3412,7 +5182,7 @@ export default function AdesResultCalculatorPage() {
         setHeaderMap(hMap);
         setRawRows(rows);
 
-        const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap);
+        const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, improvementScoringMode);
         setGroupedRecords(baseGrouped);
         setPage(0);
 
@@ -3455,7 +5225,7 @@ export default function AdesResultCalculatorPage() {
       setHeaderMap(hMap);
       setRawRows(rows);
 
-      const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap);
+      const baseGrouped = buildGroupedRecordsFromRows(rows, hMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, improvementScoringMode);
       setGroupedRecords(baseGrouped);
       setPage(0);
 
@@ -3467,6 +5237,21 @@ export default function AdesResultCalculatorPage() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleClearSourceFile = () => {
+    setSourceFile(null);
+    setWorkbook(null);
+    setSheetNames([]);
+    setSelectedSheet("");
+    setSheetMeta({});
+    setHeaderMap({});
+    setRawRows([]);
+    setPage(0);
+    if (sourceFileInputRef.current) {
+      sourceFileInputRef.current.value = "";
+    }
+    setStatus("Source file removed. Upload a new ADES Marks Excel file to continue.", "info");
   };
 
   // Moderation Handlers: UI & Excel Ingestion
@@ -3655,7 +5440,7 @@ export default function AdesResultCalculatorPage() {
 
       // If source records are already loaded, re-group them immediately with this absent map!
       if (rawRows && rawRows.length > 0 && headerMap) {
-        const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map, malpracticeRecordsMap, heldbackRecordsMap);
+        const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, map, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, improvementScoringMode);
         setGroupedRecords(updatedGrouped);
       }
 
@@ -3693,7 +5478,7 @@ export default function AdesResultCalculatorPage() {
     }
 
     if (currentRows && currentRows.length > 0 && currentHMap) {
-      const resetGrouped = buildGroupedRecordsFromRows(currentRows, currentHMap, new Map(), malpracticeRecordsMap, heldbackRecordsMap);
+      const resetGrouped = buildGroupedRecordsFromRows(currentRows, currentHMap, new Map(), malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, improvementScoringMode);
       setGroupedRecords(resetGrouped);
     }
     setPage(0);
@@ -3824,7 +5609,7 @@ export default function AdesResultCalculatorPage() {
 
       // If source records are already loaded, re-group them immediately with this malpractice map!
       if (rawRows && rawRows.length > 0 && headerMap) {
-        const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, map, heldbackRecordsMap);
+        const updatedGrouped = buildGroupedRecordsFromRows(rawRows, headerMap, absentRecordsMap, map, heldbackRecordsMap, historicalRecordsMap, improvementScoringMode);
         setGroupedRecords(updatedGrouped);
       }
 
@@ -3862,7 +5647,7 @@ export default function AdesResultCalculatorPage() {
     }
 
     if (currentRows && currentRows.length > 0 && currentHMap) {
-      const resetGrouped = buildGroupedRecordsFromRows(currentRows, currentHMap, absentRecordsMap, new Map(), heldbackRecordsMap);
+      const resetGrouped = buildGroupedRecordsFromRows(currentRows, currentHMap, absentRecordsMap, new Map(), heldbackRecordsMap, historicalRecordsMap, improvementScoringMode);
       setGroupedRecords(resetGrouped);
     }
     setPage(0);
@@ -4068,7 +5853,7 @@ export default function AdesResultCalculatorPage() {
       }
 
       if (currentRows && currentRows.length > 0 && currentHMap) {
-        const updatedGrouped = buildGroupedRecordsFromRows(currentRows, currentHMap, absentRecordsMap, malpracticeRecordsMap, map);
+        const updatedGrouped = buildGroupedRecordsFromRows(currentRows, currentHMap, absentRecordsMap, malpracticeRecordsMap, map, historicalRecordsMap, improvementScoringMode);
         setGroupedRecords(updatedGrouped);
       } else if (groupedRecords && groupedRecords.length > 0) {
         // Fallback: direct in-memory update across existing grouped records
@@ -4119,7 +5904,7 @@ export default function AdesResultCalculatorPage() {
     }
 
     if (currentRows && currentRows.length > 0 && currentHMap) {
-      const resetGrouped = buildGroupedRecordsFromRows(currentRows, currentHMap, absentRecordsMap, malpracticeRecordsMap, new Map());
+      const resetGrouped = buildGroupedRecordsFromRows(currentRows, currentHMap, absentRecordsMap, malpracticeRecordsMap, new Map(), historicalRecordsMap, improvementScoringMode);
       setGroupedRecords(resetGrouped);
     } else if (groupedRecords && groupedRecords.length > 0) {
       const resetGrouped = groupedRecords.map(rec => ({
@@ -4133,6 +5918,468 @@ export default function AdesResultCalculatorPage() {
     setComparisonPage(0);
 
     setStatus("Removed heldback records. Student evaluations and pass simulations dynamically recalculated.", "info");
+  };
+
+  // Upload Previous Event(s) ADES Reports for Carry Forward
+  const handlePreviousReportsUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setIsProcessing(true);
+    setStatus("Analyzing " + files.length + " previous event report(s)...", "info");
+
+    try {
+      const newReports = [];
+
+      for (const file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+        const wb = XLSX.read(data, {
+          type: "array",
+          cellStyles: false,
+          cellNF: false,
+          cellHTML: false,
+          sheetStubs: false
+        });
+
+        let allFileRows = [];
+        let chosenHMap = null;
+        for (const sName of wb.SheetNames) {
+          const ws = wb.Sheets[sName];
+          const parsed = parseSheetWithHeaderScan(ws);
+          if (parsed.rows.length > 0 && parsed.score >= 5) {
+            allFileRows = parsed.rows;
+            chosenHMap = parsed.headerMap;
+            break;
+          }
+        }
+
+        if (allFileRows.length > 0 && chosenHMap) {
+          const records = extractHistoricalRecordsFromRows(allFileRows, chosenHMap, file.name);
+          const courseProfiles = extractHistoricalCourseProfilesFromRows(allFileRows, chosenHMap, file.name);
+          newReports.push({
+            id: Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+            fileName: file.name,
+            recordCount: records.length,
+            courseCount: courseProfiles.size,
+            parsedRecords: records,
+            courseProfiles: courseProfiles,
+            uploadTime: new Date().toLocaleTimeString()
+          });
+        }
+      }
+
+      if (newReports.length === 0) {
+        setStatus("No valid student course records found in uploaded previous event ADES file(s).", "error");
+        setIsProcessing(false);
+        return;
+      }
+
+      const updatedReports = [...previousReports, ...newReports];
+      const updatedMap = rebuildHistoricalMap(updatedReports);
+      const updatedProfilesMap = rebuildHistoricalCourseProfiles(updatedReports);
+      setPreviousReports(updatedReports);
+      setHistoricalRecordsMap(updatedMap);
+      setHistoricalCourseProfilesMap(updatedProfilesMap);
+
+      let currentRows = rawRows;
+      let currentHMap = headerMap;
+      if ((!currentRows || currentRows.length === 0) && workbook && selectedSheet) {
+        const ws = workbook.Sheets[selectedSheet];
+        if (ws) {
+          const parsed = parseSheetWithHeaderScan(ws);
+          currentRows = parsed.rows;
+          currentHMap = parsed.headerMap;
+          setRawRows(currentRows);
+          setHeaderMap(currentHMap);
+        }
+      }
+
+      if (currentRows && currentRows.length > 0 && currentHMap) {
+        const updatedGrouped = buildGroupedRecordsFromRows(
+          currentRows,
+          currentHMap,
+          absentRecordsMap,
+          malpracticeRecordsMap,
+          heldbackRecordsMap,
+          updatedMap,
+          improvementScoringMode,
+          updatedProfilesMap,
+          historicalGazetteMap
+        );
+        setGroupedRecords(updatedGrouped);
+      }
+
+      setStatus(`Loaded ${newReports.length} earlier event ADES report(s) (${updatedMap.size} student records mapped across ${updatedProfilesMap.size} courses). Carry-forward marks applied.`, "success");
+    } catch (err) {
+      console.error("Error loading previous reports:", err);
+      setStatus("Failed to read earlier event ADES reports: " + err.message, "error");
+    } finally {
+      if (prevReportsFileInputRef.current) prevReportsFileInputRef.current.value = "";
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRemovePreviousReport = (id) => {
+    const updatedReports = previousReports.filter(r => r.id !== id);
+    const updatedMap = rebuildHistoricalMap(updatedReports);
+    const updatedProfilesMap = rebuildHistoricalCourseProfiles(updatedReports);
+    setPreviousReports(updatedReports);
+    setHistoricalRecordsMap(updatedMap);
+    setHistoricalCourseProfilesMap(updatedProfilesMap);
+
+    let currentRows = rawRows;
+    let currentHMap = headerMap;
+    if ((!currentRows || currentRows.length === 0) && workbook && selectedSheet) {
+      const ws = workbook.Sheets[selectedSheet];
+      if (ws) {
+        const parsed = parseSheetWithHeaderScan(ws);
+        currentRows = parsed.rows;
+        currentHMap = parsed.headerMap;
+        setRawRows(currentRows);
+        setHeaderMap(currentHMap);
+      }
+    }
+
+    if (currentRows && currentRows.length > 0 && currentHMap) {
+      const updatedGrouped = buildGroupedRecordsFromRows(
+        currentRows,
+        currentHMap,
+        absentRecordsMap,
+        malpracticeRecordsMap,
+        heldbackRecordsMap,
+        updatedMap,
+        improvementScoringMode,
+        updatedProfilesMap,
+        historicalGazetteMap
+      );
+      setGroupedRecords(updatedGrouped);
+    }
+
+    setStatus("Removed earlier event ADES report. Calculations dynamically refreshed.", "info");
+  };
+
+  const handleClearAllPreviousReports = () => {
+    setPreviousReports([]);
+    setHistoricalRecordsMap(new Map());
+    setHistoricalCourseProfilesMap(new Map());
+
+    let currentRows = rawRows;
+    let currentHMap = headerMap;
+    if ((!currentRows || currentRows.length === 0) && workbook && selectedSheet) {
+      const ws = workbook.Sheets[selectedSheet];
+      if (ws) {
+        const parsed = parseSheetWithHeaderScan(ws);
+        currentRows = parsed.rows;
+        currentHMap = parsed.headerMap;
+        setRawRows(currentRows);
+        setHeaderMap(currentHMap);
+      }
+    }
+
+    if (currentRows && currentRows.length > 0 && currentHMap) {
+      const updatedGrouped = buildGroupedRecordsFromRows(
+        currentRows,
+        currentHMap,
+        absentRecordsMap,
+        malpracticeRecordsMap,
+        heldbackRecordsMap,
+        new Map(),
+        improvementScoringMode,
+        new Map(),
+        historicalGazetteMap
+      );
+      setGroupedRecords(updatedGrouped);
+    }
+
+    setStatus("Cleared all earlier event ADES reports. Calculations reverted to current attempt marks only.", "info");
+  };
+
+  // Upload Previous Semester University Result Gazette Reports (Optional Reappear Assurance)
+  const handleGazetteReportsUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setIsProcessing(true);
+    setStatus("Analyzing " + files.length + " university result gazette(s)...", "info");
+
+    try {
+      const newReports = [];
+
+      for (const file of files) {
+        const arrayBuffer = await file.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+        const wb = XLSX.read(data, {
+          type: "array",
+          cellStyles: false,
+          cellNF: false,
+          cellHTML: false,
+          sheetStubs: false
+        });
+
+        let fileGazetteRecords = [];
+
+        // Scan all sheets in the workbook and aggregate student records
+        for (const sName of wb.SheetNames) {
+          const ws = wb.Sheets[sName];
+          const parsed = parseSheetWithHeaderScan(ws);
+          if (parsed.rows.length > 0 && parsed.headerMap) {
+            const sheetRecs = extractGazetteRecordsFromRows(parsed.rows, parsed.headerMap, `${file.name} [${sName}]`);
+            if (sheetRecs.length > 0) {
+              fileGazetteRecords.push(...sheetRecs);
+            }
+          }
+        }
+
+        // If no records found with multi-sheet scan, fallback to sheet 0
+        if (fileGazetteRecords.length === 0 && wb.SheetNames.length > 0) {
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const parsed = parseSheetWithHeaderScan(ws);
+          if (parsed.rows.length > 0 && parsed.headerMap) {
+            const sheetRecs = extractGazetteRecordsFromRows(parsed.rows, parsed.headerMap, file.name);
+            if (sheetRecs.length > 0) {
+              fileGazetteRecords.push(...sheetRecs);
+            }
+          }
+        }
+
+        if (fileGazetteRecords.length > 0) {
+          const totalReappears = fileGazetteRecords.reduce((acc, r) => acc + (r.reappearCodes ? r.reappearCodes.length : 0), 0);
+          newReports.push({
+            id: Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+            type: "gazette",
+            fileName: file.name,
+            recordCount: fileGazetteRecords.length,
+            reappearCount: totalReappears,
+            parsedGazetteRecords: fileGazetteRecords,
+            uploadTime: new Date().toLocaleTimeString()
+          });
+        }
+      }
+
+      if (newReports.length === 0) {
+        setStatus("No valid student result gazette entries found in uploaded file(s). Ensure sheet includes PRN/Seat and Result Status or Reappear Paper Codes.", "error");
+        setIsProcessing(false);
+        return;
+      }
+
+      const updatedGazetteReports = [...gazetteReports, ...newReports];
+      const updatedGazetteMap = rebuildHistoricalGazetteMap(updatedGazetteReports);
+      setGazetteReports(updatedGazetteReports);
+      setHistoricalGazetteMap(updatedGazetteMap);
+
+      let currentRows = rawRows;
+      let currentHMap = headerMap;
+      if ((!currentRows || currentRows.length === 0) && workbook && selectedSheet) {
+        const ws = workbook.Sheets[selectedSheet];
+        if (ws) {
+          const parsed = parseSheetWithHeaderScan(ws);
+          currentRows = parsed.rows;
+          currentHMap = parsed.headerMap;
+          setRawRows(currentRows);
+          setHeaderMap(currentHMap);
+        }
+      }
+
+      if (currentRows && currentRows.length > 0 && currentHMap) {
+        const updatedGrouped = buildGroupedRecordsFromRows(
+          currentRows,
+          currentHMap,
+          absentRecordsMap,
+          malpracticeRecordsMap,
+          heldbackRecordsMap,
+          historicalRecordsMap,
+          improvementScoringMode,
+          historicalCourseProfilesMap,
+          updatedGazetteMap
+        );
+        setGroupedRecords(updatedGrouped);
+      }
+
+      const totalStudents = updatedGazetteReports.reduce((acc, r) => acc + r.recordCount, 0);
+      const totalReappears = updatedGazetteReports.reduce((acc, r) => acc + r.reappearCount, 0);
+      setStatus(`Loaded ${newReports.length} university result gazette(s) (${totalStudents} students, ${totalReappears} reappear backlogs indexed for cross-verification).`, "success");
+    } catch (err) {
+      console.error("Error loading gazette reports:", err);
+      setStatus("Failed to read result gazette file(s): " + err.message, "error");
+    } finally {
+      if (gazetteFileInputRef.current) gazetteFileInputRef.current.value = "";
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRemoveGazetteReport = (id) => {
+    const updatedGazetteReports = gazetteReports.filter(r => r.id !== id);
+    const updatedGazetteMap = rebuildHistoricalGazetteMap(updatedGazetteReports);
+    setGazetteReports(updatedGazetteReports);
+    setHistoricalGazetteMap(updatedGazetteMap);
+
+    let currentRows = rawRows;
+    let currentHMap = headerMap;
+    if ((!currentRows || currentRows.length === 0) && workbook && selectedSheet) {
+      const ws = workbook.Sheets[selectedSheet];
+      if (ws) {
+        const parsed = parseSheetWithHeaderScan(ws);
+        currentRows = parsed.rows;
+        currentHMap = parsed.headerMap;
+        setRawRows(currentRows);
+        setHeaderMap(currentHMap);
+      }
+    }
+
+    if (currentRows && currentRows.length > 0 && currentHMap) {
+      const updatedGrouped = buildGroupedRecordsFromRows(
+        currentRows,
+        currentHMap,
+        absentRecordsMap,
+        malpracticeRecordsMap,
+        heldbackRecordsMap,
+        historicalRecordsMap,
+        improvementScoringMode,
+        historicalCourseProfilesMap,
+        updatedGazetteMap
+      );
+      setGroupedRecords(updatedGrouped);
+    }
+
+    setStatus("Removed result gazette report. Cross-verification badges dynamically updated.", "info");
+  };
+
+  const handleClearAllGazetteReports = () => {
+    setGazetteReports([]);
+    setHistoricalGazetteMap(new Map());
+
+    let currentRows = rawRows;
+    let currentHMap = headerMap;
+    if ((!currentRows || currentRows.length === 0) && workbook && selectedSheet) {
+      const ws = workbook.Sheets[selectedSheet];
+      if (ws) {
+        const parsed = parseSheetWithHeaderScan(ws);
+        currentRows = parsed.rows;
+        currentHMap = parsed.headerMap;
+        setRawRows(currentRows);
+        setHeaderMap(currentHMap);
+      }
+    }
+
+    if (currentRows && currentRows.length > 0 && currentHMap) {
+      const updatedGrouped = buildGroupedRecordsFromRows(
+        currentRows,
+        currentHMap,
+        absentRecordsMap,
+        malpracticeRecordsMap,
+        heldbackRecordsMap,
+        historicalRecordsMap,
+        improvementScoringMode,
+        historicalCourseProfilesMap,
+        new Map()
+      );
+      setGroupedRecords(updatedGrouped);
+    }
+
+    setStatus("Cleared all result gazette reports.", "info");
+  };
+
+  const handleDownloadGazetteTemplate = () => {
+    const headers = [
+      "TermUID", "Exam Event", "Program Full Name", "Program Name", "Program Code", "Branch Desc", 
+      "Program Part Name", "Program Part Abbrevation", "Program Part Term", "Name of Student", 
+      "Vernacular Name", "Mother's name", "PRN-Permanent Registration Number", "RegionalCenterCode", 
+      "RegionalCenterName", "College Code", "College Name", "Gender", "Mobile", "Category", 
+      "Admitted UNDER Category", "Physically Challenged", "Eligiblity Status", "Examination Seat Number", 
+      "Statement Number", "RESULT STATUS", "OTHER STATUS", "Reappear Paper Codes", "No of Fail Subjects", 
+      "Grand Total", "Ordinance", "Ord Total", "THTotal", "TPTotal", "PRTotal", "Grade", 
+      "Total Credits", "Earned Credits", "EGP", "SGPA", "CGPA", "Result Declaration Date", "Result Processed Date"
+    ];
+
+    const sampleRows = [
+      [
+        "80", "April 2025 (CT)", "Bachelor of Commerce(with Credits)-Regular-FYUGP-2024-Commerce", 
+        "Bachelor of Commerce", "COM_BCOM(HONOURS)", "Commerce", "FIRST YEAR BACHELOR OF COMMERCE", 
+        "BCom Year I", "SEMESTER II", "MUHAMMED JINAS P", "മുഹമ്മദ് ജിനാസ് പി", "", 
+        "2024012600012471", "", "", "WM", "WMO Imam Gazzali Arts and Science College, Wayanad", 
+        "Male", "8590333495", "Socially Economic Backward Class", "", "", "", "WM24COMR048", "", 
+        "Fail", "", "KU2DSCBBA103", "1", "296", "NO", "", "259", "259", "37", "F", 
+        "21.00", "17.00", "105.00", "5.00", "5.33", "30/12/2025", "5/08/2026"
+      ],
+      [
+        "80", "April 2025 (CT)", "Bachelor of Commerce(with Credits)-Regular-FYUGP-2024-Commerce", 
+        "Bachelor of Commerce", "COM_BCOM(HONOURS)", "Commerce", "FIRST YEAR BACHELOR OF COMMERCE", 
+        "BCom Year I", "SEMESTER II", "JUNAID P", "ജുനൈദ് പി", "", 
+        "2024012600012518", "", "", "WM", "WMO Imam Gazzali Arts and Science College, Wayanad", 
+        "Male", "9544575118", "Socially Economic Backward Class", "", "", "", "WM24COMR037", "", 
+        "Pass", "", "", "0", "321", "NO", "", "280", "280", "41", "B", 
+        "21.00", "21.00", "131.00", "6.24", "5.55", "30/12/2025", "5/08/2026"
+      ],
+      [
+        "80", "April 2025 (CT)", "Bachelor of Commerce(with Credits)-Regular-FYUGP-2024-Commerce", 
+        "Bachelor of Commerce", "COM_BCOM(HONOURS)", "Commerce", "FIRST YEAR BACHELOR OF COMMERCE", 
+        "BCom Year I", "SEMESTER II", "MUHAMMED SWAFWAN NK", "മുഹമ്മദ് സ്വഫ്വാൻ എൻകെ", "", 
+        "2024012600012531", "", "", "WM", "WMO Imam Gazzali Arts and Science College, Wayanad", 
+        "Male", "9778743795", "Socially Economic Backward Class", "", "", "", "WM24COMR060", "", 
+        "Fail", "", "KU2DSCBBA103,KU2DSCCOM105", "2", "303", "NO", "", "239", "239", "64", "F", 
+        "21.00", "13.00", "87.00", "4.14", "4.71", "30/12/2025", "5/08/2026"
+      ]
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "ResultGazette_Template");
+    XLSX.writeFile(wb, "University_Result_Gazette_Template.xlsx");
+    setStatus("Downloaded sample University Result Gazette template (.xlsx).", "success");
+  };
+
+  const handleDownloadPrevReportTemplate = () => {
+    const headers = [
+      "Faculty",
+      "Program Term Name",
+      "Course Code",
+      "Course Name",
+      "Seat Number",
+      "PRN",
+      "ESE - PR Max",
+      "ESE - PR Min",
+      "ESE - PR Obtained",
+      "ESE - TH Max",
+      "ESE - TH Min",
+      "ESE - TH Obtained",
+      "ESE - Max",
+      "ESE - Min",
+      "ESE Overall",
+      "CE - PR Max",
+      "CE - PR Min",
+      "CE - PR Obtained",
+      "CE - TH Max",
+      "CE - TH Min",
+      "CE - TH Obtained",
+      "CE - Max",
+      "CE - Min",
+      "CE Overall Marks",
+      "Overall Maximum",
+      "Overall Minimum",
+      "Course Overall Marks",
+      "Course Pass/Fail",
+      "ADEC Code",
+      "ADEC Name"
+    ];
+
+    const sampleRows = [
+      [
+        "Faculty of Science", "B.Sc. Semester II", "XT9DSCSAM101", "Introduction to Computing",
+        "AA99SCI001", "2099010000000001", 25, 8, 20, 50, 15, 28, 75, 23, 48,
+        25, 0, 18, 0, 0, 0, 25, 0, 18, 100, 35, 66, "Pass", "AA", "Alpha Science College"
+      ],
+      [
+        "Faculty of Commerce", "B.Com. Semester II", "XT9DSCSAM102", "Principles of Accounting",
+        "AA99COM002", "2099010000000002", 0, 0, 0, 75, 23, 18, 75, 23, 18,
+        0, 0, 0, 25, 0, 19, 25, 0, 19, 100, 35, 37, "Fail", "BB", "Beta Commerce College"
+      ]
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+    XLSX.utils.book_append_sheet(wb, ws, "PreviousEventMarks");
+    XLSX.writeFile(wb, "Previous_Event_ADES_Baseline_Template.xlsx");
   };
 
   // Download Heldback Report Template (.xlsx) with standard university APC / Heldback columns and sample rows
@@ -4447,19 +6694,25 @@ export default function AdesResultCalculatorPage() {
         "Seat Number",
         "PRN",
         "Papers Attempted",
+        "Improvement Papers",
+        "Supplementary Papers",
         "Papers Passed",
         "Papers Failed",
         "Heldback / Missing Papers",
         "Raw Semester Result (0 Mod)",
         "Final Semester Result",
         "Semester Rescued via Moderation",
-        "Total Moderation Marks Awarded",
+        "Regular Event Mod (Gazette)",
+        "Supplementary Event Mod",
+        "Our Mod Total (Regular + Supp)",
         "Failed Courses List",
         "All Attempted Courses Breakdown"
       ];
 
       // Dynamic summary stats based on the exported subset
       let totalAttempted = 0;
+      let totalImpPapers = 0;
+      let totalSuppPapers = 0;
       let totalPassed = 0;
       let totalFailed = 0;
       let totalRawPass = 0;
@@ -4468,8 +6721,11 @@ export default function AdesResultCalculatorPage() {
       let totalHeld = 0;
       let totalHeldback = 0;
 
+      const isGazetteUploaded = (historicalGazetteMap && historicalGazetteMap.size > 0) || (gazetteReports && gazetteReports.length > 0);
       const rows = studentsToExport.map(st => {
         totalAttempted += st.totalCourses;
+        totalImpPapers += (st.improvementCourses || 0);
+        totalSuppPapers += (st.supplementaryCourses || 0);
         totalPassed += st.finalPassedCourses;
         totalFailed += st.finalFailedCourses;
         if (st.isHeldback) totalHeldback++;
@@ -4478,8 +6734,13 @@ export default function AdesResultCalculatorPage() {
         if (st.finalSemesterPass) totalFinalPass++;
         if (st.isRescuedSemester) totalRescued++;
 
-        const failedList = st.courses.filter(c => c.coursePass === "Fail").map(c => `${c.courseCode} (${c.courseName})`).join("; ");
-        const coursesSummary = st.courses.map(c => `${c.courseCode}: ${c.coursePass}${c.modMarks > 0 ? ` (+${c.modMarks} Mod)` : ''}`).join("; ");
+        const failedCurrent = st.courses.filter(c => c.coursePass === "Fail").map(c => `${c.courseCode} (${c.courseName})`);
+        const allPending = [...failedCurrent, ...(st.pendingGazetteBacklogs || []).map(b => `${b} (Pending Gazette Backlog)`)];
+        const failedList = allPending.join("; ");
+        const coursesSummary = st.courses.map(c => {
+          const typeTag = (c.isImprovement || c.attemptType === "IMPROVEMENT") ? "[IMP]" : "[SUPP]";
+          return `${c.courseCode} ${typeTag}: ${c.coursePass}${c.modMarks > 0 ? ` (+${c.modMarks} Mod)` : ''}`;
+        }).join("; ");
         const heldInfo = st.isHeldback 
           ? `Heldback (${st.heldbackReason || "Term-level"})`
           : st.heldCourses > 0 
@@ -4493,13 +6754,17 @@ export default function AdesResultCalculatorPage() {
           st.seatNumber,
           st.prn,
           st.totalCourses,
+          st.improvementCourses || 0,
+          st.supplementaryCourses || 0,
           st.finalPassedCourses,
           st.finalFailedCourses,
           heldInfo,
-          st.rawSemesterResult,
-          st.semesterResult,
-          st.isRescuedSemester ? "Yes (Rescued)" : "No",
-          st.totalModerationMarks,
+          st.rawSemesterResult || "",
+          st.semesterResult || "",
+          st.isRescuedSemester ? "Yes (Rescued)" : isGazetteUploaded ? "No" : "",
+          st.regularModerationMarks || 0,
+          st.eventModerationMarks || 0,
+          st.totalModerationMarks || 0,
           failedList || "None (All Passed)",
           coursesSummary
         ];
@@ -4518,15 +6783,20 @@ export default function AdesResultCalculatorPage() {
         "-",
         "-",
         "-",
+        "-",
         totalAttempted,
+        totalImpPapers,
+        totalSuppPapers,
         totalPassed,
         totalFailed,
         `${totalHeld} Held (${totalHeldback} Heldback)`,
-        `${totalRawPass} Passed (${rawPct}%)`,
-        `${totalFinalPass} Passed (${finalPct}%)`,
-        `+${totalRescued} Rescued (${resPct}%)`,
+        isGazetteUploaded ? `${totalRawPass} Passed (${rawPct}%)` : "-",
+        isGazetteUploaded ? `${totalFinalPass} Passed (${finalPct}%)` : "-",
+        isGazetteUploaded ? `+${totalRescued} Rescued (${resPct}%)` : "-",
         "-",
-        `${failCount} Failed (${failPct}%)`,
+        "-",
+        "-",
+        isGazetteUploaded ? `${failCount} Failed (${failPct}%)` : "-",
         "-"
       ];
 
@@ -4543,19 +6813,24 @@ export default function AdesResultCalculatorPage() {
 
       ws["!cols"] = [
         { wch: 24 }, // Faculty
+        { wch: 26 }, // College
         { wch: 28 }, // Program
         { wch: 16 }, // Seat Number
         { wch: 18 }, // PRN
         { wch: 16 }, // Papers Attempted
+        { wch: 18 }, // Improvement Papers
+        { wch: 20 }, // Supplementary Papers
         { wch: 14 }, // Papers Passed
         { wch: 14 }, // Papers Failed
         { wch: 24 }, // Heldback / Missing Papers
         { wch: 24 }, // Raw Semester Result
         { wch: 24 }, // Final Semester Result
         { wch: 22 }, // Semester Rescued
-        { wch: 18 }, // Total Moderation Marks
+        { wch: 20 }, // Regular Event Mod (Gazette)
+        { wch: 20 }, // Supplementary Event Mod
+        { wch: 22 }, // Our Mod Total (Regular + Supp)
         { wch: 40 }, // Failed Courses List
-        { wch: 60 }  // All Attempted Courses Breakdown
+        { wch: 65 }  // All Attempted Courses Breakdown
       ];
 
       XLSX.utils.book_append_sheet(wb, ws, "Student_Semester_Results");
@@ -5102,32 +7377,17 @@ export default function AdesResultCalculatorPage() {
           </Link>
           <div style={{ height: "18px", width: "1px", background: "var(--line)" }} />
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Calculator size={20} color="var(--accent)" />
-            <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>ADES Result Calculator</h2>
-            <span style={{ fontSize: "11px", background: "var(--accent-soft)", color: "var(--accent)", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
-              Regular Event
+            <Calculator size={20} color="#6366f1" />
+            <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>ADES Supplementary / Improvement Calculator</h2>
+            <span style={{ fontSize: "11px", background: "rgba(99, 102, 241, 0.15)", color: "#6366f1", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
+              Multi-Event Baseline
             </span>
           </div>
 
           {/* Mode Switcher Pill */}
           <div style={{ display: "flex", gap: "4px", background: "var(--bg)", padding: "2px", borderRadius: "8px", border: "1px solid var(--line)" }}>
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                padding: "3px 8px",
-                fontSize: "11px",
-                fontWeight: 700,
-                background: "var(--accent)",
-                color: "white",
-                borderRadius: "6px"
-              }}
-            >
-              🎓 Regular Event
-            </span>
             <Link 
-              to="/ades-supplementary-calculator"
+              to="/ades-result-calculator"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -5140,8 +7400,23 @@ export default function AdesResultCalculatorPage() {
                 textDecoration: "none"
               }}
             >
-              🔄 Supplementary &amp; Improvement
+              🎓 Regular Event
             </Link>
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "3px 8px",
+                fontSize: "11px",
+                fontWeight: 700,
+                background: "#6366f1",
+                color: "white",
+                borderRadius: "6px"
+              }}
+            >
+              🔄 Supplementary &amp; Improvement
+            </span>
           </div>
         </div>
 
@@ -5351,20 +7626,458 @@ export default function AdesResultCalculatorPage() {
         <aside style={{ width: "320px", borderRight: "1px solid var(--line)", background: "var(--panel)", display: "flex", flexDirection: "column", flexShrink: 0, overflowY: "auto", padding: "16px", gap: "16px" }}>
           
           {/* File Upload Box */}
-          <div style={{ background: "var(--bg)", border: "1.5px dashed var(--line)", borderRadius: "8px", padding: "16px", textAlign: "center", position: "relative" }}>
+          <div style={{ 
+            background: sourceFile ? "rgba(59, 130, 246, 0.05)" : "var(--bg)", 
+            border: sourceFile ? "1.5px solid rgba(59, 130, 246, 0.4)" : "1.5px dashed var(--line)", 
+            borderRadius: "8px", 
+            padding: "14px", 
+            textAlign: "center", 
+            position: "relative" 
+          }}>
             <input 
               type="file" 
+              ref={sourceFileInputRef}
               accept=".xlsx,.xls,.csv" 
               onChange={handleFileUpload}
-              style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+              style={{ display: "none" }}
             />
-            <FileSpreadsheet size={32} color="var(--accent)" style={{ margin: "0 auto 8px", opacity: 0.8 }} />
-            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>
-              {sourceFile ? sourceFile : "Upload ADES Marks Excel"}
+            {sourceFile ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                    <FileSpreadsheet size={18} color="var(--accent)" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={sourceFile}>
+                      {sourceFile}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearSourceFile}
+                    title="Remove source marksheet file"
+                    style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center" }}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+                <div style={{ fontSize: "10.5px", color: "var(--muted)", width: "100%", textAlign: "left" }}>
+                  {rawRows.length} raw rows • {groupedRecords.length} courses loaded
+                </div>
+                <div style={{ display: "flex", gap: "6px", width: "100%", marginTop: "2px" }}>
+                  <button
+                    type="button"
+                    onClick={() => sourceFileInputRef.current?.click()}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                      padding: "5px 8px",
+                      fontSize: "11px",
+                      background: "var(--panel)",
+                      color: "var(--ink)",
+                      border: "1px solid var(--line)",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    <Upload size={12} /> Replace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearSourceFile}
+                    style={{
+                      padding: "5px 8px",
+                      fontSize: "11px",
+                      background: "rgba(239, 68, 68, 0.1)",
+                      color: "#ef4444",
+                      border: "1px solid rgba(239, 68, 68, 0.25)",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}
+                  >
+                    <Trash2 size={12} /> Clear
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div 
+                onClick={() => sourceFileInputRef.current?.click()}
+                style={{ cursor: "pointer" }}
+              >
+                <FileSpreadsheet size={32} color="var(--accent)" style={{ margin: "0 auto 8px", opacity: 0.8 }} />
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>
+                  Upload ADES Marks Excel
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px" }}>
+                  Click to browse or drop .xlsx / .xls file here (Raw Marks or Output Format)
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Previous Event(s) Baseline Reports Card for Supplementary & Improvement Carry Forward */}
+          <div style={{ 
+            background: previousReports.length > 0 ? "rgba(99, 102, 241, 0.05)" : "var(--bg)", 
+            border: previousReports.length > 0 ? "1.5px solid rgba(99, 102, 241, 0.35)" : "1px solid var(--line)", 
+            borderRadius: "8px", 
+            padding: "12px", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "8px" 
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: previousReports.length > 0 ? "#6366f1" : "var(--ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Layers size={14} color={previousReports.length > 0 ? "#6366f1" : "var(--muted)"} /> Earlier Event ADES (Baseline)
+              </div>
+              {previousReports.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "#6366f1", color: "white", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {previousReports.length} Files ({historicalCourseProfilesMap.size} Courses • {historicalRecordsMap.size} Records)
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  CE &amp; PR Baseline
+                </span>
+              )}
             </div>
-            <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px" }}>
-              Drop .xlsx / .xls file here (Raw Marks or Output Format)
+
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              Upload one or more earlier event ADES reports. Automatically carries forward <strong>CE &amp; Practical marks</strong> and minimum/maximum standards for supplementary &amp; improvement candidates.
             </div>
+
+            <input 
+              type="file" 
+              ref={prevReportsFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              multiple
+              onChange={handlePreviousReportsUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (prevReportsFileInputRef.current) prevReportsFileInputRef.current.value = "";
+                  prevReportsFileInputRef.current?.click();
+                }}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: previousReports.length > 0 ? "rgba(99, 102, 241, 0.12)" : "var(--panel)",
+                  color: previousReports.length > 0 ? "#6366f1" : "var(--ink)",
+                  border: previousReports.length > 0 ? "1px solid rgba(99, 102, 241, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {previousReports.length > 0 ? "+ Add More Files" : "Upload Earlier ADES"}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={handleDownloadPrevReportTemplate}
+                title="Download sample previous event baseline template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {previousReports.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={handleClearAllPreviousReports}
+                  title="Clear all uploaded earlier event reports"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#ef4444",
+                    border: "1px solid #ef4444",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* List of uploaded previous event files with remove buttons */}
+            {previousReports.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px", maxHeight: "140px", overflowY: "auto" }}>
+                {previousReports.map((rep) => (
+                  <div 
+                    key={rep.id} 
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between", 
+                      padding: "4px 8px", 
+                      background: "var(--panel)", 
+                      border: "1px solid var(--line)", 
+                      borderRadius: "4px", 
+                      fontSize: "11px" 
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                      <FileSpreadsheet size={12} color="#6366f1" style={{ flexShrink: 0 }} />
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "180px" }} title={rep.fileName}>
+                        {rep.fileName}
+                      </span>
+                      <span style={{ fontSize: "9.5px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 4px", borderRadius: "4px", fontWeight: 700 }}>
+                        {rep.recordCount} rows
+                      </span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemovePreviousReport(rep.id)}
+                      title="Remove this earlier event file"
+                      style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", padding: "2px" }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Improvement Scoring Strategy Toggle */}
+            <div style={{ marginTop: "4px", paddingTop: "4px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: "3px" }}>
+              <span style={{ fontSize: "9.5px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+                Improvement ESE-TH Policy:
+              </span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImprovementScoringMode("current");
+                    if (rawRows && rawRows.length > 0 && headerMap) {
+                      const updatedGrouped = buildGroupedRecordsFromRows(
+                        rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, "current", historicalCourseProfilesMap, historicalGazetteMap
+                      );
+                      setGroupedRecords(updatedGrouped);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "3px 6px",
+                    fontSize: "10px",
+                    borderRadius: "4px",
+                    border: improvementScoringMode === "current" ? "1px solid #6366f1" : "1px solid var(--line)",
+                    background: improvementScoringMode === "current" ? "rgba(99, 102, 241, 0.15)" : "transparent",
+                    color: improvementScoringMode === "current" ? "#6366f1" : "var(--muted)",
+                    fontWeight: improvementScoringMode === "current" ? 700 : 500,
+                    cursor: "pointer"
+                  }}
+                >
+                  Current Attempt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImprovementScoringMode("best");
+                    if (rawRows && rawRows.length > 0 && headerMap) {
+                      const updatedGrouped = buildGroupedRecordsFromRows(
+                        rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, "best", historicalCourseProfilesMap, historicalGazetteMap
+                      );
+                      setGroupedRecords(updatedGrouped);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "3px 6px",
+                    fontSize: "10px",
+                    borderRadius: "4px",
+                    border: improvementScoringMode === "best" ? "1px solid #6366f1" : "1px solid var(--line)",
+                    background: improvementScoringMode === "best" ? "rgba(99, 102, 241, 0.15)" : "transparent",
+                    color: improvementScoringMode === "best" ? "#6366f1" : "var(--muted)",
+                    fontWeight: improvementScoringMode === "best" ? 700 : 500,
+                    cursor: "pointer"
+                  }}
+                >
+                  Best of Both
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Result Gazette (Optional Reappear Assurance) Card */}
+          <div style={{ 
+            background: gazetteReports.length > 0 ? "rgba(16, 185, 129, 0.05)" : "var(--bg)", 
+            border: gazetteReports.length > 0 ? "1.5px solid rgba(16, 185, 129, 0.35)" : "1px solid var(--line)", 
+            borderRadius: "8px", 
+            padding: "12px", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "8px" 
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: gazetteReports.length > 0 ? "#10b981" : "var(--ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <FileCheck size={14} color={gazetteReports.length > 0 ? "#10b981" : "var(--muted)"} /> Result Gazette (Reappear Assurance)
+              </div>
+              {gazetteReports.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "#10b981", color: "white", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {gazetteReports.length} Files ({historicalGazetteMap.size} Students • {gazetteReports.reduce((acc, r) => acc + (r.reappearCount || 0), 0)} Backlogs)
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "rgba(16, 185, 129, 0.12)", color: "#059669", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  Optional Assurance
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              Upload University Result Gazettes / Tabulation Registers (one or multiple semesters). <strong>100% Optional</strong>: cross-verifies declared <strong>Reappear Paper Codes</strong> and prior semester pass/fail status.
+            </div>
+
+            <input 
+              type="file" 
+              ref={gazetteFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              multiple
+              onChange={handleGazetteReportsUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (gazetteFileInputRef.current) gazetteFileInputRef.current.value = "";
+                  gazetteFileInputRef.current?.click();
+                }}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: gazetteReports.length > 0 ? "rgba(16, 185, 129, 0.12)" : "var(--panel)",
+                  color: gazetteReports.length > 0 ? "#059669" : "var(--ink)",
+                  border: gazetteReports.length > 0 ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {gazetteReports.length > 0 ? "+ Add More Gazettes" : "Upload Result Gazette"}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={handleDownloadGazetteTemplate}
+                title="Download sample university result gazette template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {gazetteReports.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={handleClearAllGazetteReports}
+                  title="Clear all uploaded result gazettes"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#ef4444",
+                    border: "1px solid #ef4444",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* List of uploaded gazette files with remove buttons */}
+            {gazetteReports.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px", maxHeight: "140px", overflowY: "auto" }}>
+                {gazetteReports.map((rep) => (
+                  <div 
+                    key={rep.id} 
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between", 
+                      padding: "4px 8px", 
+                      background: "var(--panel)", 
+                      border: "1px solid var(--line)", 
+                      borderRadius: "4px", 
+                      fontSize: "11px" 
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                      <FileCheck size={12} color="#10b981" style={{ flexShrink: 0 }} />
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" }} title={rep.fileName}>
+                        {rep.fileName}
+                      </span>
+                      <span style={{ fontSize: "9.5px", background: "rgba(16, 185, 129, 0.12)", color: "#059669", padding: "1px 5px", borderRadius: "4px", fontWeight: 700 }} title="Declared Result Gazette">
+                        {rep.recordCount} students • {rep.reappearCount || 0} backlogs
+                      </span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemoveGazetteReport(rep.id)}
+                      title="Remove this gazette file"
+                      style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", padding: "2px" }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Sheet Selector (if multiple sheets exist) */}
@@ -5775,20 +8488,32 @@ export default function AdesResultCalculatorPage() {
 
                 <div style={{ background: "rgba(99, 102, 241, 0.08)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(99, 102, 241, 0.25)" }}>
                   <div style={{ color: "#6366f1", fontWeight: 600 }}>Semester Pass %</div>
-                  <strong style={{ fontSize: "15px", color: "#6366f1" }}>{consolidatedStudentMetrics.finalPassedPct}%</strong>
-                  <div style={{ fontSize: "9.5px", color: "#6366f1" }}>All Papers Rule</div>
+                  <strong style={{ fontSize: "15px", color: "#6366f1" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? `${consolidatedStudentMetrics.finalPassedPct}%` : "—"}
+                  </strong>
+                  <div style={{ fontSize: "9.5px", color: "#6366f1" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? "All Papers Rule" : "Requires Gazette"}
+                  </div>
                 </div>
 
                 <div style={{ background: "rgba(16, 185, 129, 0.1)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
                   <div style={{ color: "#10b981", fontWeight: 600 }}>Passed All Papers</div>
-                  <strong style={{ fontSize: "15px", color: "#10b981" }}>{consolidatedStudentMetrics.finalPassedStudents}</strong>
-                  <div style={{ fontSize: "9.5px", color: "#10b981" }}>({consolidatedStudentMetrics.finalPassedPct}%)</div>
+                  <strong style={{ fontSize: "15px", color: "#10b981" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? consolidatedStudentMetrics.finalPassedStudents : "—"}
+                  </strong>
+                  <div style={{ fontSize: "9.5px", color: "#10b981" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? `(${consolidatedStudentMetrics.finalPassedPct}%)` : "Upload Gazette"}
+                  </div>
                 </div>
 
                 <div style={{ background: "rgba(239, 68, 68, 0.1)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
                   <div style={{ color: "#ef4444", fontWeight: 600 }}>Failed &ge; 1 Paper</div>
-                  <strong style={{ fontSize: "15px", color: "#ef4444" }}>{consolidatedStudentMetrics.failedStudents}</strong>
-                  <div style={{ fontSize: "9.5px", color: "#ef4444" }}>({consolidatedStudentMetrics.failedPct}%)</div>
+                  <strong style={{ fontSize: "15px", color: "#ef4444" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? consolidatedStudentMetrics.failedStudents : "—"}
+                  </strong>
+                  <div style={{ fontSize: "9.5px", color: "#ef4444" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? `(${consolidatedStudentMetrics.failedPct}%)` : "Upload Gazette"}
+                  </div>
                 </div>
               </div>
 
@@ -5799,11 +8524,11 @@ export default function AdesResultCalculatorPage() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
                   <span>Raw Passed (0 Mod):</span>
-                  <strong>{consolidatedStudentMetrics.rawPassedStudents} ({consolidatedStudentMetrics.rawPassedPct}%)</strong>
+                  <strong>{consolidatedStudentMetrics.isGazetteUploaded ? `${consolidatedStudentMetrics.rawPassedStudents} (${consolidatedStudentMetrics.rawPassedPct}%)` : "—"}</strong>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981", fontWeight: 600 }}>
                   <span>Rescued to Semester Pass:</span>
-                  <span>+{consolidatedStudentMetrics.rescuedStudents} students ({consolidatedStudentMetrics.rescuedPct}%)</span>
+                  <span>{consolidatedStudentMetrics.isGazetteUploaded ? `+${consolidatedStudentMetrics.rescuedStudents} students (${consolidatedStudentMetrics.rescuedPct}%)` : "—"}</span>
                 </div>
               </div>
 
@@ -6023,6 +8748,16 @@ export default function AdesResultCalculatorPage() {
                 </div>
               </div>
 
+              {/* Gazette Not Uploaded Notice */}
+              {!studentMetrics.isGazetteUploaded && (
+                <div style={{ background: "rgba(99, 102, 241, 0.08)", border: "1px solid rgba(99, 102, 241, 0.25)", borderRadius: "8px", padding: "10px 14px", fontSize: "12px", color: "var(--ink)", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <HelpCircle size={18} color="#6366f1" style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong style={{ color: "#6366f1" }}>Semester Pass/Fail is Blank:</strong> In supplementary examinations, candidates often attempt only a subset of uncleared courses. Semester-level pass/fail is only evaluated when the <strong>Result Gazette (Reappear Assurance)</strong> is uploaded to cross-check all historical backlogs.
+                  </div>
+                </div>
+              )}
+
               {/* Student KPI Summary Cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "10px" }}>
                 <div style={{ background: "var(--panel)", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--line)" }}>
@@ -6034,6 +8769,20 @@ export default function AdesResultCalculatorPage() {
                   </div>
                   <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>
                     Total: {studentMetrics.totalPapersAttempted} papers (~{studentMetrics.avgPapersPerStudent}/student)
+                    {(studentMetrics.totalImprovementPapers > 0 || studentMetrics.totalSupplementaryPapers > 0) && (
+                      <div style={{ marginTop: "3px", fontSize: "10px", display: "flex", gap: "6px", alignItems: "center" }}>
+                        {studentMetrics.totalImprovementPapers > 0 && (
+                          <span style={{ color: "#9333ea", fontWeight: 700, background: "rgba(147, 51, 234, 0.1)", padding: "1px 4px", borderRadius: "3px" }}>
+                            {studentMetrics.totalImprovementPapers} Imp
+                          </span>
+                        )}
+                        {studentMetrics.totalSupplementaryPapers > 0 && (
+                          <span style={{ color: "#2563eb", fontWeight: 700, background: "rgba(59, 130, 246, 0.1)", padding: "1px 4px", borderRadius: "3px" }}>
+                            {studentMetrics.totalSupplementaryPapers} Supp
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -6042,10 +8791,10 @@ export default function AdesResultCalculatorPage() {
                     <CheckCircle2 size={14} /> Passed Semester (All Papers)
                   </div>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "#10b981", marginTop: "3px" }}>
-                    {studentMetrics.finalPassedStudents}
+                    {studentMetrics.isGazetteUploaded ? studentMetrics.finalPassedStudents : "—"}
                   </div>
                   <div style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>
-                    {studentMetrics.finalPassedPct}% of total students
+                    {studentMetrics.isGazetteUploaded ? `${studentMetrics.finalPassedPct}% of total students` : "Requires Result Gazette"}
                   </div>
                 </div>
 
@@ -6054,10 +8803,10 @@ export default function AdesResultCalculatorPage() {
                     <XCircle size={14} /> Failed Semester (≥1 Paper)
                   </div>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "#ef4444", marginTop: "3px" }}>
-                    {studentMetrics.failedStudents}
+                    {studentMetrics.isGazetteUploaded ? studentMetrics.failedStudents : "—"}
                   </div>
                   <div style={{ fontSize: "10.5px", color: "#ef4444", fontWeight: 600 }}>
-                    {studentMetrics.failedPct}% of total students
+                    {studentMetrics.isGazetteUploaded ? `${studentMetrics.failedPct}% of total students` : "Requires Result Gazette"}
                   </div>
                 </div>
 
@@ -6066,10 +8815,10 @@ export default function AdesResultCalculatorPage() {
                     <Sparkles size={14} /> Rescued to Pass with Mod
                   </div>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "#f59e0b", marginTop: "3px" }}>
-                    +{studentMetrics.rescuedStudents}
+                    {studentMetrics.isGazetteUploaded ? `+${studentMetrics.rescuedStudents}` : "—"}
                   </div>
                   <div style={{ fontSize: "10.5px", color: "#f59e0b", fontWeight: 600 }}>
-                    {studentMetrics.rescuedPct}% students rescued to pass
+                    {studentMetrics.isGazetteUploaded ? `${studentMetrics.rescuedPct}% students rescued to pass` : "Requires Result Gazette"}
                   </div>
                 </div>
 
@@ -6078,10 +8827,10 @@ export default function AdesResultCalculatorPage() {
                     <Calculator size={14} color="var(--muted)" /> Raw Passed (0 Mod)
                   </div>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--ink)", marginTop: "3px" }}>
-                    {studentMetrics.rawPassedStudents}
+                    {studentMetrics.isGazetteUploaded ? studentMetrics.rawPassedStudents : "—"}
                   </div>
                   <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>
-                    {studentMetrics.rawPassedPct}% without moderation
+                    {studentMetrics.isGazetteUploaded ? `${studentMetrics.rawPassedPct}% without moderation` : "Requires Result Gazette"}
                   </div>
                 </div>
 
@@ -6216,27 +8965,42 @@ export default function AdesResultCalculatorPage() {
                   >
                     All ({studentMetrics.totalStudents})
                   </button>
-                  <button 
-                    type="button"
-                    onClick={() => setStudentFilterStatus("PASS")}
-                    style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "PASS" ? "#10b981" : "transparent", color: studentFilterStatus === "PASS" ? "white" : "var(--muted)" }}
-                  >
-                    Passed Semester ({studentMetrics.finalPassedStudents})
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setStudentFilterStatus("FAIL")}
-                    style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "FAIL" ? "#ef4444" : "transparent", color: studentFilterStatus === "FAIL" ? "white" : "var(--muted)" }}
-                  >
-                    Failed Semester ({studentMetrics.failedStudents})
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setStudentFilterStatus("RESCUED")}
-                    style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "RESCUED" ? "#f59e0b" : "transparent", color: studentFilterStatus === "RESCUED" ? "white" : "var(--muted)" }}
-                  >
-                    Rescued ({studentMetrics.rescuedStudents})
-                  </button>
+                  {studentMetrics.isGazetteUploaded && (
+                    <>
+                      <button 
+                        type="button"
+                        onClick={() => setStudentFilterStatus("PASS")}
+                        style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "PASS" ? "#10b981" : "transparent", color: studentFilterStatus === "PASS" ? "white" : "var(--muted)" }}
+                      >
+                        Passed Semester ({studentMetrics.finalPassedStudents})
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setStudentFilterStatus("FAIL")}
+                        style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "FAIL" ? "#ef4444" : "transparent", color: studentFilterStatus === "FAIL" ? "white" : "var(--muted)" }}
+                      >
+                        Failed Semester ({studentMetrics.failedStudents})
+                      </button>
+                    </>
+                  )}
+                  {studentMetrics.pendingBacklogStudents > 0 && (
+                    <button 
+                      type="button"
+                      onClick={() => setStudentFilterStatus("PENDING_BACKLOG")}
+                      style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "PENDING_BACKLOG" ? "#dc2626" : "transparent", color: studentFilterStatus === "PENDING_BACKLOG" ? "white" : "#dc2626" }}
+                    >
+                      Pending Gazette Backlogs ({studentMetrics.pendingBacklogStudents})
+                    </button>
+                  )}
+                  {studentMetrics.isGazetteUploaded && (
+                    <button 
+                      type="button"
+                      onClick={() => setStudentFilterStatus("RESCUED")}
+                      style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "RESCUED" ? "#f59e0b" : "transparent", color: studentFilterStatus === "RESCUED" ? "white" : "var(--muted)" }}
+                    >
+                      Rescued ({studentMetrics.rescuedStudents})
+                    </button>
+                  )}
                   {studentMetrics.heldStudents > 0 && (
                     <button 
                       type="button"
@@ -6253,6 +9017,24 @@ export default function AdesResultCalculatorPage() {
                       style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "HELDBACK" ? "#c026d3" : "transparent", color: studentFilterStatus === "HELDBACK" ? "white" : "#c026d3" }}
                     >
                       Heldback ({studentMetrics.heldbackStudents})
+                    </button>
+                  )}
+                  {studentMetrics.improvementStudents > 0 && (
+                    <button 
+                      type="button"
+                      onClick={() => setStudentFilterStatus("IMPROVEMENT")}
+                      style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "IMPROVEMENT" ? "#9333ea" : "transparent", color: studentFilterStatus === "IMPROVEMENT" ? "white" : "#9333ea" }}
+                    >
+                      Improvement ({studentMetrics.improvementStudents})
+                    </button>
+                  )}
+                  {studentMetrics.supplementaryStudents > 0 && (
+                    <button 
+                      type="button"
+                      onClick={() => setStudentFilterStatus("SUPPLEMENTARY")}
+                      style={{ padding: "4px 10px", fontSize: "11.5px", fontWeight: 600, border: "none", borderRadius: "4px", cursor: "pointer", background: studentFilterStatus === "SUPPLEMENTARY" ? "#2563eb" : "transparent", color: studentFilterStatus === "SUPPLEMENTARY" ? "white" : "#2563eb" }}
+                    >
+                      Supplementary ({studentMetrics.supplementaryStudents})
                     </button>
                   )}
                   {studentMetrics.absentStudents > 0 && (
@@ -6288,7 +9070,7 @@ export default function AdesResultCalculatorPage() {
                       <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "100px" }}>Attempted</th>
                       <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "90px" }}>Passed</th>
                       <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "90px" }}>Failed</th>
-                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "110px" }}>Mod Marks</th>
+                      <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "125px" }} title="Our Mod Total = Regular Mod (from Gazette) + Supplementary Event Mod">Our Mod Total</th>
                       <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "110px" }}>Raw Result</th>
                       <th style={{ padding: "10px 12px", color: "var(--muted)", fontWeight: 600, textAlign: "center", width: "140px" }}>Semester Result</th>
                     </tr>
@@ -6335,7 +9117,21 @@ export default function AdesResultCalculatorPage() {
                                 {st.faculty && <div style={{ fontSize: "10.5px", color: "var(--muted)" }}>{st.faculty}</div>}
                               </td>
                               <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600 }}>
-                                {st.totalCourses} Papers
+                                <div>{st.totalCourses} Papers</div>
+                                {(st.improvementCourses > 0 || st.supplementaryCourses > 0) && (
+                                  <div style={{ display: "flex", gap: "3px", justifyContent: "center", marginTop: "3px", flexWrap: "wrap" }}>
+                                    {st.improvementCourses > 0 && (
+                                      <span style={{ fontSize: "9.5px", background: "rgba(147, 51, 234, 0.12)", color: "#9333ea", padding: "1px 5px", borderRadius: "3px", fontWeight: 700 }} title={`${st.improvementCourses} Improvement paper(s)`}>
+                                        {st.improvementCourses} Imp
+                                      </span>
+                                    )}
+                                    {st.supplementaryCourses > 0 && (
+                                      <span style={{ fontSize: "9.5px", background: "rgba(59, 130, 246, 0.12)", color: "#2563eb", padding: "1px 5px", borderRadius: "3px", fontWeight: 700 }} title={`${st.supplementaryCourses} Supplementary paper(s)`}>
+                                        {st.supplementaryCourses} Supp
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                               <td style={{ padding: "10px 12px", textAlign: "center", color: "#10b981", fontWeight: 600 }}>
                                 {st.finalPassedCourses}
@@ -6345,9 +9141,21 @@ export default function AdesResultCalculatorPage() {
                               </td>
                               <td style={{ padding: "10px 12px", textAlign: "center" }}>
                                 {st.totalModerationMarks > 0 ? (
-                                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#f59e0b", background: "rgba(245, 158, 11, 0.12)", padding: "2px 6px", borderRadius: "4px" }}>
-                                    +{st.totalModerationMarks} Marks
-                                  </span>
+                                  <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>
+                                    <span 
+                                      style={{ fontSize: "11px", fontWeight: 700, color: "#f59e0b", background: "rgba(245, 158, 11, 0.12)", padding: "2px 6px", borderRadius: "4px" }}
+                                      title={st.regularModerationMarks > 0 
+                                        ? `Our Mod Total: +${st.totalModerationMarks} (Supp Event: +${st.eventModerationMarks || 0}, Regular Event: +${st.regularModerationMarks})` 
+                                        : `Supplementary Event Moderation: +${st.totalModerationMarks}`}
+                                    >
+                                      +{st.totalModerationMarks} Marks
+                                    </span>
+                                    {st.regularModerationMarks > 0 && (
+                                      <span style={{ fontSize: "9.5px", color: "var(--muted)", marginTop: "2px" }} title="Breakdown: Supp Event Mod + Regular Event Mod from Gazette">
+                                        Event: +{st.eventModerationMarks || 0} | Reg: +{st.regularModerationMarks}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span style={{ color: "var(--muted)", fontSize: "11px" }}>0</span>
                                 )}
@@ -6356,35 +9164,47 @@ export default function AdesResultCalculatorPage() {
                                 <span style={{ 
                                   fontSize: "11px", 
                                   fontWeight: 600, 
-                                  color: st.isHeldback ? "#c026d3" : st.isHeld ? "#7e22ce" : st.rawSemesterPass ? "#10b981" : "#ef4444" 
+                                  color: !st.rawSemesterResult ? "var(--muted)" : st.isHeldback ? "#c026d3" : st.isHeld ? "#7e22ce" : st.rawSemesterPass ? "#10b981" : "#ef4444" 
                                 }}>
-                                  {st.rawSemesterResult}
+                                  {st.rawSemesterResult || "—"}
                                 </span>
                               </td>
                               <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                                  {st.isHeldback ? (
-                                    st.isHeld ? (
-                                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Held due to missing component(s): ${st.missingDetailStr || "Incomplete"} | Reason: ${st.heldbackReason || "Heldback"}`}>
-                                        <XCircle size={12} /> Fail <span style={{ fontSize: "10px", color: "#e11d48", fontWeight: 700 }}>(Held - Missing{st.missingComponents && st.missingComponents.length > 0 ? `: ${st.missingComponents.join(", ")}` : ""})</span> <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
-                                      </span>
-                                    ) : st.isRescuedSemester ? (
-                                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(245, 158, 11, 0.15)", color: "#d97706", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Rescued by moderation | Heldback: ${st.heldbackReason || "Heldback"}`}>
-                                        <Sparkles size={12} /> Pass (Rescued) <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
-                                      </span>
-                                    ) : st.finalSemesterPass ? (
-                                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Heldback: ${st.heldbackReason || "Heldback"}`}>
-                                        <CheckCircle2 size={12} /> Pass <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
-                                      </span>
-                                    ) : (
-                                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Heldback: ${st.heldbackReason || "Heldback"}`}>
-                                        <XCircle size={12} /> Fail ({st.finalFailedCourses} Failed) <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
-                                      </span>
-                                    )
-                                  ) : st.isHeld ? (
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Failed due to missing component(s): ${st.missingDetailStr || "Marks Incomplete"}`}>
-                                      <XCircle size={12} /> Fail <span style={{ fontSize: "10px", color: "#e11d48", fontWeight: 700 }}>(Held - Missing{st.missingComponents && st.missingComponents.length > 0 ? `: ${st.missingComponents.join(", ")}` : ""})</span>
+                                {!st.isGazetteUploaded ? (
+                                  <span style={{ color: "var(--muted)", fontSize: "13px" }} title="Upload Result Gazette (Reappear Assurance) to evaluate semester pass/fail">
+                                    —
+                                  </span>
+                                ) : st.isHeldback ? (
+                                  st.isHeld ? (
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Held due to missing component(s): ${st.missingDetailStr || "Incomplete"} | Reason: ${st.heldbackReason || "Heldback"}`}>
+                                      <XCircle size={12} /> Fail <span style={{ fontSize: "10px", color: "#e11d48", fontWeight: 700 }}>(Held - Missing{st.missingComponents && st.missingComponents.length > 0 ? `: ${st.missingComponents.join(", ")}` : ""})</span> <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
+                                    </span>
+                                  ) : (st.pendingGazetteBacklogs && st.pendingGazetteBacklogs.length > 0) ? (
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Pending Gazette Backlogs: ${st.pendingGazetteBacklogs.join(", ")} | Reason: ${st.heldbackReason || "Heldback"}`}>
+                                      <XCircle size={12} /> Fail <span style={{ fontSize: "10px", color: "#dc2626", fontWeight: 700 }}>({st.pendingGazetteBacklogs.length} Pending Backlog{st.pendingGazetteBacklogs.length > 1 ? "s" : ""})</span> <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
                                     </span>
                                   ) : st.isRescuedSemester ? (
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(245, 158, 11, 0.15)", color: "#d97706", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Rescued by moderation | Heldback: ${st.heldbackReason || "Heldback"}`}>
+                                      <Sparkles size={12} /> Pass (Rescued) <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
+                                    </span>
+                                  ) : st.finalSemesterPass ? (
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Heldback: ${st.heldbackReason || "Heldback"}`}>
+                                      <CheckCircle2 size={12} /> Pass <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
+                                    </span>
+                                  ) : (
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Heldback: ${st.heldbackReason || "Heldback"}`}>
+                                      <XCircle size={12} /> Fail ({st.finalFailedCourses} Failed) <span style={{ fontSize: "10px", color: "#a855f7", fontWeight: 700 }}>(Heldback)</span>
+                                    </span>
+                                  )
+                                ) : st.isHeld ? (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Failed due to missing component(s): ${st.missingDetailStr || "Marks Incomplete"}`}>
+                                    <XCircle size={12} /> Fail <span style={{ fontSize: "10px", color: "#e11d48", fontWeight: 700 }}>(Held - Missing{st.missingComponents && st.missingComponents.length > 0 ? `: ${st.missingComponents.join(", ")}` : ""})</span>
+                                  </span>
+                                ) : (st.pendingGazetteBacklogs && st.pendingGazetteBacklogs.length > 0) ? (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }} title={`Semester Incomplete: ${st.pendingGazetteBacklogs.length} pending backlog(s) in Gazette (${st.pendingGazetteBacklogs.join(", ")})${st.finalFailedCourses > 0 ? ` + ${st.finalFailedCourses} failed in current exam` : ""}`}>
+                                    <XCircle size={12} /> Fail <span style={{ fontSize: "10px", color: "#dc2626", fontWeight: 700 }}>({st.pendingGazetteBacklogs.length} Pending Backlog{st.pendingGazetteBacklogs.length > 1 ? "s" : ""}{st.finalFailedCourses > 0 ? `, ${st.finalFailedCourses} failed` : ""})</span>
+                                  </span>
+                                ) : st.isRescuedSemester ? (
                                   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(245, 158, 11, 0.15)", color: "#d97706", padding: "3px 8px", borderRadius: "10px", fontWeight: 700, fontSize: "11.5px" }}>
                                     <Sparkles size={12} /> Pass (Rescued)
                                   </span>
@@ -6409,14 +9229,30 @@ export default function AdesResultCalculatorPage() {
                               <tr style={{ background: "rgba(59, 130, 246, 0.03)", borderBottom: "1px solid var(--line)" }}>
                                 <td colSpan={10} style={{ padding: "10px 14px 16px 40px" }}>
                                   <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "6px", overflow: "hidden" }}>
-                                    <div style={{ padding: "6px 12px", background: "var(--bg)", fontSize: "11px", fontWeight: 700, color: "var(--muted)", borderBottom: "1px solid var(--line)" }}>
-                                      COURSE-BY-COURSE BREAKDOWN FOR {st.seatNumber || st.prn} ({st.courses.length} Attempted Papers)
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px", padding: "6px 12px", background: "var(--bg)", fontSize: "11px", fontWeight: 700, color: "var(--muted)", borderBottom: "1px solid var(--line)" }}>
+                                      <span>COURSE-BY-COURSE BREAKDOWN FOR {st.seatNumber || st.prn} ({st.courses.length} Attempted Papers{st.improvementCourses > 0 ? `: ${st.improvementCourses} Improvement` : ''}{st.supplementaryCourses > 0 ? `${st.improvementCourses > 0 ? ', ' : ': '}${st.supplementaryCourses} Supplementary` : ''})</span>
+                                      {st.pendingGazetteBacklogs && st.pendingGazetteBacklogs.length > 0 && (
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(239, 68, 68, 0.1)", color: "#dc2626", padding: "2px 8px", borderRadius: "4px", fontSize: "10.5px", fontWeight: 700 }} title="Semester result cannot be Pass until all backlogs declared in the Result Gazette are cleared">
+                                          <AlertCircle size={12} /> Outstanding Backlogs in Gazette ({st.pendingGazetteBacklogs.length}): {st.pendingGazetteBacklogs.join(", ")}
+                                        </span>
+                                      )}
+                                      {st.hasGazetteAssurance && (!st.pendingGazetteBacklogs || st.pendingGazetteBacklogs.length === 0) && (
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(16, 185, 129, 0.1)", color: "#059669", padding: "2px 8px", borderRadius: "4px", fontSize: "10.5px", fontWeight: 700 }}>
+                                          <CheckCircle2 size={12} /> All Gazette Backlog Requirements Satisfied
+                                        </span>
+                                      )}
                                     </div>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px" }}>
                                       <thead>
                                         <tr style={{ borderBottom: "1px solid var(--line)", background: "rgba(0,0,0,0.02)" }}>
                                           <th style={{ padding: "6px 10px", textAlign: "left", color: "var(--muted)" }}>Course Code</th>
                                           <th style={{ padding: "6px 10px", textAlign: "left", color: "var(--muted)" }}>Course Name</th>
+                                          <th style={{ padding: "6px 8px", textAlign: "center", color: "var(--muted)" }}>Attempt</th>
+                                          <th style={{ padding: "6px 8px", textAlign: "center", color: "var(--muted)" }}>ESE-TH</th>
+                                          <th style={{ padding: "6px 8px", textAlign: "center", color: "var(--muted)" }}>CE-TH</th>
+                                          <th style={{ padding: "6px 8px", textAlign: "center", color: "var(--muted)" }}>ESE-PR</th>
+                                          <th style={{ padding: "6px 8px", textAlign: "center", color: "var(--muted)" }}>CE-PR</th>
+                                          <th style={{ padding: "6px 8px", textAlign: "center", color: "var(--muted)" }}>CE Total</th>
                                           <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>ESE (Marks / Min)</th>
                                           <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>Overall (Marks / Min)</th>
                                           <th style={{ padding: "6px 10px", textAlign: "center", color: "var(--muted)" }}>ESE Pass</th>
@@ -6426,11 +9262,140 @@ export default function AdesResultCalculatorPage() {
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {st.courses.map((c, cIdx) => (
-                                          <tr key={cIdx} style={{ borderBottom: "1px solid var(--line)", background: c.coursePass === "Pass" ? "transparent" : c.isHeldback ? "rgba(192, 38, 211, 0.05)" : c.isHeld ? "rgba(147, 51, 234, 0.04)" : "rgba(239, 68, 68, 0.03)" }}>
-                                            <td style={{ padding: "6px 10px", fontWeight: 600 }}>{c.courseCode}</td>
-                                            <td style={{ padding: "6px 10px" }}>{c.courseName}</td>
-                                            <td style={{ padding: "6px 10px", textAlign: "center" }}>
+                                        {st.courses.map((c, cIdx) => {
+                                          const renderCompCell = (obt, max, compKey) => {
+                                            const isMissing = (c.missingComponents || []).includes(compKey);
+                                            if (isMissing) {
+                                              return (
+                                                <span style={{ color: "#7e22ce", fontWeight: 700, fontSize: "10.5px", background: "rgba(147, 51, 234, 0.12)", padding: "1px 5px", borderRadius: "3px" }}>
+                                                  Missing
+                                                </span>
+                                              );
+                                            }
+                                            if (c.isAbsent && (obt === "Absent (Ab)" || (c.absentStatus && !max))) {
+                                              return <span style={{ color: "#dc2626", fontWeight: 600, fontSize: "10.5px" }}>Ab</span>;
+                                            }
+                                            if (c.isMalpractice && (obt === "Malpractice (MP)" || c.malpracticeStatus)) {
+                                              return <span style={{ color: "#b45309", fontWeight: 600, fontSize: "10.5px" }}>MP</span>;
+                                            }
+                                            const hasMax = max !== null && max !== undefined && max !== "" && max !== 0;
+                                            const hasObt = obt !== null && obt !== undefined && obt !== "";
+                                            if (!hasMax && !hasObt) {
+                                              return <span style={{ color: "var(--muted)" }}>-</span>;
+                                            }
+                                            const isCF = (c.carriedForwardComponents || []).includes(compKey);
+                                            return (
+                                              <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", justifyContent: "center" }}>
+                                                <span style={{ color: isCF ? "#059669" : "inherit", fontWeight: isCF ? 600 : 400 }}>
+                                                  {hasObt ? String(obt) : "0"}{hasMax ? ` / ${max}` : ""}
+                                                </span>
+                                                {isCF && (
+                                                  <span style={{ fontSize: "8.5px", background: "rgba(16, 185, 129, 0.15)", color: "#059669", padding: "0 3px", borderRadius: "3px", fontWeight: 700 }} title="Carried forward from previous attempt">
+                                                    CF
+                                                  </span>
+                                                )}
+                                              </span>
+                                            );
+                                          };
+
+                                          const renderCeTotalCell = () => {
+                                            const hasCeMissing = (c.missingComponents || []).some(m => m.startsWith("CE"));
+                                            if (c.isHeld && (c.ceOverall === "Held" || hasCeMissing)) {
+                                              return (
+                                                <span style={{ color: "#7e22ce", fontWeight: 700, fontSize: "10.5px", background: "rgba(147, 51, 234, 0.12)", padding: "1px 5px", borderRadius: "3px" }}>
+                                                  Held
+                                                </span>
+                                              );
+                                            }
+                                            const hasMax = c.ceMax !== null && c.ceMax !== undefined && c.ceMax !== "" && c.ceMax !== 0;
+                                            const hasObt = c.ceOverall !== null && c.ceOverall !== undefined && c.ceOverall !== "";
+                                            if (!hasMax && !hasObt) {
+                                              return <span style={{ color: "var(--muted)" }}>-</span>;
+                                            }
+                                            const allCeCF = (c.carriedForwardComponents || []).some(comp => comp.startsWith("CE"));
+                                            return (
+                                              <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", justifyContent: "center" }}>
+                                                <span style={{ color: allCeCF ? "#059669" : "inherit", fontWeight: allCeCF ? 600 : 500 }}>
+                                                  {hasObt ? String(c.ceOverall) : "0"}{hasMax ? ` / ${c.ceMax}` : ""}
+                                                </span>
+                                                {allCeCF && (
+                                                  <span style={{ fontSize: "8.5px", background: "rgba(16, 185, 129, 0.15)", color: "#059669", padding: "0 3px", borderRadius: "3px", fontWeight: 700 }} title="Carried forward from previous attempt">
+                                                    CF
+                                                  </span>
+                                                )}
+                                              </span>
+                                            );
+                                          };
+
+                                          return (
+                                            <tr key={cIdx} style={{ borderBottom: "1px solid var(--line)", background: c.coursePass === "Pass" ? "transparent" : c.isHeldback ? "rgba(192, 38, 211, 0.05)" : c.isHeld ? "rgba(147, 51, 234, 0.04)" : "rgba(239, 68, 68, 0.03)" }}>
+                                              <td style={{ padding: "6px 10px" }}>
+                                                <div style={{ fontWeight: 600 }}>{c.courseCode}</div>
+                                                {c.gazetteAssurance && c.gazetteAssurance.isVerifiedReappear && (
+                                                  <div style={{ marginTop: "2px" }}>
+                                                    <span style={{ fontSize: "9.5px", background: "rgba(16, 185, 129, 0.12)", color: "#059669", padding: "1px 5px", borderRadius: "3px", fontWeight: 700 }} title={`Officially declared reappear paper in ${c.gazetteAssurance.matchingTerm || 'previous semester'} (${c.gazetteAssurance.matchingEvent || 'Gazette'})`}>
+                                                      ✓ Verified Reappear ({c.gazetteAssurance.matchingTerm || 'Gazette'})
+                                                    </span>
+                                                  </div>
+                                                )}
+                                                {c.gazetteAssurance && c.gazetteAssurance.isPriorPass && (
+                                                  <div style={{ marginTop: "2px" }}>
+                                                    <span style={{ fontSize: "9.5px", background: "rgba(37, 99, 235, 0.12)", color: "#2563eb", padding: "1px 5px", borderRadius: "3px", fontWeight: 700 }} title="Passed in previous semester (Improvement Attempt)">
+                                                      ✓ Improvement ({c.gazetteAssurance.matchingTerm || 'Prior Pass'})
+                                                    </span>
+                                                  </div>
+                                                )}
+                                                {c.gazetteAssurance && !c.gazetteAssurance.isVerifiedReappear && !c.gazetteAssurance.isPriorPass && (
+                                                  <div style={{ marginTop: "2px" }}>
+                                                    <span style={{ fontSize: "9.5px", background: "rgba(245, 158, 11, 0.12)", color: "#b45309", padding: "1px 5px", borderRadius: "3px", fontWeight: 600 }} title={`Not listed in previous fail list (${c.gazetteAssurance.matchingTerm || 'Gazette'})`}>
+                                                      ⚠ Unlisted in Gazette Reappears
+                                                    </span>
+                                                  </div>
+                                                )}
+                                                {c.gazetteAssurance && c.gazetteAssurance.allPendingReappears?.length > 0 && (
+                                                  <div style={{ fontSize: "8.5px", color: "#6b7280", marginTop: "2px" }} title={`Other pending failed papers: ${c.gazetteAssurance.allPendingReappears.join(", ")}`}>
+                                                    Other pending: {c.gazetteAssurance.allPendingReappears.join(", ")}
+                                                  </div>
+                                                )}
+                                              </td>
+                                              <td style={{ padding: "6px 10px" }}>{c.courseName}</td>
+                                              <td style={{ padding: "6px 8px", textAlign: "center" }}>
+                                                {(c.isImprovement || c.attemptType === "IMPROVEMENT") ? (
+                                                  <span style={{ 
+                                                    display: "inline-flex", 
+                                                    alignItems: "center", 
+                                                    gap: "3px", 
+                                                    background: "rgba(147, 51, 234, 0.12)", 
+                                                    color: "#9333ea", 
+                                                    padding: "2px 7px", 
+                                                    borderRadius: "4px", 
+                                                    fontSize: "10.5px", 
+                                                    fontWeight: 700 
+                                                  }} title="Improvement Attempt (Student previously passed and is retaking to improve score)">
+                                                    Improvement
+                                                  </span>
+                                                ) : (
+                                                  <span style={{ 
+                                                    display: "inline-flex", 
+                                                    alignItems: "center", 
+                                                    gap: "3px", 
+                                                    background: "rgba(59, 130, 246, 0.12)", 
+                                                    color: "#2563eb", 
+                                                    padding: "2px 7px", 
+                                                    borderRadius: "4px", 
+                                                    fontSize: "10.5px", 
+                                                    fontWeight: 700 
+                                                  }} title="Supplementary Attempt (Student previously failed/absent and is retaking to clear backlog)">
+                                                    Supplementary
+                                                  </span>
+                                                )}
+                                              </td>
+                                              <td style={{ padding: "6px 8px", textAlign: "center" }}>{renderCompCell(c.eseThObtained, c.eseThMax, "ESE-TH")}</td>
+                                              <td style={{ padding: "6px 8px", textAlign: "center" }}>{renderCompCell(c.ceThObtained, c.ceThMax, "CE-TH")}</td>
+                                              <td style={{ padding: "6px 8px", textAlign: "center" }}>{renderCompCell(c.esePrObtained, c.esePrMax, "ESE-PR")}</td>
+                                              <td style={{ padding: "6px 8px", textAlign: "center" }}>{renderCompCell(c.cePrObtained, c.cePrMax, "CE-PR")}</td>
+                                              <td style={{ padding: "6px 8px", textAlign: "center" }}>{renderCeTotalCell()}</td>
+                                              <td style={{ padding: "6px 10px", textAlign: "center" }}>
                                               {c.isHeld ? (
                                                 <span style={{ color: "#7e22ce", fontWeight: 700, background: "rgba(147, 51, 234, 0.12)", padding: "1px 6px", borderRadius: "4px" }}>
                                                   Held
@@ -6517,8 +9482,9 @@ export default function AdesResultCalculatorPage() {
                                               )}
                                             </td>
                                           </tr>
-                                        ))}
-                                      </tbody>
+                                         );
+                                       })}
+                                       </tbody>
                                     </table>
                                   </div>
                                 </td>
@@ -7535,7 +10501,10 @@ export default function AdesResultCalculatorPage() {
                         <span style={{ fontSize: "12px", color: "var(--muted)" }}>vs</span>
                         <span>Pub: {comparisonKPIs.totalPubMod}</span>
                       </div>
-                      <div style={{ fontSize: "10.5px", color: comparisonKPIs.modTotalDiff === 0 ? "#10b981" : "#f59e0b", fontWeight: 600 }}>
+                      <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "2px" }}>
+                        Event Mod: Our {comparisonKPIs.totalCalcEventMod} vs Pub {comparisonKPIs.totalPubEventMod} | Reg: {comparisonKPIs.totalRegMod}
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: comparisonKPIs.modTotalDiff === 0 ? "#10b981" : "#f59e0b", fontWeight: 600, marginTop: "2px" }}>
                         Net Diff: {comparisonKPIs.modTotalDiff >= 0 ? `+${comparisonKPIs.modTotalDiff}` : comparisonKPIs.modTotalDiff} marks
                       </div>
                     </div>
@@ -7662,8 +10631,10 @@ export default function AdesResultCalculatorPage() {
                             <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Calculated Result</th>
                             <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Published Result</th>
                             <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Result Concordance</th>
-                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Our Mod Total</th>
-                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Pub Ord Total</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }} title="Moderation applied in Original / Regular Event from uploaded Gazette">Reg Mod</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }} title="Supplementary Event Moderation: Our System vs University Published (Pub Ord Total - Reg Mod)">Event Mod (Our / Pub)</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }} title="Our Mod Total = Regular Mod + Our Event Mod">Our Mod Total</th>
+                            <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }} title="Published Ordinance Total from University Result">Pub Ord Total</th>
                             <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Mod Match</th>
                             <th style={{ padding: "8px 10px", fontWeight: 600 }}>Our Failed Courses</th>
                             <th style={{ padding: "8px 10px", fontWeight: 600 }}>Pub Reappear Courses</th>
@@ -7673,7 +10644,7 @@ export default function AdesResultCalculatorPage() {
                         <tbody>
                           {filteredComparisonRecords.length === 0 ? (
                             <tr>
-                              <td colSpan={14} style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
+                              <td colSpan={16} style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
                                 No student comparison records found matching the current filters.
                               </td>
                             </tr>
@@ -7780,13 +10751,46 @@ export default function AdesResultCalculatorPage() {
                                       )}
                                     </td>
 
+                                    {/* Reg Mod (from Gazette) */}
+                                    <td style={{ padding: "7px 10px", textAlign: "center", fontWeight: rec.calcRegularModMarks > 0 ? 600 : 400, color: rec.calcRegularModMarks > 0 ? "#0284c7" : "var(--muted)" }}>
+                                      {rec.calcRegularModMarks > 0 ? (
+                                        <span style={{ fontSize: "10.5px", background: "rgba(2, 132, 199, 0.1)", color: "#0284c7", padding: "1px 5px", borderRadius: "3px", fontWeight: 600 }} title={`Regular Event Moderation: ${rec.calcRegularModMarks} marks`}>
+                                          {rec.calcRegularModMarks.toFixed(2)}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: "var(--muted)", fontSize: "10.5px" }}>0</span>
+                                      )}
+                                    </td>
+
+                                    {/* Event Mod (Our / Pub) */}
+                                    <td style={{ padding: "7px 10px", textAlign: "center", whiteSpace: "nowrap" }}>
+                                      {!rec.isFound ? (
+                                        <span style={{ fontSize: "10.5px", color: "#64748b" }}>—</span>
+                                      ) : (
+                                        <div style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "11px" }}>
+                                          <span style={{ fontWeight: rec.calcEventModMarks > 0 ? 700 : 500, color: rec.calcEventModMarks > 0 ? "#8b5cf6" : "var(--muted)" }} title="Our Calculated Supplementary Event Moderation">
+                                            {rec.calcEventModMarks.toFixed(2)}
+                                          </span>
+                                          <span style={{ color: "var(--muted)", fontSize: "10px" }}>/</span>
+                                          <span style={{ fontWeight: rec.pubEventModMarks > 0 ? 700 : 500, color: rec.pubEventModMarks > 0 ? "#8b5cf6" : "var(--muted)" }} title={`Published Event Moderation = Pub Ord Total (${rec.pubModMarks}) - Reg Mod (${rec.calcRegularModMarks}) = ${rec.pubEventModMarks.toFixed(2)}`}>
+                                            {rec.pubEventModMarks.toFixed(2)}
+                                          </span>
+                                          {!rec.isEventModMatch && (
+                                            <span style={{ fontSize: "9px", color: "#f59e0b", fontWeight: 700, marginLeft: "2px" }} title={`Event Mod Diff: ${rec.eventModDiff > 0 ? '+' : ''}${rec.eventModDiff.toFixed(2)}`}>
+                                              ({rec.eventModDiff > 0 ? `+${rec.eventModDiff.toFixed(1)}` : rec.eventModDiff.toFixed(1)})
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+
                                     {/* Our Mod Total */}
-                                    <td style={{ padding: "7px 10px", textAlign: "center", fontWeight: rec.calcModMarks > 0 ? 700 : 400, color: rec.calcModMarks > 0 ? "#8b5cf6" : "var(--muted)" }}>
+                                    <td style={{ padding: "7px 10px", textAlign: "center", fontWeight: rec.calcModMarks > 0 ? 700 : 400, color: rec.calcModMarks > 0 ? "#8b5cf6" : "var(--muted)" }} title={`Our Mod Total = Reg Mod (${rec.calcRegularModMarks}) + Event Mod (${rec.calcEventModMarks})`}>
                                       {rec.isFound ? rec.calcModMarks.toFixed(2) : "—"}
                                     </td>
 
                                     {/* Pub Ord Total */}
-                                    <td style={{ padding: "7px 10px", textAlign: "center", fontWeight: rec.pubModMarks > 0 ? 700 : 400, color: rec.pubModMarks > 0 ? "#8b5cf6" : "var(--muted)" }}>
+                                    <td style={{ padding: "7px 10px", textAlign: "center", fontWeight: rec.pubModMarks > 0 ? 700 : 400, color: rec.pubModMarks > 0 ? "#8b5cf6" : "var(--muted)" }} title="Published Ordinance Total">
                                       {rec.pubModMarks.toFixed(2)}
                                       {rec.pubHasOrd && (
                                         <span style={{ marginLeft: "4px", fontSize: "9.5px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", padding: "1px 4px", borderRadius: "3px" }}>
@@ -7800,12 +10804,12 @@ export default function AdesResultCalculatorPage() {
                                       {!rec.isFound ? (
                                         <span style={{ fontSize: "10.5px", color: "#64748b" }}>—</span>
                                       ) : rec.isModMatch ? (
-                                        <span style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }}>
+                                        <span style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 600 }} title="Both Total Moderation and Event Moderation Match">
                                           <CheckCircle2 size={12} />
                                         </span>
                                       ) : (
-                                        <span style={{ fontSize: "10.5px", color: "#f59e0b", fontWeight: 700 }}>
-                                          {rec.modDiff > 0 ? `+${rec.modDiff}` : rec.modDiff}
+                                        <span style={{ fontSize: "10.5px", color: "#f59e0b", fontWeight: 700 }} title={`Moderation Diff: ${rec.modDiff > 0 ? '+' : ''}${rec.modDiff.toFixed(2)}`}>
+                                          {rec.modDiff > 0 ? `+${rec.modDiff.toFixed(2)}` : rec.modDiff.toFixed(2)}
                                         </span>
                                       )}
                                     </td>
@@ -8205,6 +11209,34 @@ export default function AdesResultCalculatorPage() {
                             {ADES_OUTPUT_HEADERS.map((col) => {
                               const val = row[col];
                               const isCoursePass = col === coursePassKey;
+
+                              if (col === "Course Code") {
+                                return (
+                                  <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                                      <span style={{ fontWeight: 600 }}>{val}</span>
+                                      {row._isImprovement ? (
+                                        <span style={{ fontSize: "9px", background: "rgba(147, 51, 234, 0.15)", color: "#9333ea", padding: "1px 5px", borderRadius: "4px", fontWeight: 700 }} title="Improvement candidate (Only ESE-TH repeated; other components carried forward from previous event)">
+                                          IMP
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: "9px", background: "rgba(217, 119, 6, 0.15)", color: "#b45309", padding: "1px 5px", borderRadius: "4px", fontWeight: 700 }} title="Supplementary candidate (ESE-TH/PR repeated; CE marks carried forward from previous event)">
+                                          SUPP
+                                        </span>
+                                      )}
+                                      {row._hasHistoricalRecord ? (
+                                        <span style={{ fontSize: "9.5px", color: "#10b981", fontWeight: 700 }} title={`Baseline linked from: ${row._historicalSource} | Carried forward: ${(row._carriedForwardComponents || []).join(", ") || "None"}`}>
+                                          ✓
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: "9px", color: "#ef4444", fontWeight: 700 }} title="No previous event record matched">
+                                          ⚠
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              }
                               const isOtherPass = col === "ESE Pass" || col === "Overall pass";
                               const isModMarks = col === "Moderation Marks";
                               const isAbsentMark = val === "Absent (Ab)";
@@ -8375,9 +11407,23 @@ export default function AdesResultCalculatorPage() {
                                 );
                               }
 
+                              const isCarriedForwardCol = 
+                                (col === "ESE - PR Obtained" && (row._carriedForwardComponents || []).includes("ESE-PR")) ||
+                                (col === "CE - TH Obtained" && (row._carriedForwardComponents || []).includes("CE-TH")) ||
+                                (col === "CE - PR Obtained" && (row._carriedForwardComponents || []).includes("CE-PR"));
+
                               return (
                                 <td key={col} style={{ padding: "5px 8px", borderRight: "1px solid var(--line)", color: "var(--ink)" }}>
-                                  {val !== undefined && val !== null ? String(val) : ""}
+                                  {val !== undefined && val !== null ? (
+                                    isCarriedForwardCol ? (
+                                      <span style={{ display: "inline-flex", alignItems: "center", gap: "3px" }} title="Carried forward from previous attempt baseline">
+                                        <span style={{ color: "#059669", fontWeight: 600 }}>{String(val)}</span>
+                                        <span style={{ fontSize: "8.5px", background: "rgba(16, 185, 129, 0.15)", color: "#059669", padding: "0 3px", borderRadius: "3px", fontWeight: 700 }}>CF</span>
+                                      </span>
+                                    ) : (
+                                      String(val)
+                                    )
+                                  ) : ""}
                                 </td>
                               );
                             })}

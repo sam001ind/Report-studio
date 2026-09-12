@@ -1163,7 +1163,7 @@ const QpLabelPage = () => {
               }}>
                 {/* University Logo Centered */}
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
-                  <img src={logoBase64} alt="Kannur University Logo" style={{ maxWidth: '320px', height: 'auto' }} />
+                  <img src={logoBase64} alt="University Logo" style={{ maxWidth: '320px', height: 'auto' }} />
                 </div>
 
                 <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>

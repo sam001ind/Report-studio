@@ -174,7 +174,7 @@ export default function AdmissionImportPage() {
     // 25. College (Handles 447, 304, 347, 358, 397, 351, 404)
     const rawCollegeCode = getVal('collegecode', 'colcode', 'center', 'centercode');
     const rawCollegeName = getVal('collegename', 'college', 'centername');
-    const collegeLookup = COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || { code: rawCollegeCode || '347', name: rawCollegeName || 'Government College Madappally' };
+    const collegeLookup = COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || { code: rawCollegeCode || '101', name: rawCollegeName || 'Alpha Arts and Science College' };
     const collegeCode = collegeLookup.code;
     const collegeId = collegeCode; // Clears raw 'CollegeId' text artifact
     const collegeName = collegeLookup.name;

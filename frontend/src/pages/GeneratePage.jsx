@@ -42,10 +42,10 @@ const GeneratePage = ({ dataset = { columns: [], rows: [] } }) => {
         pageSize: 'A4',
         orientation: 'portrait',
         headersList: [
-          { id: 'h1', text: 'Kannur University', size: 15, bold: true, align: 'center', color: '#000000' },
+          { id: 'h1', text: 'Sample University', size: 15, bold: true, align: 'center', color: '#000000' },
           { id: 'h2', text: '(Examination Branch)', size: 11, bold: true, align: 'center', color: '#111111' },
           { id: 'h3', text: 'IV Semester Private Registration 2024 -2027 Admission', size: 10, bold: true, align: 'center', color: '#111111' },
-          { id: 'h4', text: 'April 2026', size: 9.5, bold: false, align: 'center', color: '#222222' }
+          { id: 'h4', text: 'April 2099', size: 9.5, bold: false, align: 'center', color: '#222222' }
         ],
         tableTheme: { headerBg: '#f1f5f9', headerColor: '#000000', fontSize: 8, borderColor: '#64748b' }
       }
@@ -57,27 +57,27 @@ const GeneratePage = ({ dataset = { columns: [], rows: [] } }) => {
       const rows = dataset.rows && dataset.rows.length > 0 ? dataset.rows : [
         {
           'Programme': 'Bachelor of Business Administration (BBA)',
-          'Venue': 'GA - Sree Narayana Guru College of Advanced Studies, Thottada',
-          'Seat No': '4PR24BB001',
-          'Candidate Name': 'ADITHYA K',
-          'Course Code': 'KU4VACBBA200',
-          'Course Title': 'Disaster Management'
+          'Venue': 'GA - Alpha Arts and Science College, Sample Town',
+          'Seat No': 'XT99BB001',
+          'Candidate Name': 'STUDENT ALPHA',
+          'Course Code': 'XT9VACBBA200',
+          'Course Title': 'Project Management'
         },
         {
           'Programme': 'Bachelor of Business Administration (BBA)',
-          'Venue': 'GA - Sree Narayana Guru College of Advanced Studies, Thottada',
-          'Seat No': '4PR24BB001',
-          'Candidate Name': 'ADITHYA K',
-          'Course Code': 'KU4SECBBA201',
+          'Venue': 'GA - Alpha Arts and Science College, Sample Town',
+          'Seat No': 'XT99BB001',
+          'Candidate Name': 'STUDENT ALPHA',
+          'Course Code': 'XT9SECBBA201',
           'Course Title': 'Soft Skills & Personality Development'
         },
         {
           'Programme': 'Bachelor of Business Administration (BBA)',
-          'Venue': 'GA - Sree Narayana Guru College of Advanced Studies, Thottada',
-          'Seat No': '4PR24BB002',
-          'Candidate Name': 'ANANYA RAJEEV',
-          'Course Code': 'KU4VACBBA200',
-          'Course Title': 'Disaster Management'
+          'Venue': 'GA - Alpha Arts and Science College, Sample Town',
+          'Seat No': 'XT99BB002',
+          'Candidate Name': 'STUDENT BETA',
+          'Course Code': 'XT9VACBBA200',
+          'Course Title': 'Project Management'
         }
       ];
 
@@ -88,8 +88,8 @@ const GeneratePage = ({ dataset = { columns: [], rows: [] } }) => {
       const groups = {};
       rows.forEach(r => {
         const prog = r['Programme'] || r['Program'] || r['programme'] || 'General Programme';
-        const venue = r['Venue'] || r['Venue Name'] || r['venue'] || 'GA - Sree Narayana Guru College, Thottada';
-        const seat = r['Seat No'] || r['Register No'] || r['seatNo'] || r['regNo'] || '4PR24BB001';
+        const venue = r['Venue'] || r['Venue Name'] || r['venue'] || 'GA - Alpha Arts and Science College, Sample Town';
+        const seat = r['Seat No'] || r['Register No'] || r['seatNo'] || r['regNo'] || 'XT99BB001';
         const name = r['Candidate Name'] || r['Name'] || r['studentName'] || 'Candidate';
         const cCode = r['Course Code'] || r['Paper Code'] || r['courseCode'] || '';
         const cTitle = r['Course Title'] || r['Paper Name'] || r['courseTitle'] || 'Subject';
