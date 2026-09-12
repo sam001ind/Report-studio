@@ -219,3 +219,45 @@ h3 { font-size: 16px; font-weight: 700; }
   .preview-page { box-shadow: none !important; margin: 0; border: 0 !important; page-break-after: always; display: block; }
   @page { margin: 0; }
 }
+
+/* ==========================================================================
+   Desktop App Window Framing & Safe Padding (macOS Electron)
+   ========================================================================== */
+body.is-electron-mac {
+  user-select: none;
+}
+
+body.is-electron-mac header,
+body.is-electron-mac nav {
+  padding-left: 84px !important;
+  -webkit-app-region: drag;
+}
+
+body.is-electron-mac header *,
+body.is-electron-mac nav * {
+  -webkit-app-region: no-drag;
+}
+
+/* Sleek Modern UI Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Smooth Focus & Transitions for Inputs and Buttons */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2.5px var(--accent-soft);
+}
+

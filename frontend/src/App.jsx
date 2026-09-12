@@ -66,6 +66,9 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   useEffect(() => {
+    if (window.electronAPI?.isDesktop && window.electronAPI?.platform === 'darwin') {
+      document.body.classList.add('is-electron-mac');
+    }
     const stopKeepAlive = startSupabaseKeepAlive(5 * 60 * 1000); // Heartbeat ping every 5 minutes
     return () => stopKeepAlive();
   }, []);

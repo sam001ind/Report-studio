@@ -527,33 +527,35 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '16px 32px',
+    padding: '14px 28px',
     borderBottom: '1px solid var(--line)',
     background: 'var(--panel)',
-    backdropFilter: 'blur(8px)',
+    backdropFilter: 'blur(12px)',
     contain: 'layout style'
   },
   logo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px'
+    gap: '12px'
   },
   logoMark: {
     backgroundColor: 'var(--accent)',
     color: 'white',
-    width: '32px',
-    height: '32px',
-    borderRadius: '6px',
+    width: '34px',
+    height: '34px',
+    borderRadius: '8px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 800,
     fontSize: '14px',
+    boxShadow: '0 2px 6px rgba(23, 107, 135, 0.25)'
   },
   logoText: {
     fontSize: '18px',
     fontWeight: 700,
-    color: 'var(--ink)'
+    color: 'var(--ink)',
+    letterSpacing: '-0.2px'
   },
   main: {
     position: 'relative',
@@ -562,50 +564,56 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '24px 32px'
+    padding: '28px 32px 48px'
   },
   features: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '16px',
-    maxWidth: '1300px',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
+    gap: '18px',
+    maxWidth: '1400px',
     width: '100%'
   },
   featureCard: {
     backgroundColor: 'var(--panel)',
     border: '1px solid var(--line)',
-    borderRadius: '12px',
-    padding: '20px',
+    borderRadius: '16px',
+    padding: '22px',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    minHeight: '190px',
     transition: 'transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s ease',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
     willChange: 'transform',
     contain: 'paint layout'
   },
   featureIcon: {
     backgroundColor: 'var(--accent-soft)',
-    width: '40px',
-    height: '40px',
-    borderRadius: '10px',
+    width: '44px',
+    height: '44px',
+    borderRadius: '11px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: '14px'
   },
   featureTitle: {
-    fontSize: '17px',
+    fontSize: '16px',
     fontWeight: 700,
     margin: '0 0 6px 0',
-    color: 'var(--ink)'
+    color: 'var(--ink)',
+    letterSpacing: '-0.1px'
   },
   featureText: {
     fontSize: '13px',
     color: 'var(--muted)',
-    lineHeight: 1.5,
-    margin: 0
+    lineHeight: 1.55,
+    margin: 0,
+    flex: 1
   },
   cardFooter: {
-    marginTop: '14px',
-    paddingTop: '10px',
+    marginTop: '16px',
+    paddingTop: '12px',
     borderTop: '1px solid var(--line)',
     display: 'flex',
     justifyContent: 'flex-start'
@@ -616,8 +624,8 @@ const styles = {
     color: 'var(--accent)',
     fontSize: '11.5px',
     fontWeight: 600,
-    padding: '4px 10px',
-    borderRadius: '6px',
+    padding: '5px 12px',
+    borderRadius: '7px',
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',

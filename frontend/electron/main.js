@@ -19,14 +19,20 @@ function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
 
+  const optimalWidth = Math.min(1400, Math.round(width * 0.92));
+  const optimalHeight = Math.min(900, Math.round(height * 0.9));
+
   mainWindow = new BrowserWindow({
-    width: Math.min(width, 1600),
-    height: Math.min(height, 1000),
-    minWidth: 900,
-    minHeight: 600,
+    width: optimalWidth,
+    height: optimalHeight,
+    minWidth: 1040,
+    minHeight: 680,
+    center: true,
+    show: false,
+    backgroundColor: '#f4f6f5',
     title: 'Report Studio',
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 14, y: 14 },
+    trafficLightPosition: { x: 18, y: 16 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -35,7 +41,9 @@ function createWindow() {
     }
   });
 
-  mainWindow.maximize();
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
 
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {

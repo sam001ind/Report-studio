@@ -7369,31 +7369,69 @@ export default function AdesSupplementaryCalculatorPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", overflow: "hidden", background: "var(--bg)", color: "var(--ink)" }}>
       
-      {/* Top Navigation Bar */}
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", borderBottom: "1px solid var(--line)", background: "var(--panel)", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <Link to="/" style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--muted)", textDecoration: "none", fontSize: "13px", fontWeight: 600 }}>
-            <ArrowLeft size={16} /> Back to Portal
+      {/* Top Application Bar */}
+      <header style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "center", 
+        padding: "10px 24px", 
+        borderBottom: "1px solid var(--line)", 
+        background: "var(--panel)", 
+        flexShrink: 0,
+        gap: "12px",
+        flexWrap: "wrap"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+          <Link to="/" style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: "6px", 
+            color: "var(--ink)", 
+            textDecoration: "none", 
+            fontSize: "12.5px", 
+            fontWeight: 600,
+            padding: "5px 12px",
+            borderRadius: "8px",
+            background: "var(--bg)",
+            border: "1px solid var(--line)",
+            transition: "all 0.15s ease"
+          }}>
+            <ArrowLeft size={15} /> Back
           </Link>
-          <div style={{ height: "18px", width: "1px", background: "var(--line)" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Calculator size={20} color="#6366f1" />
-            <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>ADES Supplementary / Improvement Calculator</h2>
-            <span style={{ fontSize: "11px", background: "rgba(99, 102, 241, 0.15)", color: "#6366f1", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
-              Multi-Event Baseline
-            </span>
+          <div style={{ height: "20px", width: "1px", background: "var(--line)" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ 
+              width: "32px", 
+              height: "32px", 
+              borderRadius: "8px", 
+              background: "rgba(99, 102, 241, 0.12)", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              flexShrink: 0 
+            }}>
+              <Calculator size={18} color="#6366f1" />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <h2 style={{ fontSize: "15px", fontWeight: 700, margin: 0, color: "var(--ink)", letterSpacing: "-0.2px" }}>
+                ADES Supplementary / Improvement Calculator
+              </h2>
+              <span style={{ fontSize: "10.5px", background: "rgba(99, 102, 241, 0.15)", color: "#6366f1", padding: "2px 8px", borderRadius: "10px", fontWeight: 700 }}>
+                Multi-Event Baseline
+              </span>
+            </div>
           </div>
 
           {/* Mode Switcher Pill */}
-          <div style={{ display: "flex", gap: "4px", background: "var(--bg)", padding: "2px", borderRadius: "8px", border: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", gap: "3px", background: "var(--bg)", padding: "3px", borderRadius: "9px", border: "1px solid var(--line)" }}>
             <Link 
               to="/ades-result-calculator"
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "4px",
-                padding: "3px 8px",
-                fontSize: "11px",
+                gap: "5px",
+                padding: "3px 9px",
+                fontSize: "11.5px",
                 fontWeight: 600,
                 color: "var(--muted)",
                 borderRadius: "6px",
@@ -7406,13 +7444,14 @@ export default function AdesSupplementaryCalculatorPage() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "4px",
-                padding: "3px 8px",
-                fontSize: "11px",
+                gap: "5px",
+                padding: "3px 9px",
+                fontSize: "11.5px",
                 fontWeight: 700,
                 background: "#6366f1",
                 color: "white",
-                borderRadius: "6px"
+                borderRadius: "6px",
+                boxShadow: "0 1px 3px rgba(99, 102, 241, 0.3)"
               }}
             >
               🔄 Supplementary &amp; Improvement
@@ -7420,115 +7459,165 @@ export default function AdesSupplementaryCalculatorPage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {/* Tab Switcher */}
-          <div style={{ display: "flex", background: "var(--bg)", padding: "3px", borderRadius: "8px", border: "1px solid var(--line)", gap: "4px" }}>
-            <button
-              type="button"
-              onClick={() => setActiveTab("results")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "5px 12px",
-                fontSize: "12px",
-                fontWeight: 600,
-                borderRadius: "6px",
-                border: "none",
-                cursor: "pointer",
-                background: activeTab === "results" ? "var(--accent)" : "transparent",
-                color: activeTab === "results" ? "white" : "var(--muted)"
-              }}
-            >
-              <Table size={13} /> Course Results (31 Cols)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("students")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "5px 12px",
-                fontSize: "12px",
-                fontWeight: 600,
-                borderRadius: "6px",
-                border: "none",
-                cursor: "pointer",
-                background: activeTab === "students" ? "var(--accent)" : "transparent",
-                color: activeTab === "students" ? "white" : "var(--muted)"
-              }}
-            >
-              <Users size={13} /> Student Semester Results ({studentMetrics.totalStudents})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("simulation")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "5px 12px",
-                fontSize: "12px",
-                fontWeight: 600,
-                borderRadius: "6px",
-                border: "none",
-                cursor: "pointer",
-                background: activeTab === "simulation" ? "var(--accent)" : "transparent",
-                color: activeTab === "simulation" ? "white" : "var(--muted)"
-              }}
-            >
-              <TrendingUp size={13} /> Pass Simulation (+0 to +10)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("moderation")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "5px 12px",
-                fontSize: "12px",
-                fontWeight: 600,
-                borderRadius: "6px",
-                border: "none",
-                cursor: "pointer",
-                background: activeTab === "moderation" ? "var(--accent)" : "transparent",
-                color: activeTab === "moderation" ? "white" : "var(--muted)"
-              }}
-            >
-              <Sliders size={13} /> Moderation Matrix ({Object.values(courseModerationMap).filter(v => v > 0).length} Active)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("comparison")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "5px 12px",
-                fontSize: "12px",
-                fontWeight: 600,
-                borderRadius: "6px",
-                border: "none",
-                cursor: "pointer",
-                background: activeTab === "comparison" ? "var(--accent)" : "transparent",
-                color: activeTab === "comparison" ? "white" : "var(--muted)"
-              }}
-            >
-              <Scale size={13} /> Result & Ordinance Comparison {comparisonRecords.length > 0 ? `(${comparisonRecords.length})` : ""}
-            </button>
-          </div>
-
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <button 
             type="button" 
             className="secondary" 
             onClick={() => setShowHelpModal(true)}
-            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px" }}
+            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", padding: "6px 12px", borderRadius: "8px" }}
           >
-            <HelpCircle size={14} /> Extraction Logic & Guide
+            <HelpCircle size={14} /> Guide
           </button>
 
+          {processedRows.length > 0 && (
+            <button 
+              type="button" 
+              onClick={() => handleExportExcel(filteredRows)}
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "6px", 
+                padding: "6px 14px", 
+                fontSize: "12.5px", 
+                background: "var(--accent)", 
+                color: "white", 
+                border: "none", 
+                borderRadius: "8px", 
+                fontWeight: 600, 
+                cursor: "pointer",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.08)"
+              }}
+              title={filteredRows.length !== processedRows.length ? `Export current filtered view (${filteredRows.length} rows)` : "Export all 31-column ADES results"}
+            >
+              <Download size={14} /> Export 31-Col XLSX ({filteredRows.length !== processedRows.length ? `${filteredRows.length}/${processedRows.length}` : `${filteredRows.length}`})
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* Sub-Header: Segmented Tab Bar & Secondary Export Actions */}
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "center", 
+        padding: "8px 24px", 
+        background: "var(--panel)", 
+        borderBottom: "1px solid var(--line)", 
+        flexShrink: 0,
+        gap: "12px",
+        flexWrap: "wrap"
+      }}>
+        {/* Segmented Tab Pill Navigation */}
+        <div style={{ display: "flex", background: "var(--bg)", padding: "3px", borderRadius: "10px", border: "1px solid var(--line)", gap: "3px", overflowX: "auto" }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("results")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              fontSize: "12px",
+              fontWeight: 600,
+              borderRadius: "7px",
+              border: "none",
+              cursor: "pointer",
+              background: activeTab === "results" ? "var(--accent)" : "transparent",
+              color: activeTab === "results" ? "white" : "var(--muted)",
+              transition: "all 0.15s ease",
+              boxShadow: activeTab === "results" ? "0 1px 3px rgba(0,0,0,0.12)" : "none"
+            }}
+          >
+            <Table size={13} /> Course Results (31 Cols)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("students")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              fontSize: "12px",
+              fontWeight: 600,
+              borderRadius: "7px",
+              border: "none",
+              cursor: "pointer",
+              background: activeTab === "students" ? "var(--accent)" : "transparent",
+              color: activeTab === "students" ? "white" : "var(--muted)",
+              transition: "all 0.15s ease",
+              boxShadow: activeTab === "students" ? "0 1px 3px rgba(0,0,0,0.12)" : "none"
+            }}
+          >
+            <Users size={13} /> Student Results ({studentMetrics.totalStudents})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("simulation")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              fontSize: "12px",
+              fontWeight: 600,
+              borderRadius: "7px",
+              border: "none",
+              cursor: "pointer",
+              background: activeTab === "simulation" ? "var(--accent)" : "transparent",
+              color: activeTab === "simulation" ? "white" : "var(--muted)",
+              transition: "all 0.15s ease",
+              boxShadow: activeTab === "simulation" ? "0 1px 3px rgba(0,0,0,0.12)" : "none"
+            }}
+          >
+            <TrendingUp size={13} /> Pass Simulation (+0..+10)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("moderation")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              fontSize: "12px",
+              fontWeight: 600,
+              borderRadius: "7px",
+              border: "none",
+              cursor: "pointer",
+              background: activeTab === "moderation" ? "var(--accent)" : "transparent",
+              color: activeTab === "moderation" ? "white" : "var(--muted)",
+              transition: "all 0.15s ease",
+              boxShadow: activeTab === "moderation" ? "0 1px 3px rgba(0,0,0,0.12)" : "none"
+            }}
+          >
+            <Sliders size={13} /> Moderation Matrix ({Object.values(courseModerationMap).filter(v => v > 0).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("comparison")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              fontSize: "12px",
+              fontWeight: 600,
+              borderRadius: "7px",
+              border: "none",
+              cursor: "pointer",
+              background: activeTab === "comparison" ? "var(--accent)" : "transparent",
+              color: activeTab === "comparison" ? "white" : "var(--muted)",
+              transition: "all 0.15s ease",
+              boxShadow: activeTab === "comparison" ? "0 1px 3px rgba(0,0,0,0.12)" : "none"
+            }}
+          >
+            <Scale size={13} /> Reconciliation {comparisonRecords.length > 0 ? `(${comparisonRecords.length})` : ""}
+          </button>
+        </div>
+
+        {/* Action Export Buttons for active tab context */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {activeTab === "comparison" && comparisonRecords.length > 0 && (
             <button 
               type="button" 
@@ -7537,87 +7626,71 @@ export default function AdesSupplementaryCalculatorPage() {
                 display: "flex", 
                 alignItems: "center", 
                 gap: "6px", 
-                padding: "6px 12px", 
+                padding: "5px 12px", 
                 fontSize: "12px", 
                 background: "#8b5cf6", 
                 color: "white", 
                 border: "none", 
-                borderRadius: "6px", 
+                borderRadius: "7px", 
                 fontWeight: 600, 
-                cursor: "pointer" 
+                cursor: "pointer",
+                boxShadow: "0 1px 4px rgba(139, 92, 246, 0.25)"
               }}
               title="Export Full Result & Ordinance Reconciliation Report to Excel"
             >
-              <Download size={14} /> Export Comparison Report ({filteredComparisonRecords.length})
+              <Download size={13} /> Export Comparison ({filteredComparisonRecords.length})
             </button>
           )}
 
-          {processedRows.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <button 
-                type="button" 
-                onClick={() => handleExportStudentSemesterExcel(filteredStudents)}
-                style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "6px", 
-                  padding: "6px 12px", 
-                  fontSize: "12px", 
-                  background: "#6366f1", 
-                  color: "white", 
-                  border: "none", 
-                  borderRadius: "6px", 
-                  fontWeight: 600, 
-                  cursor: "pointer" 
-                }}
-                title={filteredStudents.length !== studentSemesterData.length ? `Export current filtered view (${filteredStudents.length} students)` : "Export all student semester results"}
-              >
-                <Download size={14} /> Export Students ({filteredStudents.length !== studentSemesterData.length ? `${filteredStudents.length}/${studentMetrics.totalStudents}` : studentMetrics.totalStudents})
-              </button>
-              <button 
-                type="button" 
-                onClick={handleExportSimulationExcel}
-                style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "6px", 
-                  padding: "6px 12px", 
-                  fontSize: "12px", 
-                  background: "#10b981", 
-                  color: "white", 
-                  border: "none", 
-                  borderRadius: "6px", 
-                  fontWeight: 600, 
-                  cursor: "pointer" 
-                }}
-                title="Export course-wise pass count under 0 to +10 moderation marks"
-              >
-                <Download size={14} /> Export Simulation (+0..+10)
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleExportExcel(filteredRows)}
-                style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "6px", 
-                  padding: "6px 14px", 
-                  fontSize: "12.5px", 
-                  background: "var(--accent)", 
-                  color: "white", 
-                  border: "none", 
-                  borderRadius: "6px", 
-                  fontWeight: 600, 
-                  cursor: "pointer" 
-                }}
-                title={filteredRows.length !== processedRows.length ? `Export current filtered view (${filteredRows.length} rows)` : "Export all 31-column ADES results"}
-              >
-                <Download size={14} /> Export 31-Col XLSX ({filteredRows.length !== processedRows.length ? `${filteredRows.length}/${processedRows.length}` : `${filteredRows.length} Rows`})
-              </button>
-            </div>
+          {activeTab === "students" && processedRows.length > 0 && (
+            <button 
+              type="button" 
+              onClick={() => handleExportStudentSemesterExcel(filteredStudents)}
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "6px", 
+                padding: "5px 12px", 
+                fontSize: "12px", 
+                background: "#6366f1", 
+                color: "white", 
+                border: "none", 
+                borderRadius: "7px", 
+                fontWeight: 600, 
+                cursor: "pointer",
+                boxShadow: "0 1px 4px rgba(99, 102, 241, 0.25)"
+              }}
+              title="Export student semester results"
+            >
+              <Download size={13} /> Export Students ({filteredStudents.length !== studentSemesterData.length ? `${filteredStudents.length}/${studentMetrics.totalStudents}` : studentMetrics.totalStudents})
+            </button>
+          )}
+
+          {activeTab === "simulation" && processedRows.length > 0 && (
+            <button 
+              type="button" 
+              onClick={handleExportSimulationExcel}
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "6px", 
+                padding: "5px 12px", 
+                fontSize: "12px", 
+                background: "#10b981", 
+                color: "white", 
+                border: "none", 
+                borderRadius: "7px", 
+                fontWeight: 600, 
+                cursor: "pointer",
+                boxShadow: "0 1px 4px rgba(16, 185, 129, 0.25)"
+              }}
+              title="Export course-wise pass count under 0 to +10 moderation marks"
+            >
+              <Download size={13} /> Export Simulation (+0..+10)
+            </button>
           )}
         </div>
-      </header>
+      </div>
 
       {/* Main Workspace Layout */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
