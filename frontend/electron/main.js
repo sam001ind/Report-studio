@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, screen } from 'electron';
+import { app, BrowserWindow, shell, screen, Menu } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -15,18 +15,137 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient('reportstudio');
 }
 
+function setupApplicationMenu() {
+  const isMac = process.platform === 'darwin';
+
+  const template = [
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Preferences...',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => mainWindow?.webContents.send('menu-action', 'open-preferences')
+        },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open Marks Excel...',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => mainWindow?.webContents.send('menu-action', 'open-file')
+        },
+        {
+          label: 'Export Current Results (.xlsx)',
+          accelerator: 'CmdOrCtrl+E',
+          click: () => mainWindow?.webContents.send('menu-action', 'export-excel')
+        },
+        {
+          label: 'Export Full Master Report',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: () => mainWindow?.webContents.send('menu-action', 'export-master')
+        },
+        { type: 'separator' },
+        isMac ? { role: 'close' } : { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Toggle Sidebar',
+          accelerator: 'CmdOrCtrl+B',
+          click: () => mainWindow?.webContents.send('menu-action', 'toggle-sidebar')
+        },
+        {
+          label: 'Toggle Focus Mode',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => mainWindow?.webContents.send('menu-action', 'toggle-focus')
+        },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [
+          { type: 'separator' },
+          { role: 'front' },
+          { type: 'separator' },
+          { role: 'window' }
+        ] : [
+          { role: 'close' }
+        ])
+      ]
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Report Studio Guide',
+          click: () => mainWindow?.webContents.send('menu-action', 'open-guide')
+        },
+        {
+          label: 'Keyboard Shortcuts',
+          accelerator: 'CmdOrCtrl+/',
+          click: () => mainWindow?.webContents.send('menu-action', 'open-shortcuts')
+        }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
 function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
 
-  const optimalWidth = Math.min(1400, Math.round(width * 0.92));
-  const optimalHeight = Math.min(900, Math.round(height * 0.9));
+  // Optimized for MacBook Air Retina (13.6" / 15.3" 16:10 aspect ratio)
+  const optimalWidth = Math.min(1440, Math.max(1180, Math.round(width * 0.94)));
+  const optimalHeight = Math.min(960, Math.max(740, Math.round(height * 0.92)));
 
   mainWindow = new BrowserWindow({
     width: optimalWidth,
     height: optimalHeight,
-    minWidth: 1040,
-    minHeight: 680,
+    minWidth: 980,
+    minHeight: 640,
     center: true,
     show: false,
     backgroundColor: '#f4f6f5',
@@ -56,6 +175,8 @@ function createWindow() {
     shell.openExternal(url);
     return { action: 'deny' };
   });
+
+  setupApplicationMenu();
 }
 
 app.whenReady().then(() => {
@@ -69,3 +190,4 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+

@@ -221,52 +221,61 @@ h3 { font-size: 16px; font-weight: 700; }
 }
 
 /* ==========================================================================
-   Desktop App Window Framing & Safe Padding (macOS Electron)
+   Desktop App Window Framing & Safe Padding (macOS Electron / MacBook Air)
    ========================================================================== */
 html.is-electron-mac,
 body.is-electron-mac {
   user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-html.is-electron-mac header,
-body.is-electron-mac header,
-html.is-electron-mac nav,
-body.is-electron-mac nav,
+/* Traffic light safe area: strictly target top header only, NOT internal navs/sidebars */
 html.is-electron-mac .app-top-header,
 body.is-electron-mac .app-top-header,
-.is-electron-mac header,
-.is-electron-mac nav,
-.is-electron-mac .app-top-header {
+.is-electron-mac .app-top-header,
+.is-electron-mac .mac-titlebar {
   padding-left: 96px !important;
   -webkit-app-region: drag;
 }
 
-html.is-electron-mac header *,
-body.is-electron-mac header *,
-html.is-electron-mac nav *,
-body.is-electron-mac nav *,
 html.is-electron-mac .app-top-header *,
 body.is-electron-mac .app-top-header *,
-.is-electron-mac header *,
-.is-electron-mac nav *,
-.is-electron-mac .app-top-header * {
+.is-electron-mac .app-top-header *,
+.is-electron-mac .mac-titlebar * {
   -webkit-app-region: no-drag;
 }
 
-/* Sleek Modern UI Scrollbars */
+/* MacBook Trackpad & Smooth Scrolling Optimizations */
+.mac-trackpad-scroll,
+.table-scroll-container,
+div[style*="overflow"] {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sleek Apple-style Overlay Scrollbars */
 ::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted);
+  background: rgba(0, 0, 0, 0.35);
+}
+body.dark-theme ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+body.dark-theme ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.38);
 }
 
 /* Smooth Focus & Transitions for Inputs and Buttons */
@@ -275,4 +284,5 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent) !important;
   box-shadow: 0 0 0 2.5px var(--accent-soft);
 }
+
 
