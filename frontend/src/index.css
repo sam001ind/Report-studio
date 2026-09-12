@@ -230,21 +230,7 @@ body.is-electron-mac {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Traffic light safe area: strictly target top header only, NOT internal navs/sidebars */
-html.is-electron-mac .app-top-header,
-body.is-electron-mac .app-top-header,
-.is-electron-mac .app-top-header,
-.is-electron-mac .mac-titlebar {
-  padding-left: 96px !important;
-  -webkit-app-region: drag;
-}
 
-html.is-electron-mac .app-top-header *,
-body.is-electron-mac .app-top-header *,
-.is-electron-mac .app-top-header *,
-.is-electron-mac .mac-titlebar * {
-  -webkit-app-region: no-drag;
-}
 
 /* MacBook Trackpad & Smooth Scrolling Optimizations */
 .mac-trackpad-scroll,

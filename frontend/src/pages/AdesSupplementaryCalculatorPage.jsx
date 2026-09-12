@@ -459,69 +459,11 @@ export default function AdesSupplementaryCalculatorPage() {
 
   // View Options & Sidebar Customization
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(250); // Default reduced from 320 to 250
   const [tableDensity, setTableDensity] = useState("normal"); // "compact" | "normal" | "comfortable"
   const [columnPreset, setColumnPreset] = useState("ALL"); // "ALL" | "ESSENTIAL" | "SCORES" | "CUSTOM"
   const [visibleColumns, setVisibleColumns] = useState(() => new Set(ADES_OUTPUT_HEADERS));
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [isTableMaximized, setIsTableMaximized] = useState(false);
-
-  // MacBook Air M2 Vertical Accordion Navigation
-  const [sidebarAccordions, setSidebarAccordions] = useState({
-    files: true,       // Marksheet file & sheet selector
-    baseline: false,   // Earlier ADES Baseline
-    gazette: false,    // Result Gazette Reappear Assurance
-    special: false,    // Absent, Malpractice, Heldback
-    overview: false,   // Consolidated KPIs & Simulation
-    rules: false       // Evaluation Rules
-  });
-
-  const toggleAccordion = (key) => {
-    setSidebarAccordions(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const setAllAccordions = (open) => {
-    setSidebarAccordions({
-      files: open,
-      baseline: open,
-      gazette: open,
-      special: open,
-      overview: open,
-      rules: open
-    });
-  };
-
-  // Trackpad / Mouse Drag-to-Resize Sidebar
-  const isDraggingSidebar = useRef(false);
-  const startDragX = useRef(0);
-  const startWidth = useRef(250);
-
-  const handleSidebarMouseDown = (e) => {
-    e.preventDefault();
-    isDraggingSidebar.current = true;
-    startDragX.current = e.clientX;
-    startWidth.current = sidebarWidth;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-
-    const handleMouseMove = (moveEvent) => {
-      if (!isDraggingSidebar.current) return;
-      const delta = moveEvent.clientX - startDragX.current;
-      const newWidth = Math.max(180, Math.min(460, startWidth.current + delta));
-      setSidebarWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      isDraggingSidebar.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  };
 
   // Dynamic Column List based on user selected preset or custom picker
   const displayedHeaders = useMemo(() => {
@@ -7537,7 +7479,7 @@ export default function AdesSupplementaryCalculatorPage() {
           justifyContent: "space-between", 
           alignItems: "center", 
           padding: "10px 24px", 
-          paddingLeft: (typeof window !== "undefined" && ((window.electronAPI && window.electronAPI.isDesktop) || /Electron/i.test(navigator.userAgent)) && /Mac/i.test(navigator.platform || navigator.userAgent)) ? "96px" : "24px",
+          padding: "10px 24px",
           borderBottom: "1px solid var(--line)", 
           background: "var(--panel)", 
           flexShrink: 0,
@@ -7884,979 +7826,1102 @@ export default function AdesSupplementaryCalculatorPage() {
       <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
         
         {/* Left Sidebar / Config Panel (MacBook Air M2 Optimized Accordions) */}
-        <aside style={{ 
-          width: isSidebarCollapsed ? "0px" : `${sidebarWidth}px`, 
+                <aside style={{ 
+          width: isSidebarCollapsed ? "0px" : "320px", 
           borderRight: isSidebarCollapsed ? "none" : "1px solid var(--line)", 
           background: "var(--panel)", 
           display: isSidebarCollapsed ? "none" : "flex", 
           flexDirection: "column", 
           flexShrink: 0, 
           overflowY: "auto", 
-          overflowX: "hidden",
-          padding: isSidebarCollapsed ? "0" : "10px", 
-          gap: "8px",
-          transition: isDraggingSidebar.current ? "none" : "width 0.2s ease",
-          position: "relative"
+          padding: isSidebarCollapsed ? "0" : "16px", 
+          gap: "16px",
+          transition: "width 0.2s ease"
         }}>
           
-          {/* Sidebar Header with Width Presets, Expand/Collapse All, and Close Button */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--line)", paddingBottom: "6px", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <Layers size={13} color="var(--accent)" />
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)" }}>Controls</span>
-              <button
+          {/* File Upload Box */}
+          <div style={{ 
+            background: sourceFile ? "rgba(59, 130, 246, 0.05)" : "var(--bg)", 
+            border: sourceFile ? "1.5px solid rgba(59, 130, 246, 0.4)" : "1.5px dashed var(--line)", 
+            borderRadius: "8px", 
+            padding: "14px", 
+            textAlign: "center", 
+            position: "relative" 
+          }}>
+            <input 
+              type="file" 
+              ref={sourceFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              onChange={handleFileUpload}
+              style={{ display: "none" }}
+            />
+            {sourceFile ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                    <FileSpreadsheet size={18} color="var(--accent)" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={sourceFile}>
+                      {sourceFile}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearSourceFile}
+                    title="Remove source marksheet file"
+                    style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center" }}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+                <div style={{ fontSize: "10.5px", color: "var(--muted)", width: "100%", textAlign: "left" }}>
+                  {rawRows.length} raw rows • {groupedRecords.length} courses loaded
+                </div>
+                <div style={{ display: "flex", gap: "6px", width: "100%", marginTop: "2px" }}>
+                  <button
+                    type="button"
+                    onClick={() => sourceFileInputRef.current?.click()}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                      padding: "5px 8px",
+                      fontSize: "11px",
+                      background: "var(--panel)",
+                      color: "var(--ink)",
+                      border: "1px solid var(--line)",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    <Upload size={12} /> Replace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearSourceFile}
+                    style={{
+                      padding: "5px 8px",
+                      fontSize: "11px",
+                      background: "rgba(239, 68, 68, 0.1)",
+                      color: "#ef4444",
+                      border: "1px solid rgba(239, 68, 68, 0.25)",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}
+                  >
+                    <Trash2 size={12} /> Clear
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div 
+                onClick={() => sourceFileInputRef.current?.click()}
+                style={{ cursor: "pointer" }}
+              >
+                <FileSpreadsheet size={32} color="var(--accent)" style={{ margin: "0 auto 8px", opacity: 0.8 }} />
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>
+                  Upload ADES Marks Excel
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px" }}>
+                  Click to browse or drop .xlsx / .xls file here (Raw Marks or Output Format)
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Previous Event(s) Baseline Reports Card for Supplementary & Improvement Carry Forward */}
+          <div style={{ 
+            background: previousReports.length > 0 ? "rgba(99, 102, 241, 0.05)" : "var(--bg)", 
+            border: previousReports.length > 0 ? "1.5px solid rgba(99, 102, 241, 0.35)" : "1px solid var(--line)", 
+            borderRadius: "8px", 
+            padding: "12px", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "8px" 
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: previousReports.length > 0 ? "#6366f1" : "var(--ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Layers size={14} color={previousReports.length > 0 ? "#6366f1" : "var(--muted)"} /> Earlier Event ADES (Baseline)
+              </div>
+              {previousReports.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "#6366f1", color: "white", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {previousReports.length} Files ({historicalCourseProfilesMap.size} Courses • {historicalRecordsMap.size} Records)
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  CE &amp; PR Baseline
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              Upload one or more earlier event ADES reports. Automatically carries forward <strong>CE &amp; Practical marks</strong> and minimum/maximum standards for supplementary &amp; improvement candidates.
+            </div>
+
+            <input 
+              type="file" 
+              ref={prevReportsFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              multiple
+              onChange={handlePreviousReportsUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
                 type="button"
                 onClick={() => {
-                  const anyClosed = Object.values(sidebarAccordions).some(v => !v);
-                  setAllAccordions(anyClosed);
+                  if (prevReportsFileInputRef.current) prevReportsFileInputRef.current.value = "";
+                  prevReportsFileInputRef.current?.click();
                 }}
-                title={Object.values(sidebarAccordions).some(v => !v) ? "Expand all sidebar sections" : "Fold all sidebar sections"}
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--accent)",
-                  cursor: "pointer",
-                  fontSize: "10px",
-                  padding: "0 3px",
-                  fontWeight: 600
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: previousReports.length > 0 ? "rgba(99, 102, 241, 0.12)" : "var(--panel)",
+                  color: previousReports.length > 0 ? "#6366f1" : "var(--ink)",
+                  border: previousReports.length > 0 ? "1px solid rgba(99, 102, 241, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
                 }}
               >
-                {Object.values(sidebarAccordions).some(v => !v) ? "Expand All" : "Fold All"}
+                <FileUp size={12} /> {previousReports.length > 0 ? "+ Add More Files" : "Upload Earlier ADES"}
               </button>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <div style={{ display: "flex", background: "var(--bg)", borderRadius: "4px", padding: "1px", border: "1px solid var(--line)" }}>
-                <button
-                  type="button"
-                  onClick={() => setSidebarWidth(220)}
-                  title="Slim Sidebar (220px)"
-                  style={{ padding: "1px 5px", fontSize: "9px", fontWeight: 600, border: "none", borderRadius: "3px", cursor: "pointer", background: sidebarWidth === 220 ? "var(--accent)" : "transparent", color: sidebarWidth === 220 ? "white" : "var(--muted)" }}
-                >
-                  Slim
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSidebarWidth(250)}
-                  title="Default Sidebar (250px)"
-                  style={{ padding: "1px 5px", fontSize: "9px", fontWeight: 600, border: "none", borderRadius: "3px", cursor: "pointer", background: sidebarWidth === 250 ? "var(--accent)" : "transparent", color: sidebarWidth === 250 ? "white" : "var(--muted)" }}
-                >
-                  250px
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSidebarWidth(290)}
-                  title="Wide Sidebar (290px)"
-                  style={{ padding: "1px 5px", fontSize: "9px", fontWeight: 600, border: "none", borderRadius: "3px", cursor: "pointer", background: sidebarWidth === 290 ? "var(--accent)" : "transparent", color: sidebarWidth === 290 ? "white" : "var(--muted)" }}
-                >
-                  290px
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSidebarCollapsed(true)}
-                title="Collapse sidebar (Cmd+B)"
-                style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", padding: "2px", borderRadius: "4px", display: "flex", alignItems: "center" }}
-              >
-                <PanelLeftClose size={13} />
-              </button>
-            </div>
-          </div>
 
-          {/* Accordion 1: Source Marksheet & Sheet Selection */}
-          <div style={{ border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden", background: "var(--panel)" }}>
-            <div 
-              onClick={() => toggleAccordion("files")}
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "space-between", 
-                padding: "7px 9px", 
-                background: sidebarAccordions.files ? "var(--bg)" : "var(--panel)", 
-                cursor: "pointer", 
-                userSelect: "none" 
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <FileSpreadsheet size={13} color="var(--accent)" />
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)" }}>Source Marksheet</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ 
-                  fontSize: "9px", 
-                  fontWeight: 600, 
-                  padding: "1px 5px", 
-                  borderRadius: "8px", 
-                  background: sourceFile ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.1)", 
-                  color: sourceFile ? "#059669" : "#dc2626" 
-                }}>
-                  {sourceFile ? "Loaded" : "Required"}
-                </span>
-                {sidebarAccordions.files ? <ChevronDown size={12} color="var(--muted)" /> : <ChevronRight size={12} color="var(--muted)" />}
-              </div>
-            </div>
-
-            {sidebarAccordions.files && (
-              <div style={{ padding: "9px", display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--line)" }}>
-                {/* File Upload Box */}
-                <div style={{ 
-                  background: sourceFile ? "rgba(59, 130, 246, 0.05)" : "var(--bg)", 
-                  border: sourceFile ? "1.5px solid rgba(59, 130, 246, 0.4)" : "1.5px dashed var(--line)", 
-                  borderRadius: "6px", 
-                  padding: "10px", 
-                  textAlign: "center", 
-                  position: "relative" 
-                }}>
-                  <input 
-                    type="file" 
-                    ref={sourceFileInputRef}
-                    accept=".xlsx,.xls,.csv" 
-                    onChange={handleFileUpload}
-                    style={{ display: "none" }}
-                  />
-                  {sourceFile ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "center" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", justifyContent: "space-between" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
-                          <FileSpreadsheet size={15} color="var(--accent)" style={{ flexShrink: 0 }} />
-                          <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={sourceFile}>
-                            {sourceFile}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleClearSourceFile}
-                          title="Remove source marksheet file"
-                          style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center" }}
-                        >
-                          <X size={13} />
-                        </button>
-                      </div>
-                      <div style={{ fontSize: "10px", color: "var(--muted)", width: "100%", textAlign: "left" }}>
-                        {rawRows.length} raw rows • {groupedRecords.length} courses loaded
-                      </div>
-                      <div style={{ display: "flex", gap: "6px", width: "100%", marginTop: "2px" }}>
-                        <button
-                          type="button"
-                          onClick={() => sourceFileInputRef.current?.click()}
-                          style={{
-                            flex: 1,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "4px",
-                            padding: "4px 8px",
-                            fontSize: "10.5px",
-                            background: "var(--panel)",
-                            color: "var(--ink)",
-                            border: "1px solid var(--line)",
-                            borderRadius: "4px",
-                            fontWeight: 600,
-                            cursor: "pointer"
-                          }}
-                        >
-                          <Upload size={11} /> Replace
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleClearSourceFile}
-                          style={{
-                            padding: "4px 8px",
-                            fontSize: "10.5px",
-                            background: "rgba(239, 68, 68, 0.1)",
-                            color: "#ef4444",
-                            border: "1px solid rgba(239, 68, 68, 0.25)",
-                            borderRadius: "4px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "3px"
-                          }}
-                        >
-                          <Trash2 size={11} /> Clear
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div 
-                      onClick={() => sourceFileInputRef.current?.click()}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <FileSpreadsheet size={24} color="var(--accent)" style={{ margin: "0 auto 6px", opacity: 0.8 }} />
-                      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
-                        Upload ADES Marks Excel
-                      </div>
-                      <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "2px" }}>
-                        Click to browse or drop .xlsx / .xls
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sheet Selector (if multiple sheets exist) */}
-                {sheetNames.length > 1 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "10.5px", fontWeight: 600, color: "var(--muted)" }}>Source Sheet:</label>
-                    <select 
-                      value={selectedSheet} 
-                      onChange={(e) => handleSheetChange(e.target.value)}
-                      style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "5px", border: "1px solid var(--line)", background: "var(--bg)" }}
-                    >
-                      {sheetNames.map(s => {
-                        const meta = sheetMetadata[s];
-                        const hasHeaders = meta && meta.matchedHeaders && meta.matchedHeaders.length > 0;
-                        return (
-                          <option key={s} value={s}>
-                            {s} {hasHeaders ? "(✓ " + meta.matchedHeaders.length + " headers)" : ""}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Accordion 2: Baseline & Gazettes */}
-          <div style={{ border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden", background: "var(--panel)" }}>
-            <div 
-              onClick={() => toggleAccordion("baseline")}
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "space-between", 
-                padding: "7px 9px", 
-                background: sidebarAccordions.baseline ? "var(--bg)" : "var(--panel)", 
-                cursor: "pointer", 
-                userSelect: "none" 
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <Layers size={13} color="#6366f1" />
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)" }}>Baseline &amp; Gazettes</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ 
-                  fontSize: "9px", 
-                  fontWeight: 600, 
-                  padding: "1px 5px", 
-                  borderRadius: "8px", 
-                  background: (previousReports.length + gazetteReports.length > 0) ? "rgba(99, 102, 241, 0.15)" : "var(--panel)", 
-                  color: (previousReports.length + gazetteReports.length > 0) ? "#6366f1" : "var(--muted)", 
-                  border: "1px solid var(--line)" 
-                }}>
-                  {previousReports.length + gazetteReports.length > 0 ? `${previousReports.length + gazetteReports.length} Files` : "Optional"}
-                </span>
-                {sidebarAccordions.baseline ? <ChevronDown size={12} color="var(--muted)" /> : <ChevronRight size={12} color="var(--muted)" />}
-              </div>
-            </div>
-
-            {sidebarAccordions.baseline && (
-              <div style={{ padding: "9px", display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--line)" }}>
-                {/* Previous Event(s) Baseline Reports Card */}
-                <div style={{ 
-                  background: previousReports.length > 0 ? "rgba(99, 102, 241, 0.05)" : "var(--bg)", 
-                  border: previousReports.length > 0 ? "1.5px solid rgba(99, 102, 241, 0.35)" : "1px solid var(--line)", 
-                  borderRadius: "6px", 
-                  padding: "10px", 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  gap: "6px" 
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: previousReports.length > 0 ? "#6366f1" : "var(--ink)", display: "flex", alignItems: "center", gap: "5px" }}>
-                      <Layers size={13} color={previousReports.length > 0 ? "#6366f1" : "var(--muted)"} /> Baseline ADES
-                    </div>
-                    {previousReports.length > 0 ? (
-                      <span style={{ fontSize: "9px", background: "#6366f1", color: "white", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>
-                        {previousReports.length} Files ({historicalRecordsMap.size} Recs)
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: "9px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>
-                        CE/PR Baseline
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ fontSize: "10px", color: "var(--muted)", lineHeight: "1.3" }}>
-                    Carries forward CE &amp; Practical marks and min/max standards.
-                  </div>
-
-                  <input 
-                    type="file" 
-                    ref={prevReportsFileInputRef}
-                    accept=".xlsx,.xls,.csv" 
-                    multiple
-                    onChange={handlePreviousReportsUpload}
-                    style={{ display: "none" }}
-                  />
-
-                  <div style={{ display: "flex", gap: "5px", marginTop: "2px" }}>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (prevReportsFileInputRef.current) prevReportsFileInputRef.current.value = "";
-                        prevReportsFileInputRef.current?.click();
-                      }}
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "3px",
-                        padding: "4px 6px",
-                        fontSize: "10.5px",
-                        background: previousReports.length > 0 ? "rgba(99, 102, 241, 0.12)" : "var(--panel)",
-                        color: previousReports.length > 0 ? "#6366f1" : "var(--ink)",
-                        border: previousReports.length > 0 ? "1px solid rgba(99, 102, 241, 0.3)" : "1px solid var(--line)",
-                        borderRadius: "4px",
-                        fontWeight: 600,
-                        cursor: "pointer"
-                      }}
-                    >
-                      <FileUp size={11} /> {previousReports.length > 0 ? "+ Files" : "Upload"}
-                    </button>
-
-                    <button 
-                      type="button" 
-                      onClick={handleDownloadPrevReportTemplate}
-                      title="Download baseline template (.xlsx)"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "3px",
-                        padding: "4px 6px",
-                        fontSize: "10.5px",
-                        background: "var(--panel)",
-                        color: "var(--ink)",
-                        border: "1px solid var(--line)",
-                        borderRadius: "4px",
-                        fontWeight: 600,
-                        cursor: "pointer"
-                      }}
-                    >
-                      <FileDown size={11} /> Tpl
-                    </button>
-
-                    {previousReports.length > 0 && (
-                      <button 
-                        type="button" 
-                        onClick={handleClearAllPreviousReports}
-                        title="Clear all uploaded earlier event reports"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "4px 6px",
-                          fontSize: "10.5px",
-                          background: "transparent",
-                          color: "#ef4444",
-                          border: "1px solid #ef4444",
-                          borderRadius: "4px",
-                          fontWeight: 600,
-                          cursor: "pointer"
-                        }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-
-                  {/* List of uploaded previous event files */}
-                  {previousReports.length > 0 && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginTop: "3px", maxHeight: "110px", overflowY: "auto" }}>
-                      {previousReports.map((rep) => (
-                        <div 
-                          key={rep.id} 
-                          style={{ 
-                            display: "flex", 
-                            alignItems: "center", 
-                            justifyContent: "space-between", 
-                            padding: "3px 6px", 
-                            background: "var(--panel)", 
-                            border: "1px solid var(--line)", 
-                            borderRadius: "4px", 
-                            fontSize: "10px" 
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden" }}>
-                            <FileSpreadsheet size={11} color="#6366f1" style={{ flexShrink: 0 }} />
-                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px" }} title={rep.fileName}>
-                              {rep.fileName}
-                            </span>
-                            <span style={{ fontSize: "8.5px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 3px", borderRadius: "3px", fontWeight: 700 }}>
-                              {rep.recordCount}r
-                            </span>
-                          </div>
-                          <button 
-                            type="button" 
-                            onClick={() => handleRemovePreviousReport(rep.id)}
-                            title="Remove file"
-                            style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", padding: "1px" }}
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Improvement Scoring Strategy Toggle */}
-                  <div style={{ marginTop: "3px", paddingTop: "3px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <span style={{ fontSize: "9px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
-                      Improvement Policy:
-                    </span>
-                    <div style={{ display: "flex", gap: "3px" }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImprovementScoringMode("current");
-                          if (rawRows && rawRows.length > 0 && headerMap) {
-                            const updatedGrouped = buildGroupedRecordsFromRows(
-                              rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, "current", historicalCourseProfilesMap, historicalGazetteMap
-                            );
-                            setGroupedRecords(updatedGrouped);
-                          }
-                        }}
-                        style={{
-                          flex: 1,
-                          padding: "2px 4px",
-                          fontSize: "9.5px",
-                          borderRadius: "3px",
-                          border: improvementScoringMode === "current" ? "1px solid #6366f1" : "1px solid var(--line)",
-                          background: improvementScoringMode === "current" ? "rgba(99, 102, 241, 0.15)" : "transparent",
-                          color: improvementScoringMode === "current" ? "#6366f1" : "var(--muted)",
-                          fontWeight: improvementScoringMode === "current" ? 700 : 500,
-                          cursor: "pointer"
-                        }}
-                      >
-                        Current
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImprovementScoringMode("best");
-                          if (rawRows && rawRows.length > 0 && headerMap) {
-                            const updatedGrouped = buildGroupedRecordsFromRows(
-                              rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, "best", historicalCourseProfilesMap, historicalGazetteMap
-                            );
-                            setGroupedRecords(updatedGrouped);
-                          }
-                        }}
-                        style={{
-                          flex: 1,
-                          padding: "2px 4px",
-                          fontSize: "9.5px",
-                          borderRadius: "3px",
-                          border: improvementScoringMode === "best" ? "1px solid #6366f1" : "1px solid var(--line)",
-                          background: improvementScoringMode === "best" ? "rgba(99, 102, 241, 0.15)" : "transparent",
-                          color: improvementScoringMode === "best" ? "#6366f1" : "var(--muted)",
-                          fontWeight: improvementScoringMode === "best" ? 700 : 500,
-                          cursor: "pointer"
-                        }}
-                      >
-                        Best of Both
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Result Gazette Card */}
-                <div style={{ 
-                  background: gazetteReports.length > 0 ? "rgba(16, 185, 129, 0.05)" : "var(--bg)", 
-                  border: gazetteReports.length > 0 ? "1.5px solid rgba(16, 185, 129, 0.35)" : "1px solid var(--line)", 
-                  borderRadius: "6px", 
-                  padding: "10px", 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  gap: "6px" 
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: gazetteReports.length > 0 ? "#10b981" : "var(--ink)", display: "flex", alignItems: "center", gap: "5px" }}>
-                      <FileCheck size={13} color={gazetteReports.length > 0 ? "#10b981" : "var(--muted)"} /> Result Gazette
-                    </div>
-                    {gazetteReports.length > 0 ? (
-                      <span style={{ fontSize: "9px", background: "#10b981", color: "white", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>
-                        {historicalGazetteMap.size} Students
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: "9px", background: "rgba(16, 185, 129, 0.12)", color: "#059669", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>
-                        Optional
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ fontSize: "10px", color: "var(--muted)", lineHeight: "1.3" }}>
-                    Cross-verifies declared <strong>Reappear Paper Codes</strong> and prior semester pass/fail.
-                  </div>
-
-                  <input 
-                    type="file" 
-                    ref={gazetteFileInputRef}
-                    accept=".xlsx,.xls,.csv" 
-                    multiple
-                    onChange={handleGazetteReportsUpload}
-                    style={{ display: "none" }}
-                  />
-
-                  <div style={{ display: "flex", gap: "5px", marginTop: "2px" }}>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (gazetteFileInputRef.current) gazetteFileInputRef.current.value = "";
-                        gazetteFileInputRef.current?.click();
-                      }}
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "3px",
-                        padding: "4px 6px",
-                        fontSize: "10.5px",
-                        background: gazetteReports.length > 0 ? "rgba(16, 185, 129, 0.12)" : "var(--panel)",
-                        color: gazetteReports.length > 0 ? "#059669" : "var(--ink)",
-                        border: gazetteReports.length > 0 ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--line)",
-                        borderRadius: "4px",
-                        fontWeight: 600,
-                        cursor: "pointer"
-                      }}
-                    >
-                      <FileUp size={11} /> {gazetteReports.length > 0 ? "+ Gazettes" : "Upload"}
-                    </button>
-
-                    <button 
-                      type="button" 
-                      onClick={handleDownloadGazetteTemplate}
-                      title="Download gazette template (.xlsx)"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "3px",
-                        padding: "4px 6px",
-                        fontSize: "10.5px",
-                        background: "var(--panel)",
-                        color: "var(--ink)",
-                        border: "1px solid var(--line)",
-                        borderRadius: "4px",
-                        fontWeight: 600,
-                        cursor: "pointer"
-                      }}
-                    >
-                      <FileDown size={11} /> Tpl
-                    </button>
-
-                    {gazetteReports.length > 0 && (
-                      <button 
-                        type="button" 
-                        onClick={handleClearAllGazetteReports}
-                        title="Clear gazette reports"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "4px 6px",
-                          fontSize: "10.5px",
-                          background: "transparent",
-                          color: "#ef4444",
-                          border: "1px solid #ef4444",
-                          borderRadius: "4px",
-                          fontWeight: 600,
-                          cursor: "pointer"
-                        }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-
-                  {/* List of uploaded gazette files */}
-                  {gazetteReports.length > 0 && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginTop: "3px", maxHeight: "100px", overflowY: "auto" }}>
-                      {gazetteReports.map((rep) => (
-                        <div 
-                          key={rep.id} 
-                          style={{ 
-                            display: "flex", 
-                            alignItems: "center", 
-                            justifyContent: "space-between", 
-                            padding: "3px 6px", 
-                            background: "var(--panel)", 
-                            border: "1px solid var(--line)", 
-                            borderRadius: "4px", 
-                            fontSize: "10px" 
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden" }}>
-                            <FileCheck size={11} color="#10b981" style={{ flexShrink: 0 }} />
-                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px" }} title={rep.fileName}>
-                              {rep.fileName}
-                            </span>
-                          </div>
-                          <button 
-                            type="button" 
-                            onClick={() => handleRemoveGazetteReport(rep.id)}
-                            title="Remove file"
-                            style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", padding: "1px" }}
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Accordion 3: Special Records (Absent, MP, Heldback) */}
-          <div style={{ border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden", background: "var(--panel)" }}>
-            <div 
-              onClick={() => toggleAccordion("special")}
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "space-between", 
-                padding: "7px 9px", 
-                background: sidebarAccordions.special ? "var(--bg)" : "var(--panel)", 
-                cursor: "pointer", 
-                userSelect: "none" 
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <ShieldAlert size={13} color="#d97706" />
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)" }}>Special Records</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ 
-                  fontSize: "9px", 
-                  fontWeight: 600, 
-                  padding: "1px 5px", 
-                  borderRadius: "8px", 
-                  background: (absentList.length + malpracticeList.length + heldbackList.length > 0) ? "rgba(245, 158, 11, 0.15)" : "var(--panel)", 
-                  color: (absentList.length + malpracticeList.length + heldbackList.length > 0) ? "#b45309" : "var(--muted)", 
-                  border: "1px solid var(--line)" 
-                }}>
-                  {absentList.length + malpracticeList.length + heldbackList.length > 0 ? `${absentList.length + malpracticeList.length + heldbackList.length} Records` : "Optional"}
-                </span>
-                {sidebarAccordions.special ? <ChevronDown size={12} color="var(--muted)" /> : <ChevronRight size={12} color="var(--muted)" />}
-              </div>
-            </div>
-
-            {sidebarAccordions.special && (
-              <div style={{ padding: "9px", display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--line)" }}>
-                {/* Absent Mark Entry Card */}
-                <div style={{ background: absentList.length > 0 ? "rgba(239, 68, 68, 0.05)" : "var(--bg)", border: absentList.length > 0 ? "1.5px solid rgba(239, 68, 68, 0.35)" : "1px solid var(--line)", borderRadius: "6px", padding: "9px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: absentList.length > 0 ? "#ef4444" : "var(--ink)", display: "flex", alignItems: "center", gap: "5px" }}>
-                      <UserX size={13} color={absentList.length > 0 ? "#ef4444" : "var(--muted)"} /> Absent Entry
-                    </div>
-                    {absentList.length > 0 && (
-                      <span style={{ fontSize: "9px", background: "#ef4444", color: "white", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>
-                        {absentList.length} Active
-                      </span>
-                    )}
-                  </div>
-                  <input type="file" ref={absentFileInputRef} accept=".xlsx,.xls,.csv" multiple onChange={handleAbsentExcelUpload} style={{ display: "none" }} />
-                  <div style={{ display: "flex", gap: "4px" }}>
-                    <button type="button" onClick={() => absentFileInputRef.current?.click()} style={{ flex: 1, padding: "4px 6px", fontSize: "10.5px", background: "var(--panel)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: "4px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}>
-                      <FileUp size={11} /> {absentList.length > 0 ? "Replace" : "Upload"}
-                    </button>
-                    <button type="button" onClick={handleDownloadAbsentTemplate} title="Download template" style={{ padding: "4px 6px", fontSize: "10.5px", background: "var(--panel)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: "4px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "3px" }}>
-                      <FileDown size={11} /> Tpl
-                    </button>
-                    {absentList.length > 0 && (
-                      <button type="button" onClick={handleClearAbsentData} style={{ padding: "4px 6px", fontSize: "10.5px", background: "transparent", color: "#ef4444", border: "1px solid #ef4444", borderRadius: "4px", fontWeight: 600, cursor: "pointer" }}>Clear</button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Malpractice Entry Card */}
-                <div style={{ background: malpracticeList.length > 0 ? "rgba(245, 158, 11, 0.05)" : "var(--bg)", border: malpracticeList.length > 0 ? "1.5px solid rgba(245, 158, 11, 0.35)" : "1px solid var(--line)", borderRadius: "6px", padding: "9px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: malpracticeList.length > 0 ? "#b45309" : "var(--ink)" }}>
-                      <ShieldAlert size={13} color="#d97706" /> Malpractice (MP)
-                    </div>
-                    {malpracticeList.length > 0 && (
-                      <span style={{ fontSize: "9px", background: "rgba(245, 158, 11, 0.15)", color: "#b45309", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>
-                        {malpracticeList.length} Active
-                      </span>
-                    )}
-                  </div>
-                  <input type="file" ref={malpracticeFileInputRef} accept=".xlsx,.xls,.csv" multiple onChange={handleMalpracticeExcelUpload} style={{ display: "none" }} />
-                  <div style={{ display: "flex", gap: "4px" }}>
-                    <button type="button" onClick={() => malpracticeFileInputRef.current?.click()} style={{ flex: 1, padding: "4px 6px", fontSize: "10.5px", background: "var(--panel)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: "4px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}>
-                      <FileUp size={11} /> {malpracticeList.length > 0 ? "Replace" : "Upload"}
-                    </button>
-                    <button type="button" onClick={handleDownloadMalpracticeTemplate} title="Download template" style={{ padding: "4px 6px", fontSize: "10.5px", background: "var(--panel)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: "4px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "3px" }}>
-                      <FileDown size={11} /> Tpl
-                    </button>
-                    {malpracticeList.length > 0 && (
-                      <button type="button" onClick={handleClearMalpracticeData} style={{ padding: "4px 6px", fontSize: "10.5px", background: "transparent", color: "#b45309", border: "1px solid #b45309", borderRadius: "4px", fontWeight: 600, cursor: "pointer" }}>Clear</button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Heldback Entry Card */}
-                <div style={{ background: heldbackList.length > 0 ? "rgba(192, 38, 211, 0.05)" : "var(--bg)", border: heldbackList.length > 0 ? "1.5px solid rgba(192, 38, 211, 0.35)" : "1px solid var(--line)", borderRadius: "6px", padding: "9px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: heldbackList.length > 0 ? "#c026d3" : "var(--ink)" }}>
-                      <Lock size={13} color="#c026d3" /> Heldback Entry
-                    </div>
-                    {heldbackList.length > 0 && (
-                      <span style={{ fontSize: "9px", background: "rgba(192, 38, 211, 0.15)", color: "#c026d3", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>
-                        {heldbackList.length} Active
-                      </span>
-                    )}
-                  </div>
-                  <input type="file" ref={heldbackFileInputRef} accept=".xlsx,.xls,.csv" multiple onChange={handleHeldbackExcelUpload} style={{ display: "none" }} />
-                  <div style={{ display: "flex", gap: "4px" }}>
-                    <button type="button" onClick={() => heldbackFileInputRef.current?.click()} style={{ flex: 1, padding: "4px 6px", fontSize: "10.5px", background: "var(--panel)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: "4px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}>
-                      <FileUp size={11} /> {heldbackList.length > 0 ? "Replace" : "Upload"}
-                    </button>
-                    <button type="button" onClick={handleDownloadHeldbackTemplate} title="Download template" style={{ padding: "4px 6px", fontSize: "10.5px", background: "var(--panel)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: "4px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "3px" }}>
-                      <FileDown size={11} /> Tpl
-                    </button>
-                    {heldbackList.length > 0 && (
-                      <button type="button" onClick={handleClearHeldbackData} style={{ padding: "4px 6px", fontSize: "10.5px", background: "transparent", color: "#ef4444", border: "1px solid #ef4444", borderRadius: "4px", fontWeight: 600, cursor: "pointer" }}>Clear</button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Accordion 4: Consolidated KPIs & Pass Simulation */}
-          {processedRows.length > 0 && (
-            <div style={{ border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden", background: "var(--panel)" }}>
-              <div 
-                onClick={() => toggleAccordion("overview")}
-                style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "space-between", 
-                  padding: "7px 9px", 
-                  background: sidebarAccordions.overview ? "var(--bg)" : "var(--panel)", 
-                  cursor: "pointer", 
-                  userSelect: "none" 
+              <button 
+                type="button" 
+                onClick={handleDownloadPrevReportTemplate}
+                title="Download sample previous event baseline template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <BarChart3 size={13} color="#10b981" />
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)" }}>Consolidated KPIs</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ 
-                    fontSize: "9px", 
-                    fontWeight: 600, 
-                    padding: "1px 5px", 
-                    borderRadius: "8px", 
-                    background: "rgba(16, 185, 129, 0.15)", 
-                    color: "#059669", 
-                    border: "1px solid var(--line)" 
-                  }}>
-                    {studentMetrics.isGazetteUploaded ? `${studentMetrics.finalPassedPct}% Pass` : `${consolidatedCourseMetrics.total} Papers`}
-                  </span>
-                  {sidebarAccordions.overview ? <ChevronDown size={12} color="var(--muted)" /> : <ChevronRight size={12} color="var(--muted)" />}
-                </div>
-              </div>
+                <FileDown size={12} /> Template
+              </button>
 
-              {sidebarAccordions.overview && (
-                <div style={{ padding: "9px", display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--line)" }}>
-                  {/* Student Semester Level Cards */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", fontSize: "10.5px" }}>
-                    <div style={{ background: "var(--panel)", padding: "6px 8px", borderRadius: "5px", border: "1px solid var(--line)" }}>
-                      <div style={{ color: "var(--muted)", fontSize: "10px" }}>Students</div>
-                      <strong style={{ fontSize: "14px", color: "var(--ink)" }}>{consolidatedStudentMetrics.totalStudents}</strong>
-                      <div style={{ fontSize: "9px", color: "var(--muted)" }}>{consolidatedStudentMetrics.totalPapersAttempted} papers</div>
-                    </div>
-
-                    <div style={{ background: "rgba(99, 102, 241, 0.08)", padding: "6px 8px", borderRadius: "5px", border: "1px solid rgba(99, 102, 241, 0.25)" }}>
-                      <div style={{ color: "#6366f1", fontWeight: 600, fontSize: "10px" }}>Semester Pass %</div>
-                      <strong style={{ fontSize: "14px", color: "#6366f1" }}>
-                        {consolidatedStudentMetrics.isGazetteUploaded ? `${consolidatedStudentMetrics.finalPassedPct}%` : "—"}
-                      </strong>
-                      <div style={{ fontSize: "9px", color: "#6366f1" }}>
-                        {consolidatedStudentMetrics.isGazetteUploaded ? "All Papers" : "Need Gazette"}
-                      </div>
-                    </div>
-
-                    <div style={{ background: "rgba(16, 185, 129, 0.1)", padding: "6px 8px", borderRadius: "5px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                      <div style={{ color: "#10b981", fontWeight: 600, fontSize: "10px" }}>Passed All</div>
-                      <strong style={{ fontSize: "14px", color: "#10b981" }}>
-                        {consolidatedStudentMetrics.isGazetteUploaded ? consolidatedStudentMetrics.finalPassedStudents : "—"}
-                      </strong>
-                    </div>
-
-                    <div style={{ background: "rgba(239, 68, 68, 0.1)", padding: "6px 8px", borderRadius: "5px", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
-                      <div style={{ color: "#ef4444", fontWeight: 600, fontSize: "10px" }}>Failed &ge; 1</div>
-                      <strong style={{ fontSize: "14px", color: "#ef4444" }}>
-                        {consolidatedStudentMetrics.isGazetteUploaded ? consolidatedStudentMetrics.failedStudents : "—"}
-                      </strong>
-                    </div>
-                  </div>
-
-                  {/* Student Moderation Impact */}
-                  <div style={{ background: "var(--panel)", padding: "6px 8px", borderRadius: "5px", border: "1px solid var(--line)", fontSize: "10.5px", display: "flex", flexDirection: "column", gap: "3px" }}>
-                    <div style={{ fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <Zap size={11} color="#f59e0b" /> Mod Impact:
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
-                      <span>Raw Passed (0 Mod):</span>
-                      <strong>{consolidatedStudentMetrics.isGazetteUploaded ? `${consolidatedStudentMetrics.rawPassedStudents} (${consolidatedStudentMetrics.rawPassedPct}%)` : "—"}</strong>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981", fontWeight: 600 }}>
-                      <span>Rescued to Pass:</span>
-                      <span>{consolidatedStudentMetrics.isGazetteUploaded ? `+${consolidatedStudentMetrics.rescuedStudents} (${consolidatedStudentMetrics.rescuedPct}%)` : "—"}</span>
-                    </div>
-                  </div>
-
-                  {/* Course Aggregate */}
-                  <div style={{ background: "var(--panel)", padding: "6px 8px", borderRadius: "5px", border: "1px solid var(--line)", fontSize: "10.5px", display: "flex", flexDirection: "column", gap: "3px" }}>
-                    <div style={{ fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <BookOpen size={11} color="var(--accent)" /> Course Papers:
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
-                      <span>Total Papers:</span>
-                      <strong>{consolidatedCourseMetrics.total}</strong>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981" }}>
-                      <span>Passed Papers:</span>
-                      <strong>{consolidatedCourseMetrics.totalPassed} ({consolidatedCourseMetrics.passPct}%)</strong>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#ef4444" }}>
-                      <span>Failed Papers:</span>
-                      <strong>{consolidatedCourseMetrics.failed} ({consolidatedCourseMetrics.failedPct}%)</strong>
-                    </div>
-                  </div>
-
-                  {/* Course Pass Simulation (+0 to +10) Card */}
-                  <div style={{ background: "rgba(16, 185, 129, 0.08)", padding: "8px", borderRadius: "5px", border: "1px solid rgba(16, 185, 129, 0.25)", fontSize: "10.5px", display: "flex", flexDirection: "column", gap: "5px" }}>
-                    <div style={{ fontWeight: 700, color: "#10b981", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <TrendingUp size={12} /> Simulation (+0..+10)
-                    </div>
-                    <div style={{ display: "flex", gap: "4px", marginTop: "1px" }}>
-                      <button
-                        type="button"
-                        onClick={handleExportSimulationExcel}
-                        style={{
-                          flex: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "3px",
-                          padding: "4px 6px",
-                          fontSize: "10px",
-                          background: "#10b981",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          fontWeight: 600,
-                          cursor: "pointer"
-                        }}
-                      >
-                        <Download size={11} /> Excel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("matrix")}
-                        style={{
-                          flex: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "3px",
-                          padding: "4px 6px",
-                          fontSize: "10px",
-                          background: "var(--panel)",
-                          color: "var(--ink)",
-                          border: "1px solid var(--line)",
-                          borderRadius: "4px",
-                          fontWeight: 600,
-                          cursor: "pointer"
-                        }}
-                      >
-                        Matrix
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              {previousReports.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={handleClearAllPreviousReports}
+                  title="Clear all uploaded earlier event reports"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#ef4444",
+                    border: "1px solid #ef4444",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
               )}
+            </div>
+
+            {/* List of uploaded previous event files with remove buttons */}
+            {previousReports.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px", maxHeight: "140px", overflowY: "auto" }}>
+                {previousReports.map((rep) => (
+                  <div 
+                    key={rep.id} 
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between", 
+                      padding: "4px 8px", 
+                      background: "var(--panel)", 
+                      border: "1px solid var(--line)", 
+                      borderRadius: "4px", 
+                      fontSize: "11px" 
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                      <FileSpreadsheet size={12} color="#6366f1" style={{ flexShrink: 0 }} />
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "180px" }} title={rep.fileName}>
+                        {rep.fileName}
+                      </span>
+                      <span style={{ fontSize: "9.5px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 4px", borderRadius: "4px", fontWeight: 700 }}>
+                        {rep.recordCount} rows
+                      </span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemovePreviousReport(rep.id)}
+                      title="Remove this earlier event file"
+                      style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", padding: "2px" }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Improvement Scoring Strategy Toggle */}
+            <div style={{ marginTop: "4px", paddingTop: "4px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: "3px" }}>
+              <span style={{ fontSize: "9.5px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+                Improvement ESE-TH Policy:
+              </span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImprovementScoringMode("current");
+                    if (rawRows && rawRows.length > 0 && headerMap) {
+                      const updatedGrouped = buildGroupedRecordsFromRows(
+                        rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, "current", historicalCourseProfilesMap, historicalGazetteMap
+                      );
+                      setGroupedRecords(updatedGrouped);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "3px 6px",
+                    fontSize: "10px",
+                    borderRadius: "4px",
+                    border: improvementScoringMode === "current" ? "1px solid #6366f1" : "1px solid var(--line)",
+                    background: improvementScoringMode === "current" ? "rgba(99, 102, 241, 0.15)" : "transparent",
+                    color: improvementScoringMode === "current" ? "#6366f1" : "var(--muted)",
+                    fontWeight: improvementScoringMode === "current" ? 700 : 500,
+                    cursor: "pointer"
+                  }}
+                >
+                  Current Attempt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImprovementScoringMode("best");
+                    if (rawRows && rawRows.length > 0 && headerMap) {
+                      const updatedGrouped = buildGroupedRecordsFromRows(
+                        rawRows, headerMap, absentRecordsMap, malpracticeRecordsMap, heldbackRecordsMap, historicalRecordsMap, "best", historicalCourseProfilesMap, historicalGazetteMap
+                      );
+                      setGroupedRecords(updatedGrouped);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "3px 6px",
+                    fontSize: "10px",
+                    borderRadius: "4px",
+                    border: improvementScoringMode === "best" ? "1px solid #6366f1" : "1px solid var(--line)",
+                    background: improvementScoringMode === "best" ? "rgba(99, 102, 241, 0.15)" : "transparent",
+                    color: improvementScoringMode === "best" ? "#6366f1" : "var(--muted)",
+                    fontWeight: improvementScoringMode === "best" ? 700 : 500,
+                    cursor: "pointer"
+                  }}
+                >
+                  Best of Both
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Result Gazette (Optional Reappear Assurance) Card */}
+          <div style={{ 
+            background: gazetteReports.length > 0 ? "rgba(16, 185, 129, 0.05)" : "var(--bg)", 
+            border: gazetteReports.length > 0 ? "1.5px solid rgba(16, 185, 129, 0.35)" : "1px solid var(--line)", 
+            borderRadius: "8px", 
+            padding: "12px", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "8px" 
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: gazetteReports.length > 0 ? "#10b981" : "var(--ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <FileCheck size={14} color={gazetteReports.length > 0 ? "#10b981" : "var(--muted)"} /> Result Gazette (Reappear Assurance)
+              </div>
+              {gazetteReports.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "#10b981", color: "white", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {gazetteReports.length} Files ({historicalGazetteMap.size} Students • {gazetteReports.reduce((acc, r) => acc + (r.reappearCount || 0), 0)} Backlogs)
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "rgba(16, 185, 129, 0.12)", color: "#059669", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  Optional Assurance
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              Upload University Result Gazettes / Tabulation Registers (one or multiple semesters). <strong>100% Optional</strong>: cross-verifies declared <strong>Reappear Paper Codes</strong> and prior semester pass/fail status.
+            </div>
+
+            <input 
+              type="file" 
+              ref={gazetteFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              multiple
+              onChange={handleGazetteReportsUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (gazetteFileInputRef.current) gazetteFileInputRef.current.value = "";
+                  gazetteFileInputRef.current?.click();
+                }}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: gazetteReports.length > 0 ? "rgba(16, 185, 129, 0.12)" : "var(--panel)",
+                  color: gazetteReports.length > 0 ? "#059669" : "var(--ink)",
+                  border: gazetteReports.length > 0 ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {gazetteReports.length > 0 ? "+ Add More Gazettes" : "Upload Result Gazette"}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={handleDownloadGazetteTemplate}
+                title="Download sample university result gazette template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {gazetteReports.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={handleClearAllGazetteReports}
+                  title="Clear all uploaded result gazettes"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#ef4444",
+                    border: "1px solid #ef4444",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* List of uploaded gazette files with remove buttons */}
+            {gazetteReports.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px", maxHeight: "140px", overflowY: "auto" }}>
+                {gazetteReports.map((rep) => (
+                  <div 
+                    key={rep.id} 
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between", 
+                      padding: "4px 8px", 
+                      background: "var(--panel)", 
+                      border: "1px solid var(--line)", 
+                      borderRadius: "4px", 
+                      fontSize: "11px" 
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                      <FileCheck size={12} color="#10b981" style={{ flexShrink: 0 }} />
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" }} title={rep.fileName}>
+                        {rep.fileName}
+                      </span>
+                      <span style={{ fontSize: "9.5px", background: "rgba(16, 185, 129, 0.12)", color: "#059669", padding: "1px 5px", borderRadius: "4px", fontWeight: 700 }} title="Declared Result Gazette">
+                        {rep.recordCount} students • {rep.reappearCount || 0} backlogs
+                      </span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemoveGazetteReport(rep.id)}
+                      title="Remove this gazette file"
+                      style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", padding: "2px" }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sheet Selector (if multiple sheets exist) */}
+          {sheetNames.length > 1 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "11.5px", fontWeight: 600, color: "var(--muted)" }}>Select Source Sheet:</label>
+              <select 
+                value={selectedSheet} 
+                onChange={(e) => handleSheetChange(e.target.value)}
+                style={{ padding: "6px 10px", fontSize: "12px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--bg)" }}
+              >
+                {sheetNames.map(s => {
+                  const meta = sheetMetadata[s];
+                  const hasHeaders = meta && meta.matchedHeaders && meta.matchedHeaders.length > 0;
+                  return (
+                    <option key={s} value={s}>
+                      {s} {hasHeaders ? "(✓ " + meta.matchedHeaders.length + " headers)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
           )}
 
-          {/* Accordion 5: Evaluation Rules & Reference */}
-          <div style={{ border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden", background: "var(--panel)" }}>
-            <div 
-              onClick={() => toggleAccordion("rules")}
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "space-between", 
-                padding: "7px 9px", 
-                background: sidebarAccordions.rules ? "var(--bg)" : "var(--panel)", 
-                cursor: "pointer", 
-                userSelect: "none" 
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <BookOpen size={13} color="var(--accent)" />
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)" }}>Evaluation Rules</span>
+          {/* Absent Mark Entry Report Card */}
+          <div style={{ 
+            background: absentList.length > 0 ? "rgba(239, 68, 68, 0.05)" : "var(--bg)", 
+            border: absentList.length > 0 ? "1.5px solid rgba(239, 68, 68, 0.35)" : "1px solid var(--line)", 
+            borderRadius: "8px", 
+            padding: "12px", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "8px" 
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: absentList.length > 0 ? "#ef4444" : "var(--ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <UserX size={14} color={absentList.length > 0 ? "#ef4444" : "var(--muted)"} /> Absent Mark Entry
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ fontSize: "9px", fontWeight: 600, padding: "1px 5px", borderRadius: "8px", background: "var(--panel)", color: "var(--muted)", border: "1px solid var(--line)" }}>
-                  Ref
+              {absentList.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "#ef4444", color: "white", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {absentList.length} Absent Records
                 </span>
-                {sidebarAccordions.rules ? <ChevronDown size={12} color="var(--muted)" /> : <ChevronRight size={12} color="var(--muted)" />}
-              </div>
+              ) : (
+                <span style={{ fontSize: "10px", background: "var(--panel)", color: "var(--muted)", padding: "1px 6px", borderRadius: "10px", border: "1px solid var(--line)" }}>
+                  Optional
+                </span>
+              )}
             </div>
 
-            {sidebarAccordions.rules && (
-              <div style={{ padding: "9px", fontSize: "10.5px", color: "var(--muted)", lineHeight: "1.35", borderTop: "1px solid var(--line)" }}>
-                <ul style={{ margin: 0, paddingLeft: "14px", display: "flex", flexDirection: "column", gap: "3px" }}>
-                  <li><strong>ESE Min:</strong> <code>ceil(30% × ESE Max)</code></li>
-                  <li><strong>Overall Min:</strong> <code>ceil(35% × Overall Max)</code></li>
-                  <li><strong>Pass Condition:</strong> <code>ESE Pass AND Overall Pass</code></li>
-                  <li><strong>Moderation Rule:</strong> <code>max(ESE Deficit, Overall Deficit)</code></li>
-                  <li><strong>ESE-TH Only:</strong> Moderation applies to courses with ESE-TH.</li>
-                </ul>
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              {absentList.length > 0 ? (
+                <span>
+                  Active: <strong>{absentFileName}</strong> ({absentList.length} mapped). Mapped components show <strong style={{ color: "#ef4444" }}>Absent (Ab)</strong> &amp; <strong>Fail</strong>.
+                </span>
+              ) : (
+                "Upload one or multiple absent reports across programmes (select multiple .xlsx/.xls files) to replace 0 marks with \"Absent (Ab)\" and mark courses as Fail."
+              )}
+            </div>
+
+            <input 
+              type="file" 
+              ref={absentFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              multiple
+              onChange={handleAbsentExcelUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (absentFileInputRef.current) absentFileInputRef.current.value = "";
+                  absentFileInputRef.current?.click();
+                }}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: absentList.length > 0 ? "rgba(239, 68, 68, 0.12)" : "var(--panel)",
+                  color: absentList.length > 0 ? "#ef4444" : "var(--ink)",
+                  border: absentList.length > 0 ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {absentList.length > 0 ? "Replace / Upload Files" : "Upload Absent Excel"}
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleDownloadAbsentTemplate}
+                title="Download standard absent report template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {absentList.length > 0 && (
+                <button 
+                  type="button"
+                  onClick={handleClearAbsentData}
+                  title="Clear absent data and revert to original marks"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#ef4444",
+                    border: "1px solid #ef4444",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Malpractice Student Records Management Card */}
+          <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "var(--ink)" }}>
+                <ShieldAlert size={14} color="#d97706" /> Malpractice Record Entry
+              </div>
+              {malpracticeList.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "rgba(245, 158, 11, 0.15)", color: "#b45309", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {malpracticeList.length} MP Records
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "var(--panel)", color: "var(--muted)", padding: "1px 6px", borderRadius: "10px", border: "1px solid var(--line)" }}>
+                  Optional
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+              {malpracticeList.length > 0 ? (
+                <span>
+                  Active: <strong>{malpracticeFileName}</strong> ({malpracticeList.length} mapped). Mapped components show <strong style={{ color: "#b45309" }}>Malpractice (MP)</strong> &amp; <strong>Fail</strong>.
+                </span>
+              ) : (
+                "Upload one or multiple malpractice reports across programmes (select multiple .xlsx/.xls files) to replace marks with \"Malpractice (MP)\" and mark courses as Fail."
+              )}
+            </div>
+
+            <input 
+              type="file" 
+              ref={malpracticeFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              multiple
+              onChange={handleMalpracticeExcelUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (malpracticeFileInputRef.current) malpracticeFileInputRef.current.value = "";
+                  malpracticeFileInputRef.current?.click();
+                }}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: malpracticeList.length > 0 ? "rgba(245, 158, 11, 0.12)" : "var(--panel)",
+                  color: malpracticeList.length > 0 ? "#b45309" : "var(--ink)",
+                  border: malpracticeList.length > 0 ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {malpracticeList.length > 0 ? "Replace / Upload Files" : "Upload MP Excel"}
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleDownloadMalpracticeTemplate}
+                title="Download standard malpractice report template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {malpracticeList.length > 0 && (
+                <button 
+                  type="button"
+                  onClick={handleClearMalpracticeData}
+                  title="Clear malpractice data and revert to original marks"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#b45309",
+                    border: "1px solid #b45309",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Heldback Students Records Management Card */}
+          <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "var(--ink)" }}>
+                <Lock size={14} color="#c026d3" /> Heldback Record Entry
+              </div>
+              {heldbackList.length > 0 ? (
+                <span style={{ fontSize: "10px", background: "rgba(192, 38, 211, 0.15)", color: "#c026d3", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  {heldbackList.length} Heldback
+                </span>
+              ) : (
+                <span style={{ fontSize: "10px", background: "var(--panel)", color: "var(--muted)", padding: "1px 6px", borderRadius: "10px", border: "1px solid var(--line)" }}>
+                  Optional
+                </span>
+              )}
+            </div>
+
+            {heldbackList.length > 0 ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(192, 38, 211, 0.08)", border: "1px solid rgba(192, 38, 211, 0.25)", borderRadius: "6px", padding: "6px 10px", gap: "8px" }}>
+                <div style={{ fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <FileText size={13} color="#c026d3" style={{ flexShrink: 0 }} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <strong style={{ color: "#c026d3" }}>{heldbackFileName}</strong> ({heldbackList.length} mapped)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearHeldbackData}
+                  title="Remove uploaded heldback file and recalculate"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    background: "rgba(239, 68, 68, 0.12)",
+                    color: "#ef4444",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    borderRadius: "4px",
+                    padding: "2px 7px",
+                    fontSize: "10.5px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    flexShrink: 0
+                  }}
+                >
+                  <Trash2 size={11} /> Remove
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: "1.35" }}>
+                Upload one or multiple heldback reports across programmes (select multiple .xlsx/.xls files together) to lock matched students across papers from pass calculation, moderation marks, and pass simulation.
               </div>
             )}
+
+            <input 
+              type="file" 
+              ref={heldbackFileInputRef}
+              accept=".xlsx,.xls,.csv" 
+              multiple
+              onChange={handleHeldbackExcelUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (heldbackFileInputRef.current) heldbackFileInputRef.current.value = "";
+                  heldbackFileInputRef.current?.click();
+                }}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: heldbackList.length > 0 ? "rgba(192, 38, 211, 0.12)" : "var(--panel)",
+                  color: heldbackList.length > 0 ? "#c026d3" : "var(--ink)",
+                  border: heldbackList.length > 0 ? "1px solid rgba(192, 38, 211, 0.3)" : "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileUp size={12} /> {heldbackList.length > 0 ? "Replace with New File" : "Upload Heldback"}
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleDownloadHeldbackTemplate}
+                title="Download standard heldback / APC report template (.xlsx)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  padding: "5px 8px",
+                  fontSize: "11px",
+                  background: "var(--panel)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                <FileDown size={12} /> Template
+              </button>
+
+              {heldbackList.length > 0 && (
+                <button 
+                  type="button"
+                  onClick={handleClearHeldbackData}
+                  title="Remove uploaded heldback file and recalculate"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "3px",
+                    padding: "5px 8px",
+                    fontSize: "11px",
+                    background: "transparent",
+                    color: "#ef4444",
+                    border: "1px solid rgba(239, 68, 68, 0.4)",
+                    borderRadius: "4px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  <Trash2 size={11} /> Remove
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Consolidated Overall Result Stat Card (Global / No Filter) */}
+          {processedRows.length > 0 && (
+            <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Users size={14} color="#6366f1" /> Consolidated Overview
+                </span>
+                <span style={{ fontSize: "9.5px", background: "rgba(99, 102, 241, 0.12)", color: "#6366f1", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                  All Data (No Filter)
+                </span>
+              </div>
+              
+              {/* Student Semester Level Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "11px" }}>
+                <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)" }}>
+                  <div style={{ color: "var(--muted)" }}>Unique Students</div>
+                  <strong style={{ fontSize: "15px", color: "var(--ink)" }}>{consolidatedStudentMetrics.totalStudents}</strong>
+                  <div style={{ fontSize: "9.5px", color: "var(--muted)", marginTop: "1px" }}>
+                    {consolidatedStudentMetrics.totalPapersAttempted} papers (~{consolidatedStudentMetrics.avgPapersPerStudent}/st)
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(99, 102, 241, 0.08)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(99, 102, 241, 0.25)" }}>
+                  <div style={{ color: "#6366f1", fontWeight: 600 }}>Semester Pass %</div>
+                  <strong style={{ fontSize: "15px", color: "#6366f1" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? `${consolidatedStudentMetrics.finalPassedPct}%` : "—"}
+                  </strong>
+                  <div style={{ fontSize: "9.5px", color: "#6366f1" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? "All Papers Rule" : "Requires Gazette"}
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(16, 185, 129, 0.1)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                  <div style={{ color: "#10b981", fontWeight: 600 }}>Passed All Papers</div>
+                  <strong style={{ fontSize: "15px", color: "#10b981" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? consolidatedStudentMetrics.finalPassedStudents : "—"}
+                  </strong>
+                  <div style={{ fontSize: "9.5px", color: "#10b981" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? `(${consolidatedStudentMetrics.finalPassedPct}%)` : "Upload Gazette"}
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(239, 68, 68, 0.1)", padding: "8px", borderRadius: "6px", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
+                  <div style={{ color: "#ef4444", fontWeight: 600 }}>Failed &ge; 1 Paper</div>
+                  <strong style={{ fontSize: "15px", color: "#ef4444" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? consolidatedStudentMetrics.failedStudents : "—"}
+                  </strong>
+                  <div style={{ fontSize: "9.5px", color: "#ef4444" }}>
+                    {consolidatedStudentMetrics.isGazetteUploaded ? `(${consolidatedStudentMetrics.failedPct}%)` : "Upload Gazette"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Student Semester Moderation Impact */}
+              <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                <div style={{ fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <Zap size={12} color="#f59e0b" /> Semester Moderation Impact:
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
+                  <span>Raw Passed (0 Mod):</span>
+                  <strong>{consolidatedStudentMetrics.isGazetteUploaded ? `${consolidatedStudentMetrics.rawPassedStudents} (${consolidatedStudentMetrics.rawPassedPct}%)` : "—"}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981", fontWeight: 600 }}>
+                  <span>Rescued to Semester Pass:</span>
+                  <span>{consolidatedStudentMetrics.isGazetteUploaded ? `+${consolidatedStudentMetrics.rescuedStudents} students (${consolidatedStudentMetrics.rescuedPct}%)` : "—"}</span>
+                </div>
+              </div>
+
+              {/* Student Cases & Special Statuses */}
+              {(consolidatedStudentMetrics.heldStudents > 0 || consolidatedStudentMetrics.absentStudents > 0 || consolidatedStudentMetrics.malpracticeStudents > 0) && (
+                <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <div style={{ fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <AlertCircle size={12} color="#c026d3" /> Special Student Statuses:
+                  </div>
+                  {consolidatedStudentMetrics.heldStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#c026d3" }}>
+                      <span>Held Students (Total):</span>
+                      <strong>{consolidatedStudentMetrics.heldStudents} ({consolidatedStudentMetrics.heldPct}%)</strong>
+                    </div>
+                  )}
+                  {consolidatedStudentMetrics.heldbackStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", paddingLeft: "8px" }}>
+                      <span>&bull; Heldback Report:</span>
+                      <strong style={{ color: "#c026d3" }}>{consolidatedStudentMetrics.heldbackStudents}</strong>
+                    </div>
+                  )}
+                  {consolidatedStudentMetrics.heldMissingStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", paddingLeft: "8px" }}>
+                      <span>&bull; Missing Component:</span>
+                      <strong style={{ color: "#9333ea" }}>{consolidatedStudentMetrics.heldMissingStudents}</strong>
+                    </div>
+                  )}
+                  {consolidatedStudentMetrics.absentStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626" }}>
+                      <span>With Absences (&ge;1 Paper):</span>
+                      <strong>{consolidatedStudentMetrics.absentStudents} ({consolidatedStudentMetrics.absentPct}%)</strong>
+                    </div>
+                  )}
+                  {consolidatedStudentMetrics.malpracticeStudents > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#d97706" }}>
+                      <span>With Malpractice (&ge;1 Paper):</span>
+                      <strong>{consolidatedStudentMetrics.malpracticeStudents} ({consolidatedStudentMetrics.malpracticePct}%)</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Course-Level Statistics Summary */}
+              <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                <div style={{ fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <BookOpen size={12} color="var(--accent)" /> Course-Level Aggregate:
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
+                  <span>Total Course Papers:</span>
+                  <strong>{consolidatedCourseMetrics.total}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981" }}>
+                  <span>Course Papers Passed:</span>
+                  <strong>{consolidatedCourseMetrics.totalPassed} ({consolidatedCourseMetrics.passPct}%)</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", fontSize: "10.5px" }}>
+                  <span>&bull; Raw / Via Mod:</span>
+                  <span><strong>{consolidatedCourseMetrics.rawPassed}</strong> / <strong style={{ color: "#10b981" }}>+{consolidatedCourseMetrics.moderatedPassed}</strong></span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#ef4444" }}>
+                  <span>Course Papers Failed:</span>
+                  <strong>{consolidatedCourseMetrics.failed} ({consolidatedCourseMetrics.failedPct}%)</strong>
+                </div>
+                {consolidatedCourseMetrics.heldbackCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#c026d3" }}>
+                    <span>Held (Heldback Report):</span>
+                    <strong>{consolidatedCourseMetrics.heldbackCount}</strong>
+                  </div>
+                )}
+                {consolidatedCourseMetrics.missingCompCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#9333ea" }}>
+                    <span>Held (Missing Component):</span>
+                    <strong>{consolidatedCourseMetrics.missingCompCount}</strong>
+                  </div>
+                )}
+                {consolidatedCourseMetrics.absentCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626" }}>
+                    <span>Absent Papers:</span>
+                    <strong>{consolidatedCourseMetrics.absentCount}</strong>
+                  </div>
+                )}
+                {consolidatedCourseMetrics.malpracticeCount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#d97706" }}>
+                    <span>Malpractice Papers:</span>
+                    <strong>{consolidatedCourseMetrics.malpracticeCount}</strong>
+                  </div>
+                )}
+              </div>
+
+              {/* Failure Breakdown */}
+              {consolidatedCourseMetrics.failed > 0 && (
+                <div style={{ background: "var(--panel)", padding: "8px", borderRadius: "6px", border: "1px solid var(--line)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <div style={{ fontWeight: 600, color: "var(--ink)" }}>Failure Breakdown:</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
+                    <span>ESE Failed (&lt; 30%):</span>
+                    <strong style={{ color: "#ef4444" }}>{consolidatedCourseMetrics.eseFailed}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
+                    <span>Aggregate Failed (&lt; 35%):</span>
+                    <strong style={{ color: "#ef4444" }}>{consolidatedCourseMetrics.overallFailed}</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Course Pass Simulation (+0 to +10) Card */}
+              <div style={{ background: "rgba(16, 185, 129, 0.08)", padding: "10px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.25)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ fontWeight: 700, color: "#10b981", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <TrendingUp size={13} /> Pass Simulation (+0 to +10):
+                </div>
+                <div style={{ color: "var(--muted)", lineHeight: "1.3" }}>
+                  Pass counts calculated for every course across 0 to +10 moderation marks.
+                </div>
+                <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+                  <button
+                    type="button"
+                    onClick={handleExportSimulationExcel}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                      padding: "5px 8px",
+                      fontSize: "11px",
+                      background: "#10b981",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    <Download size={12} /> Excel Report
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("matrix")}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                      padding: "5px 8px",
+                      fontSize: "11px",
+                      background: "var(--panel)",
+                      color: "var(--ink)",
+                      border: "1px solid var(--line)",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    View Matrix
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Rules Summary */}
+          <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", fontSize: "11.5px", color: "var(--muted)", lineHeight: "1.4" }}>
+            <strong style={{ color: "var(--ink)", display: "block", marginBottom: "6px" }}>Evaluation Rules:</strong>
+            <ul style={{ margin: 0, paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <li><strong>ESE Min:</strong> <code>ceil(30% × ESE Max)</code></li>
+              <li><strong>Overall Min:</strong> <code>ceil(35% × Overall Max)</code></li>
+              <li><strong>Pass Condition:</strong> <code>ESE Pass AND Overall Pass</code></li>
+              <li><strong>Moderation Rule:</strong> <code>marks_needed = max(ESE Deficit, Overall Deficit)</code></li>
+              <li><strong>ESE-TH Only (Default):</strong> Moderation applies only to courses with ESE Theory (TH) unless PR-only option is enabled.</li>
+            </ul>
           </div>
 
           {/* Status Message */}
-          <div style={{ marginTop: "auto", padding: "6px 10px", borderRadius: "5px", fontSize: "10.5px", background: statusType === "error" ? "var(--danger-soft)" : statusType === "success" ? "var(--accent-soft)" : "var(--bg)", color: statusType === "error" ? "var(--danger)" : statusType === "success" ? "var(--accent)" : "var(--muted)", border: "1px solid var(--line)" }}>
+          <div style={{ marginTop: "auto", padding: "8px 12px", borderRadius: "6px", fontSize: "11.5px", background: statusType === "error" ? "var(--danger-soft)" : statusType === "success" ? "var(--accent-soft)" : "var(--bg)", color: statusType === "error" ? "var(--danger)" : statusType === "success" ? "var(--accent)" : "var(--muted)", border: "1px solid var(--line)" }}>
             {statusMsg}
           </div>
 
         </aside>
 
-        {/* Sidebar Drag Resizer Handle (MacBook Air / Trackpad) */}
-        {!isSidebarCollapsed && (
-          <div
-            onMouseDown={handleSidebarMouseDown}
-            onDoubleClick={() => setSidebarWidth(250)}
-            title="Drag to resize sidebar (double-click to reset to 250px)"
-            style={{
-              width: "5px",
-              cursor: "col-resize",
-              flexShrink: 0,
-              background: "transparent",
-              zIndex: 20,
-              transition: "background 0.15s ease",
-              userSelect: "none"
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(23, 107, 135, 0.4)"}
-            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-          />
-        )}
-
-
-        {/* Right Content / Dynamic View (Results Table or Moderation Matrix) */}
         <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--bg)" }}>
           
           {activeTab === "students" ? (

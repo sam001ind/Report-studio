@@ -150,8 +150,6 @@ function createWindow() {
     show: false,
     backgroundColor: '#f4f6f5',
     title: 'Report Studio',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 18, y: 16 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

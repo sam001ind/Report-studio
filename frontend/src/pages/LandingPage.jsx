@@ -528,7 +528,6 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '14px 28px',
-    paddingLeft: (typeof window !== 'undefined' && ((window.electronAPI && window.electronAPI.isDesktop) || /Electron/i.test(navigator.userAgent)) && /Mac/i.test(navigator.platform || navigator.userAgent)) ? '96px' : '28px',
     borderBottom: '1px solid var(--line)',
     background: 'var(--panel)',
     backdropFilter: 'blur(12px)',
