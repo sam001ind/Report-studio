@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { buildCollegeCanonicalRegistry, cleanCourseCode } from './AdesResultCalculatorPage';
 import { 
   ArrowLeft, 
   Download, 
@@ -44,6 +43,13 @@ export const ALL_ROWS_HEADERS = [
 ];
 
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const cleanCourseCode = (rawCode) => {
+  if (!rawCode) return '';
+  let code = String(rawCode).trim();
+  code = code.replace(/^\s*[\(\[\{]\s*/, '').replace(/\s*[\)\]\}]\s*$/, '');
+  return code.trim().toUpperCase();
+};
 
 export default function AffiliatedProgrammePage() {
   const [sourceFile, setSourceFile] = useState(null);
@@ -158,18 +164,43 @@ export default function AffiliatedProgrammePage() {
     const dedupeList = [];
     const seen = new Set();
     let dupCount = 0;
-    const rawCollegeItems = [];
+    const codeToNameMap = new Map();
+    const nameToCodeMap = new Map();
+
     rows.forEach(row => {
-      const rawC = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
-      const rawN = getCell(row, currentHeaderMap, 'ADEC Name', 'ADECName', 'ADEC_Name', 'ADEC', 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College');
-      if (rawC || rawN) rawCollegeItems.push({ code: rawC, name: rawN });
+      let rawC = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code').trim();
+      let rawN = getCell(row, currentHeaderMap, 'ADEC Name', 'ADECName', 'ADEC_Name', 'ADEC', 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College').trim();
+      if (!rawC && rawN) {
+        const prefixMatch = rawN.match(/^\[?([A-Za-z0-9_]+)\]?\s*[-:–—.]\s*(.+)$/);
+        if (prefixMatch) {
+          rawC = prefixMatch[1].trim();
+          rawN = prefixMatch[2].trim();
+        }
+      }
+      if (rawC && rawN) {
+        if (!codeToNameMap.has(rawC)) codeToNameMap.set(rawC, rawN);
+        if (!nameToCodeMap.has(rawN)) nameToCodeMap.set(rawN, rawC);
+      }
     });
-    const collegeRegistry = buildCollegeCanonicalRegistry(rawCollegeItems);
 
     rows.forEach((row) => {
-      const rawCollegeCode = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
-      const rawCollegeName = getCell(row, currentHeaderMap, 'ADEC Name', 'ADECName', 'ADEC_Name', 'ADEC', 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College');
-      const { collegeCode, collegeName } = collegeRegistry.resolve(rawCollegeCode, rawCollegeName);
+      const rawCollegeCode = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code').trim();
+      const rawCollegeName = getCell(row, currentHeaderMap, 'ADEC Name', 'ADECName', 'ADEC_Name', 'ADEC', 'College Name', 'CollegeName', 'College_Name', 'InstituteName', 'CenterName', 'College').trim();
+      let collegeCode = rawCollegeCode;
+      let collegeName = rawCollegeName;
+
+      if (!collegeCode && collegeName) {
+        const prefixMatch = collegeName.match(/^\[?([A-Za-z0-9_]+)\]?\s*[-:–—.]\s*(.+)$/);
+        if (prefixMatch) {
+          collegeCode = prefixMatch[1].trim();
+          collegeName = prefixMatch[2].trim();
+        } else if (nameToCodeMap.has(collegeName)) {
+          collegeCode = nameToCodeMap.get(collegeName);
+        }
+      }
+      if (!collegeName && collegeCode && codeToNameMap.has(collegeCode)) {
+        collegeName = codeToNameMap.get(collegeCode);
+      }
       const programCode = getCell(row, currentHeaderMap, 'Program Code', 'ProgramCode', 'Program_Code', 'ProgCode', 'DegreeCode', 'Program');
       const programTerm = getCell(row, currentHeaderMap, 'Program Term', 'ProgramTerm', 'Program_Term', 'Term', 'SemesterYear', 'Sem');
       const rawCourseDetails = getCell(row, currentHeaderMap, 'Course Details', 'CourseDetails', 'Course_Details', 'Courses', 'Subjects', 'SubjectDetails');

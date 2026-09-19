@@ -146,7 +146,7 @@ const UrlShortenerPage = () => {
     try {
       let shortUrl = '';
       const slug = customSlug.trim() ? customSlug.trim().replace(/[^a-zA-Z0-9_-]/g, '-') : generateRandomSlug(6);
-      const appBaseUrl = window.location.origin;
+      const appBaseUrl = `${window.location.origin}${window.location.pathname.replace(/\/+$/, '')}/#`;
 
       if (selectedProvider === 'inapp') {
         // In-App redirect link
@@ -273,7 +273,7 @@ const UrlShortenerPage = () => {
     setIsBulkProcessing(true);
     setBulkProgress(0);
 
-    const appBaseUrl = window.location.origin;
+    const appBaseUrl = `${window.location.origin}${window.location.pathname.replace(/\/+$/, '')}/#`;
     const total = bulkRows.length;
     const enrichedRows = [];
 
