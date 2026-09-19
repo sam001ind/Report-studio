@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
@@ -7,33 +7,19 @@ import {
   Upload, 
   Download, 
   FileSpreadsheet, 
-  CheckCircle2, 
-  AlertTriangle, 
   Search, 
   BookOpen, 
-  Layers, 
   Copy, 
-  FolderArchive, 
-  RefreshCw, 
-  HelpCircle, 
   Sparkles, 
-  Settings2, 
-  Sliders, 
   Plus, 
   Trash2, 
-  Check, 
-  FileCheck,
-  ToggleLeft,
-  ToggleRight,
   GitFork,
   TableProperties,
   Edit3,
   X,
   ListFilter,
-  FolderPlus,
-  Trash,
-  ArrowUp,
-  ArrowDown,
+  ArrowUp, 
+  ArrowDown, 
   ArrowUpDown
 } from 'lucide-react';
 
@@ -92,29 +78,112 @@ const GROUP_MASTER_HEADERS = [
 
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-const createDefaultConfigForGroup = (groupKey) => {
-  const upper = String(groupKey || '').toUpperCase().trim();
-  if (upper.includes('DSC') || upper.includes('MAJOR') || upper.includes('CORE') || upper.includes('DSE')) {
-    return {
-      pattern: 'group_subject',
-      copies: 2,
-      suffixStr: ', .',
-      maxCredits: 4,
-      maxMarks: 100,
-      maxCourses: 1,
-      minCourses: 1
-    };
-  } else {
-    return {
-      pattern: 'group_only',
-      copies: 1,
-      suffixStr: '',
-      maxCredits: 3,
-      maxMarks: 75,
-      maxCourses: 1,
-      minCourses: 1
-    };
+const parseSheetWithSmartHeaders = (sheet) => {
+  const rawGrid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  if (!rawGrid || rawGrid.length === 0) return { parsed: [], headerMap: {} };
+  if (rawGrid.length === 1) {
+    const p = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const map = {};
+    if (p.length) {
+      Object.keys(p[0]).forEach(h => { map[normalizeKey(h)] = h; });
+    }
+    return { parsed: p, headerMap: map };
   }
+
+  const row0 = rawGrid[0] || [];
+  const row1 = rawGrid[1] || [];
+
+  let courseCodeIdx = -1;
+  row0.forEach((h, idx) => {
+    const norm = normalizeKey(h);
+    if (norm === 'coursecode' || norm === 'code') courseCodeIdx = idx;
+  });
+
+  const hasCourseCodeInData = courseCodeIdx !== -1 && row1[courseCodeIdx] && String(row1[courseCodeIdx]).trim().length > 1;
+
+  const exactSubheaders = ['theory', 'practical', 'th', 'pr', 'totalmarks', 'minimumpassingmarks', 'minpassingmarks', 'passingmarks', 'maxmarks', 'minmarks'];
+  const matchingSubheaders = row1.filter(cell => {
+    const norm = normalizeKey(cell);
+    return exactSubheaders.includes(norm);
+  });
+
+  const hasSubheaders = !hasCourseCodeInData && matchingSubheaders.length >= 2;
+
+  if (!hasSubheaders) {
+    const p = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const map = {};
+    if (p.length) {
+      Object.keys(p[0]).forEach(h => { map[normalizeKey(h)] = h; });
+    }
+    return { parsed: p, headerMap: map };
+  }
+
+  const mergedHeaders = [];
+  let lastParentHeader = '';
+
+  const maxCols = Math.max(row0.length, row1.length);
+  for (let c = 0; c < maxCols; c++) {
+    const parent = String(row0[c] || '').trim();
+    const child = String(row1[c] || '').trim();
+
+    if (parent) {
+      lastParentHeader = parent;
+    }
+
+    let colName;
+    const normChild = normalizeKey(child);
+    const normParent = normalizeKey(parent);
+
+    if (normChild === 'theory' || normChild === 'th') {
+      colName = lastParentHeader ? `${lastParentHeader} - TH` : 'Theory';
+    } else if (normChild === 'practical' || normChild === 'pr') {
+      colName = lastParentHeader ? `${lastParentHeader} - PR` : 'Practical';
+    } else if (child && (!parent || normParent === normChild)) {
+      colName = child;
+    } else if (parent && !child) {
+      colName = parent;
+    } else if (parent && child) {
+      colName = `${parent} - ${child}`;
+    } else if (lastParentHeader && child) {
+      colName = `${lastParentHeader} - ${child}`;
+    } else {
+      colName = `__col_${c}`;
+    }
+
+    mergedHeaders.push(colName);
+  }
+
+  const rows = [];
+  for (let r = 2; r < rawGrid.length; r++) {
+    const dataRow = rawGrid[r];
+    if (!dataRow || dataRow.every(v => v === '' || v === undefined || v === null)) continue;
+    const obj = {};
+    mergedHeaders.forEach((h, idx) => {
+      obj[h] = dataRow[idx] !== undefined ? dataRow[idx] : '';
+    });
+    rows.push(obj);
+  }
+
+  const map = {};
+  mergedHeaders.forEach(h => {
+    map[normalizeKey(h)] = h;
+  });
+
+  return { parsed: rows, headerMap: map };
+};
+
+const createDefaultConfigForGroup = (groupKey, defaultMarks = 100, defaultCredits = null) => {
+  const upper = String(groupKey || '').toUpperCase().trim();
+  const isMajor = upper.includes('DSC') || upper.includes('MAJOR') || upper.includes('CORE') || upper.includes('DSE');
+  return {
+    pattern: isMajor ? 'group_subject' : 'group_only',
+    copies: isMajor ? 2 : 1,
+    suffixStr: isMajor ? ', .' : '',
+    maxCredits: defaultCredits !== null ? defaultCredits : (isMajor ? 4 : 3),
+    maxMarks: defaultMarks || 100,
+    maxCourses: 1,
+    minCourses: 1
+  };
 };
 
 export default function CourseMasterImportPage() {
@@ -152,8 +221,6 @@ export default function CourseMasterImportPage() {
 
   // 37-Column Deep Filtering States
   const [columnFilters, setColumnFilters] = useState({}); // { [colName]: string }
-  const [selectedFilterCol, setSelectedFilterCol] = useState('');
-  const [selectedFilterVal, setSelectedFilterVal] = useState('');
   const [showColumnFilterRow, setShowColumnFilterRow] = useState(false);
 
   // Column Sorting State: { column: string | null, direction: 'asc' | 'desc' | null }
@@ -219,19 +286,27 @@ export default function CourseMasterImportPage() {
   };
 
   // Extract all unique group names, subjects, and group-to-subjects map dynamically from uploaded file
-  const { detectedGroups, uniqueSubjects, groupToSubjectsMap } = useMemo(() => {
-    if (!rawRows.length) return { detectedGroups: [], uniqueSubjects: [], groupToSubjectsMap: {} };
+  // Extract all unique group names, subjects, group-to-subjects map, and marks/credits map dynamically from uploaded file
+  const { detectedGroups, uniqueSubjects, groupToSubjectsMap, groupMarksMap, groupCreditsMap } = useMemo(() => {
+    if (!rawRows.length) return { detectedGroups: [], uniqueSubjects: [], groupToSubjectsMap: {}, groupMarksMap: {}, groupCreditsMap: {} };
     const groups = new Set();
     const subjects = new Set();
     const map = {};
+    const marksMap = {};
+    const creditsMap = {};
 
     rawRows.forEach(row => {
       const g = getCell(row, 'Group Name', 'groupname', 'group', 'parentgroup').trim().toUpperCase();
       const s = getCell(row, 'Subject', 'subject').trim();
+      const tm = getNumber(row, 'Total Marks', 'totalmarks', 'marks', 'coursemarks', 'coursemaxmarks', 'maxmarks');
+      const tc = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
+
       if (g) {
         groups.add(g);
         if (!map[g]) map[g] = new Set();
         if (s) map[g].add(s);
+        if (tm > 0) marksMap[g] = Math.max(marksMap[g] || 0, tm);
+        if (tc > 0) creditsMap[g] = Math.max(creditsMap[g] || 0, tc);
       }
       if (s) subjects.add(s);
     });
@@ -244,7 +319,9 @@ export default function CourseMasterImportPage() {
     return {
       detectedGroups: Array.from(groups).sort(),
       uniqueSubjects: Array.from(subjects).sort(),
-      groupToSubjectsMap: finalMap
+      groupToSubjectsMap: finalMap,
+      groupMarksMap: marksMap,
+      groupCreditsMap: creditsMap
     };
   }, [rawRows, headerMap]);
 
@@ -255,12 +332,12 @@ export default function CourseMasterImportPage() {
       const next = { ...prev };
       detectedGroups.forEach(g => {
         if (!next[g]) {
-          next[g] = createDefaultConfigForGroup(g);
+          next[g] = createDefaultConfigForGroup(g, groupMarksMap[g] || 100, groupCreditsMap[g] || 4);
         }
       });
       return next;
     });
-  }, [detectedGroups]);
+  }, [detectedGroups, groupMarksMap, groupCreditsMap]);
 
   // 1. MASTER COURSE FILE TRANSFORMATION PIPELINE (37 COLUMNS)
   const generateProcessedRows = (forSubject = null, forGroup = null) => {
@@ -282,18 +359,73 @@ export default function CourseMasterImportPage() {
 
       if (!subject) return;
 
-      const eseMaxTh = getNumber(row, 'ESE Max - TH', 'esemaxth', 'eseth', 'esemax_th');
-      const ccaMaxTh = getNumber(row, 'CCA Max - TH', 'ccamaxth', 'ccath', 'ccamax_th', 'cemaxth');
-      const eseMaxPr = getNumber(row, 'ESE Max - PR', 'esemaxpr', 'esepr', 'esemax_pr');
-      const ccaMaxPr = getNumber(row, 'CCA Max - PR', 'ccamaxpr', 'ccapr', 'ccamax_pr', 'cemaxpr');
+      let eseMaxTh = getNumber(row, 'ESE Max - TH', 'esemaxth', 'eseth', 'esemax_th', 'esetheory', 'theoryesemax', 'esemax');
+      let ccaMaxTh = getNumber(row, 'CCA Max - TH', 'ccamaxth', 'ccath', 'ccamax_th', 'cemaxth', 'ccatheory', 'ceth', 'ccamax', 'cemax');
+      let eseMaxPr = getNumber(row, 'ESE Max - PR', 'esemaxpr', 'esepr', 'esemax_pr', 'esepractical', 'practicalesemax');
+      let ccaMaxPr = getNumber(row, 'CCA Max - PR', 'ccamaxpr', 'ccapr', 'ccamax_pr', 'cemaxpr', 'ccapractical', 'cepr');
 
-      const eseMinTh = getNumber(row, 'ESE Min - TH', 'eseminth', 'esethmin', 'esemin_th');
-      const ccaMinTh = getNumber(row, 'CCA Min - TH', 'ccaminth', 'ccathmin', 'ccamin_th', 'ceminth', 'cethmin');
-      const eseMinPr = getNumber(row, 'ESE Min - PR', 'eseminpr', 'eseprmin', 'esemin_pr');
-      const ccaMinPr = getNumber(row, 'CCA Min - PR', 'ccaminpr', 'ccaprmin', 'ccamin_pr', 'ceminpr', 'ceprmin');
+      let eseMinTh = getNumber(row, 'ESE Min - TH', 'eseminth', 'esethmin', 'esemin_th', 'esetheorymin', 'esemin');
+      let ccaMinTh = getNumber(row, 'CCA Min - TH', 'ccaminth', 'ccathmin', 'ccamin_th', 'ceminth', 'cethmin', 'ccatheorymin', 'ccamin', 'cemin');
+      let eseMinPr = getNumber(row, 'ESE Min - PR', 'eseminpr', 'eseprmin', 'esemin_pr', 'esepracticalmin');
+      let ccaMinPr = getNumber(row, 'CCA Min - PR', 'ccaminpr', 'ccaprmin', 'ccamin_pr', 'ceminpr', 'ceprmin', 'ccapracticalmin');
 
-      const hasThAssessments = eseMaxTh > 0 || ccaMaxTh > 0;
-      const hasPrAssessments = eseMaxPr > 0 || ccaMaxPr > 0;
+      const thCredits = getNumber(row, 'Theory Credits', 'theorycredits', 'thcredits', 'theory credit', 'theorycredit');
+      const prCredits = getNumber(row, 'Practical Credits', 'practicalcredits', 'prcredits', 'practical credit', 'practicalcredit');
+      const totalCredits = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
+
+      // Auto-correct any column-order shift from older misaligned template downloads
+      if (prCredits === 0 && thCredits > 0) {
+        if (eseMinTh === 0 && eseMaxPr > 0) eseMinTh = eseMaxPr;
+        if (ccaMinTh === 0 && ccaMaxPr > 0) ccaMinTh = ccaMaxPr;
+        eseMaxPr = 0;
+        ccaMaxPr = 0;
+        eseMinPr = 0;
+        ccaMinPr = 0;
+      } else if (thCredits === 0 && prCredits > 0) {
+        if (eseMaxPr === 0 && eseMinTh > 0) eseMaxPr = eseMinTh;
+        if (ccaMaxPr === 0 && ccaMinTh > 0) ccaMaxPr = ccaMinTh;
+        eseMaxTh = 0;
+        ccaMaxTh = 0;
+        eseMinTh = 0;
+        ccaMinTh = 0;
+      }
+
+      // Determine strictly whether TH or PR components exist
+      let hasThAssessments = false;
+      let hasPrAssessments = false;
+
+      if (thCredits > 0 && prCredits === 0) {
+        hasThAssessments = true;
+        hasPrAssessments = false;
+      } else if (prCredits > 0 && thCredits === 0) {
+        hasThAssessments = false;
+        hasPrAssessments = true;
+      } else if (thCredits > 0 && prCredits > 0) {
+        hasThAssessments = true;
+        hasPrAssessments = true;
+      } else {
+        const hasThMarks = eseMaxTh > 0 || ccaMaxTh > 0 || eseMinTh > 0 || ccaMinTh > 0;
+        const hasPrMarks = eseMaxPr > 0 || ccaMaxPr > 0 || eseMinPr > 0 || ccaMinPr > 0;
+        if (hasThMarks && !hasPrMarks) {
+          hasThAssessments = true;
+          hasPrAssessments = false;
+        } else if (hasPrMarks && !hasThMarks) {
+          hasThAssessments = false;
+          hasPrAssessments = true;
+        } else if (hasThMarks && hasPrMarks) {
+          hasThAssessments = true;
+          hasPrAssessments = true;
+        } else {
+          const cName = getCell(row, 'Course Name', 'coursename', 'title').toLowerCase();
+          if (cName.includes('(practical)') || cName.includes('practical')) {
+            hasPrAssessments = true;
+            hasThAssessments = false;
+          } else {
+            hasThAssessments = true;
+            hasPrAssessments = false;
+          }
+        }
+      }
 
       let combinations = [];
       if (hasThAssessments) {
@@ -303,7 +435,7 @@ export default function CourseMasterImportPage() {
         combinations.push(['ESE', 'PR'], ['CE', 'PR']);
       }
       if (combinations.length === 0) {
-        combinations.push(['', '']);
+        combinations.push(['ESE', 'TH'], ['CE', 'TH']);
       }
 
       const cfg = groupConfigs[groupKey] || createDefaultConfigForGroup(groupKey);
@@ -315,9 +447,21 @@ export default function CourseMasterImportPage() {
       }
 
       combinations.forEach(([amMethod, atType]) => {
-        const totalCredits = getNumber(row, 'Total Credits', 'totalcredits', 'credits', 'credit');
-        const totalMarks = getNumber(row, 'Total Marks', 'totalmarks', 'marks');
-        const minMarks = getNumber(row, 'Minimum Passing Marks', 'minimumpassingmarks', 'minpassingmarks', 'minmarks');
+        let totalMarks = getNumber(row, 'Total Marks', 'totalmarks', 'marks', 'coursemarks', 'coursemaxmarks', 'maxmarks');
+        let minMarks = getNumber(row, 'Minimum Passing Marks', 'minimumpassingmarks', 'minpassingmarks', 'minmarks', 'courseminmarks');
+
+        if (totalMarks === 0) {
+          const sumAssessments = eseMaxTh + eseMaxPr + ccaMaxTh + ccaMaxPr;
+          totalMarks = sumAssessments > 0 ? sumAssessments : (totalCredits > 0 ? totalCredits * 25 : 0);
+        }
+        if (minMarks === 0 && totalMarks > 0) {
+          const sumMinAssessments = eseMinTh + eseMinPr + ccaMinTh + ccaMinPr;
+          minMarks = sumMinAssessments > 0 ? sumMinAssessments : Math.round(totalMarks * 0.4);
+        }
+
+        const amCreditsFromSheet = getNumber(row, 'AM Credits', 'amcredits', 'amcredit', 'am credit');
+        const atCredits = atType === 'TH' ? (thCredits || totalCredits) : (prCredits || totalCredits);
+        const amCreditsVal = amCreditsFromSheet > 0 ? amCreditsFromSheet : atCredits;
 
         for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
           const newRow = {};
@@ -334,8 +478,9 @@ export default function CourseMasterImportPage() {
 
           newRow['GroupMaxCoursesforAdmission'] = Number(cfg.maxCourses) || 1;
           newRow['GroupMinCoursesforAdmission'] = Number(cfg.minCourses) || 1;
-          newRow['GroupMaxCreditsforAdmission'] = cfg.maxCredits > 0 ? Number(cfg.maxCredits) : 0;
-          newRow['GroupMaxMarks'] = cfg.maxMarks > 0 ? Number(cfg.maxMarks) : totalCredits;
+          newRow['GroupMaxCreditsforAdmission'] = cfg.maxCredits > 0 ? Number(cfg.maxCredits) : (totalCredits || 0);
+          newRow['GroupMaxMarks'] = totalMarks; // GroupMaxMarks is same as CourseMaxMarks
+          newRow['GroupMinMarks'] = 0;
           newRow['GroupMinCreditsforAdmission'] = 0;
           newRow['GroupMaxCredits'] = newRow['GroupMaxCreditsforAdmission'];
           newRow['GroupMinCredits'] = 0;
@@ -359,48 +504,28 @@ export default function CourseMasterImportPage() {
           newRow['AssessmentMethod'] = amMethod;
           newRow['AssessmentType'] = atType;
           newRow['AMEvaluationSystem'] = 'Marks System';
-          newRow['AMCredits'] = 0;
+          newRow['AMCredits'] = amCreditsVal;
           newRow['AMEvaluationTemplate'] = 'Eight Level';
           newRow['ATEvaluationSystem'] = 'Marks System';
+          newRow['ATCredits'] = atCredits;
           newRow['ATEvaluationTemplate'] = 'Eight Level';
-
-          if (atType === 'TH') {
-            newRow['ATCredits'] = getNumber(row, 'Theory Credits', 'theorycredits', 'thcredits');
-          } else if (atType === 'PR') {
-            newRow['ATCredits'] = getNumber(row, 'Practical Credits', 'practicalcredits', 'prcredits');
-          } else {
-            newRow['ATCredits'] = 0;
-          }
 
           let amMaxMarksVal = 0;
           let amMinMarksVal = 0;
+          let atMaxMarksVal = 0;
+
           if (amMethod === 'ESE') {
-            amMaxMarksVal = (eseMaxTh || 0) + (eseMaxPr || 0);
-            amMinMarksVal = (eseMinTh || 0) + (eseMinPr || 0);
-            if (atType === 'TH') {
-              newRow['ATMaxMarks'] = eseMaxTh;
-            } else if (atType === 'PR') {
-              newRow['ATMaxMarks'] = eseMaxPr;
-            } else {
-              newRow['ATMaxMarks'] = 0;
-            }
+            amMaxMarksVal = (hasThAssessments ? eseMaxTh : 0) + (hasPrAssessments ? eseMaxPr : 0);
+            amMinMarksVal = (hasThAssessments ? eseMinTh : 0) + (hasPrAssessments ? eseMinPr : 0);
+            atMaxMarksVal = atType === 'TH' ? eseMaxTh : eseMaxPr;
           } else if (amMethod === 'CE') {
-            amMaxMarksVal = (ccaMaxTh || 0) + (ccaMaxPr || 0);
-            amMinMarksVal = (ccaMinTh || 0) + (ccaMinPr || 0);
-            if (atType === 'TH') {
-              newRow['ATMaxMarks'] = ccaMaxTh;
-            } else if (atType === 'PR') {
-              newRow['ATMaxMarks'] = ccaMaxPr;
-            } else {
-              newRow['ATMaxMarks'] = 0;
-            }
-          } else {
-            newRow['ATMaxMarks'] = 0;
-            amMaxMarksVal = 0;
-            amMinMarksVal = 0;
+            amMaxMarksVal = (hasThAssessments ? ccaMaxTh : 0) + (hasPrAssessments ? ccaMaxPr : 0);
+            amMinMarksVal = (hasThAssessments ? ccaMinTh : 0) + (hasPrAssessments ? ccaMinPr : 0);
+            atMaxMarksVal = atType === 'TH' ? ccaMaxTh : ccaMaxPr;
           }
 
-          newRow['ATMinMarks'] = 0;
+          newRow['ATMaxMarks'] = atMaxMarksVal;
+          newRow['ATMinMarks'] = 0; // No pass condition for AT, pass condition is only at AM level
           newRow['AMMaxMarks'] = amMaxMarksVal;
           newRow['AMMinMarks'] = amMinMarksVal;
 
@@ -488,7 +613,7 @@ export default function CourseMasterImportPage() {
 
         // Repetition buckets (DSC - 2, DSC - 3, etc.)
         for (let i = 1; i < (copies + 1); i++) {
-          let bucketIPGs = [];
+          let bucketIPGs;
           if (i === 1) {
             // DSC - 2: Minor subjects (no dot / 1st repetition)
             bucketIPGs = groupIPGs.filter(ipg => 
@@ -539,10 +664,12 @@ export default function CourseMasterImportPage() {
       dupFlag = true;
       setUseDuplication(true);
       detectedGroups.forEach(g => {
+        const marks = groupMarksMap[g] || 100;
+        const creds = groupCreditsMap[g] || ((g.includes('DSC') || g.includes('MAJOR') || g.includes('CORE') || g.includes('DSE')) ? 4 : 3);
         if (g.includes('DSC') || g.includes('MAJOR') || g.includes('CORE') || g.includes('DSE')) {
-          nextConfigs[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+          nextConfigs[g] = { pattern: 'group_subject', copies: 2, suffixStr: ', .', maxCredits: creds, maxMarks: marks, maxCourses: 1, minCourses: 1 };
         } else {
-          nextConfigs[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
+          nextConfigs[g] = { pattern: 'group_only', copies: 1, suffixStr: '', maxCredits: creds, maxMarks: marks, maxCourses: 1, minCourses: 1 };
         }
       });
       setGroupConfigs(nextConfigs);
@@ -551,12 +678,15 @@ export default function CourseMasterImportPage() {
       dupFlag = true;
       setUseDuplication(true);
       detectedGroups.forEach(g => {
+        const marks = groupMarksMap[g] || 100;
+        const isMaj = g.includes('DSC') || g.includes('MAJOR');
+        const creds = groupCreditsMap[g] || (isMaj ? 4 : 3);
         nextConfigs[g] = {
-          pattern: (g.includes('DSC') || g.includes('MAJOR')) ? 'group_subject' : 'group_only',
+          pattern: isMaj ? 'group_subject' : 'group_only',
           copies: 2,
           suffixStr: ' 1,  2',
-          maxCredits: (g.includes('DSC') || g.includes('MAJOR')) ? 4 : 3,
-          maxMarks: (g.includes('DSC') || g.includes('MAJOR')) ? 100 : 75,
+          maxCredits: creds,
+          maxMarks: marks,
           maxCourses: 1,
           minCourses: 1
         };
@@ -567,10 +697,13 @@ export default function CourseMasterImportPage() {
       dupFlag = true;
       setUseDuplication(true);
       detectedGroups.forEach(g => {
-        if (g.includes('DSC') || g.includes('MAJOR')) {
-          nextConfigs[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: 4, maxMarks: 100, maxCourses: 1, minCourses: 1 };
+        const marks = groupMarksMap[g] || 100;
+        const isMaj = g.includes('DSC') || g.includes('MAJOR');
+        const creds = groupCreditsMap[g] || (isMaj ? 4 : 3);
+        if (isMaj) {
+          nextConfigs[g] = { pattern: 'group_subject', copies: 2, suffixStr: ' M1,  M2', maxCredits: creds, maxMarks: marks, maxCourses: 1, minCourses: 1 };
         } else {
-          nextConfigs[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: 3, maxMarks: 75, maxCourses: 1, minCourses: 1 };
+          nextConfigs[g] = { pattern: 'group_only', copies: 2, suffixStr: ' 1,  2', maxCredits: creds, maxMarks: marks, maxCourses: 1, minCourses: 1 };
         }
       });
       setGroupConfigs(nextConfigs);
@@ -579,12 +712,15 @@ export default function CourseMasterImportPage() {
       dupFlag = false;
       setUseDuplication(false);
       detectedGroups.forEach(g => {
+        const marks = groupMarksMap[g] || 100;
+        const isMaj = g.includes('DSC') || g.includes('MAJOR');
+        const creds = groupCreditsMap[g] || (isMaj ? 4 : 3);
         nextConfigs[g] = {
-          pattern: (g.includes('DSC') || g.includes('MAJOR')) ? 'group_subject' : 'group_only',
+          pattern: isMaj ? 'group_subject' : 'group_only',
           copies: 1,
           suffixStr: '',
-          maxCredits: (g.includes('DSC') || g.includes('MAJOR')) ? 4 : 3,
-          maxMarks: (g.includes('DSC') || g.includes('MAJOR')) ? 100 : 75,
+          maxCredits: creds,
+          maxMarks: marks,
           maxCourses: 1,
           minCourses: 1
         };
@@ -807,7 +943,33 @@ export default function CourseMasterImportPage() {
     if (!rawRows.length) return [];
     const result = [];
 
-    const addRow = (parent, sub, maxM = 100, minM = 0, maxC = 4, minC = 0, maxSub = 1, minSub = 1) => {
+    const getGroupMarks = (groupName) => {
+      const upper = String(groupName || '').toUpperCase().trim();
+      for (const [k, marks] of Object.entries(groupMarksMap)) {
+        if (upper === k || upper.startsWith(`${k} `) || upper.startsWith(`${k}-`) || upper.startsWith(`${k} -`)) {
+          return marks;
+        }
+      }
+      const cfg = groupConfigs[upper];
+      if (cfg && cfg.maxMarks > 0) return Number(cfg.maxMarks);
+      return 100;
+    };
+
+    const getGroupCredits = (groupName) => {
+      const upper = String(groupName || '').toUpperCase().trim();
+      for (const [k, creds] of Object.entries(groupCreditsMap)) {
+        if (upper === k || upper.startsWith(`${k} `) || upper.startsWith(`${k}-`) || upper.startsWith(`${k} -`)) {
+          return creds;
+        }
+      }
+      const cfg = groupConfigs[upper];
+      if (cfg && cfg.maxCredits > 0) return Number(cfg.maxCredits);
+      return 4;
+    };
+
+    const addRow = (parent, sub, maxM, minM = 0, maxC, minC = 0, maxSub = 1, minSub = 1) => {
+      const finalMaxM = (maxM !== undefined && maxM !== null) ? maxM : (getGroupMarks(sub) || getGroupMarks(parent) || 100);
+      const finalMaxC = (maxC !== undefined && maxC !== null) ? maxC : (getGroupCredits(sub) || getGroupCredits(parent) || 4);
       result.push({
         UniqueProgramTermCode: '',
         ParentGroupName: parent,
@@ -815,9 +977,9 @@ export default function CourseMasterImportPage() {
         ParentGroupMinSubGroups: minSub,
         ParentGroupMaxSubGroups: maxSub,
         ParentGroupEvaluationSystem: 'Marks System',
-        ParentGroupMaxMarks: maxM,
+        ParentGroupMaxMarks: finalMaxM,
         ParentGroupMinMarks: minM,
-        ParentGroupMaxCredits: maxC,
+        ParentGroupMaxCredits: finalMaxC,
         ParentGroupMinCredits: minC
       });
     };
@@ -825,11 +987,15 @@ export default function CourseMasterImportPage() {
     if (groupHierarchy.length > 0) {
       // Use user-curated groupHierarchy
       groupHierarchy.forEach(g => {
+        const grpMarks = getGroupMarks(g.groupName);
+        const grpCredits = getGroupCredits(g.groupName);
         if (!g.subGroups || g.subGroups.length === 0) {
-          addRow(g.groupName, g.groupName);
+          addRow(g.groupName, g.groupName, grpMarks, 0, grpCredits, 0);
         } else {
           g.subGroups.forEach(sg => {
-            addRow(g.groupName, sg.name);
+            const sgMarks = getGroupMarks(sg.name) || grpMarks;
+            const sgCredits = getGroupCredits(sg.name) || grpCredits;
+            addRow(g.groupName, sg.name, grpMarks, 0, grpCredits, 0);
             let itemsToRender = sg.subjects || [];
             if (forSubject) {
               if (sg.name.endsWith('- 1')) {
@@ -849,7 +1015,7 @@ export default function CourseMasterImportPage() {
               }
             }
             itemsToRender.forEach(item => {
-              addRow(sg.name, item);
+              addRow(sg.name, item, sgMarks, 0, sgCredits, 0);
             });
           });
         }
@@ -858,31 +1024,33 @@ export default function CourseMasterImportPage() {
       // Fallback: build standard default structure dynamically
       detectedGroups.forEach(gKey => {
         const cfg = groupConfigs[gKey] || createDefaultConfigForGroup(gKey);
+        const grpMarks = groupMarksMap[gKey] || (cfg.maxMarks > 0 ? Number(cfg.maxMarks) : 100);
+        const grpCredits = groupCreditsMap[gKey] || (cfg.maxCredits > 0 ? Number(cfg.maxCredits) : 4);
         const copies = useDuplication ? Math.max(1, Number(cfg.copies) || 1) : 1;
         const rawSuffixes = (cfg.suffixStr || '').split(',').map(s => s.trim());
         const subjsForThisGroup = groupToSubjectsMap[gKey] || uniqueSubjects;
         const activeSubj = forSubject || (selectedSubjectFilter !== 'ALL' ? selectedSubjectFilter : subjsForThisGroup[0]);
 
         if (copies === 1 && cfg.pattern === 'group_only') {
-          addRow(gKey, gKey, cfg.maxMarks, 0, cfg.maxCredits, 0);
+          addRow(gKey, gKey, grpMarks, 0, grpCredits, 0);
         } else {
           for (let copyIdx = 0; copyIdx < copies; copyIdx++) {
             const bucketName = `${gKey} - ${copyIdx + 1}`;
             const sfx = rawSuffixes[copyIdx] || '';
-            addRow(gKey, bucketName, cfg.maxMarks, 0, cfg.maxCredits, 0);
+            addRow(gKey, bucketName, grpMarks, 0, grpCredits, 0);
 
             if (cfg.pattern === 'group_subject') {
               if (copyIdx === 0) {
-                if (activeSubj) addRow(bucketName, `${gKey} - ${activeSubj}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+                if (activeSubj) addRow(bucketName, `${gKey} - ${activeSubj}${sfx}`, grpMarks, 0, grpCredits, 0);
               } else {
                 subjsForThisGroup
                   .filter(s => s.toLowerCase() !== (activeSubj || '').toLowerCase())
                   .forEach(s => {
-                    addRow(bucketName, `${gKey} - ${s}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+                    addRow(bucketName, `${gKey} - ${s}${sfx}`, grpMarks, 0, grpCredits, 0);
                   });
               }
             } else {
-              addRow(bucketName, `${gKey}${sfx}`, cfg.maxMarks, 0, cfg.maxCredits, 0);
+              addRow(bucketName, `${gKey}${sfx}`, grpMarks, 0, grpCredits, 0);
             }
           }
         }
@@ -903,15 +1071,9 @@ export default function CourseMasterImportPage() {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const parsed = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+      const { parsed, headerMap: map } = parseSheetWithSmartHeaders(firstSheet);
 
       if (!parsed.length) throw new Error('No data found in uploaded sheet.');
-
-      const headers = Object.keys(parsed[0]);
-      const map = {};
-      headers.forEach(h => {
-        map[normalizeKey(h)] = h;
-      });
 
       setHeaderMap(map);
       setRawRows(parsed);
@@ -941,6 +1103,177 @@ export default function CourseMasterImportPage() {
       setStatus(`Upload failed: ${err.message}`, 'error');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Download standardized Syllabus / Course Master Input Template with pre-filled examples & instructions
+  const handleDownloadTemplate = () => {
+    try {
+      const templateHeaders = [
+        'Semester',
+        'Faculty',
+        'Subject',
+        'Group Name',
+        'Course Code',
+        'Course Name',
+        'Total Credits',
+        'Theory Credits',
+        'Practical Credits',
+        'ESE Max - TH',
+        'ESE Max - PR',
+        'ESE Min - TH',
+        'ESE Min - PR',
+        'CCA Max - TH',
+        'CCA Max - PR',
+        'CCA Min - TH',
+        'CCA Min - PR',
+        'Total Marks',
+        'Minimum Passing Marks'
+      ];
+
+      const sampleData = [
+        [
+          'Semester V',
+          'Faculty of Social Sciences',
+          'Anthropological Sciences',
+          'DSC',
+          'KU05DSCANT301',
+          'Anthropological Theories (Theory Only Course)',
+          4,
+          4,
+          0,
+          50,
+          0,
+          20,
+          0,
+          50,
+          0,
+          20,
+          0,
+          100,
+          40
+        ],
+        [
+          'Semester V',
+          'Faculty of Social Sciences',
+          'Anthropological Sciences',
+          'SEC',
+          'KU05SECANT302',
+          'Report Writing using Office tools (Practical Only Course)',
+          3,
+          0,
+          3,
+          0,
+          50,
+          0,
+          20,
+          0,
+          50,
+          0,
+          20,
+          100,
+          40
+        ],
+        [
+          'Semester V',
+          'Faculty of Science',
+          'Chemistry',
+          'DSC',
+          'KU05DSCCHE301',
+          'Inorganic and Physical Chemistry (Theory + Practical Integrated)',
+          4,
+          3,
+          1,
+          50,
+          15,
+          20,
+          0,
+          25,
+          10,
+          10,
+          0,
+          100,
+          40
+        ],
+        [
+          'Semester V',
+          'Faculty of Language and Literature',
+          'English',
+          'VAC',
+          'KU05VACENG301',
+          'Reading Literature in English (Elective / 3 Credits)',
+          3,
+          3,
+          0,
+          50,
+          0,
+          15,
+          0,
+          25,
+          0,
+          0,
+          0,
+          75,
+          27
+        ]
+      ];
+
+      const instructions = [
+        ['Field Name', 'Required?', 'Sample Value', 'Purpose & Instructions'],
+        ['Semester', 'Yes', 'Semester V', 'Semester or term identifier (e.g. Semester V, Semester 5).'],
+        ['Faculty', 'Yes', 'Faculty of Social Sciences', 'Faculty or department offering the syllabus.'],
+        ['Subject', 'Yes', 'Anthropological Sciences', 'The subject name. Courses are grouped by subject for individual exports.'],
+        ['Group Name', 'Yes', 'DSC', 'Group code: DSC (Major/Core), DSE (Elective), SEC (Skill), VAC (Value Added), MDC (Multidisciplinary), AEC (Ability).'],
+        ['Course Code', 'Yes', 'KU05DSCANT301', 'Official unique University course code.'],
+        ['Course Name', 'Yes', 'Anthropological Theories', 'Full title of the paper or course.'],
+        ['Total Credits', 'Yes', 4, 'Total credits for this course (usually 2, 3, or 4). Sum of Theory and Practical credits.'],
+        ['Theory Credits', 'Optional', 4, 'Credits assigned for Theory lecture hours (leave 0 or blank if practical only).'],
+        ['Practical Credits', 'Optional', 0, 'Credits assigned for Practical laboratory hours (leave 0 or blank if theory only).'],
+        ['ESE Max - TH', 'Optional', 50, 'End Semester Exam maximum marks for Theory component.'],
+        ['ESE Max - PR', 'Optional', 0, 'End Semester Exam maximum marks for Practical component (leave 0 or blank if theory only).'],
+        ['ESE Min - TH', 'Optional', 20, 'Minimum marks required to pass ESE Theory (usually 40% of ESE Max).'],
+        ['ESE Min - PR', 'Optional', 0, 'Minimum marks required to pass ESE Practical (leave 0 or blank if theory only).'],
+        ['CCA Max - TH', 'Optional', 50, 'Continuous Assessment / Internal maximum marks for Theory component.'],
+        ['CCA Max - PR', 'Optional', 0, 'Continuous Assessment / Internal maximum marks for Practical component (leave 0 or blank if theory only).'],
+        ['CCA Min - TH', 'Optional', 20, 'Minimum passing marks for CCA Theory (if applicable, else 0).'],
+        ['CCA Min - PR', 'Optional', 0, 'Minimum passing marks for CCA Practical (if applicable, else 0).'],
+        ['Total Marks', 'Yes', 100, 'Overall maximum marks for this course (sum of all ESE + CCA components, e.g. 100 or 75).'],
+        ['Minimum Passing Marks', 'Yes', 40, 'Minimum total marks required to pass the course (usually 40% of Total Marks).']
+      ];
+
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Main Template (pre-filled with sample courses that user can edit or replace)
+      const wsTemplate = XLSX.utils.aoa_to_sheet([templateHeaders, ...sampleData]);
+      wsTemplate['!cols'] = templateHeaders.map(h => ({ wch: Math.max(h.length + 3, 14) }));
+      wsTemplate['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: sampleData.length, c: templateHeaders.length - 1 } }) };
+      XLSX.utils.book_append_sheet(wb, wsTemplate, 'Course Template');
+
+      // Sheet 2: Field Instructions & Guide
+      const wsGuide = XLSX.utils.aoa_to_sheet(instructions);
+      wsGuide['!cols'] = [
+        { wch: 24 },
+        { wch: 12 },
+        { wch: 28 },
+        { wch: 75 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsGuide, 'Field Guide & Instructions');
+
+      const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Course_Master_Input_Template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setStatus('Downloaded Course Master Input Template (.xlsx)!', 'success');
+    } catch (err) {
+      console.error('Template Download Error:', err);
+      alert('Failed to generate template: ' + err.message);
     }
   };
 
@@ -1127,7 +1460,7 @@ export default function CourseMasterImportPage() {
   };
 
   const previewRows = useMemo(() => {
-    let generated = [];
+    let generated;
     if (activeView === 'group_master') {
       const targetSubj = selectedSubjectFilter === 'ALL' ? null : selectedSubjectFilter;
       generated = generateGroupMasterRows(targetSubj);
@@ -1377,9 +1710,43 @@ export default function CourseMasterImportPage() {
             />
             <label htmlFor="courseMasterFileInput" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={26} color="var(--accent)" />
-              <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>Upload Course Master Sheet</strong>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Extracts Group Names and lets you manage groups & buckets</span>
+              <strong style={{ fontSize: '13px', color: 'var(--ink)' }}>
+                {sourceFile ? sourceFile.name : 'Upload Course Master Sheet'}
+              </strong>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                {sourceFile ? `Loaded (${rawRows.length} courses)` : 'Extracts Group Names and lets you manage groups & buckets'}
+              </span>
             </label>
+
+            {/* DOWNLOAD INPUT TEMPLATE ACTION */}
+            <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed rgba(23,107,135,0.35)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <button 
+                type="button"
+                onClick={handleDownloadTemplate}
+                className="secondary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '7px 12px',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  background: 'var(--panel)',
+                  border: '1px solid var(--accent)',
+                  color: 'var(--accent)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}
+                title="Download standard Excel template with pre-filled sample courses and field guide"
+              >
+                <Download size={13} /> Download Input Template (.xlsx)
+              </button>
+              <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                Includes sample rows (Theory, Practical, Integrated) + Field Guide
+              </span>
+            </div>
           </div>
 
           {/* MASTER DUPLICATION MODE SWITCH CARD */}
@@ -2079,6 +2446,27 @@ export default function CourseMasterImportPage() {
                   </button>
                 )}
 
+                {/* Toggle Inline Column Filters Button */}
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setShowColumnFilterRow(prev => !prev)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 8px',
+                    fontSize: '11.5px',
+                    borderRadius: '4px',
+                    background: showColumnFilterRow ? 'var(--accent-soft)' : 'var(--bg)',
+                    color: showColumnFilterRow ? 'var(--accent)' : 'var(--ink)',
+                    border: showColumnFilterRow ? '1.5px solid var(--accent)' : '1px solid var(--line)'
+                  }}
+                  title={showColumnFilterRow ? "Hide 37-column search row" : "Show 37-column search row"}
+                >
+                  <ListFilter size={13} /> Filters {Object.keys(columnFilters).length > 0 ? `(${Object.keys(columnFilters).length})` : ''}
+                </button>
+
                 {/* Direct Download Filtered Subset Button */}
                 {previewRows.length > 0 && (
                   <button 
@@ -2234,10 +2622,29 @@ export default function CourseMasterImportPage() {
           {/* Master Table Container */}
           <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
             {rawRows.length === 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', gap: '8px' }}>
-                <FileSpreadsheet size={40} style={{ opacity: 0.3 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', gap: '10px' }}>
+                <FileSpreadsheet size={44} style={{ opacity: 0.3 }} />
                 <strong style={{ fontSize: '14px', color: 'var(--ink)' }}>No File Uploaded</strong>
-                <span style={{ fontSize: '12px' }}>Upload your raw syllabus / course master spreadsheet on the left to extract data and transform both masters.</span>
+                <span style={{ fontSize: '12px', maxWidth: '440px', textAlign: 'center', lineHeight: 1.4 }}>
+                  Upload your raw syllabus / course master spreadsheet on the left, or download our ready-to-fill standard template.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  className="secondary"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    marginTop: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Download size={14} /> Download Course Master Input Template (.xlsx)
+                </button>
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px', whiteSpace: 'nowrap' }}>

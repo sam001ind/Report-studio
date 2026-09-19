@@ -945,7 +945,9 @@ export default function AdesSupplementaryCalculatorPage() {
     if (/^[0-9]+(\.[0-9]+)?e\+[0-9]+$/i.test(s)) {
       try {
         s = BigInt(Math.round(Number(s))).toString();
-      } catch (e) {}
+      } catch (_e) {
+        // Ignore exponential BigInt conversion error
+      }
     }
     return s.replace(/\.0+$/, "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   };
@@ -995,6 +997,7 @@ export default function AdesSupplementaryCalculatorPage() {
     const fuzzyReappearKey = hKeys.find(k => k.includes("reappear") || k.includes("backlog") || k.includes("fail") || k.includes("arrear") || k.includes("supplementary") || k.includes("duepaper"));
     const fuzzyStatusKey = hKeys.find(k => k.includes("resultstatus") || k === "result" || k.includes("status") || k.includes("remark"));
     const fuzzyTermKey = hKeys.find(k => k.includes("term") || k.includes("semester") || k.includes("sem"));
+    const fuzzyProgKey = hKeys.find(k => k.includes("program") || k.includes("degree") || k.includes("branch") || k.includes("course"));
     const fuzzyOrdKey = hKeys.find(k => 
       k.includes("ordtotal") || 
       k.includes("ordinancetotal") || 
@@ -5302,7 +5305,7 @@ export default function AdesSupplementaryCalculatorPage() {
     setWorkbook(null);
     setSheetNames([]);
     setSelectedSheet("");
-    setSheetMeta({});
+    setSheetMetadata({});
     setHeaderMap({});
     setRawRows([]);
     setPage(0);
@@ -6596,6 +6599,7 @@ export default function AdesSupplementaryCalculatorPage() {
       const rawOverallPct = c.totalStudents > 0 ? ((c.rawOverallPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const rawPct = c.totalStudents > 0 ? ((c.rawPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const plus10Pct = c.totalStudents > 0 ? ((c.passCountAtMod[10] / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
+      const maxRescued = (c.passCountAtMod[10] || 0) - (c.rawPassCount || 0);
       const compType = (c.hasEseTh && c.hasEsePr)
         ? "Theory & Practical (TH + PR)"
         : (c.isPrOnly
@@ -7479,7 +7483,6 @@ export default function AdesSupplementaryCalculatorPage() {
           justifyContent: "space-between", 
           alignItems: "center", 
           padding: "10px 24px", 
-          padding: "10px 24px",
           borderBottom: "1px solid var(--line)", 
           background: "var(--panel)", 
           flexShrink: 0,

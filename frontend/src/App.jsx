@@ -24,6 +24,7 @@ const CourseMasterImportPage = lazy(() => import('./pages/CourseMasterImportPage
 const AffiliatedProgrammePage = lazy(() => import('./pages/AffiliatedProgrammePage'));
 const AdesResultCalculatorPage = lazy(() => import('./pages/AdesResultCalculatorPage'));
 const AdesSupplementaryCalculatorPage = lazy(() => import('./pages/AdesSupplementaryCalculatorPage'));
+const PaymentReconciliationPage = lazy(() => import('./pages/PaymentReconciliationPage'));
 const UrlRedirectHandler = lazy(() => import('./pages/UrlRedirectHandler'));
 const AuthPage = lazy(() => import('./pages/AuthPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -224,6 +225,26 @@ function App() {
               <Route path="/supplementary-calculator" element={
                 <ProtectedRoute requiredPermission="can_access_studio">
                   <AdesSupplementaryCalculatorPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/payment-reconciler" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <PaymentReconciliationPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/payment-reconciliation" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <PaymentReconciliationPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/fee-reconciliation" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <PaymentReconciliationPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/ups-reconciler" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <PaymentReconciliationPage />
                 </ProtectedRoute>
               } />
               <Route path="/s/:code" element={<UrlRedirectHandler />} />

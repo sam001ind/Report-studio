@@ -356,5 +356,28 @@ export const TOOL_GUIDES = {
         content: 'Generates chronological master timetable matrices and center-wise distribution spreadsheets.'
       }
     ]
+  },
+  'payment-reconciler': {
+    title: 'Payment Reconciliation Engine - Logic & Guide',
+    icon: 'CreditCard',
+    description: 'Cross-reference university payment records (UPS) against payment gateways (ATOM / SBI ePay) to identify dropped callbacks and update failed transactions.',
+    sections: [
+      {
+        heading: '1. Supported Data Sources & Auto-Detection',
+        content: 'Accepts University Payment System (UPS) status exports alongside MIS/settlement reports from either ATOM Technologies or SBI ePay. The engine automatically inspects sheet headers to detect whether the uploaded gateway report is ATOM or SBI ePay.'
+      },
+      {
+        heading: '2. Transaction Key Matching Logic',
+        content: 'Cross-references the unique merchant transaction reference number: UPS "CLIENTAPPTRANSCATIONREFERENCENUMBER" is mapped directly against ATOM "Merchant Txn ID" or SBI ePay "MERCHANT ORDER NO". Supports secondary fallback to Bank/Gateway reference IDs.'
+      },
+      {
+        heading: '3. Status Categorization & Action Needed',
+        content: 'Categorizes each transaction into: 1) Action Needed (Money debited / Gateway SUCCESS, but UPS shows Failed/Initiated due to network drop); 2) Reconciled (Both Success, where UPS is "reconciled" or "Completed" and Gateway is "SUCCESS"); 3) Both Failed; 4) Discrepancy (UPS Success but Gateway Failed); 5) Missing in Gateway or UPS.'
+      },
+      {
+        heading: '4. UPS Sync Export & Administrative Actions',
+        content: 'Generates a ready-to-import "UPS Sync Update" Excel list with Student PRN, Transaction ID, Gateway Ref, and Amount to update the university portal. Provides 1-click clipboard copy of PRNs for batch verification and SQL IN (...) statements for database queries.'
+      }
+    ]
   }
 };

@@ -215,7 +215,7 @@ export default function ImageToolsPage() {
         ? Math.max(0, 255 - Math.min(r, g, b)) + Math.abs(r - g) * 0.5 + Math.abs(g - b) * 0.5
         : Math.hypot(r - sample[0], g - sample[1], b - sample[2]);
 
-      let alpha = 0;
+      let alpha;
       if (bgSoftness <= 0) {
         alpha = dist > bgThreshold ? 255 : 0;
       } else {

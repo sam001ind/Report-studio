@@ -1,31 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { parseCollegeRaw, buildCollegeCanonicalRegistry, cleanCourseCode } from './AdesResultCalculatorPage';
+import { buildCollegeCanonicalRegistry, cleanCourseCode } from './AdesResultCalculatorPage';
 import { 
   ArrowLeft, 
-  Upload, 
   Download, 
   FileSpreadsheet, 
   CheckCircle2, 
-  AlertTriangle, 
   Search, 
-  Filter, 
-  RefreshCw,
-  Table,
-  Sparkles,
-  HelpCircle,
-  Layers,
-  GraduationCap,
-  Building2,
-  BookOpen,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
-  X,
-  ListFilter,
-  Layers2,
-  FileCheck2
+  Sparkles, 
+  HelpCircle, 
+  Building2, 
+  ArrowUp, 
+  ArrowDown, 
+  ArrowUpDown, 
+  X, 
+  ListFilter, 
+  Layers2 
 } from 'lucide-react';
 
 // Format 1: 7-Column Deduplicated Report
@@ -65,10 +56,8 @@ export default function AffiliatedProgrammePage() {
   const [duplicatesCount, setDuplicatesCount] = useState(0);
   const [activeTab, setActiveTab] = useState('deduplicated'); // 'deduplicated' (7 cols) or 'all_rows' (9 cols)
 
-  const [headerMap, setHeaderMap] = useState({});
   const [statusMsg, setStatusMsg] = useState('Ready');
   const [statusType, setStatusType] = useState('info');
-  const [isProcessing, setIsProcessing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCollegeFilter, setSelectedCollegeFilter] = useState('ALL');
   const [selectedProgramFilter, setSelectedProgramFilter] = useState('ALL');
@@ -97,11 +86,76 @@ export default function AffiliatedProgrammePage() {
     return '';
   };
 
+  // Robust Course Details splitter: handles commas, newlines, semicolons, and pipes
+  const extractCourseItems = (rawCourseDetails) => {
+    if (!rawCourseDetails) return [];
+    let s = String(rawCourseDetails).trim();
+    if (!s) return [];
+
+    // Normalize all line endings
+    s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Any newline that is NOT immediately followed by optional whitespace and an opening bracket/paren is a wrapped line in the course title!
+    // Join it with a space so titles like 'Fundamentals of \nChemistry - II' stay intact:
+    s = s.replace(/\n(?!\s*[\(\[\{])/g, ' ');
+
+    // Split by commas, semicolons, pipes, or newlines that precede an opening bracket
+    let items = s.split(/[,;\n|]+\s*(?=[\(\[\{])/).map(x => x.replace(/^[,;\s]+|[,;\s]+$/g, '').trim()).filter(Boolean);
+
+    // Fallback: if single item or multiple bracket codes in one chunk
+    if (items.length <= 1) {
+      const multiMatch = s.split(/(?<=[^\s])\s+(?=[\(\[][A-Z0-9_-]+[\)\]])/i).map(x => x.replace(/^[,;\s]+|[,;\s]+$/g, '').trim()).filter(Boolean);
+      if (multiMatch.length > 1) items = multiMatch;
+    }
+
+    return items.length > 0 ? items : [s];
+  };
+
+  // Robust Course Code & Course Name extractor
+  const parseCourseCodeAndName = (courseStr) => {
+    let s = String(courseStr || '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    s = s.replace(/^[,;\s]+|[,;\s]+$/g, '').trim();
+    if (!s) return { courseCode: '', courseName: '' };
+
+    // Format 1: (CODE) Course Name OR [CODE] Course Name OR {CODE} Course Name
+    const parenMatch = s.match(/^[\(\[\{]([^\)\]\}]+)[\)\]\}]\s*[-–—:]?\s*(.*)$/);
+    if (parenMatch) {
+      return {
+        courseCode: cleanCourseCode(parenMatch[1] || ''),
+        courseName: (parenMatch[2] || parenMatch[1] || '').trim()
+      };
+    }
+
+    // Format 2: CODE - Course Name OR CODE : Course Name
+    const dashMatch = s.match(/^([A-Z0-9_-]{4,25})\s*[-–—:]\s*(.*)$/i);
+    if (dashMatch) {
+      return {
+        courseCode: cleanCourseCode(dashMatch[1] || ''),
+        courseName: (dashMatch[2] || '').trim()
+      };
+    }
+
+    // Format 3: CODE Course Name (e.g. KU02DSCCHE102 Fundamentals of Chemistry - II)
+    const spaceMatch = s.match(/^([A-Z]{2,4}\d{1,2}[A-Z]{2,6}\d{2,4})\s+(.*)$/i);
+    if (spaceMatch) {
+      return {
+        courseCode: cleanCourseCode(spaceMatch[1] || ''),
+        courseName: (spaceMatch[2] || '').trim()
+      };
+    }
+
+    return {
+      courseCode: '',
+      courseName: s
+    };
+  };
+
   // Process raw rows into both (1) All Rows Exploded (9 cols) and (2) Deduplicated Unique (7 cols)
   const processDataFromRows = (rows, currentHeaderMap) => {
     const allExploded = [];
     const dedupeList = [];
     const seen = new Set();
+    let dupCount = 0;
     const rawCollegeItems = [];
     rows.forEach(row => {
       const rawC = getCell(row, currentHeaderMap, 'ADEC Code', 'ADECCode', 'ADEC_Code', 'ADEC', 'College Code', 'CollegeCode', 'College_Code', 'InstCode', 'CenterCode', 'Code');
@@ -121,19 +175,23 @@ export default function AffiliatedProgrammePage() {
       // Extract Year and Semester from 'Program Term'
       const yearMatch = programTerm.match(/(Year\s+[IVXLCDM\d]+)/i);
       const semesterMatch = programTerm.match(/(SEMESTER\s+[IVXLCDM\d]+)/i);
-      const programmeYear = yearMatch ? yearMatch[1] : '';
+      let programmeYear = yearMatch ? yearMatch[1] : '';
       const programTermName = semesterMatch ? semesterMatch[1] : '';
 
-      // Split and explode the 'Course Details' column by commas separating courses: r',\s*(?=\()'
-      let courseItems = [];
-      if (rawCourseDetails) {
-        courseItems = rawCourseDetails.split(/,\s*(?=\()/).map(s => s.trim()).filter(Boolean);
+      // Fallback: If Year is omitted in Program Term (e.g. "...-BA SEMESTER I"), infer Year from Semester
+      if (!programmeYear && programTermName) {
+        const semValMatch = programTermName.match(/(?:SEMESTER|SEM|S)\s*([IVXLCDM\d]+)/i);
+        if (semValMatch) {
+          const semVal = semValMatch[1].toUpperCase();
+          const semYearMap = { '1': 1, 'I': 1, '2': 1, 'II': 1, '3': 2, 'III': 2, '4': 2, 'IV': 2, '5': 3, 'V': 3, '6': 3, 'VI': 3, '7': 4, 'VII': 4, '8': 4, 'VIII': 4 };
+          const y = semYearMap[semVal];
+          if (y) programmeYear = `Year ${y}`;
+        }
       }
 
+      const courseItems = extractCourseItems(rawCourseDetails);
+
       if (courseItems.length === 0) {
-        const itemCourseDetails = rawCourseDetails || '';
-        
-        // Format 2: All Rows (9 columns)
         allExploded.push({
           'College Code': collegeCode,
           'College Name': collegeName,
@@ -141,13 +199,12 @@ export default function AffiliatedProgrammePage() {
           'Program Term': programTerm,
           'Programme Year': programmeYear,
           'Program Term Name': programTermName,
-          'Course Details': itemCourseDetails,
+          'Course Details': '',
           'Course Code': '',
-          'Course Name': itemCourseDetails
+          'Course Name': ''
         });
 
-        // Format 1: Deduplicated (7 columns)
-        const dedupeKey = `${collegeCode.trim().toLowerCase()}|${programCode.trim().toLowerCase()}|${programmeYear.trim().toLowerCase()}|${programTermName.trim().toLowerCase()}|${itemCourseDetails.trim().toLowerCase()}`;
+        const dedupeKey = `${collegeCode.trim().toLowerCase()}|${programCode.trim().toLowerCase()}|${programmeYear.trim().toLowerCase()}|${programTermName.trim().toLowerCase()}|`;
         if (dedupeKey.replace(/\|/g, '') && seen.has(dedupeKey)) {
           dupCount++;
         } else {
@@ -157,24 +214,14 @@ export default function AffiliatedProgrammePage() {
             'College Name': collegeName,
             'Programme Year': programmeYear,
             'Program Term Name': programTermName,
-            'Course Details': itemCourseDetails,
+            'Course Details': '',
             'Course Code': '',
-            'Course Name': itemCourseDetails
+            'Course Name': ''
           });
         }
       } else {
         courseItems.forEach((courseStr) => {
-          // Extract 'Course Code' and 'Course Name' from 'Course Details': r'^\((?P<Course_Code>[^)]+)\)\s*(?P<Course_Name>.*)$'
-          const coursePatternMatch = courseStr.match(/^\(([^)]+)\)\s*(.*)$/);
-          let courseCode = '';
-          let courseName = '';
-
-          if (coursePatternMatch) {
-            courseCode = cleanCourseCode(coursePatternMatch[1] || '');
-            courseName = (coursePatternMatch[2] || '').trim();
-          } else {
-            courseName = courseStr;
-          }
+          const { courseCode, courseName } = parseCourseCodeAndName(courseStr);
 
           // Format 2: All Rows (9 columns)
           allExploded.push({
@@ -291,6 +338,105 @@ export default function AffiliatedProgrammePage() {
     }
 
     return { rows, headerMap, headerRowIdx: bestRowIdx, score: maxScore, matchedHeaders: bestMatchedHeaders };
+  };
+
+  const handleDownloadTemplate = () => {
+    const templateRows = [
+      {
+        'ADEC Code': 'CC01',
+        'ADEC Name': 'Alpha Arts and Science College',
+        'Program Code': 'UGART',
+        'Program Term': 'Year 1 / SEMESTER 1',
+        'Course Details': '(XT01DSCART101) Principles of Literary Criticism, (XT01AECENG101) Academic English, (XT01VACENV101) Environmental Studies'
+      },
+      {
+        'ADEC Code': 'CC01',
+        'ADEC Name': 'Alpha Arts and Science College',
+        'Program Code': 'UGART',
+        'Program Term': 'Year 1 / SEMESTER 2',
+        'Course Details': '(XT02DSCART102) Cultural Studies and Society, (XT02MDCHIS101) World History'
+      },
+      {
+        'ADEC Code': 'CC02',
+        'ADEC Name': 'Beta Commerce Academy',
+        'Program Code': 'UGCOM',
+        'Program Term': 'Year 1 / SEMESTER 1',
+        'Course Details': '(XT01DSCCOM101) Financial Accounting Principles, (XT01DSCCOM102) Business Management, (XT01SEC01) Modern Office Tools'
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateRows);
+    ws['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 15 }, { wch: 22 }, { wch: 75 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Affiliated_Programs');
+    XLSX.writeFile(wb, 'Affiliated_Programs_Template.xlsx');
+  };
+
+  const handleLoadDemoData = () => {
+    const demoRows = [
+      {
+        'ADEC Code': 'CC01',
+        'ADEC Name': 'Alpha Arts and Science College',
+        'Program Code': 'UGART',
+        'Program Term': 'Year 1 / SEMESTER 1',
+        'Course Details': '(XT01DSCART101) Principles of Literary Criticism, (XT01AECENG101) Academic English, (XT01VACENV101) Environmental Studies'
+      },
+      {
+        'ADEC Code': 'CC01',
+        'ADEC Name': 'Alpha Arts and Science College',
+        'Program Code': 'UGART',
+        'Program Term': 'Year 1 / SEMESTER 1',
+        'Course Details': '(XT01DSCART101) Principles of Literary Criticism'
+      },
+      {
+        'ADEC Code': 'CC01',
+        'ADEC Name': 'Alpha Arts and Science College',
+        'Program Code': 'UGART',
+        'Program Term': 'Year 1 / SEMESTER 2',
+        'Course Details': '(XT02DSCART102) Cultural Studies and Society, (XT02MDCHIS101) World History'
+      },
+      {
+        'ADEC Code': 'CC02',
+        'ADEC Name': 'Beta Commerce Academy',
+        'Program Code': 'UGCOM',
+        'Program Term': 'Year 1 / SEMESTER 1',
+        'Course Details': '(XT01DSCCOM101) Financial Accounting Principles, (XT01DSCCOM102) Business Management, (XT01SEC01) Modern Office Tools'
+      },
+      {
+        'ADEC Code': 'CC03',
+        'ADEC Name': 'Gamma Science Institute',
+        'Program Code': 'UGMAT',
+        'Program Term': 'Year 2 / SEMESTER 3',
+        'Course Details': '(XT03DSCMAT201) Advanced Calculus & Geometry, (XT03DSCMAT202) Mathematical Analysis'
+      }
+    ];
+
+    const hMap = {
+      'adeccode': 'ADEC Code',
+      'adecname': 'ADEC Name',
+      'programcode': 'Program Code',
+      'programterm': 'Program Term',
+      'coursedetails': 'Course Details'
+    };
+
+    setSourceFile('Demo_Affiliated_Programs_Data.xlsx');
+    setHeaderMap(hMap);
+    setRawRows(demoRows);
+    setSheetNames(['Affiliated_Programs']);
+    setSelectedSheet('Affiliated_Programs');
+    setSheetMetadata({
+      'Affiliated_Programs': {
+        score: 10,
+        matchedHeaders: ['ADEC Code', 'ADEC Name', 'Program Code', 'Program Term', 'Course Details']
+      }
+    });
+
+    const { allExploded, dedupeList, dupCount } = processDataFromRows(demoRows, hMap);
+    setAllExplodedRows(allExploded);
+    setDeduplicatedRows(dedupeList);
+    setDuplicatesCount(dupCount);
+    setPage(0);
+    setStatus('Successfully loaded 5 demo records! Switch between Deduplicated (7 Col) and All Rows (9 Col) tabs to explore.', 'success');
   };
 
   const handleFileUpload = (e) => {
@@ -771,6 +917,54 @@ export default function AffiliatedProgrammePage() {
             <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
               Drop .xlsx / .xls file here (e.g. Affiliated_Programs_Sheet.xlsx)
             </div>
+          </div>
+
+          {/* Quick Actions: Load Demo & Download Template */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={handleLoadDemoData}
+              style={{
+                flex: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                padding: '7px 10px',
+                background: 'var(--accent-soft)',
+                border: '1px solid var(--accent)',
+                borderRadius: '6px',
+                color: 'var(--accent)',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+              title="Load realistic demo dataset to test all features immediately"
+            >
+              <Sparkles size={13} /> Load Demo
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              style={{
+                flex: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                padding: '7px 10px',
+                background: 'var(--bg)',
+                border: '1px solid var(--line)',
+                borderRadius: '6px',
+                color: 'var(--ink)',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+              title="Download standard Affiliated Programs Excel template"
+            >
+              <Download size={13} /> Template
+            </button>
           </div>
 
           {/* Sheet Selector (if multiple sheets exist) */}

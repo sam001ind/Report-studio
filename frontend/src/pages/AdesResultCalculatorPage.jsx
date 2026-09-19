@@ -4349,6 +4349,7 @@ export default function AdesResultCalculatorPage() {
       const rawOverallPct = c.totalStudents > 0 ? ((c.rawOverallPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const rawPct = c.totalStudents > 0 ? ((c.rawPassCount / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
       const plus10Pct = c.totalStudents > 0 ? ((c.passCountAtMod[10] / c.totalStudents) * 100).toFixed(2) + "%" : "0.00%";
+      const maxRescued = (c.passCountAtMod[10] || 0) - (c.rawPassCount || 0);
       const compType = (c.hasEseTh && c.hasEsePr)
         ? "Theory & Practical (TH + PR)"
         : (c.isPrOnly
@@ -5208,7 +5209,6 @@ export default function AdesResultCalculatorPage() {
           justifyContent: "space-between", 
           alignItems: "center", 
           padding: "10px 24px", 
-          padding: "10px 24px",
           borderBottom: "1px solid var(--line)", 
           background: "var(--panel)", 
           flexShrink: 0,

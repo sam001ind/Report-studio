@@ -15,6 +15,7 @@ import {
   BookOpen,
   Building2,
   Calculator,
+  CreditCard,
   HelpCircle,
   X,
   ArrowRight
@@ -386,6 +387,25 @@ const LandingPage = () => {
                 type="button" 
                 style={styles.guideBtn} 
                 onClick={(e) => { e.stopPropagation(); setActiveGuideKey('scheduler'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
+          {/* 17. Payment Reconciliation Engine */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid #059669', background: 'linear-gradient(135deg, rgba(5,150,105,0.06), transparent)'}} 
+            onClick={() => navigate('/payment-reconciler')}
+          >
+            <div style={styles.featureIcon}><CreditCard size={24} color="#059669" /></div>
+            <h3 style={styles.featureTitle}>Payment Reconciliation Engine</h3>
+            <p style={styles.featureText}>Cross-reference University Payment System (UPS) records against ATOM & SBI ePay gateways to audit fee debits and sync failed transactions.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('payment-reconciler'); }}
               >
                 <HelpCircle size={13} /> Extraction Logic & Guide
               </button>
