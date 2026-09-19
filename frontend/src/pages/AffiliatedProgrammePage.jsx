@@ -56,6 +56,8 @@ export default function AffiliatedProgrammePage() {
   const [duplicatesCount, setDuplicatesCount] = useState(0);
   const [activeTab, setActiveTab] = useState('deduplicated'); // 'deduplicated' (7 cols) or 'all_rows' (9 cols)
 
+  const [_headerMap, setHeaderMap] = useState({});
+  const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('Ready');
   const [statusType, setStatusType] = useState('info');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1047,7 +1049,7 @@ export default function AffiliatedProgrammePage() {
 
           {/* Status Message */}
           <div style={{ marginTop: 'auto', padding: '8px 12px', borderRadius: '6px', fontSize: '11.5px', background: statusType === 'error' ? 'var(--danger-soft)' : statusType === 'success' ? 'var(--accent-soft)' : 'var(--bg)', color: statusType === 'error' ? 'var(--danger)' : statusType === 'success' ? 'var(--accent)' : 'var(--muted)', border: '1px solid var(--line)' }}>
-            {statusMsg}
+            {isProcessing ? '⏳ Processing...' : statusMsg}
           </div>
 
         </aside>

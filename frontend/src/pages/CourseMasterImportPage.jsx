@@ -20,7 +20,10 @@ import {
   ListFilter,
   ArrowUp, 
   ArrowDown, 
-  ArrowUpDown
+  ArrowUpDown,
+  Sliders,
+  Trash,
+  Settings2
 } from 'lucide-react';
 
 const OUTPUT_HEADERS = [
@@ -255,8 +258,6 @@ export default function CourseMasterImportPage() {
   const clearAllColumnFilters = () => {
     setColumnFilters({});
     setSortConfig({ column: null, direction: null });
-    setSelectedFilterCol('');
-    setSelectedFilterVal('');
     setSelectedSubjectFilter('ALL');
     setSelectedGroupFilter('ALL');
     setSearchQuery('');
