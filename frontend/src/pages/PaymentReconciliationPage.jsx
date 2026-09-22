@@ -19,7 +19,8 @@ import {
   Sparkles,
   ArrowLeft,
   ShieldAlert,
-  ShieldCheck
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
 
 // Demo datasets for one-click testing (Fully fictional/hypothetical sample data)
@@ -267,6 +268,199 @@ const DEMO_GATEWAY_DATA = [
   }
 ];
 
+// Helper normalizers & pure utility functions
+const normalizeText = (text) => String(text || '').trim().toUpperCase();
+const normalizeRef = (val) => String(val || '').trim().replace(/[^a-zA-Z0-9]/g, '');
+
+const isSuccessStatus = (statusStr) => {
+  const s = normalizeText(statusStr);
+  return (
+    s === 'SUCCESS' ||
+    s === 'COMPLETED' ||
+    s === 'RECONCILED' ||
+    s.includes('RECONCILED') ||
+    s === 'OK' ||
+    s === 'PAID' ||
+    s === 'PAID OUT' ||
+    s === 'TRANSACTION PAID OUT' ||
+    s === 'SETTLED' ||
+    s === 'RS'
+  );
+};
+
+const isFailedStatus = (statusStr) => {
+  const s = normalizeText(statusStr);
+  return (
+    s === 'FAILED' ||
+    s === 'FAIL' ||
+    s === 'INITIATED' ||
+    s === 'PENDING' ||
+    s === 'CANCELLED' ||
+    s === 'DECLINED' ||
+    s === 'AUTO REVERSAL' ||
+    s === 'AUTO REFUND' ||
+    s === 'RNS' ||
+    s === 'ABORTED' ||
+    s === 'TIMEOUT' ||
+    s === 'AUTHORIZATION FAILED'
+  );
+};
+
+// Flexible Date Parser handling ISO, DD/MM/YYYY, DD-Mon-YYYY, and Excel serial numbers
+const parseFlexibleDate = (raw) => {
+  if (!raw) return null;
+  if (raw instanceof Date) {
+    return isNaN(raw.getTime()) ? null : raw;
+  }
+  if (typeof raw === 'number') {
+    if (raw > 20000 && raw < 80000) {
+      const utcDays = Math.floor(raw - 25569);
+      const utcValue = utcDays * 86400;
+      const dateInfo = new Date(utcValue * 1000);
+      const fractionalDay = raw - Math.floor(raw) + 0.0000001;
+      const totalSeconds = Math.floor(86400 * fractionalDay);
+      const seconds = totalSeconds % 60;
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const d = new Date(dateInfo.getFullYear(), dateInfo.getMonth(), dateInfo.getDate(), hours, minutes, seconds);
+      return isNaN(d.getTime()) ? null : d;
+    }
+  }
+
+  let s = String(raw).trim();
+  if (!s || s === '—' || s === 'NA' || s === 'null' || s === 'undefined') return null;
+
+  let isPM = false;
+  let hasAMPM = false;
+  if (/(\bAM\b|\bPM\b)/i.test(s)) {
+    hasAMPM = true;
+    isPM = /\bPM\b/i.test(s);
+    s = s.replace(/\s*(AM|PM)\s*/gi, ' ').trim();
+  }
+
+  // Pattern 1: DD-Mon-YYYY or DD Mon YYYY (e.g. 22-Apr-2099 11:15:30 or 22/Apr/2099)
+  const monMatch = s.match(/^(\d{1,2})[-\s/]([A-Za-z]{3,9})[-\s/](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (monMatch) {
+    const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+    const mStr = monMatch[2].toLowerCase().substring(0, 3);
+    const m = months[mStr];
+    if (m !== undefined) {
+      const day = parseInt(monMatch[1], 10);
+      let year = parseInt(monMatch[3], 10);
+      if (year < 100) year += 2000;
+      let hour = monMatch[4] ? parseInt(monMatch[4], 10) : 0;
+      const min = monMatch[5] ? parseInt(monMatch[5], 10) : 0;
+      const sec = monMatch[6] ? parseInt(monMatch[6], 10) : 0;
+      if (hasAMPM) {
+        if (isPM && hour < 12) hour += 12;
+        if (!isPM && hour === 12) hour = 0;
+      }
+      const d = new Date(year, m, day, hour, min, sec);
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+
+  // Pattern 2: YYYY-MM-DD or YYYY/MM/DD (ISO-style)
+  const isoMatch = s.match(/^(\d{4})[-\s/](\d{1,2})[-\s/](\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    let hour = isoMatch[4] ? parseInt(isoMatch[4], 10) : 0;
+    const min = isoMatch[5] ? parseInt(isoMatch[5], 10) : 0;
+    const sec = isoMatch[6] ? parseInt(isoMatch[6], 10) : 0;
+    if (hasAMPM) {
+      if (isPM && hour < 12) hour += 12;
+      if (!isPM && hour === 12) hour = 0;
+    }
+    const d = new Date(year, month, day, hour, min, sec);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Pattern 3: DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = s.match(/^(\d{1,2})[-\s/](\d{1,2})[-\s/](\d{4})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    const year = parseInt(dmyMatch[3], 10);
+    let hour = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+    const min = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+    const sec = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+    if (hasAMPM) {
+      if (isPM && hour < 12) hour += 12;
+      if (!isPM && hour === 12) hour = 0;
+    }
+    const d = new Date(year, month, day, hour, min, sec);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatDisplayDate = (d, includeTime = false) => {
+  if (!d || isNaN(d.getTime())) return '—';
+  const day = String(d.getDate()).padStart(2, '0');
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = monthNames[d.getMonth()];
+  const year = d.getFullYear();
+
+  if (includeTime) {
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${day} ${month} ${year}, ${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  }
+  return `${day} ${month} ${year}`;
+};
+
+const extractDateRange = (dateStrings = []) => {
+  let minDate = null;
+  let maxDate = null;
+  let validCount = 0;
+
+  dateStrings.forEach((val) => {
+    const d = parseFlexibleDate(val);
+    if (d) {
+      validCount++;
+      if (!minDate || d < minDate) minDate = d;
+      if (!maxDate || d > maxDate) maxDate = d;
+    }
+  });
+
+  if (!minDate || !maxDate) {
+    return {
+      hasDates: false,
+      startDate: null,
+      endDate: null,
+      startDateStr: '—',
+      endDateStr: '—',
+      startDateTimeStr: '—',
+      endDateTimeStr: '—',
+      daysSpan: 0,
+      validCount: 0
+    };
+  }
+
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const startDay = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()).getTime();
+  const endDay = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate()).getTime();
+  const daysSpan = Math.max(1, Math.round((endDay - startDay) / msPerDay) + 1);
+
+  return {
+    hasDates: true,
+    startDate: minDate,
+    endDate: maxDate,
+    startDateStr: formatDisplayDate(minDate, false),
+    endDateStr: formatDisplayDate(maxDate, false),
+    startDateTimeStr: formatDisplayDate(minDate, true),
+    endDateTimeStr: formatDisplayDate(maxDate, true),
+    daysSpan,
+    validCount
+  };
+};
+
 export default function PaymentReconciliationPage() {
   // File upload states
   const [upsFile, setUpsFile] = useState(null);
@@ -301,44 +495,6 @@ export default function PaymentReconciliationPage() {
 
   // Clipboard copy state
   const [copiedType, setCopiedType] = useState(null);
-
-  // Helper normalizers
-  const normalizeText = (text) => String(text || '').trim().toUpperCase();
-  const normalizeRef = (val) => String(val || '').trim().replace(/[^a-zA-Z0-9]/g, '');
-
-  const isSuccessStatus = (statusStr) => {
-    const s = normalizeText(statusStr);
-    return (
-      s === 'SUCCESS' ||
-      s === 'COMPLETED' ||
-      s === 'RECONCILED' ||
-      s.includes('RECONCILED') ||
-      s === 'OK' ||
-      s === 'PAID' ||
-      s === 'PAID OUT' ||
-      s === 'TRANSACTION PAID OUT' ||
-      s === 'SETTLED' ||
-      s === 'RS'
-    );
-  };
-
-  const isFailedStatus = (statusStr) => {
-    const s = normalizeText(statusStr);
-    return (
-      s === 'FAILED' ||
-      s === 'FAIL' ||
-      s === 'INITIATED' ||
-      s === 'PENDING' ||
-      s === 'CANCELLED' ||
-      s === 'DECLINED' ||
-      s === 'AUTO REVERSAL' ||
-      s === 'AUTO REFUND' ||
-      s === 'RNS' ||
-      s === 'ABORTED' ||
-      s === 'TIMEOUT' ||
-      s === 'AUTHORIZATION FAILED'
-    );
-  };
 
   // Inspect gateway headers to auto-detect gateway provider
   const detectGatewayFromRows = useCallback((rows) => {
@@ -550,6 +706,48 @@ export default function PaymentReconciliationPage() {
     }
   }, []);
 
+  // Extracted Date Ranges for Individual Uploaded Reports
+  const upsDateRange = useMemo(() => {
+    if (!upsRawRows || upsRawRows.length === 0) {
+      return {
+        hasDates: false,
+        startDate: null,
+        endDate: null,
+        startDateStr: '—',
+        endDateStr: '—',
+        startDateTimeStr: '—',
+        endDateTimeStr: '—',
+        daysSpan: 0,
+        validCount: 0
+      };
+    }
+    const dates = upsRawRows.map((r) =>
+      getVal(r, 'TRANSACTIONDATE', 'TransactionDate', 'Date', 'Created At', 'TRANSACTION_DATE', 'Txn Date', 'TxnDate', 'CLIENTSYNCDATE')
+    );
+    return extractDateRange(dates);
+  }, [upsRawRows]);
+
+  const gatewayDateRange = useMemo(() => {
+    if (!gatewayRawRows || gatewayRawRows.length === 0) {
+      return {
+        hasDates: false,
+        startDate: null,
+        endDate: null,
+        startDateStr: '—',
+        endDateStr: '—',
+        startDateTimeStr: '—',
+        endDateTimeStr: '—',
+        daysSpan: 0,
+        validCount: 0
+      };
+    }
+    const dates = gatewayRawRows.map((r) => {
+      const g = extractGatewayRecord(r, gatewayType);
+      return g.txnDate;
+    });
+    return extractDateRange(dates);
+  }, [gatewayRawRows, gatewayType, extractGatewayRecord]);
+
   // Reconciliation Pipeline
   const { reconciledRecords, kpiSummary, uniquePurposes } = useMemo(() => {
     if (!upsRawRows.length && !gatewayRawRows.length) {
@@ -564,7 +762,31 @@ export default function PaymentReconciliationPage() {
           bothFailedCount: 0,
           discrepancyCount: 0,
           missingInGatewayCount: 0,
-          missingInUpsCount: 0
+          missingInUpsCount: 0,
+          dateSummary: {
+            hasDates: false,
+            startDate: null,
+            endDate: null,
+            startDateStr: '—',
+            endDateStr: '—',
+            startDateTimeStr: '—',
+            endDateTimeStr: '—',
+            daysSpan: 0,
+            validCount: 0,
+            upsStartDateStr: '—',
+            upsEndDateStr: '—',
+            upsStartDateTimeStr: '—',
+            upsEndDateTimeStr: '—',
+            upsDaysSpan: 0,
+            upsCount: 0,
+            gatewayStartDateStr: '—',
+            gatewayEndDateStr: '—',
+            gatewayStartDateTimeStr: '—',
+            gatewayEndDateTimeStr: '—',
+            gatewayDaysSpan: 0,
+            gatewayCount: 0,
+            hasDiscrepancy: false
+          }
         },
         uniquePurposes: []
       };
@@ -728,6 +950,35 @@ export default function PaymentReconciliationPage() {
       }
     });
 
+    // 5. Calculate overall transaction date range across all records
+    const allDates = [];
+    results.forEach((r) => {
+      if (r.upsDate && r.upsDate !== '—') allDates.push(r.upsDate);
+      if (r.gatewayDate && r.gatewayDate !== '—') allDates.push(r.gatewayDate);
+    });
+    const overallDateRange = extractDateRange(allDates);
+
+    const dateSummary = {
+      ...overallDateRange,
+      upsStartDateStr: upsDateRange.startDateStr,
+      upsEndDateStr: upsDateRange.endDateStr,
+      upsStartDateTimeStr: upsDateRange.startDateTimeStr,
+      upsEndDateTimeStr: upsDateRange.endDateTimeStr,
+      upsDaysSpan: upsDateRange.daysSpan,
+      upsCount: upsRawRows.length,
+      gatewayStartDateStr: gatewayDateRange.startDateStr,
+      gatewayEndDateStr: gatewayDateRange.endDateStr,
+      gatewayStartDateTimeStr: gatewayDateRange.startDateTimeStr,
+      gatewayEndDateTimeStr: gatewayDateRange.endDateTimeStr,
+      gatewayDaysSpan: gatewayDateRange.daysSpan,
+      gatewayCount: gatewayRawRows.length,
+      hasDiscrepancy:
+        upsDateRange.hasDates &&
+        gatewayDateRange.hasDates &&
+        (upsDateRange.startDateStr !== gatewayDateRange.startDateStr ||
+          upsDateRange.endDateStr !== gatewayDateRange.endDateStr)
+    };
+
     return {
       reconciledRecords: results,
       kpiSummary: {
@@ -739,11 +990,12 @@ export default function PaymentReconciliationPage() {
         bothFailedCount,
         discrepancyCount,
         missingInGatewayCount,
-        missingInUpsCount
+        missingInUpsCount,
+        dateSummary
       },
       uniquePurposes: Array.from(purposes).sort()
     };
-  }, [upsRawRows, gatewayRawRows, gatewayType, extractGatewayRecord]);
+  }, [upsRawRows, gatewayRawRows, gatewayType, extractGatewayRecord, upsDateRange, gatewayDateRange]);
 
   // Filtered display records
   const filteredRecords = useMemo(() => {
@@ -876,6 +1128,11 @@ export default function PaymentReconciliationPage() {
       ['Generated On', new Date().toLocaleString()],
       ['UPS Source File', upsFile?.name || 'Manual / Demo Data'],
       ['Gateway Source File', gatewayFile?.name || 'Manual / Demo Data'],
+      ['Transaction Start Date (Earliest)', kpiSummary.dateSummary?.startDateTimeStr || kpiSummary.dateSummary?.startDateStr || 'N/A'],
+      ['Transaction End Date (Latest)', kpiSummary.dateSummary?.endDateTimeStr || kpiSummary.dateSummary?.endDateStr || 'N/A'],
+      ['Transaction Period Duration', kpiSummary.dateSummary?.daysSpan !== undefined ? `${kpiSummary.dateSummary.daysSpan} Day(s)` : 'N/A'],
+      ['UPS Dataset Period', kpiSummary.dateSummary?.upsStartDateStr !== '—' ? `${kpiSummary.dateSummary.upsStartDateStr} to ${kpiSummary.dateSummary.upsEndDateStr}` : 'N/A'],
+      ['Gateway Dataset Period', kpiSummary.dateSummary?.gatewayStartDateStr !== '—' ? `${kpiSummary.dateSummary.gatewayStartDateStr} to ${kpiSummary.dateSummary.gatewayEndDateStr}` : 'N/A'],
       ['', ''],
       ['Metric', 'Count / Value'],
       ['Total Transactions Analyzed', kpiSummary.total],
@@ -1003,12 +1260,28 @@ export default function PaymentReconciliationPage() {
                   <p style={styles.cardSub}>Upload the UPS Transaction Export (.xlsx, .xls, .csv)</p>
                 </div>
               </div>
-              {upsFile && (
-                <span style={styles.filePill}>
-                  <CheckCircle2 size={12} color="#10b981" />
-                  {upsRawRows.length} Rows
-                </span>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                {upsFile && (
+                  <span style={styles.filePill}>
+                    <CheckCircle2 size={12} color="#10b981" />
+                    {upsRawRows.length} Rows
+                  </span>
+                )}
+                {upsDateRange.hasDates && (
+                  <span
+                    style={styles.datePill}
+                    title={`UPS Earliest: ${upsDateRange.startDateTimeStr} | Latest: ${upsDateRange.endDateTimeStr}`}
+                  >
+                    <Calendar size={11} color="var(--accent)" />
+                    {upsDateRange.startDateStr} – {upsDateRange.endDateStr}
+                    {upsDateRange.daysSpan > 0 && (
+                      <span style={styles.dateSpanPill}>
+                        ({upsDateRange.daysSpan} {upsDateRange.daysSpan === 1 ? 'day' : 'days'})
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div style={styles.dropZone}>
@@ -1060,12 +1333,28 @@ export default function PaymentReconciliationPage() {
                   <p style={styles.cardSub}>Upload settlement / MIS report from ATOM or SBI ePay</p>
                 </div>
               </div>
-              {gatewayFile && (
-                <span style={{ ...styles.filePill, background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1' }}>
-                  <CheckCircle2 size={12} color="#6366f1" />
-                  {gatewayRawRows.length} Rows [{detectedGateway === 'SBI_EPAY' ? 'SBI ePay' : detectedGateway === 'ATOM' ? 'ATOM' : 'Detected'}]
-                </span>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                {gatewayFile && (
+                  <span style={{ ...styles.filePill, background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1' }}>
+                    <CheckCircle2 size={12} color="#6366f1" />
+                    {gatewayRawRows.length} Rows [{detectedGateway === 'SBI_EPAY' ? 'SBI ePay' : detectedGateway === 'ATOM' ? 'ATOM' : 'Detected'}]
+                  </span>
+                )}
+                {gatewayDateRange.hasDates && (
+                  <span
+                    style={{ ...styles.datePill, borderColor: 'rgba(99, 102, 241, 0.3)', color: '#4f46e5' }}
+                    title={`Gateway Earliest: ${gatewayDateRange.startDateTimeStr} | Latest: ${gatewayDateRange.endDateTimeStr}`}
+                  >
+                    <Calendar size={11} color="#6366f1" />
+                    {gatewayDateRange.startDateStr} – {gatewayDateRange.endDateStr}
+                    {gatewayDateRange.daysSpan > 0 && (
+                      <span style={{ ...styles.dateSpanPill, background: 'rgba(99, 102, 241, 0.15)', color: '#4338ca' }}>
+                        ({gatewayDateRange.daysSpan} {gatewayDateRange.daysSpan === 1 ? 'day' : 'days'})
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div style={styles.dropZone}>
@@ -1169,9 +1458,77 @@ export default function PaymentReconciliationPage() {
           )}
         </div>
 
-        {/* KPI Dashboard Cards */}
+        {/* KPI Dashboard Cards & Transaction Window */}
         {reconciledRecords.length > 0 && (
-          <div style={styles.kpiGrid}>
+          <>
+            {/* Transaction Date Window Overview Banner */}
+            {kpiSummary.dateSummary?.hasDates && (
+              <div style={styles.dateOverviewCard}>
+                <div style={styles.dateOverviewLeft}>
+                  <div style={styles.dateIconCircle}>
+                    <Calendar size={22} color="var(--accent)" />
+                  </div>
+                  <div>
+                    <div style={styles.dateOverviewHeaderRow}>
+                      <span style={styles.dateOverviewTitle}>Report Transaction Window</span>
+                      {kpiSummary.dateSummary.daysSpan >= 0 && (
+                        <span style={styles.dateOverviewBadge}>
+                          {kpiSummary.dateSummary.daysSpan === 0
+                            ? 'Single Day Duration'
+                            : `${kpiSummary.dateSummary.daysSpan} Day${kpiSummary.dateSummary.daysSpan > 1 ? 's' : ''} Span`}
+                        </span>
+                      )}
+                      {kpiSummary.dateSummary.hasDiscrepancy && (
+                        <span
+                          style={styles.dateDiscrepancyBadge}
+                          title="The date ranges between UPS and Gateway files do not match exactly. Verify report filters."
+                        >
+                          <AlertTriangle size={12} />
+                          Date Span Discrepancy
+                        </span>
+                      )}
+                    </div>
+                    <div style={styles.dateOverviewDatesRow}>
+                      <div style={styles.dateEndpoint}>
+                        <span style={styles.dateEndpointLabel}>START DATE & TIME</span>
+                        <span style={styles.dateEndpointValue}>
+                          {kpiSummary.dateSummary.startDateTimeStr || kpiSummary.dateSummary.startDateStr}
+                        </span>
+                      </div>
+                      <div style={styles.dateArrowDivider}>➔</div>
+                      <div style={styles.dateEndpoint}>
+                        <span style={styles.dateEndpointLabel}>END DATE & TIME</span>
+                        <span style={styles.dateEndpointValue}>
+                          {kpiSummary.dateSummary.endDateTimeStr || kpiSummary.dateSummary.endDateStr}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={styles.dateOverviewRight}>
+                  <div style={styles.dateSourceBlock}>
+                    <span style={styles.dateSourceLabel}>UPS File Window</span>
+                    <span style={styles.dateSourceValue}>
+                      {kpiSummary.dateSummary.upsStartDateStr !== '—'
+                        ? `${kpiSummary.dateSummary.upsStartDateStr} to ${kpiSummary.dateSummary.upsEndDateStr}`
+                        : 'No timestamps'}
+                    </span>
+                  </div>
+                  <div style={styles.dateSourceDivider} />
+                  <div style={styles.dateSourceBlock}>
+                    <span style={styles.dateSourceLabel}>Gateway File Window</span>
+                    <span style={styles.dateSourceValue}>
+                      {kpiSummary.dateSummary.gatewayStartDateStr !== '—'
+                        ? `${kpiSummary.dateSummary.gatewayStartDateStr} to ${kpiSummary.dateSummary.gatewayEndDateStr}`
+                        : 'No timestamps'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={styles.kpiGrid}>
             {/* 1. Action Needed (Critical Alert) */}
             <div
               style={{
@@ -1312,11 +1669,18 @@ export default function PaymentReconciliationPage() {
                 <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '2px' }}>
                   Combined unique payment events
                 </div>
+                {kpiSummary.dateSummary?.hasDates && (
+                  <div style={styles.kpiDatePill}>
+                    <Calendar size={11} color="var(--accent)" />
+                    <span>{kpiSummary.dateSummary.startDateStr} – {kpiSummary.dateSummary.endDateStr}</span>
+                  </div>
+                )}
               </div>
               <div style={styles.kpiFooterNote}>Click to view all transactions</div>
             </div>
           </div>
-        )}
+        </>
+      )}
 
         {/* Toolbar: Category Tabs, Search, Purpose Filter, Action Buttons */}
         {reconciledRecords.length > 0 && (
@@ -1880,6 +2244,25 @@ const styles = {
     alignItems: 'center',
     gap: '4px'
   },
+  datePill: {
+    fontSize: '11px',
+    fontWeight: 600,
+    background: 'rgba(23, 107, 135, 0.08)',
+    color: 'var(--accent)',
+    padding: '3px 8px',
+    borderRadius: '6px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    border: '1px solid rgba(23, 107, 135, 0.2)'
+  },
+  dateSpanPill: {
+    fontSize: '10px',
+    fontWeight: 500,
+    background: 'rgba(23, 107, 135, 0.12)',
+    padding: '1px 5px',
+    borderRadius: '4px'
+  },
   dropZone: {
     border: '1.5px dashed var(--line)',
     borderRadius: '8px',
@@ -1986,6 +2369,120 @@ const styles = {
     fontWeight: 600,
     cursor: 'pointer'
   },
+  dateOverviewCard: {
+    background: 'linear-gradient(135deg, rgba(23, 107, 135, 0.06) 0%, rgba(99, 102, 241, 0.06) 100%)',
+    border: '1px solid var(--line)',
+    borderRadius: '10px',
+    padding: '14px 18px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '20px',
+    flexWrap: 'wrap',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+  },
+  dateOverviewLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px'
+  },
+  dateIconCircle: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '10px',
+    background: 'rgba(23, 107, 135, 0.12)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  },
+  dateOverviewHeaderRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    marginBottom: '4px'
+  },
+  dateOverviewTitle: {
+    fontSize: '11px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.6px',
+    color: 'var(--muted)'
+  },
+  dateOverviewBadge: {
+    fontSize: '10.5px',
+    fontWeight: 600,
+    color: 'var(--accent)',
+    background: 'rgba(23, 107, 135, 0.1)',
+    padding: '1px 8px',
+    borderRadius: '12px'
+  },
+  dateDiscrepancyBadge: {
+    fontSize: '10.5px',
+    fontWeight: 600,
+    color: '#d97706',
+    background: 'rgba(245, 158, 11, 0.15)',
+    padding: '1px 8px',
+    borderRadius: '12px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px'
+  },
+  dateOverviewDatesRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  },
+  dateEndpoint: {
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  dateEndpointLabel: {
+    fontSize: '9.5px',
+    fontWeight: 600,
+    color: 'var(--muted)',
+    letterSpacing: '0.5px'
+  },
+  dateEndpointValue: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: 'var(--text)',
+    fontFamily: 'monospace, system-ui'
+  },
+  dateArrowDivider: {
+    fontSize: '14px',
+    color: 'var(--muted)',
+    fontWeight: 300,
+    margin: '0 4px'
+  },
+  dateOverviewRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    background: 'var(--card-bg)',
+    padding: '8px 14px',
+    borderRadius: '8px',
+    border: '1px solid var(--line)'
+  },
+  dateSourceBlock: {
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  dateSourceLabel: {
+    fontSize: '10px',
+    fontWeight: 600,
+    color: 'var(--muted)'
+  },
+  dateSourceValue: {
+    fontSize: '11.5px',
+    fontWeight: 600,
+    color: 'var(--text)'
+  },
+  dateSourceDivider: {
+    width: '1px',
+    height: '24px',
+    background: 'var(--line)'
+  },
   kpiGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(5, 1fr)',
@@ -2013,6 +2510,18 @@ const styles = {
   },
   kpiBody: {
     margin: '6px 0'
+  },
+  kpiDatePill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '10px',
+    fontWeight: 600,
+    color: 'var(--accent)',
+    background: 'rgba(23, 107, 135, 0.08)',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    marginTop: '6px'
   },
   kpiFooterNote: {
     fontSize: '10px',

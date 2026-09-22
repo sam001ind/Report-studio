@@ -243,6 +243,50 @@ test('Matches UPS transaction against ATOM and SBI ePay by merchant ref', () => 
   assert.equal(r3Category, 'BOTH_FAILED');
 });
 
+test('Correctly parses flexible date formats and computes earliest/latest transaction window', () => {
+  const dates = [
+    '2099-04-17 12:18:27',     // ISO (UPS)
+    '22-Apr-2099 11:15:30 AM', // Named Month (ATOM)
+    '2099-04-20 09:00:00',     // Midpoint
+    '25-Apr-2099 16:45:10'      // End (ATOM)
+  ];
+
+  const parseFlexible = (raw) => {
+    let s = String(raw).trim();
+    const monMatch = s.match(/^(\d{1,2})[-\s/]([A-Za-z]{3,9})[-\s/](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+    if (monMatch) {
+      const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+      const m = months[monMatch[2].toLowerCase().substring(0, 3)];
+      if (m !== undefined) {
+        return new Date(parseInt(monMatch[3], 10), m, parseInt(monMatch[1], 10));
+      }
+    }
+    const isoMatch = s.match(/^(\d{4})[-\s/](\d{1,2})[-\s/](\d{1,2})/);
+    if (isoMatch) {
+      return new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+    }
+    return null;
+  };
+
+  const parsed = dates.map(d => parseFlexible(d)).filter(Boolean);
+  assert.equal(parsed.length, 4);
+
+  let minDate = parsed[0];
+  let maxDate = parsed[0];
+  parsed.forEach(d => {
+    if (d < minDate) minDate = d;
+    if (d > maxDate) maxDate = d;
+  });
+
+  assert.equal(minDate.getDate(), 17);
+  assert.equal(minDate.getMonth(), 3); // 0-indexed April
+  assert.equal(maxDate.getDate(), 25);
+  assert.equal(maxDate.getMonth(), 3);
+
+  const daysSpan = Math.round((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1;
+  assert.equal(daysSpan, 9);
+});
+
 // -------------------------------------------------------------
 // 5. Affiliated Programme Engine Test
 // -------------------------------------------------------------
