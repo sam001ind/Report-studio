@@ -287,6 +287,63 @@ test('Correctly parses flexible date formats and computes earliest/latest transa
   assert.equal(daysSpan, 9);
 });
 
+test('Reconciles across multiple payment gateway files simultaneously (ATOM + SBI ePay)', () => {
+  const upsRecords = [
+    { ref: 'REF_ATOM_001', prn: '2099010000000001', status: 'initiated', amount: 965 },
+    { ref: 'REF_EPAY_002', prn: '2099010000000002', status: 'initiated', amount: 1440 }
+  ];
+
+  const gatewayFiles = [
+    {
+      id: 'f1',
+      name: 'ATOM_Settlement.xlsx',
+      detectedGateway: 'ATOM',
+      rows: [
+        { 'Merchant Txn ID': 'REF_ATOM_001', 'Txn Status': 'SUCCESS', 'Atom Txn ID': 'ATOM111', Amount: 965 }
+      ]
+    },
+    {
+      id: 'f2',
+      name: 'SBI_ePay_Report.xlsx',
+      detectedGateway: 'SBI_EPAY',
+      rows: [
+        { 'MERCHANT ORDER NO': 'REF_EPAY_002', STATUS: 'SUCCESS', ATRN: 'ATRN222', 'MERCHANT ORDER AMOUNT': 1440 }
+      ]
+    }
+  ];
+
+  // Flatten rows from all gateway files, preserving source tags
+  const combinedGatewayRows = gatewayFiles.flatMap((f) =>
+    f.rows.map((r) => ({ ...r, _sourceFileName: f.name, _fileGateway: f.detectedGateway }))
+  );
+  assert.equal(combinedGatewayRows.length, 2);
+
+  const gatewayMap = new Map();
+  combinedGatewayRows.forEach((row) => {
+    const isAtom = row._fileGateway === 'ATOM';
+    const ref = isAtom ? row['Merchant Txn ID'] : row['MERCHANT ORDER NO'];
+    const gatewayName = isAtom ? 'ATOM' : 'SBI_EPAY';
+    gatewayMap.set(ref, { ...row, ref, gatewayName });
+  });
+
+  // Both UPS records should find their respective gateway matches across the two files
+  const match1 = gatewayMap.get('REF_ATOM_001');
+  assert.ok(match1);
+  assert.equal(match1.gatewayName, 'ATOM');
+  assert.equal(match1._sourceFileName, 'ATOM_Settlement.xlsx');
+
+  const match2 = gatewayMap.get('REF_EPAY_002');
+  assert.ok(match2);
+  assert.equal(match2.gatewayName, 'SBI_EPAY');
+  assert.equal(match2._sourceFileName, 'SBI_ePay_Report.xlsx');
+
+  // Verify file removal: removing f1 drops REF_ATOM_001
+  const remainingFiles = gatewayFiles.filter((f) => f.id !== 'f1');
+  const remainingRows = remainingFiles.flatMap((f) => f.rows);
+  assert.equal(remainingRows.length, 1);
+  assert.equal(remainingRows[0]['MERCHANT ORDER NO'], 'REF_EPAY_002');
+});
+
 // -------------------------------------------------------------
 // 5. Affiliated Programme Engine Test
 // -------------------------------------------------------------

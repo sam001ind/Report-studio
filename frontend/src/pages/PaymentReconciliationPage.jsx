@@ -20,7 +20,9 @@ import {
   ArrowLeft,
   ShieldAlert,
   ShieldCheck,
-  Calendar
+  Calendar,
+  Trash2,
+  Plus
 } from 'lucide-react';
 
 // Demo datasets for one-click testing (Fully fictional/hypothetical sample data)
@@ -269,6 +271,13 @@ const DEMO_GATEWAY_DATA = [
 ];
 
 // Helper normalizers & pure utility functions
+const formatFileSize = (bytes) => {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 const normalizeText = (text) => String(text || '').trim().toUpperCase();
 const normalizeRef = (val) => String(val || '').trim().replace(/[^a-zA-Z0-9]/g, '');
 
@@ -462,22 +471,47 @@ const extractDateRange = (dateStrings = []) => {
 };
 
 export default function PaymentReconciliationPage() {
-  // File upload states
-  const [upsFile, setUpsFile] = useState(null);
-  const [upsRawRows, setUpsRawRows] = useState([]);
-  const [upsSheets, setUpsSheets] = useState([]);
-  const [selectedUpsSheet, setSelectedUpsSheet] = useState('');
-  const [upsWorkbook, setUpsWorkbook] = useState(null);
+  // Multi-File Upload States
+  const [upsFiles, setUpsFiles] = useState([]);
+  const [gatewayFiles, setGatewayFiles] = useState([]);
 
-  const [gatewayFile, setGatewayFile] = useState(null);
-  const [gatewayRawRows, setGatewayRawRows] = useState([]);
-  const [gatewaySheets, setGatewaySheets] = useState([]);
-  const [selectedGatewaySheet, setSelectedGatewaySheet] = useState('');
-  const [gatewayWorkbook, setGatewayWorkbook] = useState(null);
+  // Flattened active rows across files
+  const upsRawRows = useMemo(() => {
+    return upsFiles.flatMap((f) =>
+      (f.rows || []).map((r) => ({
+        ...r,
+        _sourceFileName: f.name,
+        _sourceFileId: f.id
+      }))
+    );
+  }, [upsFiles]);
+
+  const gatewayRawRows = useMemo(() => {
+    return gatewayFiles.flatMap((f) =>
+      (f.rows || []).map((r) => ({
+        ...r,
+        _sourceFileName: f.name,
+        _sourceFileId: f.id,
+        _fileGateway: f.detectedGateway
+      }))
+    );
+  }, [gatewayFiles]);
 
   // Gateway mode: 'auto' | 'atom' | 'epay'
   const [gatewayType, setGatewayType] = useState('auto');
-  const [detectedGateway, setDetectedGateway] = useState(null);
+
+  // Summary detected gateway label
+  const detectedGateway = useMemo(() => {
+    if (!gatewayFiles || gatewayFiles.length === 0) return null;
+    const atomCount = gatewayFiles.filter((f) => f.detectedGateway === 'ATOM').length;
+    const epayCount = gatewayFiles.filter((f) => f.detectedGateway === 'SBI_EPAY').length;
+    if (atomCount > 0 && epayCount > 0) {
+      return `SBI ePay (${epayCount}) & ATOM (${atomCount})`;
+    }
+    if (epayCount > 0) return 'SBI_EPAY';
+    if (atomCount > 0) return 'ATOM';
+    return 'Generic Gateway';
+  }, [gatewayFiles]);
 
   // Status & Filtering
   const [statusFilter, setStatusFilter] = useState('ACTION_NEEDED'); // 'ALL' | 'ACTION_NEEDED' | 'RECONCILED' | 'BOTH_FAILED' | 'DISCREPANCY' | 'MISSING_IN_GATEWAY'
@@ -485,7 +519,7 @@ export default function PaymentReconciliationPage() {
   const [gatewaySourceFilter, setGatewaySourceFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [, setIsProcessing] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('Ready for upload. Drop your UPS Report and Gateway (ATOM / SBI ePay) file.');
+  const [statusMsg, setStatusMsg] = useState('Ready for upload. Drop your UPS Report and Gateway (ATOM / SBI ePay) files.');
   const [statusType, setStatusType] = useState('info'); // 'info' | 'success' | 'warning' | 'error'
 
   // Pagination & Density
@@ -531,113 +565,224 @@ export default function PaymentReconciliationPage() {
     return wb;
   };
 
-  // Handle UPS file upload
+  // Handle UPS file upload (supports multiple files)
   const handleUpsUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setIsProcessing(true);
-    setStatusMsg('Parsing University Payment System (UPS) report...');
+    setStatusMsg(`Parsing ${files.length} University Payment System (UPS) report(s)...`);
     setStatusType('info');
 
     try {
-      const buffer = await file.arrayBuffer();
-      const wb = parseFileBuffer(buffer);
-      setUpsWorkbook(wb);
-      setUpsSheets(wb.SheetNames);
-      setUpsFile(file);
+      const parsedList = await Promise.all(
+        files.map(async (file) => {
+          const buffer = await file.arrayBuffer();
+          const wb = parseFileBuffer(buffer);
+          let defaultSheet = wb.SheetNames[0];
+          const match = wb.SheetNames.find((s) =>
+            s.toLowerCase().includes('ups') ||
+            s.toLowerCase().includes('failed') ||
+            s.toLowerCase().includes('transaction')
+          );
+          if (match) defaultSheet = match;
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[defaultSheet], { defval: '' });
+          return {
+            id: `${file.name}_${file.size}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            name: file.name,
+            size: file.size,
+            sizeFormatted: formatFileSize(file.size),
+            workbook: wb,
+            sheetNames: wb.SheetNames,
+            selectedSheet: defaultSheet,
+            rows
+          };
+        })
+      );
 
-      // Default to first sheet or sheet with "UPS" / "Failed"
-      let defaultSheet = wb.SheetNames[0];
-      const match = wb.SheetNames.find((s) => s.toLowerCase().includes('ups') || s.toLowerCase().includes('failed') || s.toLowerCase().includes('transaction'));
-      if (match) defaultSheet = match;
-      setSelectedUpsSheet(defaultSheet);
+      setUpsFiles((prev) => {
+        const existingKeys = new Set(prev.map((f) => `${f.name}_${f.size}`));
+        const filteredNew = parsedList.filter((f) => !existingKeys.has(`${f.name}_${f.size}`));
+        return [...prev, ...filteredNew];
+      });
 
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[defaultSheet], { defval: '' });
-      setUpsRawRows(rows);
-      setStatusMsg(`Loaded ${rows.length} records from UPS Report (${file.name})!`);
+      const totalLoaded = parsedList.reduce((acc, f) => acc + f.rows.length, 0);
+      setStatusMsg(`Loaded ${totalLoaded} records from ${parsedList.length} UPS file(s)!`);
       setStatusType('success');
     } catch (err) {
       console.error('UPS Parse Error:', err);
-      setStatusMsg(`Failed to parse UPS report: ${err.message}`);
+      setStatusMsg(`Failed to parse UPS report(s): ${err.message}`);
       setStatusType('error');
     } finally {
       setIsProcessing(false);
+      if (e.target) e.target.value = '';
     }
   };
 
-  // Handle UPS sheet change
-  const handleUpsSheetChange = (sheetName) => {
-    if (!upsWorkbook || !sheetName) return;
-    setSelectedUpsSheet(sheetName);
-    const rows = XLSX.utils.sheet_to_json(upsWorkbook.Sheets[sheetName], { defval: '' });
-    setUpsRawRows(rows);
-    setStatusMsg(`Loaded ${rows.length} records from UPS Sheet: ${sheetName}`);
+  const handleUpsFileSheetChange = (fileId, newSheet) => {
+    setUpsFiles((prev) =>
+      prev.map((f) => {
+        if (f.id !== fileId) return f;
+        const rows = XLSX.utils.sheet_to_json(f.workbook.Sheets[newSheet], { defval: '' });
+        return {
+          ...f,
+          selectedSheet: newSheet,
+          rows
+        };
+      })
+    );
+  };
+
+  const handleRemoveUpsFile = (fileId) => {
+    setUpsFiles((prev) => prev.filter((f) => f.id !== fileId));
+  };
+
+  const handleClearUpsFiles = () => {
+    setUpsFiles([]);
+    setStatusMsg('Cleared all UPS reports.');
     setStatusType('info');
   };
 
-  // Handle Gateway file upload
+  // Handle Gateway file upload (supports multiple files across different gateways)
   const handleGatewayUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setIsProcessing(true);
-    setStatusMsg('Parsing Payment Gateway settlement report...');
+    setStatusMsg(`Parsing ${files.length} Payment Gateway report(s)...`);
     setStatusType('info');
 
     try {
-      const buffer = await file.arrayBuffer();
-      const wb = parseFileBuffer(buffer);
-      setGatewayWorkbook(wb);
-      setGatewaySheets(wb.SheetNames);
-      setGatewayFile(file);
+      const parsedList = await Promise.all(
+        files.map(async (file) => {
+          const buffer = await file.arrayBuffer();
+          const wb = parseFileBuffer(buffer);
+          let defaultSheet = wb.SheetNames[0];
+          const match = wb.SheetNames.find((s) =>
+            s.toLowerCase().includes('epay') ||
+            s.toLowerCase().includes('atom') ||
+            s.toLowerCase().includes('settlement') ||
+            s.toLowerCase().includes('success') ||
+            s.toLowerCase().includes('mis')
+          );
+          if (match) defaultSheet = match;
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[defaultSheet], { defval: '' });
+          const detected = detectGatewayFromRows(rows);
+          return {
+            id: `${file.name}_${file.size}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            name: file.name,
+            size: file.size,
+            sizeFormatted: formatFileSize(file.size),
+            workbook: wb,
+            sheetNames: wb.SheetNames,
+            selectedSheet: defaultSheet,
+            rows,
+            detectedGateway: detected
+          };
+        })
+      );
 
-      let defaultSheet = wb.SheetNames[0];
-      const match = wb.SheetNames.find((s) => s.toLowerCase().includes('epay') || s.toLowerCase().includes('atom') || s.toLowerCase().includes('success') || s.toLowerCase().includes('mis'));
-      if (match) defaultSheet = match;
-      setSelectedGatewaySheet(defaultSheet);
+      setGatewayFiles((prev) => {
+        const existingKeys = new Set(prev.map((f) => `${f.name}_${f.size}`));
+        const filteredNew = parsedList.filter((f) => !existingKeys.has(`${f.name}_${f.size}`));
+        return [...prev, ...filteredNew];
+      });
 
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[defaultSheet], { defval: '' });
-      setGatewayRawRows(rows);
+      const totalLoaded = parsedList.reduce((acc, f) => acc + f.rows.length, 0);
+      const providers = Array.from(
+        new Set(
+          parsedList.map((f) =>
+            f.detectedGateway === 'SBI_EPAY' ? 'SBI ePay' : f.detectedGateway === 'ATOM' ? 'ATOM' : 'Gateway'
+          )
+        )
+      ).join(' + ');
 
-      const detected = detectGatewayFromRows(rows);
-      setDetectedGateway(detected);
-      setStatusMsg(`Loaded ${rows.length} records from Gateway Report (${file.name}) [Detected Provider: ${detected === 'SBI_EPAY' ? 'SBI ePay' : detected === 'ATOM' ? 'ATOM Technologies' : 'Generic Gateway'}]!`);
+      setStatusMsg(`Loaded ${totalLoaded} records from ${parsedList.length} Gateway report(s) [${providers}]!`);
       setStatusType('success');
     } catch (err) {
       console.error('Gateway Parse Error:', err);
-      setStatusMsg(`Failed to parse Gateway report: ${err.message}`);
+      setStatusMsg(`Failed to parse Gateway report(s): ${err.message}`);
       setStatusType('error');
     } finally {
       setIsProcessing(false);
+      if (e.target) e.target.value = '';
     }
   };
 
-  // Handle Gateway sheet change
-  const handleGatewaySheetChange = (sheetName) => {
-    if (!gatewayWorkbook || !sheetName) return;
-    setSelectedGatewaySheet(sheetName);
-    const rows = XLSX.utils.sheet_to_json(gatewayWorkbook.Sheets[sheetName], { defval: '' });
-    setGatewayRawRows(rows);
-    const detected = detectGatewayFromRows(rows);
-    setDetectedGateway(detected);
-    setStatusMsg(`Loaded ${rows.length} records from Gateway Sheet: ${sheetName} [${detected === 'SBI_EPAY' ? 'SBI ePay' : detected === 'ATOM' ? 'ATOM' : 'Generic'}]`);
+  const handleGatewayFileSheetChange = (fileId, newSheet) => {
+    setGatewayFiles((prev) =>
+      prev.map((f) => {
+        if (f.id !== fileId) return f;
+        const rows = XLSX.utils.sheet_to_json(f.workbook.Sheets[newSheet], { defval: '' });
+        const detected = detectGatewayFromRows(rows);
+        return {
+          ...f,
+          selectedSheet: newSheet,
+          rows,
+          detectedGateway: detected
+        };
+      })
+    );
+  };
+
+  const handleRemoveGatewayFile = (fileId) => {
+    setGatewayFiles((prev) => prev.filter((f) => f.id !== fileId));
+  };
+
+  const handleClearGatewayFiles = () => {
+    setGatewayFiles([]);
+    setStatusMsg('Cleared all Gateway reports.');
     setStatusType('info');
   };
 
   // Load Demo Data
   const handleLoadDemoData = () => {
-    setUpsRawRows(DEMO_UPS_DATA);
-    setUpsFile({ name: 'DEMO_UPS_Exam_Reval_Report.xlsx' });
-    setUpsSheets(['Sheet1']);
-    setSelectedUpsSheet('Sheet1');
+    const demoUps = [
+      {
+        id: 'demo_ups_1',
+        name: 'DEMO_UPS_Exam_Reval_Report.xlsx',
+        size: 15420,
+        sizeFormatted: '15.1 KB',
+        sheetNames: ['Sheet1'],
+        selectedSheet: 'Sheet1',
+        rows: DEMO_UPS_DATA
+      }
+    ];
 
-    setGatewayRawRows(DEMO_GATEWAY_DATA);
-    setGatewayFile({ name: 'DEMO_Combined_Gateways_ATOM_ePay.xlsx' });
-    setGatewaySheets(['Settlement']);
-    setSelectedGatewaySheet('Settlement');
-    setDetectedGateway('SBI_EPAY & ATOM');
+    const demoGateways = [
+      {
+        id: 'demo_atom_1',
+        name: 'DEMO_ATOM_Settlement_April.xlsx',
+        size: 12400,
+        sizeFormatted: '12.1 KB',
+        sheetNames: ['ATOM_Settlement'],
+        selectedSheet: 'ATOM_Settlement',
+        rows: DEMO_GATEWAY_DATA.filter((r) => r['Merchant Txn ID'] || r['Atom Txn ID']),
+        detectedGateway: 'ATOM'
+      },
+      {
+        id: 'demo_epay_2',
+        name: 'DEMO_SBI_ePay_MIS_April.xlsx',
+        size: 18200,
+        sizeFormatted: '17.8 KB',
+        sheetNames: ['ePay_MIS'],
+        selectedSheet: 'ePay_MIS',
+        rows: DEMO_GATEWAY_DATA.filter((r) => r['MERCHANT ORDER NO'] || r['ATRN']),
+        detectedGateway: 'SBI_EPAY'
+      }
+    ];
 
-    setStatusMsg('Loaded official demonstration datasets with simulated failed UPS & successful gateway transactions!');
+    setUpsFiles(demoUps);
+    setGatewayFiles(demoGateways);
+    setStatusMsg('Loaded official demonstration datasets with simulated multi-gateway ATOM and SBI ePay files!');
     setStatusType('success');
+  };
+
+  const handleResetAll = () => {
+    setUpsFiles([]);
+    setGatewayFiles([]);
+    setStatusMsg('Ready for upload. Drop your UPS Report and Gateway (ATOM / SBI ePay) files.');
+    setStatusType('info');
+    setPage(0);
+    setSearchQuery('');
   };
 
   // Extract cell value helper
@@ -886,7 +1031,9 @@ export default function PaymentReconciliationPage() {
         category,
         remarks,
         rawUps: row,
-        rawGateway: gMatch ? gMatch.raw : null
+        rawGateway: gMatch ? gMatch.raw : null,
+        sourceUpsFile: row._sourceFileName || '',
+        sourceGatewayFile: gMatch ? gMatch.raw?._sourceFileName || '' : ''
       });
     });
 
@@ -917,7 +1064,9 @@ export default function PaymentReconciliationPage() {
             ? 'Gateway processed fee, but transaction record is absent from UPS report.'
             : 'Unlinked failed attempt recorded on gateway.',
           rawUps: null,
-          rawGateway: g.raw
+          rawGateway: g.raw,
+          sourceUpsFile: '',
+          sourceGatewayFile: g.raw?._sourceFileName || ''
         });
       }
     });
@@ -1126,8 +1275,8 @@ export default function PaymentReconciliationPage() {
     const summaryRows = [
       ['KANNUR UNIVERSITY - FEE PAYMENT RECONCILIATION AUDIT REPORT', ''],
       ['Generated On', new Date().toLocaleString()],
-      ['UPS Source File', upsFile?.name || 'Manual / Demo Data'],
-      ['Gateway Source File', gatewayFile?.name || 'Manual / Demo Data'],
+      ['UPS Source File(s)', upsFiles.length > 0 ? upsFiles.map((f) => `${f.name} (${f.rows.length} rows)`).join('; ') : 'Manual / Demo Data'],
+      ['Gateway Source File(s)', gatewayFiles.length > 0 ? gatewayFiles.map((f) => `${f.name} [${f.detectedGateway === 'SBI_EPAY' ? 'SBI ePay' : f.detectedGateway === 'ATOM' ? 'ATOM' : 'Gateway'}] (${f.rows.length} rows)`).join('; ') : 'Manual / Demo Data'],
       ['Transaction Start Date (Earliest)', kpiSummary.dateSummary?.startDateTimeStr || kpiSummary.dateSummary?.startDateStr || 'N/A'],
       ['Transaction End Date (Latest)', kpiSummary.dateSummary?.endDateTimeStr || kpiSummary.dateSummary?.endDateStr || 'N/A'],
       ['Transaction Period Duration', kpiSummary.dateSummary?.daysSpan !== undefined ? `${kpiSummary.dateSummary.daysSpan} Day(s)` : 'N/A'],
@@ -1165,6 +1314,8 @@ export default function PaymentReconciliationPage() {
         'Bank Ref / Trace No': r.gatewayBankRef,
         'Gateway Date': r.gatewayDate,
         'Reconciliation Category': r.category,
+        'Source UPS File': r.sourceUpsFile || '—',
+        'Source Gateway File': r.sourceGatewayFile || '—',
         'Audit Remarks': r.remarks
       }));
       const ws = XLSX.utils.json_to_sheet(data);
@@ -1228,14 +1379,7 @@ export default function PaymentReconciliationPage() {
           <button
             type="button"
             style={styles.resetBtn}
-            onClick={() => {
-              setUpsRawRows([]);
-              setGatewayRawRows([]);
-              setUpsFile(null);
-              setGatewayFile(null);
-              setStatusMsg('Ready for upload.');
-              setStatusType('info');
-            }}
+            onClick={handleResetAll}
             title="Reset and clear uploaded data"
           >
             <RotateCcw size={14} />
@@ -1246,9 +1390,9 @@ export default function PaymentReconciliationPage() {
 
       {/* Main Content Area */}
       <div style={styles.content}>
-        {/* Upload Zone (Dual Dropboxes) */}
+        {/* Upload Zone (Dual Dropboxes - Multi-File Supported) */}
         <div style={styles.uploadGrid}>
-          {/* Box 1: UPS Report */}
+          {/* Box 1: UPS Reports */}
           <div style={styles.uploadCard}>
             <div style={styles.cardHeader}>
               <div style={styles.cardHeaderTitle}>
@@ -1256,15 +1400,15 @@ export default function PaymentReconciliationPage() {
                   <FileSpreadsheet size={18} />
                 </div>
                 <div>
-                  <h3 style={styles.cardTitle}>1. University Payment System (UPS) Report</h3>
-                  <p style={styles.cardSub}>Upload the UPS Transaction Export (.xlsx, .xls, .csv)</p>
+                  <h3 style={styles.cardTitle}>1. University Payment System (UPS) Reports</h3>
+                  <p style={styles.cardSub}>Upload 1 or more UPS Transaction Exports (.xlsx, .xls, .csv)</p>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                {upsFile && (
+                {upsFiles.length > 0 && (
                   <span style={styles.filePill}>
                     <CheckCircle2 size={12} color="#10b981" />
-                    {upsRawRows.length} Rows
+                    {upsFiles.length} File{upsFiles.length > 1 ? 's' : ''} • {upsRawRows.length} Rows
                   </span>
                 )}
                 {upsDateRange.hasDates && (
@@ -1288,40 +1432,85 @@ export default function PaymentReconciliationPage() {
               <input
                 type="file"
                 accept=".xlsx,.xls,.csv"
+                multiple
                 onChange={handleUpsUpload}
                 style={styles.fileInput}
                 id="ups-file-input"
               />
               <label htmlFor="ups-file-input" style={styles.dropLabel}>
                 <Upload size={24} color="var(--accent)" />
-                <span style={{ fontWeight: 600, fontSize: '13px', marginTop: '6px' }}>
-                  {upsFile ? upsFile.name : 'Choose or Drag & Drop UPS Report'}
+                <span style={{ fontWeight: 600, fontSize: '13px', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  {upsFiles.length > 0 && <Plus size={14} />}
+                  {upsFiles.length === 0
+                    ? 'Choose or Drag & Drop UPS Reports (Multi-File Supported)'
+                    : `Add More UPS Files (${upsFiles.length} currently uploaded)`}
                 </span>
                 <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                  Key column: CLIENTAPPTRANSCATIONREFERENCENUMBER, REF1 (PRN), AMOUNT, UPSSTATUS
+                  Select multiple files simultaneously or add more anytime
                 </span>
               </label>
             </div>
 
-            {upsSheets.length > 1 && (
-              <div style={styles.sheetSelectorRow}>
-                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 500 }}>Select Sheet:</span>
-                <select
-                  value={selectedUpsSheet}
-                  onChange={(e) => handleUpsSheetChange(e.target.value)}
-                  style={styles.select}
-                >
-                  {upsSheets.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
+            {/* Uploaded UPS Files List */}
+            {upsFiles.length > 0 && (
+              <div style={styles.filesListContainer}>
+                <div style={styles.filesListHeader}>
+                  <span style={styles.filesListTitle}>Uploaded UPS Files ({upsFiles.length})</span>
+                  <button
+                    type="button"
+                    style={styles.clearAllBtn}
+                    onClick={handleClearUpsFiles}
+                    title="Clear all uploaded UPS files"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                <div style={styles.filesScrollList}>
+                  {upsFiles.map((f) => (
+                    <div key={f.id} style={styles.fileChip}>
+                      <div style={styles.fileChipLeft}>
+                        <FileSpreadsheet size={15} color="var(--accent)" />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={styles.fileChipName} title={f.name}>
+                            {f.name}
+                          </span>
+                          <span style={styles.fileChipMeta}>
+                            {f.sizeFormatted} • {f.rows.length} rows
+                          </span>
+                        </div>
+                      </div>
+                      <div style={styles.fileChipRight}>
+                        {f.sheetNames.length > 1 && (
+                          <select
+                            value={f.selectedSheet}
+                            onChange={(e) => handleUpsFileSheetChange(f.id, e.target.value)}
+                            style={styles.sheetMiniSelect}
+                            title="Select worksheet for this file"
+                          >
+                            {f.sheetNames.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <button
+                          type="button"
+                          style={styles.fileRemoveBtn}
+                          onClick={() => handleRemoveUpsFile(f.id)}
+                          title={`Remove ${f.name}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
                   ))}
-                </select>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Box 2: Payment Gateway Report */}
+          {/* Box 2: Payment Gateway Reports */}
           <div style={styles.uploadCard}>
             <div style={styles.cardHeader}>
               <div style={styles.cardHeaderTitle}>
@@ -1329,15 +1518,15 @@ export default function PaymentReconciliationPage() {
                   <ArrowRightLeft size={18} />
                 </div>
                 <div>
-                  <h3 style={styles.cardTitle}>2. Payment Gateway Report (ATOM or SBI ePay)</h3>
-                  <p style={styles.cardSub}>Upload settlement / MIS report from ATOM or SBI ePay</p>
+                  <h3 style={styles.cardTitle}>2. Payment Gateway Reports (ATOM & SBI ePay)</h3>
+                  <p style={styles.cardSub}>Upload multiple settlement / MIS reports across different gateways</p>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                {gatewayFile && (
+                {gatewayFiles.length > 0 && (
                   <span style={{ ...styles.filePill, background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1' }}>
                     <CheckCircle2 size={12} color="#6366f1" />
-                    {gatewayRawRows.length} Rows [{detectedGateway === 'SBI_EPAY' ? 'SBI ePay' : detectedGateway === 'ATOM' ? 'ATOM' : 'Detected'}]
+                    {gatewayFiles.length} File{gatewayFiles.length > 1 ? 's' : ''} • {gatewayRawRows.length} Rows [{detectedGateway || 'Detected'}]
                   </span>
                 )}
                 {gatewayDateRange.hasDates && (
@@ -1361,17 +1550,21 @@ export default function PaymentReconciliationPage() {
               <input
                 type="file"
                 accept=".xlsx,.xls,.csv"
+                multiple
                 onChange={handleGatewayUpload}
                 style={styles.fileInput}
                 id="gateway-file-input"
               />
               <label htmlFor="gateway-file-input" style={styles.dropLabel}>
                 <Upload size={24} color="#6366f1" />
-                <span style={{ fontWeight: 600, fontSize: '13px', marginTop: '6px' }}>
-                  {gatewayFile ? gatewayFile.name : 'Choose or Drag & Drop Gateway Report'}
+                <span style={{ fontWeight: 600, fontSize: '13px', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  {gatewayFiles.length > 0 && <Plus size={14} />}
+                  {gatewayFiles.length === 0
+                    ? 'Choose or Drag & Drop Gateway Reports (ATOM & SBI ePay)'
+                    : `Add More Gateway Files (${gatewayFiles.length} currently uploaded)`}
                 </span>
                 <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                  Auto-detects ATOM (Merchant Txn ID) & SBI ePay (MERCHANT ORDER NO)
+                  Upload ATOM & SBI ePay files together — auto-detects each provider automatically
                 </span>
               </label>
             </div>
@@ -1385,42 +1578,104 @@ export default function PaymentReconciliationPage() {
                     style={{ ...styles.segmentBtn, ...(gatewayType === 'auto' ? styles.segmentBtnActive : {}) }}
                     onClick={() => setGatewayType('auto')}
                   >
-                    Auto-Detect
+                    Auto-Detect (Mixed)
                   </button>
                   <button
                     type="button"
                     style={{ ...styles.segmentBtn, ...(gatewayType === 'atom' ? styles.segmentBtnActive : {}) }}
                     onClick={() => setGatewayType('atom')}
                   >
-                    ATOM
+                    ATOM Only
                   </button>
                   <button
                     type="button"
                     style={{ ...styles.segmentBtn, ...(gatewayType === 'epay' ? styles.segmentBtnActive : {}) }}
                     onClick={() => setGatewayType('epay')}
                   >
-                    SBI ePay
+                    SBI ePay Only
                   </button>
                 </div>
               </div>
-
-              {gatewaySheets.length > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Sheet:</span>
-                  <select
-                    value={selectedGatewaySheet}
-                    onChange={(e) => handleGatewaySheetChange(e.target.value)}
-                    style={{ ...styles.select, padding: '3px 8px', fontSize: '11px' }}
-                  >
-                    {gatewaySheets.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
+
+            {/* Uploaded Gateway Files List */}
+            {gatewayFiles.length > 0 && (
+              <div style={styles.filesListContainer}>
+                <div style={styles.filesListHeader}>
+                  <span style={styles.filesListTitle}>Uploaded Gateway Files ({gatewayFiles.length})</span>
+                  <button
+                    type="button"
+                    style={styles.clearAllBtn}
+                    onClick={handleClearGatewayFiles}
+                    title="Clear all uploaded Gateway files"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                <div style={styles.filesScrollList}>
+                  {gatewayFiles.map((f) => (
+                    <div key={f.id} style={styles.fileChip}>
+                      <div style={styles.fileChipLeft}>
+                        <ArrowRightLeft
+                          size={15}
+                          color={f.detectedGateway === 'ATOM' ? '#8b5cf6' : '#3b82f6'}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={styles.fileChipName} title={f.name}>
+                            {f.name}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={styles.fileChipMeta}>
+                              {f.sizeFormatted} • {f.rows.length} rows
+                            </span>
+                            <span
+                              style={{
+                                ...styles.gatewayTag,
+                                background:
+                                  f.detectedGateway === 'ATOM'
+                                    ? 'rgba(139, 92, 246, 0.12)'
+                                    : 'rgba(59, 130, 246, 0.12)',
+                                color: f.detectedGateway === 'ATOM' ? '#7c3aed' : '#2563eb'
+                              }}
+                            >
+                              {f.detectedGateway === 'SBI_EPAY'
+                                ? 'SBI ePay'
+                                : f.detectedGateway === 'ATOM'
+                                ? 'ATOM'
+                                : 'Gateway'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={styles.fileChipRight}>
+                        {f.sheetNames.length > 1 && (
+                          <select
+                            value={f.selectedSheet}
+                            onChange={(e) => handleGatewayFileSheetChange(f.id, e.target.value)}
+                            style={styles.sheetMiniSelect}
+                            title="Select worksheet for this file"
+                          >
+                            {f.sheetNames.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <button
+                          type="button"
+                          style={styles.fileRemoveBtn}
+                          onClick={() => handleRemoveGatewayFile(f.id)}
+                          title={`Remove ${f.name}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2294,6 +2549,111 @@ const styles = {
     justifyContent: 'space-between',
     paddingTop: '6px',
     borderTop: '1px dashed var(--line)'
+  },
+  filesListContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    background: 'var(--bg)',
+    borderRadius: '8px',
+    border: '1px solid var(--line)',
+    padding: '10px 12px'
+  },
+  filesListHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: '6px',
+    borderBottom: '1px dashed var(--line)'
+  },
+  filesListTitle: {
+    fontSize: '11px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    color: 'var(--muted)'
+  },
+  clearAllBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: '#ef4444',
+    fontSize: '11px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: '2px 6px',
+    borderRadius: '4px'
+  },
+  filesScrollList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    maxHeight: '180px',
+    overflowY: 'auto'
+  },
+  fileChip: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+    background: 'var(--card-bg)',
+    border: '1px solid var(--line)',
+    borderRadius: '6px',
+    padding: '6px 10px'
+  },
+  fileChipLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    minWidth: 0,
+    flex: 1
+  },
+  fileChipName: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--text)',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '220px'
+  },
+  fileChipMeta: {
+    fontSize: '10px',
+    color: 'var(--muted)'
+  },
+  gatewayTag: {
+    fontSize: '9.5px',
+    fontWeight: 700,
+    padding: '1px 6px',
+    borderRadius: '4px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px'
+  },
+  fileChipRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexShrink: 0
+  },
+  sheetMiniSelect: {
+    fontSize: '10.5px',
+    background: 'var(--bg)',
+    color: 'var(--text)',
+    border: '1px solid var(--line)',
+    borderRadius: '4px',
+    padding: '2px 4px',
+    maxWidth: '110px'
+  },
+  fileRemoveBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--muted)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px',
+    borderRadius: '4px',
+    transition: 'color 0.15s ease'
   },
   gatewayControlsRow: {
     display: 'flex',
