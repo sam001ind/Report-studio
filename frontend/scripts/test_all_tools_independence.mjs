@@ -514,6 +514,117 @@ test('Detects additions, modifications, and matched records between two files', 
   assert.equal(modified[0].newMarks, 55);
 });
 
+test('Aggregates multiple Excel files for Dataset A and Dataset B with provenance tracking', () => {
+  const filesA = [
+    {
+      id: 'f_a1',
+      name: 'Roster_Science.xlsx',
+      columns: ['PRN', 'Name', 'Subject'],
+      rows: [
+        { PRN: 'S101', Name: 'Alice', Subject: 'Physics' },
+        { PRN: 'S102', Name: 'Bob', Subject: 'Chemistry' }
+      ]
+    },
+    {
+      id: 'f_a2',
+      name: 'Roster_Arts.xlsx',
+      columns: ['PRN', 'Name', 'Subject', 'Language'],
+      rows: [
+        { PRN: 'A201', Name: 'Charlie', Subject: 'History', Language: 'English' }
+      ]
+    }
+  ];
+
+  const filesB = [
+    {
+      id: 'f_b1',
+      name: 'Exam_Center_North.xlsx',
+      columns: ['RegNo', 'Candidate', 'Score'],
+      rows: [
+        { RegNo: 'S101', Candidate: 'Alice', Score: 85 },
+        { RegNo: 'A201', Candidate: 'Charlie', Score: 92 }
+      ]
+    },
+    {
+      id: 'f_b2',
+      name: 'Exam_Center_South.xlsx',
+      columns: ['RegNo', 'Candidate', 'Score'],
+      rows: [
+        { RegNo: 'S102', Candidate: 'Bob', Score: 78 },
+        { RegNo: 'X999', Candidate: 'Unknown', Score: 50 }
+      ]
+    }
+  ];
+
+  // Aggregation logic mimicking DataComparisonPage useMemo
+  const aggregate = (fileList) => {
+    const allRows = [];
+    const colSet = new Set();
+    const orderedCols = [];
+
+    fileList.forEach(file => {
+      (file.columns || []).forEach(c => {
+        if (!c.startsWith('_') && !colSet.has(c)) {
+          colSet.add(c);
+          orderedCols.push(c);
+        }
+      });
+      (file.rows || []).forEach(r => {
+        allRows.push({
+          ...r,
+          _sourceFileName: file.name,
+          _sourceFileId: file.id
+        });
+      });
+    });
+
+    return { columns: orderedCols, rows: allRows };
+  };
+
+  const dsA = aggregate(filesA);
+  const dsB = aggregate(filesB);
+
+  // Validate Dataset A aggregation
+  assert.equal(dsA.rows.length, 3);
+  assert.deepEqual(dsA.columns, ['PRN', 'Name', 'Subject', 'Language']);
+  assert.equal(dsA.rows[0]._sourceFileName, 'Roster_Science.xlsx');
+  assert.equal(dsA.rows[2]._sourceFileName, 'Roster_Arts.xlsx');
+
+  // Validate Dataset B aggregation
+  assert.equal(dsB.rows.length, 4);
+  assert.deepEqual(dsB.columns, ['RegNo', 'Candidate', 'Score']);
+  assert.equal(dsB.rows[0]._sourceFileName, 'Exam_Center_North.xlsx');
+  assert.equal(dsB.rows[1]._sourceFileName, 'Exam_Center_North.xlsx');
+  assert.equal(dsB.rows[2]._sourceFileName, 'Exam_Center_South.xlsx');
+  assert.equal(dsB.rows[3]._sourceFileName, 'Exam_Center_South.xlsx');
+
+  // Validate Key Reconciliation across multiple files
+  const indexB = new Map(dsB.rows.map(r => [r.RegNo, r]));
+  const matched = [];
+  const unmatchedA = [];
+
+  dsA.rows.forEach(rA => {
+    if (indexB.has(rA.PRN)) {
+      matched.push({
+        prn: rA.PRN,
+        sourceA: rA._sourceFileName,
+        sourceB: indexB.get(rA.PRN)._sourceFileName
+      });
+    } else {
+      unmatchedA.push(rA);
+    }
+  });
+
+  assert.equal(matched.length, 3);
+  assert.equal(unmatchedA.length, 0);
+  assert.equal(matched[0].sourceA, 'Roster_Science.xlsx');
+  assert.equal(matched[0].sourceB, 'Exam_Center_North.xlsx');
+  assert.equal(matched[1].sourceA, 'Roster_Science.xlsx');
+  assert.equal(matched[1].sourceB, 'Exam_Center_South.xlsx');
+  assert.equal(matched[2].sourceA, 'Roster_Arts.xlsx');
+  assert.equal(matched[2].sourceB, 'Exam_Center_North.xlsx');
+});
+
 // -------------------------------------------------------------
 // 10. Timetable Scheduler Engine Test
 // -------------------------------------------------------------

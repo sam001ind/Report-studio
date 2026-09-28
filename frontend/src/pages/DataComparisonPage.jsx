@@ -51,31 +51,228 @@ const SAMPLE_DATASET_B = [
   { "RegisterNo": "XT2099010", "CandidateName": "Student Kappa", "SubjectCode": "ZOO110", "SubjectTitle": "Animal Diversity", "ExamCentre": "Kappa Science College", "Score": "89" } // Unmatched Right
 ];
 
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+};
+
+const fileListStyles = {
+  filesListContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    background: 'var(--bg)',
+    borderRadius: '8px',
+    border: '1px solid var(--line)',
+    padding: '10px 12px',
+    marginBottom: '16px'
+  },
+  filesListHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: '6px',
+    borderBottom: '1px dashed var(--line)'
+  },
+  filesListTitle: {
+    fontSize: '11px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    color: 'var(--muted)'
+  },
+  clearAllBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: '#ef4444',
+    fontSize: '11px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: '2px 6px',
+    borderRadius: '4px'
+  },
+  filesScrollList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    maxHeight: '160px',
+    overflowY: 'auto'
+  },
+  fileChip: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+    background: 'var(--panel)',
+    border: '1px solid var(--line)',
+    borderRadius: '6px',
+    padding: '6px 10px'
+  },
+  fileChipLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    minWidth: 0,
+    flex: 1
+  },
+  fileChipName: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--ink)',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '200px'
+  },
+  fileChipMeta: {
+    fontSize: '10px',
+    color: 'var(--muted)'
+  },
+  fileChipRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexShrink: 0
+  },
+  sheetMiniSelect: {
+    fontSize: '10.5px',
+    background: 'var(--bg)',
+    color: 'var(--ink)',
+    border: '1px solid var(--line)',
+    borderRadius: '4px',
+    padding: '2px 4px',
+    maxWidth: '110px'
+  },
+  fileRemoveBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--muted)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px',
+    borderRadius: '4px',
+    transition: 'color 0.15s ease'
+  }
+};
+
 const DataComparisonPage = () => {
   // Navigation Stepper: 1: Upload, 2: Rules & Mapping, 3: Analytics & Results, 4: Export
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Dataset A (Left / Reference)
-  const [datasetA, setDatasetA] = useState({
-    name: 'Dataset_A',
-    columns: [],
-    rows: [],
-    fileName: '',
-    sheets: [],
-    selectedSheet: '',
-    rawWorkbook: null
-  });
+  // Dataset A (Left / Reference) Files List
+  const [datasetAFiles, setDatasetAFiles] = useState([]);
+  const [isDragOverA, setIsDragOverA] = useState(false);
 
-  // Dataset B (Right / Comparison)
-  const [datasetB, setDatasetB] = useState({
-    name: 'Dataset_B',
-    columns: [],
-    rows: [],
-    fileName: '',
-    sheets: [],
-    selectedSheet: '',
-    rawWorkbook: null
-  });
+  // Dataset B (Right / Comparison) Files List
+  const [datasetBFiles, setDatasetBFiles] = useState([]);
+  const [isDragOverB, setIsDragOverB] = useState(false);
+
+  // Derived Dataset A across all uploaded files
+  const datasetA = useMemo(() => {
+    if (datasetAFiles.length === 0) {
+      return {
+        name: 'Dataset_A',
+        columns: [],
+        rows: [],
+        fileName: '',
+        sheets: [],
+        selectedSheet: '',
+        rawWorkbook: null
+      };
+    }
+
+    const allRows = [];
+    const colSet = new Set();
+    const orderedCols = [];
+
+    datasetAFiles.forEach((file) => {
+      (file.columns || []).forEach((c) => {
+        if (!c.startsWith('_') && !colSet.has(c)) {
+          colSet.add(c);
+          orderedCols.push(c);
+        }
+      });
+      (file.rows || []).forEach((r) => {
+        allRows.push({
+          ...r,
+          _sourceFileName: file.name,
+          _sourceFileId: file.id
+        });
+      });
+    });
+
+    const primaryFile = datasetAFiles[0];
+    const name = datasetAFiles.length === 1
+      ? primaryFile.name
+      : `${primaryFile.name} (+${datasetAFiles.length - 1} more)`;
+    const fileName = datasetAFiles.map(f => f.name).join(', ');
+
+    return {
+      name,
+      columns: orderedCols,
+      rows: allRows,
+      fileName,
+      sheets: primaryFile.sheetNames || [],
+      selectedSheet: primaryFile.selectedSheet || '',
+      rawWorkbook: primaryFile.workbook || null
+    };
+  }, [datasetAFiles]);
+
+  // Derived Dataset B across all uploaded files
+  const datasetB = useMemo(() => {
+    if (datasetBFiles.length === 0) {
+      return {
+        name: 'Dataset_B',
+        columns: [],
+        rows: [],
+        fileName: '',
+        sheets: [],
+        selectedSheet: '',
+        rawWorkbook: null
+      };
+    }
+
+    const allRows = [];
+    const colSet = new Set();
+    const orderedCols = [];
+
+    datasetBFiles.forEach((file) => {
+      (file.columns || []).forEach((c) => {
+        if (!c.startsWith('_') && !colSet.has(c)) {
+          colSet.add(c);
+          orderedCols.push(c);
+        }
+      });
+      (file.rows || []).forEach((r) => {
+        allRows.push({
+          ...r,
+          _sourceFileName: file.name,
+          _sourceFileId: file.id
+        });
+      });
+    });
+
+    const primaryFile = datasetBFiles[0];
+    const name = datasetBFiles.length === 1
+      ? primaryFile.name
+      : `${primaryFile.name} (+${datasetBFiles.length - 1} more)`;
+    const fileName = datasetBFiles.map(f => f.name).join(', ');
+
+    return {
+      name,
+      columns: orderedCols,
+      rows: allRows,
+      fileName,
+      sheets: primaryFile.sheetNames || [],
+      selectedSheet: primaryFile.selectedSheet || '',
+      rawWorkbook: primaryFile.workbook || null
+    };
+  }, [datasetBFiles]);
 
   // Key Column Mappings (Composite Keys support)
   const [keyMappings, setKeyMappings] = useState([
@@ -126,25 +323,33 @@ const DataComparisonPage = () => {
     const colsA = Object.keys(SAMPLE_DATASET_A[0]);
     const colsB = Object.keys(SAMPLE_DATASET_B[0]);
 
-    setDatasetA({
-      name: 'Admission_Master_List.xlsx',
-      columns: colsA,
-      rows: SAMPLE_DATASET_A,
-      fileName: 'Admission_Master_List.xlsx',
-      sheets: ['Master_2025'],
-      selectedSheet: 'Master_2025',
-      rawWorkbook: null
-    });
+    setDatasetAFiles([
+      {
+        id: 'sample_file_a',
+        name: 'Admission_Master_List.xlsx',
+        size: 10240,
+        sizeFormatted: '10.0 KB',
+        workbook: null,
+        sheetNames: ['Master_2025'],
+        selectedSheet: 'Master_2025',
+        rows: SAMPLE_DATASET_A,
+        columns: colsA
+      }
+    ]);
 
-    setDatasetB({
-      name: 'Exam_Registration_Report.xlsx',
-      columns: colsB,
-      rows: SAMPLE_DATASET_B,
-      fileName: 'Exam_Registration_Report.xlsx',
-      sheets: ['Registrations_Nov2025'],
-      selectedSheet: 'Registrations_Nov2025',
-      rawWorkbook: null
-    });
+    setDatasetBFiles([
+      {
+        id: 'sample_file_b',
+        name: 'Exam_Registration_Report.xlsx',
+        size: 12288,
+        sizeFormatted: '12.0 KB',
+        workbook: null,
+        sheetNames: ['Registrations_Nov2025'],
+        selectedSheet: 'Registrations_Nov2025',
+        rows: SAMPLE_DATASET_B,
+        columns: colsB
+      }
+    ]);
 
     setKeyMappings([
       { id: 1, leftCol: 'PRN', rightCol: 'RegisterNo' }
@@ -162,30 +367,37 @@ const DataComparisonPage = () => {
   // Universal File Parser (handles .xlsx, .xls, .csv, .zip)
   const parseUploadedFile = async (file) => {
     const ext = file.name.split('.').pop().toLowerCase();
-    
+
     if (ext === 'zip') {
       const zip = new JSZip();
       const unzipped = await zip.loadAsync(file);
       const excelFiles = Object.keys(unzipped.files).filter(fn => 
-        !unzipped.files[fn].dir && (fn.endsWith('.xlsx') || fn.endsWith('.xls') || fn.endsWith('.csv'))
+        !unzipped.files[fn].dir && !fn.startsWith('__MACOSX') && (fn.endsWith('.xlsx') || fn.endsWith('.xls') || fn.endsWith('.csv'))
       );
 
       if (excelFiles.length === 0) {
-        throw new Error('No valid Excel or CSV files found inside the ZIP archive.');
+        throw new Error(`No valid Excel or CSV files found inside the ZIP archive "${file.name}".`);
       }
 
-      // Pick the first spreadsheet or extract all
-      const targetFileName = excelFiles[0];
-      const blob = await unzipped.files[targetFileName].async('blob');
-      return await parseSpreadsheetBlob(blob, targetFileName);
+      const parsedList = await Promise.all(
+        excelFiles.map(async (targetFileName) => {
+          const blob = await unzipped.files[targetFileName].async('blob');
+          const cleanName = targetFileName.split('/').pop();
+          return await parseSpreadsheetBlob(blob, cleanName, blob.size);
+        })
+      );
+      return parsedList;
     } else {
-      return await parseSpreadsheetBlob(file, file.name);
+      const parsed = await parseSpreadsheetBlob(file, file.name, file.size);
+      return [parsed];
     }
   };
 
-  const parseSpreadsheetBlob = (fileOrBlob, originalFileName) => {
+  const parseSpreadsheetBlob = (fileOrBlob, originalFileName, fileSize = 0) => {
     return new Promise((resolve, reject) => {
       const ext = originalFileName.split('.').pop().toLowerCase();
+      const fileId = `${originalFileName}_${fileSize || 0}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const sizeFormatted = formatFileSize(fileSize || (fileOrBlob.size || 0));
 
       if (ext === 'csv') {
         Papa.parse(fileOrBlob, {
@@ -198,12 +410,16 @@ const DataComparisonPage = () => {
             }
             const columns = Object.keys(results.data[0] || {}).map(c => c.trim()).filter(Boolean);
             resolve({
+              id: fileId,
+              name: originalFileName,
+              size: fileSize || fileOrBlob.size || 0,
+              sizeFormatted,
               columns,
               rows: results.data,
               fileName: originalFileName,
-              sheets: ['Sheet1'],
+              sheetNames: ['Sheet1'],
               selectedSheet: 'Sheet1',
-              rawWorkbook: null
+              workbook: null
             });
           },
           error: reject
@@ -231,12 +447,16 @@ const DataComparisonPage = () => {
 
             const columns = Object.keys(rows[0] || {}).map(c => c.trim()).filter(Boolean);
             resolve({
+              id: fileId,
+              name: originalFileName,
+              size: fileSize || fileOrBlob.size || 0,
+              sizeFormatted,
               columns,
               rows,
               fileName: originalFileName,
-              sheets: workbook.SheetNames,
+              sheetNames: workbook.SheetNames,
               selectedSheet: firstSheetName,
-              rawWorkbook: workbook
+              workbook
             });
           } catch (err) {
             reject(err);
@@ -248,53 +468,31 @@ const DataComparisonPage = () => {
     });
   };
 
-  // Handle Sheet Change for Dataset A
-  const handleSheetChangeA = (sheetName) => {
-    if (!datasetA.rawWorkbook || !datasetA.rawWorkbook.Sheets[sheetName]) return;
-    const worksheet = datasetA.rawWorkbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-    const columns = rows.length > 0 ? Object.keys(rows[0]).map(c => c.trim()).filter(Boolean) : [];
-    setDatasetA(prev => ({
-      ...prev,
-      selectedSheet: sheetName,
-      columns,
-      rows
-    }));
-  };
-
-  // Handle Sheet Change for Dataset B
-  const handleSheetChangeB = (sheetName) => {
-    if (!datasetB.rawWorkbook || !datasetB.rawWorkbook.Sheets[sheetName]) return;
-    const worksheet = datasetB.rawWorkbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-    const columns = rows.length > 0 ? Object.keys(rows[0]).map(c => c.trim()).filter(Boolean) : [];
-    setDatasetB(prev => ({
-      ...prev,
-      selectedSheet: sheetName,
-      columns,
-      rows
-    }));
-  };
-
-  // Upload Dataset A Handler
-  const handleUploadA = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Upload Batch Handlers for Dataset A
+  const handleUploadFilesA = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
 
     setIsProcessing(true);
-    setStatus(`Processing Dataset A: ${file.name}...`);
+    setStatus(`Processing ${files.length} file(s) for Dataset A...`);
 
     try {
-      const parsed = await parseUploadedFile(file);
-      setDatasetA({
-        name: file.name,
-        ...parsed
+      const parsedBatches = await Promise.all(files.map(f => parseUploadedFile(f)));
+      const newFiles = parsedBatches.flat();
+
+      setDatasetAFiles(prev => {
+        const existingKeys = new Set(prev.map(f => `${f.name}_${f.size}`));
+        const uniqueNew = newFiles.filter(f => !existingKeys.has(`${f.name}_${f.size}`));
+        return [...prev, ...uniqueNew];
       });
-      setStatus(`Dataset A loaded (${parsed.rows.length} rows, ${parsed.columns.length} cols).`, 'success');
-      
+
+      const totalLoadedRows = newFiles.reduce((acc, f) => acc + f.rows.length, 0);
+      setStatus(`Dataset A loaded ${newFiles.length} file(s) with ${totalLoadedRows} rows.`, 'success');
+
       // Auto-suggest initial key if Dataset B already loaded
-      if (datasetB.columns.length > 0) {
-        autoSuggestKeyMappings(parsed.columns, datasetB.columns);
+      const allColsA = Array.from(new Set(newFiles.flatMap(f => f.columns)));
+      if (datasetB.columns.length > 0 && (!keyMappings[0]?.leftCol || !keyMappings[0]?.rightCol)) {
+        autoSuggestKeyMappings(allColsA, datasetB.columns);
       }
     } catch (err) {
       console.error(err);
@@ -304,25 +502,36 @@ const DataComparisonPage = () => {
     }
   };
 
-  // Upload Dataset B Handler
-  const handleUploadB = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleUploadA = async (e) => {
+    await handleUploadFilesA(e.target.files);
+    if (e.target) e.target.value = '';
+  };
+
+  // Upload Batch Handlers for Dataset B
+  const handleUploadFilesB = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
 
     setIsProcessing(true);
-    setStatus(`Processing Dataset B: ${file.name}...`);
+    setStatus(`Processing ${files.length} file(s) for Dataset B...`);
 
     try {
-      const parsed = await parseUploadedFile(file);
-      setDatasetB({
-        name: file.name,
-        ...parsed
+      const parsedBatches = await Promise.all(files.map(f => parseUploadedFile(f)));
+      const newFiles = parsedBatches.flat();
+
+      setDatasetBFiles(prev => {
+        const existingKeys = new Set(prev.map(f => `${f.name}_${f.size}`));
+        const uniqueNew = newFiles.filter(f => !existingKeys.has(`${f.name}_${f.size}`));
+        return [...prev, ...uniqueNew];
       });
-      setStatus(`Dataset B loaded (${parsed.rows.length} rows, ${parsed.columns.length} cols).`, 'success');
+
+      const totalLoadedRows = newFiles.reduce((acc, f) => acc + f.rows.length, 0);
+      setStatus(`Dataset B loaded ${newFiles.length} file(s) with ${totalLoadedRows} rows.`, 'success');
 
       // Auto-suggest initial key if Dataset A already loaded
-      if (datasetA.columns.length > 0) {
-        autoSuggestKeyMappings(datasetA.columns, parsed.columns);
+      const allColsB = Array.from(new Set(newFiles.flatMap(f => f.columns)));
+      if (datasetA.columns.length > 0 && (!keyMappings[0]?.leftCol || !keyMappings[0]?.rightCol)) {
+        autoSuggestKeyMappings(datasetA.columns, allColsB);
       }
     } catch (err) {
       console.error(err);
@@ -330,6 +539,65 @@ const DataComparisonPage = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleUploadB = async (e) => {
+    await handleUploadFilesB(e.target.files);
+    if (e.target) e.target.value = '';
+  };
+
+  // Handle Sheet Change per File in Dataset A
+  const handleSheetChangeFileA = (fileId, newSheet) => {
+    setDatasetAFiles(prev =>
+      prev.map(f => {
+        if (f.id !== fileId || !f.workbook || !f.workbook.Sheets[newSheet]) return f;
+        const worksheet = f.workbook.Sheets[newSheet];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+        const columns = rows.length > 0 ? Object.keys(rows[0]).map(c => c.trim()).filter(Boolean) : [];
+        return {
+          ...f,
+          selectedSheet: newSheet,
+          rows,
+          columns
+        };
+      })
+    );
+  };
+
+  // Handle Sheet Change per File in Dataset B
+  const handleSheetChangeFileB = (fileId, newSheet) => {
+    setDatasetBFiles(prev =>
+      prev.map(f => {
+        if (f.id !== fileId || !f.workbook || !f.workbook.Sheets[newSheet]) return f;
+        const worksheet = f.workbook.Sheets[newSheet];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+        const columns = rows.length > 0 ? Object.keys(rows[0]).map(c => c.trim()).filter(Boolean) : [];
+        return {
+          ...f,
+          selectedSheet: newSheet,
+          rows,
+          columns
+        };
+      })
+    );
+  };
+
+  const handleRemoveFileA = (fileId) => {
+    setDatasetAFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  const handleRemoveFileB = (fileId) => {
+    setDatasetBFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  const handleClearFilesA = () => {
+    setDatasetAFiles([]);
+    setStatus('Cleared all Dataset A files.', 'normal');
+  };
+
+  const handleClearFilesB = () => {
+    setDatasetBFiles([]);
+    setStatus('Cleared all Dataset B files.', 'normal');
   };
 
   // Auto-Suggest Key Mappings based on name similarity
@@ -726,21 +994,47 @@ const DataComparisonPage = () => {
     if (activeResultTab === 'all') {
       sheetName = 'All_Compared_Records';
       dataToExport = [
-        ...comparisonResults.exactMatches.map(m => ({ "Match_Status": m.status, "Confidence_%": m.confidence, ...m.rowA })),
+        ...comparisonResults.exactMatches.map(m => ({
+          "Match_Status": m.status,
+          "Confidence_%": m.confidence,
+          ...(datasetAFiles.length > 1 ? { "Source_File_A": m.rowA?._sourceFileName || '' } : {}),
+          ...(datasetBFiles.length > 1 ? { "Source_File_B": m.rowB?._sourceFileName || '' } : {}),
+          ...Object.fromEntries(Object.entries(m.rowA || {}).filter(([k]) => !k.startsWith('_')))
+        })),
         ...comparisonResults.partialMatches.map(m => {
-          const row = { "Match_Status": m.status, "Confidence_%": m.confidence, "Match_Type": m.matchType };
-          Object.keys(m.rowA || {}).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
-          Object.keys(m.rowB || {}).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
+          const row = {
+            "Match_Status": m.status,
+            "Confidence_%": m.confidence,
+            "Match_Type": m.matchType,
+            ...(datasetAFiles.length > 1 ? { "Source_File_A": m.rowA?._sourceFileName || '' } : {}),
+            ...(datasetBFiles.length > 1 ? { "Source_File_B": m.rowB?._sourceFileName || '' } : {})
+          };
+          Object.keys(m.rowA || {}).filter(k => !k.startsWith('_')).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
+          Object.keys(m.rowB || {}).filter(k => !k.startsWith('_')).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
           return row;
         }),
         ...comparisonResults.valueDiscrepancies.map(m => {
-          const row = { "Match_Status": m.status, "Confidence_%": m.confidence, "Discrepancies": m.discrepancies.map(d => `${d.fieldA} vs ${d.fieldB}`).join('; ') };
-          Object.keys(m.rowA || {}).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
-          Object.keys(m.rowB || {}).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
+          const row = {
+            "Match_Status": m.status,
+            "Confidence_%": m.confidence,
+            "Discrepancies": m.discrepancies.map(d => `${d.fieldA} vs ${d.fieldB}`).join('; '),
+            ...(datasetAFiles.length > 1 ? { "Source_File_A": m.rowA?._sourceFileName || '' } : {}),
+            ...(datasetBFiles.length > 1 ? { "Source_File_B": m.rowB?._sourceFileName || '' } : {})
+          };
+          Object.keys(m.rowA || {}).filter(k => !k.startsWith('_')).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
+          Object.keys(m.rowB || {}).filter(k => !k.startsWith('_')).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
           return row;
         }),
-        ...comparisonResults.unmatchedA.map(u => ({ "Match_Status": u.status, ...u.rowA })),
-        ...comparisonResults.unmatchedB.map(u => ({ "Match_Status": u.status, ...u.rowB }))
+        ...comparisonResults.unmatchedA.map(u => ({
+          "Match_Status": u.status,
+          ...(datasetAFiles.length > 1 ? { "Source_File_A": u.rowA?._sourceFileName || '' } : {}),
+          ...Object.fromEntries(Object.entries(u.rowA || {}).filter(([k]) => !k.startsWith('_')))
+        })),
+        ...comparisonResults.unmatchedB.map(u => ({
+          "Match_Status": u.status,
+          ...(datasetBFiles.length > 1 ? { "Source_File_B": u.rowB?._sourceFileName || '' } : {}),
+          ...Object.fromEntries(Object.entries(u.rowB || {}).filter(([k]) => !k.startsWith('_')))
+        }))
       ];
     } else if (activeResultTab === 'exact') {
       sheetName = 'Exact_Matches';
@@ -748,7 +1042,9 @@ const DataComparisonPage = () => {
         "Match_ID": idx + 1,
         "Status": m.status,
         "Confidence_%": m.confidence,
-        ...m.rowA
+        ...(datasetAFiles.length > 1 ? { "Source_File_A": m.rowA?._sourceFileName || '' } : {}),
+        ...(datasetBFiles.length > 1 ? { "Source_File_B": m.rowB?._sourceFileName || '' } : {}),
+        ...Object.fromEntries(Object.entries(m.rowA || {}).filter(([k]) => !k.startsWith('_')))
       }));
     } else if (activeResultTab === 'partial') {
       sheetName = 'Partial_Matches';
@@ -757,10 +1053,12 @@ const DataComparisonPage = () => {
           "Match_ID": idx + 1,
           "Status": m.status,
           "Confidence_%": m.confidence,
-          "Match_Explanation": m.matchType
+          "Match_Explanation": m.matchType,
+          ...(datasetAFiles.length > 1 ? { "Source_File_A": m.rowA?._sourceFileName || '' } : {}),
+          ...(datasetBFiles.length > 1 ? { "Source_File_B": m.rowB?._sourceFileName || '' } : {})
         };
-        Object.keys(m.rowA || {}).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
-        Object.keys(m.rowB || {}).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
+        Object.keys(m.rowA || {}).filter(k => !k.startsWith('_')).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
+        Object.keys(m.rowB || {}).filter(k => !k.startsWith('_')).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
         return row;
       });
     } else if (activeResultTab === 'discrepancy') {
@@ -770,18 +1068,26 @@ const DataComparisonPage = () => {
           "Match_ID": idx + 1,
           "Status": m.status,
           "Confidence_%": m.confidence,
-          "Discrepancies": m.discrepancies.map(d => `${d.fieldA}("${d.valA}" vs "${d.valB}")`).join('; ')
+          "Discrepancies": m.discrepancies.map(d => `${d.fieldA}("${d.valA}" vs "${d.valB}")`).join('; '),
+          ...(datasetAFiles.length > 1 ? { "Source_File_A": m.rowA?._sourceFileName || '' } : {}),
+          ...(datasetBFiles.length > 1 ? { "Source_File_B": m.rowB?._sourceFileName || '' } : {})
         };
-        Object.keys(m.rowA || {}).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
-        Object.keys(m.rowB || {}).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
+        Object.keys(m.rowA || {}).filter(k => !k.startsWith('_')).forEach(k => { row[`A_${k}`] = m.rowA[k]; });
+        Object.keys(m.rowB || {}).filter(k => !k.startsWith('_')).forEach(k => { row[`B_${k}`] = m.rowB[k]; });
         return row;
       });
     } else if (activeResultTab === 'unmatched_a') {
       sheetName = 'Unmatched_Left_A';
-      dataToExport = comparisonResults.unmatchedA.map(u => u.rowA);
+      dataToExport = comparisonResults.unmatchedA.map(u => ({
+        ...(datasetAFiles.length > 1 ? { "Source_File_A": u.rowA?._sourceFileName || '' } : {}),
+        ...Object.fromEntries(Object.entries(u.rowA || {}).filter(([k]) => !k.startsWith('_')))
+      }));
     } else if (activeResultTab === 'unmatched_b') {
       sheetName = 'Unmatched_Right_B';
-      dataToExport = comparisonResults.unmatchedB.map(u => u.rowB);
+      dataToExport = comparisonResults.unmatchedB.map(u => ({
+        ...(datasetBFiles.length > 1 ? { "Source_File_B": u.rowB?._sourceFileName || '' } : {}),
+        ...Object.fromEntries(Object.entries(u.rowB || {}).filter(([k]) => !k.startsWith('_')))
+      }));
     } else if (activeResultTab === 'duplicates') {
       sheetName = 'Duplicates';
       dataToExport = [
@@ -812,7 +1118,17 @@ const DataComparisonPage = () => {
       ["DATA RECONCILIATION & COMPARISON REPORT"],
       ["Generated At", comparisonResults.timestamp],
       ["Dataset A (Reference)", datasetA.name],
-      ["Dataset B (Comparison)", datasetB.name],
+      ["Dataset B (Comparison)", datasetB.name]
+    ];
+
+    if (datasetAFiles.length > 0) {
+      summaryData.push(["Dataset A Source Files", datasetAFiles.map(f => `${f.name} (${f.rows.length} rows)`).join('; ')]);
+    }
+    if (datasetBFiles.length > 0) {
+      summaryData.push(["Dataset B Source Files", datasetBFiles.map(f => `${f.name} (${f.rows.length} rows)`).join('; ')]);
+    }
+
+    summaryData.push(
       [""],
       ["EXECUTIVE METRICS", "COUNT", "PERCENTAGE"],
       ["Total Dataset A Records", comparisonResults.totalRowsA, "100%"],
@@ -827,7 +1143,7 @@ const DataComparisonPage = () => {
       [""],
       ["COLUMN-LEVEL DISCREPANCIES BREAKDOWN"],
       ["Column Mapping", "Mismatched Rows Count"]
-    ];
+    );
 
     Object.entries(comparisonResults.columnDiscrepancyCounts).forEach(([k, v]) => {
       summaryData.push([k, v]);
@@ -842,7 +1158,9 @@ const DataComparisonPage = () => {
         "Match_ID": idx + 1,
         "Status": it.status,
         "Confidence_%": it.confidence,
-        ...it.rowA
+        ...(datasetAFiles.length > 1 ? { "Source_File_A": it.rowA?._sourceFileName || '' } : {}),
+        ...(datasetBFiles.length > 1 ? { "Source_File_B": it.rowB?._sourceFileName || '' } : {}),
+        ...Object.fromEntries(Object.entries(it.rowA || {}).filter(([k]) => !k.startsWith('_')))
       }));
       const wsExact = XLSX.utils.json_to_sheet(flatExact);
       XLSX.utils.book_append_sheet(wb, wsExact, "Exact_Matches");
@@ -855,10 +1173,12 @@ const DataComparisonPage = () => {
           "Match_ID": idx + 1,
           "Status": it.status,
           "Confidence_%": it.confidence,
-          "Match_Explanation": it.matchType
+          "Match_Explanation": it.matchType,
+          ...(datasetAFiles.length > 1 ? { "Source_File_A": it.rowA?._sourceFileName || '' } : {}),
+          ...(datasetBFiles.length > 1 ? { "Source_File_B": it.rowB?._sourceFileName || '' } : {})
         };
-        Object.keys(it.rowA || {}).forEach(k => { flat[`A_${k}`] = it.rowA[k]; });
-        Object.keys(it.rowB || {}).forEach(k => { flat[`B_${k}`] = it.rowB[k]; });
+        Object.keys(it.rowA || {}).filter(k => !k.startsWith('_')).forEach(k => { flat[`A_${k}`] = it.rowA[k]; });
+        Object.keys(it.rowB || {}).filter(k => !k.startsWith('_')).forEach(k => { flat[`B_${k}`] = it.rowB[k]; });
         return flat;
       });
       const wsPartial = XLSX.utils.json_to_sheet(flatPartial);
@@ -873,10 +1193,12 @@ const DataComparisonPage = () => {
           "Match_ID": idx + 1,
           "Status": it.status,
           "Confidence_%": it.confidence,
-          "Discrepancies_Found": discSummary
+          "Discrepancies_Found": discSummary,
+          ...(datasetAFiles.length > 1 ? { "Source_File_A": it.rowA?._sourceFileName || '' } : {}),
+          ...(datasetBFiles.length > 1 ? { "Source_File_B": it.rowB?._sourceFileName || '' } : {})
         };
-        Object.keys(it.rowA || {}).forEach(k => { flat[`A_${k}`] = it.rowA[k]; });
-        Object.keys(it.rowB || {}).forEach(k => { flat[`B_${k}`] = it.rowB[k]; });
+        Object.keys(it.rowA || {}).filter(k => !k.startsWith('_')).forEach(k => { flat[`A_${k}`] = it.rowA[k]; });
+        Object.keys(it.rowB || {}).filter(k => !k.startsWith('_')).forEach(k => { flat[`B_${k}`] = it.rowB[k]; });
         return flat;
       });
       const wsDisc = XLSX.utils.json_to_sheet(flatDisc);
@@ -885,14 +1207,20 @@ const DataComparisonPage = () => {
 
     // 5. Unmatched A Sheet
     if (comparisonResults.unmatchedA.length > 0) {
-      const flatUnA = comparisonResults.unmatchedA.map(it => it.rowA);
+      const flatUnA = comparisonResults.unmatchedA.map(it => ({
+        ...(datasetAFiles.length > 1 ? { "Source_File_A": it.rowA?._sourceFileName || '' } : {}),
+        ...Object.fromEntries(Object.entries(it.rowA || {}).filter(([k]) => !k.startsWith('_')))
+      }));
       const wsUnA = XLSX.utils.json_to_sheet(flatUnA);
       XLSX.utils.book_append_sheet(wb, wsUnA, "Unmatched_Left_A");
     }
 
     // 6. Unmatched B Sheet
     if (comparisonResults.unmatchedB.length > 0) {
-      const flatUnB = comparisonResults.unmatchedB.map(it => it.rowB);
+      const flatUnB = comparisonResults.unmatchedB.map(it => ({
+        ...(datasetBFiles.length > 1 ? { "Source_File_B": it.rowB?._sourceFileName || '' } : {}),
+        ...Object.fromEntries(Object.entries(it.rowB || {}).filter(([k]) => !k.startsWith('_')))
+      }));
       const wsUnB = XLSX.utils.json_to_sheet(flatUnB);
       XLSX.utils.book_append_sheet(wb, wsUnB, "Unmatched_Right_B");
     }
@@ -974,6 +1302,13 @@ const DataComparisonPage = () => {
       { key: 'meta:discrepancies', label: 'Discrepancy Details', origin: 'meta', badge: 'Discrepancy' }
     ];
 
+    if (datasetAFiles.length > 1) {
+      list.push({ key: 'meta:sourceA', label: 'Source File A', origin: 'meta', badge: 'File Origin' });
+    }
+    if (datasetBFiles.length > 1) {
+      list.push({ key: 'meta:sourceB', label: 'Source File B', origin: 'meta', badge: 'File Origin' });
+    }
+
     (datasetA.columns || []).forEach(c => {
       list.push({ key: `A:${c}`, label: c, originalName: c, origin: 'A', badge: `Dataset A: ${datasetA.name || 'File A'}` });
     });
@@ -983,7 +1318,7 @@ const DataComparisonPage = () => {
     });
 
     return list;
-  }, [datasetA.columns, datasetA.name, datasetB.columns, datasetB.name]);
+  }, [datasetA.columns, datasetA.name, datasetB.columns, datasetB.name, datasetAFiles.length, datasetBFiles.length]);
 
   // Current active selected column keys
   const effectiveSelectedCols = useMemo(() => {
@@ -1060,6 +1395,10 @@ const DataComparisonPage = () => {
           row['Discrepancy_Details'] = (item.discrepancies && item.discrepancies.length > 0)
             ? item.discrepancies.map(d => `${d.fieldA}("${d.valA}" vs "${d.valB}")`).join('; ')
             : (item.status === 'Exact Match' ? 'None (100% Match)' : '');
+        } else if (k === 'meta:sourceA') {
+          row['Source_File_A'] = item.rowA ? (item.rowA._sourceFileName || '') : '';
+        } else if (k === 'meta:sourceB') {
+          row['Source_File_B'] = item.rowB ? (item.rowB._sourceFileName || '') : '';
         } else if (k.startsWith('A:')) {
           const col = k.slice(2);
           row[`A_${col}`] = item.rowA ? (item.rowA[col] ?? '') : '';
@@ -1226,48 +1565,121 @@ const DataComparisonPage = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ background: 'var(--accent)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>A</div>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>Dataset A (Reference / Master)</h3>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>Dataset A (Reference / Master)</h3>
+                  {datasetAFiles.length > 0 && (
+                    <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 500 }}>
+                      {datasetAFiles.length} {datasetAFiles.length === 1 ? 'file' : 'files'} uploaded
+                    </span>
+                  )}
+                </div>
               </div>
               {datasetA.rows.length > 0 && (
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-soft)', padding: '4px 10px', borderRadius: '12px' }}>
-                  {datasetA.rows.length} Rows • {datasetA.columns.length} Cols
+                  {datasetA.rows.length} Rows • {datasetA.columns.length} Cols • {datasetAFiles.length} {datasetAFiles.length === 1 ? 'File' : 'Files'}
                 </span>
               )}
             </div>
 
             <p style={{ color: 'var(--muted)', fontSize: '13px', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-              Select the primary reference dataset (e.g. Master Admission Roster, Previous Term Data, Official Roll).
+              Select the primary reference dataset (e.g. Master Admission Roster, Previous Term Data, Official Roll). Upload one or multiple Excel / CSV files.
             </p>
 
-            <div style={{ border: '2px dashed var(--line)', borderRadius: '12px', padding: '24px', textAlign: 'center', background: 'var(--bg)', marginBottom: '16px' }}>
-              <Upload size={32} color="var(--accent)" style={{ margin: '0 auto 10px', opacity: 0.8 }} />
-              <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px' }}>
-                {datasetA.fileName ? datasetA.fileName : 'Upload Excel (.xlsx, .xls), CSV, or ZIP'}
+            <div 
+              onDragOver={(e) => { e.preventDefault(); setIsDragOverA(true); }}
+              onDragLeave={() => setIsDragOverA(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOverA(false);
+                handleUploadFilesA(e.dataTransfer.files);
+              }}
+              style={{ 
+                border: `2px dashed ${isDragOverA ? 'var(--accent)' : 'var(--line)'}`, 
+                borderRadius: '12px', 
+                padding: '22px 16px', 
+                textAlign: 'center', 
+                background: isDragOverA ? 'var(--accent-soft)' : 'var(--bg)', 
+                marginBottom: '16px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Upload size={30} color="var(--accent)" style={{ margin: '0 auto 8px', opacity: 0.8 }} />
+              <div style={{ fontWeight: 600, fontSize: '13.5px', marginBottom: '4px' }}>
+                {datasetAFiles.length === 0 
+                  ? 'Upload Excel (.xlsx, .xls), CSV, or ZIP' 
+                  : `Add More Files (${datasetAFiles.length} currently uploaded)`}
               </div>
-              <p style={{ color: 'var(--muted)', fontSize: '12px', margin: '0 0 14px 0' }}>Supports multi-sheet workbooks and zipped files</p>
-              <label className="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '8px 18px', fontSize: '13px' }}>
-                Browse File A
-                <input type="file" accept=".xlsx, .xls, .csv, .zip" onChange={handleUploadA} style={{ display: 'none' }} />
+              <p style={{ color: 'var(--muted)', fontSize: '11.5px', margin: '0 0 12px 0' }}>
+                Select multiple files at once or drop a ZIP archive of spreadsheets
+              </p>
+              <label className="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '7px 16px', fontSize: '12.5px' }}>
+                <Plus size={14} /> Browse File(s) A
+                <input type="file" accept=".xlsx, .xls, .csv, .zip" multiple onChange={handleUploadA} style={{ display: 'none' }} />
               </label>
             </div>
 
-            {datasetA.sheets.length > 1 && (
-              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>Select Sheet:</span>
-                <select 
-                  value={datasetA.selectedSheet} 
-                  onChange={(e) => handleSheetChangeA(e.target.value)}
-                  style={{ flex: 1, padding: '6px 12px', borderRadius: '6px', fontSize: '13px' }}
-                >
-                  {datasetA.sheets.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+            {/* Uploaded Files Chips for Dataset A */}
+            {datasetAFiles.length > 0 && (
+              <div style={fileListStyles.filesListContainer}>
+                <div style={fileListStyles.filesListHeader}>
+                  <span style={fileListStyles.filesListTitle}>
+                    Uploaded Reference Files ({datasetAFiles.length})
+                  </span>
+                  <button
+                    type="button"
+                    style={fileListStyles.clearAllBtn}
+                    onClick={handleClearFilesA}
+                    title="Clear all uploaded Dataset A files"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                <div style={fileListStyles.filesScrollList}>
+                  {datasetAFiles.map((f) => (
+                    <div key={f.id} style={fileListStyles.fileChip}>
+                      <div style={fileListStyles.fileChipLeft}>
+                        <FileSpreadsheet size={15} color="var(--accent)" style={{ flexShrink: 0 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={fileListStyles.fileChipName} title={f.name}>
+                            {f.name}
+                          </span>
+                          <span style={fileListStyles.fileChipMeta}>
+                            {f.sizeFormatted} • {f.rows.length} rows • {f.columns.length} cols
+                          </span>
+                        </div>
+                      </div>
+                      <div style={fileListStyles.fileChipRight}>
+                        {f.sheetNames.length > 1 && (
+                          <select
+                            value={f.selectedSheet}
+                            onChange={(e) => handleSheetChangeFileA(f.id, e.target.value)}
+                            style={fileListStyles.sheetMiniSelect}
+                            title="Select active worksheet for this file"
+                          >
+                            {f.sheetNames.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        )}
+                        <button
+                          type="button"
+                          style={fileListStyles.fileRemoveBtn}
+                          onClick={() => handleRemoveFileA(f.id)}
+                          title={`Remove ${f.name}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
             {datasetA.columns.length > 0 && (
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '8px' }}>
-                  Detected Columns ({datasetA.columns.length})
+                  Unified Columns ({datasetA.columns.length})
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '100px', overflowY: 'auto', marginBottom: '16px' }}>
                   {datasetA.columns.map(c => (
@@ -1284,12 +1696,20 @@ const DataComparisonPage = () => {
                   <table style={{ width: '100%', fontSize: '11.5px', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)' }}>
+                        {datasetAFiles.length > 1 && (
+                          <th style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--accent)' }}>Source File</th>
+                        )}
                         {datasetA.columns.slice(0, 5).map(c => <th key={c} style={{ padding: '6px 8px', textAlign: 'left' }}>{c}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {datasetA.rows.slice(0, 4).map((r, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid var(--line)' }}>
+                          {datasetAFiles.length > 1 && (
+                            <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', color: 'var(--accent)', fontWeight: 600 }}>
+                              {r._sourceFileName || '—'}
+                            </td>
+                          )}
                           {datasetA.columns.slice(0, 5).map(c => <td key={c} style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>{String(r[c] || '')}</td>)}
                         </tr>
                       ))}
@@ -1305,48 +1725,121 @@ const DataComparisonPage = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ background: 'var(--accent)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>B</div>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>Dataset B (Comparison / Incoming)</h3>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>Dataset B (Comparison / Incoming)</h3>
+                  {datasetBFiles.length > 0 && (
+                    <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 500 }}>
+                      {datasetBFiles.length} {datasetBFiles.length === 1 ? 'file' : 'files'} uploaded
+                    </span>
+                  )}
+                </div>
               </div>
               {datasetB.rows.length > 0 && (
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-soft)', padding: '4px 10px', borderRadius: '12px' }}>
-                  {datasetB.rows.length} Rows • {datasetB.columns.length} Cols
+                  {datasetB.rows.length} Rows • {datasetB.columns.length} Cols • {datasetBFiles.length} {datasetBFiles.length === 1 ? 'File' : 'Files'}
                 </span>
               )}
             </div>
 
             <p style={{ color: 'var(--muted)', fontSize: '13px', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-              Select the comparison dataset to reconcile against Dataset A (e.g. Exam Registrations, Fee Receipts, Attendance).
+              Select the comparison dataset to reconcile against Dataset A (e.g. Exam Registrations, Fee Receipts, Attendance). Upload one or multiple Excel / CSV files.
             </p>
 
-            <div style={{ border: '2px dashed var(--line)', borderRadius: '12px', padding: '24px', textAlign: 'center', background: 'var(--bg)', marginBottom: '16px' }}>
-              <Upload size={32} color="var(--accent)" style={{ margin: '0 auto 10px', opacity: 0.8 }} />
-              <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px' }}>
-                {datasetB.fileName ? datasetB.fileName : 'Upload Excel (.xlsx, .xls), CSV, or ZIP'}
+            <div 
+              onDragOver={(e) => { e.preventDefault(); setIsDragOverB(true); }}
+              onDragLeave={() => setIsDragOverB(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOverB(false);
+                handleUploadFilesB(e.dataTransfer.files);
+              }}
+              style={{ 
+                border: `2px dashed ${isDragOverB ? 'var(--accent)' : 'var(--line)'}`, 
+                borderRadius: '12px', 
+                padding: '22px 16px', 
+                textAlign: 'center', 
+                background: isDragOverB ? 'var(--accent-soft)' : 'var(--bg)', 
+                marginBottom: '16px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Upload size={30} color="var(--accent)" style={{ margin: '0 auto 8px', opacity: 0.8 }} />
+              <div style={{ fontWeight: 600, fontSize: '13.5px', marginBottom: '4px' }}>
+                {datasetBFiles.length === 0 
+                  ? 'Upload Excel (.xlsx, .xls), CSV, or ZIP' 
+                  : `Add More Files (${datasetBFiles.length} currently uploaded)`}
               </div>
-              <p style={{ color: 'var(--muted)', fontSize: '12px', margin: '0 0 14px 0' }}>Supports multi-sheet workbooks and zipped files</p>
-              <label className="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '8px 18px', fontSize: '13px' }}>
-                Browse File B
-                <input type="file" accept=".xlsx, .xls, .csv, .zip" onChange={handleUploadB} style={{ display: 'none' }} />
+              <p style={{ color: 'var(--muted)', fontSize: '11.5px', margin: '0 0 12px 0' }}>
+                Select multiple files at once or drop a ZIP archive of spreadsheets
+              </p>
+              <label className="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '7px 16px', fontSize: '12.5px' }}>
+                <Plus size={14} /> Browse File(s) B
+                <input type="file" accept=".xlsx, .xls, .csv, .zip" multiple onChange={handleUploadB} style={{ display: 'none' }} />
               </label>
             </div>
 
-            {datasetB.sheets.length > 1 && (
-              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>Select Sheet:</span>
-                <select 
-                  value={datasetB.selectedSheet} 
-                  onChange={(e) => handleSheetChangeB(e.target.value)}
-                  style={{ flex: 1, padding: '6px 12px', borderRadius: '6px', fontSize: '13px' }}
-                >
-                  {datasetB.sheets.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+            {/* Uploaded Files Chips for Dataset B */}
+            {datasetBFiles.length > 0 && (
+              <div style={fileListStyles.filesListContainer}>
+                <div style={fileListStyles.filesListHeader}>
+                  <span style={fileListStyles.filesListTitle}>
+                    Uploaded Comparison Files ({datasetBFiles.length})
+                  </span>
+                  <button
+                    type="button"
+                    style={fileListStyles.clearAllBtn}
+                    onClick={handleClearFilesB}
+                    title="Clear all uploaded Dataset B files"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                <div style={fileListStyles.filesScrollList}>
+                  {datasetBFiles.map((f) => (
+                    <div key={f.id} style={fileListStyles.fileChip}>
+                      <div style={fileListStyles.fileChipLeft}>
+                        <FileSpreadsheet size={15} color="var(--accent)" style={{ flexShrink: 0 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={fileListStyles.fileChipName} title={f.name}>
+                            {f.name}
+                          </span>
+                          <span style={fileListStyles.fileChipMeta}>
+                            {f.sizeFormatted} • {f.rows.length} rows • {f.columns.length} cols
+                          </span>
+                        </div>
+                      </div>
+                      <div style={fileListStyles.fileChipRight}>
+                        {f.sheetNames.length > 1 && (
+                          <select
+                            value={f.selectedSheet}
+                            onChange={(e) => handleSheetChangeFileB(f.id, e.target.value)}
+                            style={fileListStyles.sheetMiniSelect}
+                            title="Select active worksheet for this file"
+                          >
+                            {f.sheetNames.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        )}
+                        <button
+                          type="button"
+                          style={fileListStyles.fileRemoveBtn}
+                          onClick={() => handleRemoveFileB(f.id)}
+                          title={`Remove ${f.name}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
             {datasetB.columns.length > 0 && (
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '8px' }}>
-                  Detected Columns ({datasetB.columns.length})
+                  Unified Columns ({datasetB.columns.length})
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '100px', overflowY: 'auto', marginBottom: '16px' }}>
                   {datasetB.columns.map(c => (
@@ -1363,12 +1856,20 @@ const DataComparisonPage = () => {
                   <table style={{ width: '100%', fontSize: '11.5px', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)' }}>
+                        {datasetBFiles.length > 1 && (
+                          <th style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--accent)' }}>Source File</th>
+                        )}
                         {datasetB.columns.slice(0, 5).map(c => <th key={c} style={{ padding: '6px 8px', textAlign: 'left' }}>{c}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {datasetB.rows.slice(0, 4).map((r, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid var(--line)' }}>
+                          {datasetBFiles.length > 1 && (
+                            <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', color: 'var(--accent)', fontWeight: 600 }}>
+                              {r._sourceFileName || '—'}
+                            </td>
+                          )}
                           {datasetB.columns.slice(0, 5).map(c => <td key={c} style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>{String(r[c] || '')}</td>)}
                         </tr>
                       ))}
@@ -1934,7 +2435,12 @@ const DataComparisonPage = () => {
                           <td style={{ padding: '12px 14px', verticalAlign: 'top' }}>
                             {item.rowA ? (
                               <div>
-                                {Object.entries(item.rowA).slice(0, 4).map(([k, v]) => (
+                                {datasetAFiles.length > 1 && item.rowA._sourceFileName && (
+                                  <div style={{ fontSize: '10.5px', background: 'var(--panel)', border: '1px solid var(--line)', padding: '2px 6px', borderRadius: '4px', color: 'var(--accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
+                                    <FileSpreadsheet size={11} /> {item.rowA._sourceFileName}
+                                  </div>
+                                )}
+                                {Object.entries(item.rowA).filter(([k]) => !k.startsWith('_')).slice(0, 4).map(([k, v]) => (
                                   <div key={k} style={{ fontSize: '12px', marginBottom: '2px' }}>
                                     <strong style={{ color: 'var(--muted)' }}>{k}:</strong> {String(v)}
                                   </div>
@@ -1949,7 +2455,12 @@ const DataComparisonPage = () => {
                           <td style={{ padding: '12px 14px', verticalAlign: 'top' }}>
                             {item.rowB ? (
                               <div>
-                                {Object.entries(item.rowB).slice(0, 4).map(([k, v]) => (
+                                {datasetBFiles.length > 1 && item.rowB._sourceFileName && (
+                                  <div style={{ fontSize: '10.5px', background: 'var(--panel)', border: '1px solid var(--line)', padding: '2px 6px', borderRadius: '4px', color: 'var(--accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
+                                    <FileSpreadsheet size={11} /> {item.rowB._sourceFileName}
+                                  </div>
+                                )}
+                                {Object.entries(item.rowB).filter(([k]) => !k.startsWith('_')).slice(0, 4).map(([k, v]) => (
                                   <div key={k} style={{ fontSize: '12px', marginBottom: '2px' }}>
                                     <strong style={{ color: 'var(--muted)' }}>{k}:</strong> {String(v)}
                                   </div>
@@ -2435,7 +2946,12 @@ const DataComparisonPage = () => {
                   <span>Dataset A (Left):</span> {datasetA.name}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px' }}>
-                  {Object.entries(inspectModalItem.rowA || {}).map(([k, v]) => (
+                  {inspectModalItem.rowA?._sourceFileName && (
+                    <div style={{ padding: '6px 8px', background: 'var(--panel)', borderRadius: '4px', border: '1px solid var(--accent)', color: 'var(--accent)', fontWeight: 600 }}>
+                      📄 Source File: {inspectModalItem.rowA._sourceFileName}
+                    </div>
+                  )}
+                  {Object.entries(inspectModalItem.rowA || {}).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
                     <div key={k} style={{ padding: '6px 8px', background: 'var(--panel)', borderRadius: '4px', border: '1px solid var(--line)' }}>
                       <span style={{ color: 'var(--muted)', fontWeight: 600 }}>{k}:</span>
                       <div style={{ fontWeight: 700, color: 'var(--ink)', wordBreak: 'break-word', marginTop: '2px' }}>
@@ -2452,7 +2968,12 @@ const DataComparisonPage = () => {
                   <span>Dataset B (Right):</span> {datasetB.name}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px' }}>
-                  {Object.entries(inspectModalItem.rowB || {}).map(([k, v]) => (
+                  {inspectModalItem.rowB?._sourceFileName && (
+                    <div style={{ padding: '6px 8px', background: 'var(--panel)', borderRadius: '4px', border: '1px solid var(--accent)', color: 'var(--accent)', fontWeight: 600 }}>
+                      📄 Source File: {inspectModalItem.rowB._sourceFileName}
+                    </div>
+                  )}
+                  {Object.entries(inspectModalItem.rowB || {}).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
                     <div key={k} style={{ padding: '6px 8px', background: 'var(--panel)', borderRadius: '4px', border: '1px solid var(--line)' }}>
                       <span style={{ color: 'var(--muted)', fontWeight: 600 }}>{k}:</span>
                       <div style={{ fontWeight: 700, color: 'var(--ink)', wordBreak: 'break-word', marginTop: '2px' }}>
