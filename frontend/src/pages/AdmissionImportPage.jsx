@@ -1,21 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { 
   ArrowLeft, 
   Upload, 
   Download, 
   FileSpreadsheet, 
-  CheckCircle2, 
   AlertTriangle, 
   Search, 
-  Filter, 
-  RefreshCw,
-  Table,
   Sparkles,
-  HelpCircle,
-  Database,
-  Edit2
+  Database
 } from 'lucide-react';
 import { 
   TARGET_COLUMNS, 
@@ -56,8 +51,372 @@ const parseExcelDate = (val) => {
   return clean;
 };
 
+// Admission allotment header recognition weights
+export const ADMISSION_HEADER_WEIGHTS = [
+  { keys: ['name', 'candidatename', 'studentname', 'fullname', 'applicantname', 'nameofthecandidate'], weight: 12, label: 'Name' },
+  { keys: ['appno', 'applicationno', 'applno', 'applicationnumber', 'regno', 'registerno', 'registrationno', 'prn', 'candidateid', 'username', 'slno', 'sno', 'rollno', 'seatno'], weight: 10, label: 'Identifier / SlNo' },
+  { keys: ['gender', 'sex'], weight: 5, label: 'Gender' },
+  { keys: ['dob', 'dateofbirth', 'birthdate'], weight: 5, label: 'DOB' },
+  { keys: ['category', 'community', 'allotmentquota', 'quota', 'allottedcategory', 'caste', 'religion'], weight: 8, label: 'Category' },
+  { keys: ['mobile', 'mobilenumber', 'phone', 'contact', 'contactnumber'], weight: 8, label: 'Mobile' },
+  { keys: ['email', 'emailid', 'mail'], weight: 6, label: 'Email' },
+  { keys: ['marks', 'marksobtained', 'indexmark', 'totalmarks', 'percentage', 'percent', 'cgpa', 'rank', 'allotmentrank', 'securedmarks', 'marksoutof'], weight: 8, label: 'Marks' },
+  { keys: ['course', 'coursename', 'program', 'programname', 'programme', 'degree', 'subject', 'stream'], weight: 6, label: 'Course/Program' },
+  { keys: ['college', 'collegename', 'institution', 'center', 'collegecode', 'centercode', 'colcode'], weight: 5, label: 'College' },
+  { keys: ['aadhaar', 'aadhaarnumber', 'adhar', 'abcid', 'certificatenumber'], weight: 5, label: 'Aadhaar/Cert' }
+];
+
+export const scoreAdmissionHeaderRow = (rowArray) => {
+  if (!Array.isArray(rowArray) || rowArray.length === 0) {
+    return { score: -100, matchedHeaders: [], nonEmptyCount: 0 };
+  }
+
+  const nonEmpty = rowArray.filter(c => c !== undefined && c !== null && String(c).trim() !== '');
+  if (nonEmpty.length < 2) {
+    return { score: -100, matchedHeaders: [], nonEmptyCount: nonEmpty.length };
+  }
+
+  const normCols = rowArray.map(c => normalizeKey(c));
+  let score = 0;
+  const matchedHeaders = [];
+  const matchedCategories = new Set();
+
+  for (const item of ADMISSION_HEADER_WEIGHTS) {
+    const hasMatch = normCols.some(col => item.keys.some(k => col === k || (col.length >= 4 && col.includes(k))));
+    if (hasMatch) {
+      score += item.weight;
+      matchedHeaders.push(item.label);
+      matchedCategories.add(item.label);
+    }
+  }
+
+  // Bonus for candidate data density
+  if (matchedCategories.size >= 3) {
+    score += matchedCategories.size * 4;
+  }
+
+  // Penalty if row looks like an institutional banner / title line rather than table headers
+  const joinedText = rowArray.map(c => String(c || '').toLowerCase()).join(' ');
+  if (/university|centralized admission|allotment process|government of|provisional allotment|notification dated/i.test(joinedText)) {
+    score -= 15;
+  }
+
+  return { score, matchedHeaders, nonEmptyCount: nonEmpty.length };
+};
+
+export const extractAdmissionRowsFromSheet = (sheet) => {
+  if (!sheet) return { rows: [], headers: [], score: 0, headerRowIdx: 0, matchedHeaders: [] };
+
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false });
+  if (!aoa || aoa.length === 0) {
+    return { rows: [], headers: [], score: 0, headerRowIdx: 0, matchedHeaders: [] };
+  }
+
+  // Scan top 30 rows
+  let bestRowIdx = -1;
+  let maxScore = -99;
+  let bestMatchedHeaders = [];
+
+  const maxScan = Math.min(aoa.length, 30);
+  for (let r = 0; r < maxScan; r++) {
+    const rowArr = aoa[r];
+    const { score, matchedHeaders } = scoreAdmissionHeaderRow(rowArr);
+    if (score > maxScore) {
+      maxScore = score;
+      bestRowIdx = r;
+      bestMatchedHeaders = matchedHeaders;
+    }
+  }
+
+  // If no good header match was found (> 0), fallback to row with the most columns
+  if (maxScore <= 0 || bestRowIdx === -1) {
+    let maxCols = 0;
+    bestRowIdx = 0;
+    for (let r = 0; r < Math.min(aoa.length, 15); r++) {
+      const nonEmpty = (aoa[r] || []).filter(c => String(c ?? '').trim() !== '').length;
+      if (nonEmpty > maxCols) {
+        maxCols = nonEmpty;
+        bestRowIdx = r;
+      }
+    }
+  }
+
+  const rawHeaders = aoa[bestRowIdx] || [];
+  const headers = [];
+  const usedKeys = new Set();
+
+  rawHeaders.forEach((colName, idx) => {
+    let name = String(colName || '').trim();
+    if (!name) name = `Column_${idx + 1}`;
+    let unique = name;
+    let counter = 2;
+    while (usedKeys.has(unique.toLowerCase())) {
+      unique = `${name}_${counter}`;
+      counter++;
+    }
+    usedKeys.add(unique.toLowerCase());
+    headers.push({ idx, name: unique, norm: normalizeKey(unique) });
+  });
+
+  const rows = [];
+  for (let r = bestRowIdx + 1; r < aoa.length; r++) {
+    const rowArr = aoa[r];
+    if (!Array.isArray(rowArr)) continue;
+    
+    // Check if row has at least one non-empty value
+    const nonEmptyCells = rowArr.filter(c => c !== undefined && c !== null && String(c).trim() !== '');
+    if (nonEmptyCells.length === 0) continue;
+
+    // Filter out footer rows, page numbers, signatures, or print timestamps
+    const rowStr = nonEmptyCells.map(c => String(c).trim()).join(' ').toLowerCase();
+    const isSummaryOrFooter = (nonEmptyCells.length <= 3 && /^(total|page \d|report generated|printed on|signature|disclaimer|coordinator|principal|verified by|date:|note:)/i.test(rowStr));
+    if (isSummaryOrFooter) continue;
+
+    const rowObj = {};
+    headers.forEach(({ idx, name }) => {
+      rowObj[name] = rowArr[idx] !== undefined && rowArr[idx] !== null ? String(rowArr[idx]).trim() : '';
+    });
+    rows.push(rowObj);
+  }
+
+  return {
+    rows,
+    headers: headers.map(h => h.name),
+    score: Math.max(maxScore, 0),
+    headerRowIdx: bestRowIdx,
+    matchedHeaders: bestMatchedHeaders
+  };
+};
+
+export const parseWorkbookFromBytes = (buffer) => {
+  const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  // 1. Try binary Excel
+  try {
+    return XLSX.read(uint8, { type: 'array', cellDates: true, raw: false });
+  } catch {
+    // 2. Try UTF-8 string (HTML tables, CSV, TSV)
+    try {
+      const text = new TextDecoder('utf-8').decode(uint8);
+      return XLSX.read(text, { type: 'string', cellDates: true, raw: false });
+    } catch {
+      // 3. Try Windows-1252 string
+      try {
+        const text = new TextDecoder('windows-1252').decode(uint8);
+        return XLSX.read(text, { type: 'string', cellDates: true, raw: false });
+      } catch (err) {
+        throw new Error(`Failed to read spreadsheet buffer: ${err.message}`, { cause: err });
+      }
+    }
+  }
+};
+
+export const parseWorkbookBuffer = async (buffer, fileName = '') => {
+  const isZip = String(fileName).toLowerCase().endsWith('.zip');
+  if (isZip) {
+    const zip = await JSZip.loadAsync(buffer);
+    const validEntries = Object.keys(zip.files).filter(name => {
+      if (!name || zip.files[name].dir) return false;
+      if (name.includes('__MACOSX') || name.includes('.DS_Store')) return false;
+      const base = name.split('/').pop();
+      return !base.startsWith('._') && !base.startsWith('.');
+    });
+
+    // Find spreadsheet files first
+    const spreadsheetFile = validEntries.find(name => /\.(xlsx|xls|csv|tsv|xlsm|ods)$/i.test(name)) || validEntries[0];
+    if (!spreadsheetFile) {
+      throw new Error('No spreadsheet or data file found in the uploaded ZIP archive.');
+    }
+    const unzippedData = await zip.files[spreadsheetFile].async('uint8array');
+    return parseWorkbookFromBytes(unzippedData);
+  }
+
+  return parseWorkbookFromBytes(buffer);
+};
+
+export const scanWorkbookSheets = (workbook) => {
+  const sheetSummaries = [];
+  let bestSheetName = '';
+  let bestExtraction = null;
+  let maxSheetScore = -1;
+
+  for (const name of workbook.SheetNames) {
+    const sheet = workbook.Sheets[name];
+    if (!sheet) continue;
+    const extraction = extractAdmissionRowsFromSheet(sheet);
+    // Score based on candidate count and header quality
+    const sheetScore = (extraction.rows.length * 10) + extraction.score;
+    sheetSummaries.push({
+      name,
+      rowCount: extraction.rows.length,
+      headerRowIdx: extraction.headerRowIdx,
+      score: extraction.score,
+      totalScore: sheetScore,
+      matchedHeaders: extraction.matchedHeaders
+    });
+
+    if (sheetScore > maxSheetScore) {
+      maxSheetScore = sheetScore;
+      bestSheetName = name;
+      bestExtraction = extraction;
+    }
+  }
+
+  // Fallback: If best extraction has 0 rows, check naive sheet_to_json across sheets
+  if (!bestExtraction || bestExtraction.rows.length === 0) {
+    for (const name of workbook.SheetNames) {
+      const sheet = workbook.Sheets[name];
+      if (!sheet) continue;
+      const naiveRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      if (naiveRows && naiveRows.length > 0) {
+        const headers = Object.keys(naiveRows[0]);
+        bestSheetName = name;
+        bestExtraction = {
+          rows: naiveRows,
+          headers,
+          score: 1,
+          headerRowIdx: 0,
+          matchedHeaders: []
+        };
+        break;
+      }
+    }
+  }
+
+  return {
+    bestSheetName: bestSheetName || workbook.SheetNames[0],
+    bestExtraction: bestExtraction || { rows: [], headers: [], score: 0, headerRowIdx: 0, matchedHeaders: [] },
+    sheetSummaries
+  };
+};
+
+export const generateSampleAllotmentRows = () => [
+  {
+    'Sl No': 1,
+    'Application Number': '2099010001',
+    'Candidate Name': 'STUDENT ALPHA',
+    'Gender': 'Male',
+    'Date of Birth': '2005-04-12',
+    'Category': 'General',
+    'Caste': 'Nair',
+    'Religion': 'Hindu',
+    'Mobile Number': '9876543210',
+    'Email ID': 'alpha.student@sample-univ.edu',
+    'Program Name': 'B.A. History (Honours)',
+    'College Name': 'Alpha Arts and Science College',
+    'College Code': '101',
+    'Total Marks': '1200',
+    'Marks Obtained': '1120',
+    'Register Number': '2099HSE0101',
+    'Stream': 'Humanities',
+    'Allotment Quota': 'Open Merit'
+  },
+  {
+    'Sl No': 2,
+    'Application Number': '2099010002',
+    'Candidate Name': 'STUDENT BETA',
+    'Gender': 'Female',
+    'Date of Birth': '2005-08-20',
+    'Category': 'OBC',
+    'Caste': 'Ezhava',
+    'Religion': 'Hindu',
+    'Mobile Number': '9876543211',
+    'Email ID': 'beta.student@sample-univ.edu',
+    'Program Name': 'B.Com Finance (Honours)',
+    'College Name': 'Beta Commerce College',
+    'College Code': '304',
+    'Total Marks': '1200',
+    'Marks Obtained': '1085',
+    'Register Number': '2099HSE0102',
+    'Stream': 'Commerce',
+    'Allotment Quota': 'SEBC / OBC'
+  },
+  {
+    'Sl No': 3,
+    'Application Number': '2099010003',
+    'Candidate Name': 'STUDENT GAMMA',
+    'Gender': 'Male',
+    'Date of Birth': '2005-01-15',
+    'Category': 'SC',
+    'Caste': 'Pulaya',
+    'Religion': 'Hindu',
+    'Mobile Number': '9876543212',
+    'Email ID': 'gamma.student@sample-univ.edu',
+    'Program Name': 'B.Sc Physics (Honours)',
+    'College Name': 'Gamma Science College',
+    'College Code': '347',
+    'Total Marks': '1200',
+    'Marks Obtained': '1150',
+    'Register Number': '2099HSE0103',
+    'Stream': 'Science',
+    'Allotment Quota': 'Scheduled Caste'
+  },
+  {
+    'Sl No': 4,
+    'Application Number': '2099010004',
+    'Candidate Name': 'STUDENT DELTA',
+    'Gender': 'Female',
+    'Date of Birth': '2004-11-03',
+    'Category': 'General',
+    'Caste': 'Christian',
+    'Religion': 'Christian',
+    'Mobile Number': '9876543213',
+    'Email ID': 'delta.student@sample-univ.edu',
+    'Program Name': 'B.A. English (Honours)',
+    'College Name': 'Delta Academy',
+    'College Code': '358',
+    'Total Marks': '1200',
+    'Marks Obtained': '1040',
+    'Register Number': '2099CBSE0104',
+    'Stream': 'Humanities',
+    'Allotment Quota': 'Open Merit'
+  },
+  {
+    'Sl No': 5,
+    'Application Number': '2099010005',
+    'Candidate Name': 'STUDENT EPSILON',
+    'Gender': 'Female',
+    'Date of Birth': '2005-05-25',
+    'Category': 'EWS',
+    'Caste': 'General-EWS',
+    'Religion': 'Hindu',
+    'Mobile Number': '9876543214',
+    'Email ID': 'epsilon.student@sample-univ.edu',
+    'Program Name': 'B.Sc Mathematics (Honours)',
+    'College Name': 'Alpha Arts and Science College',
+    'College Code': '101',
+    'Total Marks': '1200',
+    'Marks Obtained': '1190',
+    'Register Number': '2099HSE0105',
+    'Stream': 'Science',
+    'Allotment Quota': 'Economically Weaker Section'
+  },
+  {
+    'Sl No': 6,
+    'Application Number': '2099010006',
+    'Candidate Name': 'STUDENT ZETA',
+    'Gender': 'Male',
+    'Date of Birth': '2005-09-18',
+    'Category': 'Muslim',
+    'Caste': 'Muslim',
+    'Religion': 'Islam',
+    'Mobile Number': '9876543215',
+    'Email ID': 'zeta.student@sample-univ.edu',
+    'Program Name': 'Integrated M.Sc (IMPES)',
+    'College Name': 'Beta Commerce College',
+    'College Code': '304',
+    'Total Marks': '1200',
+    'Marks Obtained': '1135',
+    'Register Number': '2099HSE0106',
+    'Stream': 'Science',
+    'Allotment Quota': 'Muslim Merit'
+  }
+];
+
 export default function AdmissionImportPage() {
   const [sourceFile, setSourceFile] = useState(null);
+  const [currentWorkbook, setCurrentWorkbook] = useState(null);
+  const [sheetList, setSheetList] = useState([]);
+  const [selectedSheetName, setSelectedSheetName] = useState('');
   const [normalizedRows, setNormalizedRows] = useState([]);
   const [sourceHeaders, setSourceHeaders] = useState([]);
   const [stats, setStats] = useState({ total: 0, warnings: 0, ready: 0 });
@@ -281,47 +640,128 @@ export default function AdmissionImportPage() {
     };
   };
 
+  const applyExtractedRows = (extractedData, originName = 'file') => {
+    const { rows, headers } = extractedData;
+    if (!rows || rows.length === 0) {
+      throw new Error('No candidate data rows found in the selected worksheet.');
+    }
+
+    setSourceHeaders(headers);
+    const headerMap = {};
+    headers.forEach(h => {
+      headerMap[normalizeKey(h)] = h;
+    });
+
+    const transformed = rows.map(row => transformRow(row, headerMap));
+    setNormalizedRows(transformed);
+
+    const warningCount = transformed.filter(r => r._warnings && r._warnings.length > 0).length;
+    setStats({
+      total: transformed.length,
+      warnings: warningCount,
+      ready: transformed.length - warningCount
+    });
+
+    setStatus(`Successfully normalized ${transformed.length} candidate record(s) from "${originName}" into 40 master columns!`, 'success');
+  };
+
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     setSourceFile(file);
     setIsProcessing(true);
-    setStatus('Parsing and normalizing allotment spreadsheet...', 'info');
+    setStatus('Reading and analyzing spreadsheet structure...', 'info');
 
     try {
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: false });
-      const firstSheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[firstSheetName];
-
-      const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      if (!rawRows || !rawRows.length) {
-        throw new Error('The uploaded spreadsheet contains no data rows.');
+      const workbook = await parseWorkbookBuffer(buffer, file.name);
+      if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+        throw new Error('Unable to read workbook sheets from the selected file.');
       }
 
-      // Build header normalization map
-      const headers = Object.keys(rawRows[0]);
-      setSourceHeaders(headers);
-      const headerMap = {};
-      headers.forEach(h => {
-        headerMap[normalizeKey(h)] = h;
-      });
+      setCurrentWorkbook(workbook);
 
-      // Normalize and enrich each row
-      const transformed = rawRows.map(row => transformRow(row, headerMap));
-      setNormalizedRows(transformed);
+      const { bestSheetName, bestExtraction, sheetSummaries } = scanWorkbookSheets(workbook);
+      setSheetList(sheetSummaries);
+      setSelectedSheetName(bestSheetName);
 
-      const warningCount = transformed.filter(r => r._warnings && r._warnings.length > 0).length;
-      setStats({
-        total: transformed.length,
-        warnings: warningCount,
-        ready: transformed.length - warningCount
-      });
+      if (!bestExtraction || bestExtraction.rows.length === 0) {
+        const sheetNamesStr = workbook.SheetNames.join(', ');
+        throw new Error(`The uploaded spreadsheet contains no data rows across examined sheet(s): [${sheetNamesStr}]. Please verify the file contains candidate columns.`);
+      }
 
-      setStatus(`Successfully normalized ${transformed.length} candidate record(s) into 40 master columns!`, 'success');
+      applyExtractedRows(bestExtraction, bestSheetName);
     } catch (err) {
       console.error('Admission ingestion error:', err);
       setStatus(`Ingestion failed: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleSheetChange = (newSheetName) => {
+    if (!currentWorkbook || !currentWorkbook.Sheets[newSheetName]) return;
+    setSelectedSheetName(newSheetName);
+    setIsProcessing(true);
+    setStatus(`Extracting candidates from sheet "${newSheetName}"...`, 'info');
+
+    try {
+      const sheet = currentWorkbook.Sheets[newSheetName];
+      const extraction = extractAdmissionRowsFromSheet(sheet);
+      if (!extraction.rows.length) {
+        const naive = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        if (naive && naive.length > 0) {
+          applyExtractedRows({ rows: naive, headers: Object.keys(naive[0]) }, newSheetName);
+          return;
+        }
+        throw new Error(`Worksheet "${newSheetName}" contains no candidate data rows.`);
+      }
+      applyExtractedRows(extraction, newSheetName);
+    } catch (err) {
+      console.error('Sheet switch error:', err);
+      setStatus(`Worksheet extraction failed: ${err.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleLoadSampleData = () => {
+    setIsProcessing(true);
+    setStatus('Loading sample FYUGP & FYIMP candidate allotment roster...', 'info');
+
+    try {
+      const sampleRows = generateSampleAllotmentRows();
+      // Construct a realistic in-memory workbook with institutional title banner to test header detection
+      const aoa = [
+        ['STATE CENTRALIZED ALLOTMENT PROCESS (CAP 2026-27)'],
+        ['COLLEGE ALLOTMENT MERIT ROSTER - ADMISSION IMPORT ENGINE'],
+        Object.keys(sampleRows[0]),
+        ...sampleRows.map(r => Object.values(r))
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sample_Allotment_Roster');
+
+      setCurrentWorkbook(wb);
+      setSheetList([{
+        name: 'Sample_Allotment_Roster',
+        rowCount: sampleRows.length,
+        headerRowIdx: 2,
+        score: 55,
+        totalScore: (sampleRows.length * 10) + 55,
+        matchedHeaders: ['Name', 'Identifier / SlNo', 'Mobile', 'Email', 'Marks']
+      }]);
+      setSelectedSheetName('Sample_Allotment_Roster');
+      setSourceFile({ name: 'sample_allotment_roster_2026.xlsx' });
+
+      const extraction = extractAdmissionRowsFromSheet(ws);
+      applyExtractedRows(extraction, 'Sample_Allotment_Roster');
+      setStatus(`Loaded hypothetical sample allotment roster (${sampleRows.length} candidate records across FYUGP & FYIMP)!`, 'success');
+    } catch (err) {
+      console.error('Sample data error:', err);
+      setStatus(`Failed to load sample data: ${err.message}`, 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -386,7 +826,7 @@ export default function AdmissionImportPage() {
   };
 
   const filteredRows = useMemo(() => {
-    return normalizedRows.filter((row, idx) => {
+    return normalizedRows.filter((row) => {
       if (filterMode === 'warnings' && (!row._warnings || !row._warnings.length)) return false;
       if (filterMode === 'ready' && row._warnings && row._warnings.length) return false;
       if (searchQuery) {
@@ -459,21 +899,82 @@ export default function AdmissionImportPage() {
             <input 
               type="file" 
               id="admissionFileInput" 
-              accept=".xlsx,.xls,.csv" 
+              accept=".xlsx,.xls,.csv,.tsv,.zip" 
               onChange={handleFileUpload} 
               style={{ display: 'none' }} 
             />
             <label htmlFor="admissionFileInput" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={28} color="var(--accent)" />
               <strong style={{ fontSize: '13.5px', color: 'var(--ink)' }}>Upload Allotment Spreadsheet</strong>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Supports FYUGP & FYIMP/IMPES formats</span>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Supports .xlsx, .xls (HTML/ERP), .csv, .zip</span>
             </label>
           </div>
+
+          {/* Quick Demo Sample Data Button */}
+          <button
+            type="button"
+            className="secondary"
+            onClick={handleLoadSampleData}
+            disabled={isProcessing}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              width: '100%',
+              fontWeight: 600,
+              background: 'var(--panel)',
+              border: '1px dashed var(--accent)',
+              color: 'var(--accent)',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            <Sparkles size={14} /> Load Sample Allotment Data (Instant Demo)
+          </button>
+
+          {/* Worksheet Selector (Multi-Sheet Workbooks) */}
+          {sheetList.length > 1 && (
+            <div className="card" style={{ padding: '12px 14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--panel)' }}>
+              <label htmlFor="worksheetSelect" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <FileSpreadsheet size={14} color="var(--accent)" /> Active Worksheet ({sheetList.length} sheets found)
+              </label>
+              <select
+                id="worksheetSelect"
+                value={selectedSheetName}
+                onChange={(e) => handleSheetChange(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  fontSize: '12px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  fontWeight: 600
+                }}
+              >
+                {sheetList.map(s => (
+                  <option key={s.name} value={s.name}>
+                    {s.name} ({s.rowCount} rows{s.name === selectedSheetName ? ' • Selected' : ''})
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: '10.5px', color: 'var(--muted)', lineHeight: 1.3 }}>
+                Automatically picked worksheet with highest candidate density. Switch if needed.
+              </span>
+            </div>
+          )}
 
           {/* Ingestion Metrics Card */}
           {normalizedRows.length > 0 && (
             <div className="card" style={{ padding: '16px', margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <h3 style={{ margin: 0, fontSize: '13.5px', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Transformation Summary</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '13px', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Transformation Summary</h3>
+                <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>{selectedSheetName || 'Active'}</span>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div style={{ padding: '10px', background: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--line)', textAlign: 'center' }}>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)' }}>{stats.total}</div>
@@ -484,6 +985,13 @@ export default function AdmissionImportPage() {
                   <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Standard Columns</div>
                 </div>
               </div>
+
+              {sourceHeaders.length > 0 && (
+                <div style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Source Headers Mapped:</span>
+                  <strong style={{ color: 'var(--ink)' }}>{sourceHeaders.length} columns</strong>
+                </div>
+              )}
 
               {stats.warnings > 0 && (
                 <div style={{ padding: '8px 12px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11.5px', color: '#854d0e' }}>
@@ -498,10 +1006,12 @@ export default function AdmissionImportPage() {
           <div className="card" style={{ padding: '16px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
             <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>Auto-Sanitization Rules (v1.1)</h3>
             <ul style={{ margin: 0, paddingLeft: '16px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px', lineHeight: 1.4 }}>
+              <li><strong>Pre-Header Title Scanner:</strong> Skips university banner rows & locates candidate headers.</li>
+              <li><strong>Multi-Sheet Auto-Detect:</strong> Selects sheet with actual candidates over instruction sheets.</li>
               <li><strong>Excel Serial Dates:</strong> Converts serial integers (e.g. 38302) to ISO YYYY-MM-DD.</li>
               <li><strong>Mobile Normalization:</strong> Strips non-digits & prefixes.</li>
               <li><strong>\N & Null Trapping:</strong> Cleans MySQL export artifacts.</li>
-              <li><strong>Literal Artifacts:</strong> Replaces literal header entries.</li>
+              <li><strong>ZIP Archive Ingestion:</strong> Unpacks and scans contained spreadsheets.</li>
               <li><strong>Multi-Program:</strong> FYUGP & FYIMP / IMPES compatible.</li>
             </ul>
           </div>
