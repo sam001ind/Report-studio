@@ -2391,7 +2391,7 @@ const DataComparisonPage = () => {
             {isProcessing && (
               <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '8px', padding: '14px 18px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: 700, marginBottom: '8px', color: 'var(--ink)' }}>
-                  <span>Reconciling datasets ({datasetA.length.toLocaleString()} vs {datasetB.length.toLocaleString()} rows)...</span>
+                  <span>Reconciling datasets ({((datasetA?.rows?.length) || 0).toLocaleString()} vs {((datasetB?.rows?.length) || 0).toLocaleString()} rows)...</span>
                   <span style={{ color: 'var(--accent)', fontWeight: 800 }}>{calculationProgress}%</span>
                 </div>
                 <div style={{ width: '100%', height: '8px', background: 'var(--line)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -2748,7 +2748,7 @@ const DataComparisonPage = () => {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <div>
-                  Showing <strong>{totalResultCount === 0 ? 0 : (safePage - 1) * resultPageSize + 1}</strong> to <strong>{Math.min(safePage * resultPageSize, totalResultCount)}</strong> of <strong>{totalResultCount.toLocaleString()}</strong> record(s)
+                  Showing <strong>{totalResultCount === 0 ? 0 : (safePage - 1) * resultPageSize + 1}</strong> to <strong>{Math.min(safePage * resultPageSize, totalResultCount)}</strong> of <strong>{(totalResultCount || 0).toLocaleString()}</strong> record(s)
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
