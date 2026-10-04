@@ -24,10 +24,12 @@ import {
   Trash2, 
   Percent,
   Sliders,
-  FileText
+  FileText,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { parseWorkbookFromBuffer } from '../utils/excelParser';
-import { normalizeText, stringSimilarity, calculateCompositeSimilarity } from '../utils/fuzzyMatch';
+import { stringSimilarity, calculateCompositeSimilarity } from '../utils/fuzzyMatch';
 
 const SAMPLE_DATASET_A = [
   { "PRN": "XT2099001", "StudentName": "Student Alpha", "CourseCode": "ENG101", "CourseTitle": "English Literature", "College": "Alpha Arts and Science College", "Marks": "85" },
@@ -172,7 +174,7 @@ const DataComparisonPage = () => {
   const [datasetBFiles, setDatasetBFiles] = useState([]);
   const [isDragOverB, setIsDragOverB] = useState(false);
 
-  // Derived Dataset A across all uploaded files
+  // Derived Dataset A across all uploaded files (Memory-Optimized for 200k+ rows)
   const datasetA = useMemo(() => {
     if (datasetAFiles.length === 0) {
       return {
@@ -183,6 +185,21 @@ const DataComparisonPage = () => {
         sheets: [],
         selectedSheet: '',
         rawWorkbook: null
+      };
+    }
+
+    const primaryFile = datasetAFiles[0];
+
+    // Single file fast-path: Avoid re-allocating 200,000+ objects
+    if (datasetAFiles.length === 1) {
+      return {
+        name: primaryFile.name,
+        columns: primaryFile.columns || [],
+        rows: primaryFile.rows || [],
+        fileName: primaryFile.name,
+        sheets: primaryFile.sheetNames || [],
+        selectedSheet: primaryFile.selectedSheet || '',
+        rawWorkbook: primaryFile.workbook || null
       };
     }
 
@@ -206,10 +223,7 @@ const DataComparisonPage = () => {
       });
     });
 
-    const primaryFile = datasetAFiles[0];
-    const name = datasetAFiles.length === 1
-      ? primaryFile.name
-      : `${primaryFile.name} (+${datasetAFiles.length - 1} more)`;
+    const name = `${primaryFile.name} (+${datasetAFiles.length - 1} more)`;
     const fileName = datasetAFiles.map(f => f.name).join(', ');
 
     return {
@@ -223,7 +237,7 @@ const DataComparisonPage = () => {
     };
   }, [datasetAFiles]);
 
-  // Derived Dataset B across all uploaded files
+  // Derived Dataset B across all uploaded files (Memory-Optimized for 200k+ rows)
   const datasetB = useMemo(() => {
     if (datasetBFiles.length === 0) {
       return {
@@ -234,6 +248,21 @@ const DataComparisonPage = () => {
         sheets: [],
         selectedSheet: '',
         rawWorkbook: null
+      };
+    }
+
+    const primaryFile = datasetBFiles[0];
+
+    // Single file fast-path: Avoid re-allocating 200,000+ objects
+    if (datasetBFiles.length === 1) {
+      return {
+        name: primaryFile.name,
+        columns: primaryFile.columns || [],
+        rows: primaryFile.rows || [],
+        fileName: primaryFile.name,
+        sheets: primaryFile.sheetNames || [],
+        selectedSheet: primaryFile.selectedSheet || '',
+        rawWorkbook: primaryFile.workbook || null
       };
     }
 
@@ -257,10 +286,7 @@ const DataComparisonPage = () => {
       });
     });
 
-    const primaryFile = datasetBFiles[0];
-    const name = datasetBFiles.length === 1
-      ? primaryFile.name
-      : `${primaryFile.name} (+${datasetBFiles.length - 1} more)`;
+    const name = `${primaryFile.name} (+${datasetBFiles.length - 1} more)`;
     const fileName = datasetBFiles.map(f => f.name).join(', ');
 
     return {
@@ -282,8 +308,8 @@ const DataComparisonPage = () => {
   // Non-key columns to compare for attribute drift/discrepancies
   const [valueCompareMappings, setValueCompareMappings] = useState([]);
 
-  // Matching Rules & Parameters
-  const [matchMode, setMatchMode] = useState('fuzzy'); // 'exact' | 'fuzzy'
+  // Matching Rules & Parameters: Default to 'exact' for blazing-fast 200k+ performance
+  const [matchMode, setMatchMode] = useState('exact'); // 'exact' | 'fuzzy'
   const [fuzzyThreshold, setFuzzyThreshold] = useState(80); // 50 - 100 (%)
   const [comparisonType, setComparisonType] = useState('one_to_one'); // 'one_to_one' | 'one_to_many' | 'many_to_many'
   
@@ -295,18 +321,21 @@ const DataComparisonPage = () => {
     stripLeadingZeros: true
   });
 
-  // Processing & Status
+  // Processing, Progress & Status
   const [isProcessing, setIsProcessing] = useState(false);
+  const [calculationProgress, setCalculationProgress] = useState(0);
   const [statusMsg, setStatusMsg] = useState('Ready to upload datasets.');
   const [statusType, setStatusType] = useState('normal'); // 'normal' | 'error' | 'success'
 
   // Comparison Output Results
   const [comparisonResults, setComparisonResults] = useState(null);
 
-  // UI Filter & Inspection States
+  // UI Filter, Search & Pagination States
   const [activeResultTab, setActiveResultTab] = useState('all'); // 'all' | 'exact' | 'partial' | 'discrepancy' | 'unmatched_a' | 'unmatched_b' | 'duplicates'
   const [searchQuery, setSearchQuery] = useState('');
   const [inspectModalItem, setInspectModalItem] = useState(null);
+  const [resultPage, setResultPage] = useState(1);
+  const [resultPageSize, setResultPageSize] = useState(50);
 
   // Custom Report Builder States (Step 4)
   const [customSelectedCols, setCustomSelectedCols] = useState(null);
@@ -676,7 +705,7 @@ const DataComparisonPage = () => {
     setValueCompareMappings(prev => prev.filter(m => m.id !== id));
   };
 
-  // CORE COMPARISON & RECONCILIATION ENGINE
+  // CORE HIGH-SPEED COMPARISON & RECONCILIATION ENGINE (Optimized for 200k+ rows)
   const runComparisonEngine = useCallback(() => {
     if (!datasetA.rows.length || !datasetB.rows.length) {
       alert("Please ensure both Dataset A and Dataset B have data loaded.");
@@ -690,245 +719,410 @@ const DataComparisonPage = () => {
     }
 
     setIsProcessing(true);
-    setStatus("Executing Data Comparison Engine...");
+    setCalculationProgress(5);
+    setStatus("Preparing records and composite keys...");
 
+    // Yield to UI thread so progress indicator renders cleanly
     setTimeout(() => {
       try {
-        const rowsA = [...datasetA.rows];
-        const rowsB = [...datasetB.rows];
+        const rowsA = datasetA.rows;
+        const rowsB = datasetB.rows;
+        const lenA = rowsA.length;
+        const lenB = rowsB.length;
+        const isLargeDataset = lenA > 5000 || lenB > 5000;
 
-        // Deduplication Detection
-        const duplicateA = [];
-        const duplicateB = [];
-        const seenKeysA = new Set();
-        const seenKeysB = new Set();
-
-        const getCompositeKey = (row, cols, isLeft) => {
-          return cols.map(c => normalizeText(row[isLeft ? c.leftCol : c.rightCol], normOptions)).join('||');
+        const fastNorm = (text) => {
+          if (text === null || text === undefined) return '';
+          let str = String(text);
+          if (normOptions.stripSpaces) str = str.trim();
+          if (normOptions.ignoreCase) str = str.toLowerCase();
+          if (normOptions.stripPunctuation) str = str.replace(/[\s.,\-_#;:/\\]+/g, normOptions.stripSpaces ? '' : ' ');
+          else if (normOptions.stripSpaces) str = str.replace(/\s+/g, ' ');
+          if (normOptions.stripLeadingZeros && str.length > 1 && str.charCodeAt(0) === 48) {
+            str = str.replace(/^0+(?=\d)/, '');
+          }
+          return str;
         };
 
-        rowsA.forEach((r, idx) => {
-          const k = getCompositeKey(r, activeKeys, true);
-          if (seenKeysA.has(k)) {
-            duplicateA.push({ ...r, _source: 'Dataset A', _rowIndex: idx + 1, _dupKey: k });
-          } else {
+        const getCompositeKey = (row, isLeft) => {
+          let k = '';
+          for (let i = 0; i < activeKeys.length; i++) {
+            const col = isLeft ? activeKeys[i].leftCol : activeKeys[i].rightCol;
+            const p = fastNorm(row[col]);
+            k += (i === 0 ? p : '||' + p);
+          }
+          return k;
+        };
+
+        // 1. Precompute keys and detect duplicates
+        const keysA = new Array(lenA);
+        const seenKeysA = new Set();
+        const duplicateA = [];
+        for (let i = 0; i < lenA; i++) {
+          const k = getCompositeKey(rowsA[i], true);
+          keysA[i] = k;
+          if (k && seenKeysA.has(k)) {
+            duplicateA.push({ ...rowsA[i], _source: 'Dataset A', _rowIndex: i + 1, _dupKey: k });
+          } else if (k) {
             seenKeysA.add(k);
           }
-        });
-
-        rowsB.forEach((r, idx) => {
-          const k = getCompositeKey(r, activeKeys, false);
-          if (seenKeysB.has(k)) {
-            duplicateB.push({ ...r, _source: 'Dataset B', _rowIndex: idx + 1, _dupKey: k });
-          } else {
-            seenKeysB.add(k);
-          }
-        });
-
-        // Comparison Buckets
-        const exactMatches = [];
-        const partialMatches = [];
-        const valueDiscrepancies = [];
-        const matchedIndexB = new Set();
-        const matchedIndexA = new Set();
-
-        const thresholdRatio = fuzzyThreshold / 100.0;
-        const activeValueComps = valueCompareMappings.filter(v => v.leftCol && v.rightCol);
-
-        // PASS 1: Exact Key Matching
-        const indexMapB = new Map();
-        rowsB.forEach((rowB, idxB) => {
-          const keyB = getCompositeKey(rowB, activeKeys, false);
-          if (!indexMapB.has(keyB)) indexMapB.set(keyB, []);
-          indexMapB.get(keyB).push({ row: rowB, index: idxB });
-        });
-
-        rowsA.forEach((rowA, idxA) => {
-          const keyA = getCompositeKey(rowA, activeKeys, true);
-
-          if (indexMapB.has(keyA) && indexMapB.get(keyA).length > 0) {
-            const matchEntry = indexMapB.get(keyA)[0];
-            const rowB = matchEntry.row;
-            const idxB = matchEntry.index;
-
-            matchedIndexA.add(idxA);
-            matchedIndexB.add(idxB);
-
-            // Check non-key value discrepancies
-            const discrepancies = [];
-            activeValueComps.forEach(comp => {
-              const valA = normalizeText(rowA[comp.leftCol], normOptions);
-              const valB = normalizeText(rowB[comp.rightCol], normOptions);
-              if (valA !== valB) {
-                discrepancies.push({
-                  fieldA: comp.leftCol,
-                  fieldB: comp.rightCol,
-                  valA: rowA[comp.leftCol],
-                  valB: rowB[comp.rightCol]
-                });
-              }
-            });
-
-            if (discrepancies.length > 0) {
-              valueDiscrepancies.push({
-                id: `disc_${idxA}_${idxB}`,
-                status: 'Value Discrepancy',
-                confidence: 100,
-                key: keyA,
-                rowA,
-                rowB,
-                discrepancies,
-                matchType: 'Exact Key Match with Attribute Differences'
-              });
-            } else {
-              exactMatches.push({
-                id: `exact_${idxA}_${idxB}`,
-                status: 'Exact Match',
-                confidence: 100,
-                key: keyA,
-                rowA,
-                rowB,
-                discrepancies: [],
-                matchType: '100% Exact Match'
-              });
-            }
-          }
-        });
-
-        // PASS 2: Fuzzy Matching for Unmatched rows
-        if (matchMode === 'fuzzy') {
-          rowsA.forEach((rowA, idxA) => {
-            if (matchedIndexA.has(idxA)) return;
-
-            let bestMatchB = null;
-            let bestScore = 0;
-            let bestIdxB = -1;
-
-            rowsB.forEach((rowB, idxB) => {
-              if (matchedIndexB.has(idxB)) return;
-
-              const score = calculateCompositeSimilarity(rowA, rowB, activeKeys, normOptions);
-              if (score >= thresholdRatio && score > bestScore) {
-                bestScore = score;
-                bestMatchB = rowB;
-                bestIdxB = idxB;
-              }
-            });
-
-            if (bestMatchB && bestIdxB !== -1) {
-              matchedIndexA.add(idxA);
-              matchedIndexB.add(bestIdxB);
-
-              const discrepancies = [];
-              activeValueComps.forEach(comp => {
-                const valA = normalizeText(rowA[comp.leftCol], normOptions);
-                const valB = normalizeText(bestMatchB[comp.rightCol], normOptions);
-                if (valA !== valB) {
-                  discrepancies.push({
-                    fieldA: comp.leftCol,
-                    fieldB: comp.rightCol,
-                    valA: rowA[comp.leftCol],
-                    valB: bestMatchB[comp.rightCol]
-                  });
-                }
-              });
-
-              partialMatches.push({
-                id: `fuzzy_${idxA}_${bestIdxB}`,
-                status: 'Partial Match',
-                confidence: Math.round(bestScore * 100),
-                key: getCompositeKey(rowA, activeKeys, true),
-                rowA,
-                rowB: bestMatchB,
-                discrepancies,
-                matchType: `Fuzzy Similarity (${Math.round(bestScore * 100)}%)`
-              });
-            }
-          });
         }
 
-        // PASS 3: Unmatched Left and Unmatched Right
-        const unmatchedA = [];
-        rowsA.forEach((rowA, idxA) => {
-          if (!matchedIndexA.has(idxA)) {
-            unmatchedA.push({
-              id: `un_a_${idxA}`,
-              status: 'Unmatched (Dataset A Only)',
-              confidence: 0,
-              rowA,
-              rowB: null,
-              key: getCompositeKey(rowA, activeKeys, true)
-            });
+        const keysB = new Array(lenB);
+        const seenKeysB = new Set();
+        const duplicateB = [];
+        const indexMapB = new Map();
+        for (let i = 0; i < lenB; i++) {
+          const k = getCompositeKey(rowsB[i], false);
+          keysB[i] = k;
+          if (k && seenKeysB.has(k)) {
+            duplicateB.push({ ...rowsB[i], _source: 'Dataset B', _rowIndex: i + 1, _dupKey: k });
+          } else if (k) {
+            seenKeysB.add(k);
           }
-        });
 
-        const unmatchedB = [];
-        rowsB.forEach((rowB, idxB) => {
-          if (!matchedIndexB.has(idxB)) {
-            unmatchedB.push({
-              id: `un_b_${idxB}`,
-              status: 'Unmatched (Dataset B Only)',
-              confidence: 0,
-              rowA: null,
-              rowB,
-              key: getCompositeKey(rowB, activeKeys, false)
-            });
-          }
-        });
-
-        // Column Discrepancy Statistics
-        const columnDiscrepancyCounts = {};
-        activeValueComps.forEach(comp => {
-          const label = `${comp.leftCol} ↔ ${comp.rightCol}`;
-          columnDiscrepancyCounts[label] = 0;
-        });
-
-        [...valueDiscrepancies, ...partialMatches].forEach(item => {
-          item.discrepancies.forEach(d => {
-            const label = `${d.fieldA} ↔ ${d.fieldB}`;
-            if (columnDiscrepancyCounts[label] !== undefined) {
-              columnDiscrepancyCounts[label] += 1;
+          if (k) {
+            const existing = indexMapB.get(k);
+            if (existing === undefined) {
+              indexMapB.set(k, i);
+            } else if (typeof existing === 'number') {
+              indexMapB.set(k, [existing, i]);
+            } else {
+              existing.push(i);
             }
-          });
-        });
+          }
+        }
 
-        const totalMatchedRecords = exactMatches.length + partialMatches.length + valueDiscrepancies.length;
-        const totalBaseRecords = Math.max(rowsA.length, rowsB.length);
-        const matchPercentage = totalBaseRecords > 0 ? ((totalMatchedRecords / totalBaseRecords) * 100).toFixed(1) : '0';
+        setCalculationProgress(35);
+        setStatus(`Indexed ${lenB.toLocaleString()} reference keys. Comparing records...`);
 
-        const results = {
-          totalRowsA: rowsA.length,
-          totalRowsB: rowsB.length,
-          totalProcessed: rowsA.length + rowsB.length,
-          exactMatches,
-          partialMatches,
-          valueDiscrepancies,
-          unmatchedA,
-          unmatchedB,
-          duplicatesA: duplicateA,
-          duplicatesB: duplicateB,
-          totalDuplicates: duplicateA.length + duplicateB.length,
-          totalMatchedRecords,
-          matchPercentage,
-          columnDiscrepancyCounts,
-          comparedKeys: activeKeys,
-          comparedValues: activeValueComps,
-          timestamp: new Date().toLocaleString()
-        };
+        setTimeout(() => {
+          try {
+            // 2. High-speed Exact Matching & Value Discrepancies
+            const matchedIndexA = new Uint8Array(lenA);
+            const matchedIndexB = new Uint8Array(lenB);
+            const exactMatches = [];
+            const valueDiscrepancies = [];
+            const activeValueComps = valueCompareMappings.filter(v => v.leftCol && v.rightCol);
 
-        setComparisonResults(results);
-        setCurrentStep(3);
-        setStatus(`Reconciliation Complete! ${totalMatchedRecords} records matched (${matchPercentage}% Match Rate).`, 'success');
+            for (let idxA = 0; idxA < lenA; idxA++) {
+              const keyA = keysA[idxA];
+              if (!keyA) continue;
+
+              const targetB = indexMapB.get(keyA);
+              if (targetB !== undefined) {
+                let idxB = -1;
+                if (typeof targetB === 'number') {
+                  if (matchedIndexB[targetB] === 0 || comparisonType !== 'one_to_one') {
+                    idxB = targetB;
+                  }
+                } else {
+                  if (comparisonType === 'one_to_one') {
+                    for (let j = 0; j < targetB.length; j++) {
+                      const candidate = targetB[j];
+                      if (matchedIndexB[candidate] === 0) {
+                        idxB = candidate;
+                        break;
+                      }
+                    }
+                  } else {
+                    idxB = targetB[0];
+                  }
+                }
+
+                if (idxB !== -1) {
+                  matchedIndexA[idxA] = 1;
+                  matchedIndexB[idxB] = 1;
+                  const rowA = rowsA[idxA];
+                  const rowB = rowsB[idxB];
+
+                  let hasDisc = false;
+                  const discrepancies = [];
+                  for (let c = 0; c < activeValueComps.length; c++) {
+                    const comp = activeValueComps[c];
+                    const valA = fastNorm(rowA[comp.leftCol]);
+                    const valB = fastNorm(rowB[comp.rightCol]);
+                    if (valA !== valB) {
+                      hasDisc = true;
+                      discrepancies.push({
+                        fieldA: comp.leftCol,
+                        fieldB: comp.rightCol,
+                        valA: rowA[comp.leftCol],
+                        valB: rowB[comp.rightCol]
+                      });
+                    }
+                  }
+
+                  if (hasDisc) {
+                    valueDiscrepancies.push({
+                      id: `disc_${idxA}_${idxB}`,
+                      status: 'Value Discrepancy',
+                      confidence: 100,
+                      key: keyA,
+                      rowA,
+                      rowB,
+                      discrepancies,
+                      matchType: 'Exact Key Match with Attribute Differences'
+                    });
+                  } else {
+                    exactMatches.push({
+                      id: `exact_${idxA}_${idxB}`,
+                      status: 'Exact Match',
+                      confidence: 100,
+                      key: keyA,
+                      rowA,
+                      rowB,
+                      discrepancies: [],
+                      matchType: '100% Exact Match'
+                    });
+                  }
+                }
+              }
+            }
+
+            setCalculationProgress(70);
+
+            // 3. Fuzzy Matching (Safe Blocked Candidate Pass)
+            const partialMatches = [];
+            const thresholdRatio = fuzzyThreshold / 100.0;
+
+            if (matchMode === 'fuzzy') {
+              setStatus("Evaluating candidate fuzzy similarities...");
+
+              const unmatchedIndicesA = [];
+              for (let i = 0; i < lenA; i++) if (matchedIndexA[i] === 0 && keysA[i]) unmatchedIndicesA.push(i);
+
+              const unmatchedIndicesB = [];
+              for (let i = 0; i < lenB; i++) if (matchedIndexB[i] === 0 && keysB[i]) unmatchedIndicesB.push(i);
+
+              if (unmatchedIndicesA.length > 0 && unmatchedIndicesB.length > 0) {
+                if (isLargeDataset) {
+                  // Prefix blocking for large datasets to prevent browser hang
+                  const blockMapB = new Map();
+                  for (let b = 0; b < unmatchedIndicesB.length; b++) {
+                    const idxB = unmatchedIndicesB[b];
+                    const prefix = keysB[idxB].slice(0, 3);
+                    let list = blockMapB.get(prefix);
+                    if (!list) {
+                      list = [];
+                      blockMapB.set(prefix, list);
+                    }
+                    if (list.length < 50) list.push(idxB);
+                  }
+
+                  for (let a = 0; a < unmatchedIndicesA.length; a++) {
+                    const idxA = unmatchedIndicesA[a];
+                    if (matchedIndexA[idxA] === 1) continue;
+                    const prefix = keysA[idxA].slice(0, 3);
+                    const candidateList = blockMapB.get(prefix);
+                    if (!candidateList || candidateList.length === 0) continue;
+
+                    let bestIdxB = -1;
+                    let bestScore = 0;
+
+                    for (let c = 0; c < candidateList.length; c++) {
+                      const idxB = candidateList[c];
+                      if (matchedIndexB[idxB] === 1) continue;
+                      const score = calculateCompositeSimilarity(rowsA[idxA], rowsB[idxB], activeKeys, normOptions);
+                      if (score >= thresholdRatio && score > bestScore) {
+                        bestScore = score;
+                        bestIdxB = idxB;
+                      }
+                    }
+
+                    if (bestIdxB !== -1) {
+                      matchedIndexA[idxA] = 1;
+                      matchedIndexB[bestIdxB] = 1;
+                      const rowA = rowsA[idxA];
+                      const rowB = rowsB[bestIdxB];
+
+                      const discrepancies = [];
+                      for (let vc = 0; vc < activeValueComps.length; vc++) {
+                        const comp = activeValueComps[vc];
+                        const valA = fastNorm(rowA[comp.leftCol]);
+                        const valB = fastNorm(rowB[comp.rightCol]);
+                        if (valA !== valB) {
+                          discrepancies.push({
+                            fieldA: comp.leftCol,
+                            fieldB: comp.rightCol,
+                            valA: rowA[comp.leftCol],
+                            valB: rowB[comp.rightCol]
+                          });
+                        }
+                      }
+
+                      partialMatches.push({
+                        id: `fuzzy_${idxA}_${bestIdxB}`,
+                        status: 'Partial Match',
+                        confidence: Math.round(bestScore * 100),
+                        key: keysA[idxA],
+                        rowA,
+                        rowB,
+                        discrepancies,
+                        matchType: `Fuzzy Similarity (${Math.round(bestScore * 100)}%)`
+                      });
+                    }
+                  }
+                } else {
+                  // Small dataset (< 5000 rows): pairwise comparison
+                  for (let a = 0; a < unmatchedIndicesA.length; a++) {
+                    const idxA = unmatchedIndicesA[a];
+                    if (matchedIndexA[idxA] === 1) continue;
+
+                    let bestIdxB = -1;
+                    let bestScore = 0;
+
+                    for (let b = 0; b < unmatchedIndicesB.length; b++) {
+                      const idxB = unmatchedIndicesB[b];
+                      if (matchedIndexB[idxB] === 1) continue;
+
+                      const score = calculateCompositeSimilarity(rowsA[idxA], rowsB[idxB], activeKeys, normOptions);
+                      if (score >= thresholdRatio && score > bestScore) {
+                        bestScore = score;
+                        bestIdxB = idxB;
+                      }
+                    }
+
+                    if (bestIdxB !== -1) {
+                      matchedIndexA[idxA] = 1;
+                      matchedIndexB[bestIdxB] = 1;
+                      const rowA = rowsA[idxA];
+                      const rowB = rowsB[bestIdxB];
+
+                      const discrepancies = [];
+                      for (let vc = 0; vc < activeValueComps.length; vc++) {
+                        const comp = activeValueComps[vc];
+                        const valA = fastNorm(rowA[comp.leftCol]);
+                        const valB = fastNorm(rowB[comp.rightCol]);
+                        if (valA !== valB) {
+                          discrepancies.push({
+                            fieldA: comp.leftCol,
+                            fieldB: comp.rightCol,
+                            valA: rowA[comp.leftCol],
+                            valB: rowB[comp.rightCol]
+                          });
+                        }
+                      }
+
+                      partialMatches.push({
+                        id: `fuzzy_${idxA}_${bestIdxB}`,
+                        status: 'Partial Match',
+                        confidence: Math.round(bestScore * 100),
+                        key: keysA[idxA],
+                        rowA,
+                        rowB,
+                        discrepancies,
+                        matchType: `Fuzzy Similarity (${Math.round(bestScore * 100)}%)`
+                      });
+                    }
+                  }
+                }
+              }
+            }
+
+            setCalculationProgress(90);
+            setStatus("Compiling reconciliation statistics...");
+
+            // 4. Unmatched left & right
+            const unmatchedA = [];
+            for (let i = 0; i < lenA; i++) {
+              if (matchedIndexA[i] === 0) {
+                unmatchedA.push({
+                  id: `un_a_${i}`,
+                  status: 'Unmatched (Dataset A Only)',
+                  confidence: 0,
+                  rowA: rowsA[i],
+                  rowB: null,
+                  key: keysA[i]
+                });
+              }
+            }
+
+            const unmatchedB = [];
+            for (let i = 0; i < lenB; i++) {
+              if (matchedIndexB[i] === 0) {
+                unmatchedB.push({
+                  id: `un_b_${i}`,
+                  status: 'Unmatched (Dataset B Only)',
+                  confidence: 0,
+                  rowA: null,
+                  rowB: rowsB[i],
+                  key: keysB[i]
+                });
+              }
+            }
+
+            // Column Discrepancy Statistics
+            const columnDiscrepancyCounts = {};
+            activeValueComps.forEach(comp => {
+              const label = `${comp.leftCol} ↔ ${comp.rightCol}`;
+              columnDiscrepancyCounts[label] = 0;
+            });
+
+            for (let d = 0; d < valueDiscrepancies.length; d++) {
+              const item = valueDiscrepancies[d];
+              for (let c = 0; c < item.discrepancies.length; c++) {
+                const label = `${item.discrepancies[c].fieldA} ↔ ${item.discrepancies[c].fieldB}`;
+                if (columnDiscrepancyCounts[label] !== undefined) {
+                  columnDiscrepancyCounts[label] += 1;
+                }
+              }
+            }
+            for (let p = 0; p < partialMatches.length; p++) {
+              const item = partialMatches[p];
+              for (let c = 0; c < item.discrepancies.length; c++) {
+                const label = `${item.discrepancies[c].fieldA} ↔ ${item.discrepancies[c].fieldB}`;
+                if (columnDiscrepancyCounts[label] !== undefined) {
+                  columnDiscrepancyCounts[label] += 1;
+                }
+              }
+            }
+
+            const totalMatchedRecords = exactMatches.length + partialMatches.length + valueDiscrepancies.length;
+            const totalBaseRecords = Math.max(lenA, lenB);
+            const matchPercentage = totalBaseRecords > 0 ? ((totalMatchedRecords / totalBaseRecords) * 100).toFixed(1) : '0';
+
+            const results = {
+              totalRowsA: lenA,
+              totalRowsB: lenB,
+              totalProcessed: lenA + lenB,
+              exactMatches,
+              partialMatches,
+              valueDiscrepancies,
+              unmatchedA,
+              unmatchedB,
+              duplicatesA: duplicateA,
+              duplicatesB: duplicateB,
+              totalDuplicates: duplicateA.length + duplicateB.length,
+              totalMatchedRecords,
+              matchPercentage,
+              columnDiscrepancyCounts,
+              comparedKeys: activeKeys,
+              comparedValues: activeValueComps,
+              timestamp: new Date().toLocaleString()
+            };
+
+            setComparisonResults(results);
+            setResultPage(1);
+            setCalculationProgress(100);
+            setCurrentStep(3);
+            setStatus(`Reconciliation Complete! ${totalMatchedRecords.toLocaleString()} records matched (${matchPercentage}% Match Rate).`, 'success');
+          } catch (innerErr) {
+            console.error("Comparison Engine execution error:", innerErr);
+            setStatus(`Comparison error: ${innerErr.message}`, 'error');
+          } finally {
+            setIsProcessing(false);
+          }
+        }, 30);
       } catch (err) {
-        console.error("Comparison Engine error:", err);
+        console.error("Comparison Engine initialization error:", err);
         setStatus(`Comparison error: ${err.message}`, 'error');
-      } finally {
         setIsProcessing(false);
       }
-    }, 250);
-  }, [datasetA, datasetB, keyMappings, valueCompareMappings, matchMode, fuzzyThreshold, normOptions]);
+    }, 30);
+  }, [datasetA, datasetB, keyMappings, valueCompareMappings, matchMode, fuzzyThreshold, normOptions, comparisonType]);
 
-  // Filtered rows for results table
+  // Filtered rows for results table (Fast search without JSON.stringify memory bloat)
   const filteredResultItems = useMemo(() => {
     if (!comparisonResults) return [];
 
@@ -960,15 +1154,39 @@ const DataComparisonPage = () => {
 
     if (!searchQuery.trim()) return list;
 
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     return list.filter(item => {
-      const strA = item.rowA ? JSON.stringify(item.rowA).toLowerCase() : '';
-      const strB = item.rowB ? JSON.stringify(item.rowB).toLowerCase() : '';
-      const keyStr = item.key ? String(item.key).toLowerCase() : '';
-      const statusStr = item.status ? String(item.status).toLowerCase() : '';
-      return strA.includes(q) || strB.includes(q) || keyStr.includes(q) || statusStr.includes(q);
+      if (item.key && String(item.key).toLowerCase().includes(q)) return true;
+      if (item.status && String(item.status).toLowerCase().includes(q)) return true;
+      if (item.rowA) {
+        for (const k in item.rowA) {
+          if (!k.startsWith('_') && String(item.rowA[k] || '').toLowerCase().includes(q)) return true;
+        }
+      }
+      if (item.rowB) {
+        for (const k in item.rowB) {
+          if (!k.startsWith('_') && String(item.rowB[k] || '').toLowerCase().includes(q)) return true;
+        }
+      }
+      return false;
     });
   }, [comparisonResults, activeResultTab, searchQuery]);
+
+  // Server/Client-side Table Pagination (Critical for 200k+ rows)
+  const totalResultCount = filteredResultItems.length;
+  const totalResultPages = Math.max(1, Math.ceil(totalResultCount / resultPageSize));
+  const safePage = Math.min(Math.max(1, resultPage), totalResultPages);
+
+  const pagedResultItems = useMemo(() => {
+    const startIdx = (safePage - 1) * resultPageSize;
+    return filteredResultItems.slice(startIdx, startIdx + resultPageSize);
+  }, [filteredResultItems, safePage, resultPageSize]);
+
+  // Tab switch handler: auto-reset page to 1
+  const handleTabSwitch = (tabId) => {
+    setActiveResultTab(tabId);
+    setResultPage(1);
+  };
 
   // Helper for tab names
   const getTabLabel = (tabId) => {
@@ -2169,19 +2387,34 @@ const DataComparisonPage = () => {
           </div>
 
           {/* Action Row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-            <button className="secondary" onClick={() => setCurrentStep(1)}>
-              ← Back to Upload
-            </button>
-            <button 
-              disabled={isProcessing}
-              onClick={runComparisonEngine}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 32px', fontSize: '15px', fontWeight: 800 }}
-            >
-              {isProcessing ? 'Reconciling Records...' : '⚡ Execute Comparison Engine →'}
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+            {isProcessing && (
+              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '8px', padding: '14px 18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: 700, marginBottom: '8px', color: 'var(--ink)' }}>
+                  <span>Reconciling datasets ({datasetA.length.toLocaleString()} vs {datasetB.length.toLocaleString()} rows)...</span>
+                  <span style={{ color: 'var(--accent)', fontWeight: 800 }}>{calculationProgress}%</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', background: 'var(--line)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${calculationProgress}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent) 0%, #10b981 100%)', transition: 'width 0.2s ease' }} />
+                </div>
+                <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '6px' }}>
+                  Running ultra-fast composite-index comparison with sub-second memory optimization.
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button className="secondary" onClick={() => setCurrentStep(1)} disabled={isProcessing}>
+                ← Back to Upload
+              </button>
+              <button 
+                disabled={isProcessing}
+                onClick={runComparisonEngine}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 32px', fontSize: '15px', fontWeight: 800 }}
+              >
+                {isProcessing ? `Reconciling Records (${calculationProgress}%)...` : '⚡ Execute Comparison Engine →'}
+              </button>
+            </div>
           </div>
-
         </div>
       )}
 
@@ -2312,7 +2545,7 @@ const DataComparisonPage = () => {
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveResultTab(tab.id)}
+                  onClick={() => handleTabSwitch(tab.id)}
                   style={{
                     padding: '8px 14px',
                     borderRadius: '20px',
@@ -2392,7 +2625,8 @@ const DataComparisonPage = () => {
                 </thead>
                 <tbody>
                   {filteredResultItems.length > 0 ? (
-                    filteredResultItems.map((item, idx) => {
+                    pagedResultItems.map((item, idx) => {
+                      const globalIdx = (safePage - 1) * resultPageSize + idx + 1;
                       const isExact = item.status === 'Exact Match';
                       const isPartial = item.status === 'Partial Match';
                       const isDisc = item.status === 'Value Discrepancy';
@@ -2400,9 +2634,9 @@ const DataComparisonPage = () => {
                       const isUnB = item.status?.includes('Dataset B Only');
 
                       return (
-                        <tr key={item.id || idx} style={{ borderBottom: '1px solid var(--line)', background: idx % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)' }}>
+                        <tr key={item.id || globalIdx} style={{ borderBottom: '1px solid var(--line)', background: idx % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)' }}>
                           <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
-                            {idx + 1}
+                            {globalIdx}
                           </td>
 
                           {/* Status Badge */}
@@ -2499,10 +2733,88 @@ const DataComparisonPage = () => {
               </table>
             </div>
 
-            {/* Table Footer */}
-            <div style={{ padding: '14px 20px', background: 'var(--bg)', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: 'var(--muted)' }}>
-              <div>Showing <strong>{filteredResultItems.length}</strong> record(s)</div>
-              <div>Comparison generated at {comparisonResults.timestamp}</div>
+            {/* Table Footer with Pagination Controls */}
+            <div style={{ 
+              padding: '12px 20px', 
+              background: 'var(--bg)', 
+              borderTop: '1px solid var(--line)', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              flexWrap: 'wrap',
+              gap: '12px',
+              fontSize: '13px', 
+              color: 'var(--muted)' 
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div>
+                  Showing <strong>{totalResultCount === 0 ? 0 : (safePage - 1) * resultPageSize + 1}</strong> to <strong>{Math.min(safePage * resultPageSize, totalResultCount)}</strong> of <strong>{totalResultCount.toLocaleString()}</strong> record(s)
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>Rows per page:</span>
+                  <select 
+                    value={resultPageSize} 
+                    onChange={(e) => { 
+                      setResultPageSize(Number(e.target.value)); 
+                      setResultPage(1); 
+                    }}
+                    style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px' }}
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={250}>250</option>
+                    <option value={500}>500</option>
+                  </select>
+                </div>
+              </div>
+
+              {totalResultPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button 
+                    className="secondary" 
+                    onClick={() => setResultPage(1)} 
+                    disabled={safePage <= 1}
+                    style={{ padding: '4px 10px', fontSize: '12px' }}
+                    title="First Page"
+                  >
+                    « First
+                  </button>
+
+                  <button 
+                    className="secondary" 
+                    onClick={() => setResultPage(p => Math.max(1, p - 1))} 
+                    disabled={safePage <= 1}
+                    style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                  >
+                    <ChevronLeft size={14} /> Prev
+                  </button>
+
+                  <span style={{ margin: '0 8px', fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>
+                    Page {safePage} of {totalResultPages}
+                  </span>
+
+                  <button 
+                    className="secondary" 
+                    onClick={() => setResultPage(p => Math.min(totalResultPages, p + 1))} 
+                    disabled={safePage >= totalResultPages}
+                    style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+
+                  <button 
+                    className="secondary" 
+                    onClick={() => setResultPage(totalResultPages)} 
+                    disabled={safePage >= totalResultPages}
+                    style={{ padding: '4px 10px', fontSize: '12px' }}
+                    title="Last Page"
+                  >
+                    Last »
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
