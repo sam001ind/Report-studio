@@ -66,8 +66,8 @@ export const SAMPLE_FYIMP_WIDE_DATA = [
     "ImmediateParentGroupName2": "Minor Stream B",
     "CourseCode2": "KU4MINSOC101",
     "CourseName2": "Foundations of Sociology",
-    "ParentGroupName3": "Multi-Disciplinary",
-    "ImmediateParentGroupName3": "Open Elective",
+    "ParentGroupName3": "",
+    "ImmediateParentGroupName3": "General Psychology Minor",
     "CourseCode3": "KU4MDCPSY101",
     "CourseName3": "General Psychology",
     "ParentGroupName4": "",
@@ -142,7 +142,8 @@ export const SAMPLE_FYIMP_WIDE_DATA = [
 export const transformWideToRowWise = (columns, rows, options = {}) => {
   const {
     includeSlotNumber = false,
-    trimStrings = true
+    trimStrings = true,
+    fallbackBlankParentGroup = true
   } = options;
 
   const courseFields = [
@@ -159,17 +160,29 @@ export const transformWideToRowWise = (columns, rows, options = {}) => {
   });
 
   const findColumn = (field, index) => {
-    const exactName = `${field}${index}`;
-    if (columns.includes(exactName)) return exactName;
+    // Generate list of field variations to try (including ParentGroup / ParentGroupName)
+    const fieldAliases = [];
+    if (field === 'ParentGroupName') {
+      fieldAliases.push('ParentGroupName', 'ParentGroup');
+    } else if (field === 'ImmediateParentGroupName') {
+      fieldAliases.push('ImmediateParentGroupName', 'ImmediateParentGroup');
+    } else {
+      fieldAliases.push(field);
+    }
 
-    const exactNorm = exactName.toLowerCase();
-    if (colMap.has(exactNorm)) return colMap.get(exactNorm);
+    for (const alias of fieldAliases) {
+      const exactName = `${alias}${index}`;
+      if (columns.includes(exactName)) return exactName;
 
-    // Support flexible spacing/underscores: e.g. "Course Code 1", "Course_Code_1"
-    const regex = new RegExp(`^${field.replace(/([A-Z])/g, '[\\s_]*$1').trim()}[\\s_]*${index}$`, 'i');
-    for (const col of columns) {
-      if (regex.test(col.trim())) {
-        return col;
+      const exactNorm = exactName.toLowerCase();
+      if (colMap.has(exactNorm)) return colMap.get(exactNorm);
+
+      // Support flexible spacing/underscores: e.g. "Parent Group 1", "Parent Group Name 1", "Parent_Group_1"
+      const regex = new RegExp(`^${alias.replace(/([A-Z])/g, '[\\s_]*$1').trim()}[\\s_]*${index}$`, 'i');
+      for (const col of columns) {
+        if (regex.test(col.trim())) {
+          return col;
+        }
       }
     }
     return null;
@@ -261,8 +274,17 @@ export const transformWideToRowWise = (columns, rows, options = {}) => {
         if (includeSlotNumber) {
           record['CourseSlot'] = index;
         }
-        record['ParentGroupName'] = parentCol ? cleanVal(row[parentCol]) : '';
-        record['ImmediateParentGroupName'] = immParentCol ? cleanVal(row[immParentCol]) : '';
+
+        let parentGroupName = parentCol ? cleanVal(row[parentCol]) : '';
+        const immParentGroupName = immParentCol ? cleanVal(row[immParentCol]) : '';
+
+        // Copy ImmediateParentGroupName to ParentGroupName if ParentGroupName is blank
+        if (fallbackBlankParentGroup && !parentGroupName && immParentGroupName) {
+          parentGroupName = immParentGroupName;
+        }
+
+        record['ParentGroupName'] = parentGroupName;
+        record['ImmediateParentGroupName'] = immParentGroupName;
         record['CourseCode'] = cleanVal(courseCode);
         record['CourseName'] = cleanVal(courseName);
         transformedRows.push(record);
@@ -307,6 +329,7 @@ export default function AdmissionRowWisePage() {
   // Options
   const [includeSlotNumber, setIncludeSlotNumber] = useState(false);
   const [trimStrings, setTrimStrings] = useState(true);
+  const [fallbackBlankParentGroup, setFallbackBlankParentGroup] = useState(true);
 
   // Results
   const [transformResult, setTransformResult] = useState(null);
@@ -406,7 +429,7 @@ export default function AdmissionRowWisePage() {
       setRawColumns(cols);
       setRawRows(json);
 
-      executeReshape(cols, json, { includeSlotNumber, trimStrings });
+      executeReshape(cols, json, { includeSlotNumber, trimStrings, fallbackBlankParentGroup });
     } catch (err) {
       console.error(err);
       setStatus(`Error reading sheet "${sheetName}": ${err.message}`, 'error');
@@ -432,7 +455,7 @@ export default function AdmissionRowWisePage() {
     setRawColumns(cols);
     setRawRows(SAMPLE_FYIMP_WIDE_DATA);
 
-    executeReshape(cols, SAMPLE_FYIMP_WIDE_DATA, { includeSlotNumber, trimStrings });
+    executeReshape(cols, SAMPLE_FYIMP_WIDE_DATA, { includeSlotNumber, trimStrings, fallbackBlankParentGroup });
   };
 
   const handleReset = () => {
@@ -457,11 +480,15 @@ export default function AdmissionRowWisePage() {
     if (newOpts.trimStrings !== undefined) {
       setTrimStrings(newOpts.trimStrings);
     }
+    if (newOpts.fallbackBlankParentGroup !== undefined) {
+      setFallbackBlankParentGroup(newOpts.fallbackBlankParentGroup);
+    }
 
     if (rawColumns.length > 0 && rawRows.length > 0) {
       executeReshape(rawColumns, rawRows, {
         includeSlotNumber: newOpts.includeSlotNumber ?? includeSlotNumber,
-        trimStrings: newOpts.trimStrings ?? trimStrings
+        trimStrings: newOpts.trimStrings ?? trimStrings,
+        fallbackBlankParentGroup: newOpts.fallbackBlankParentGroup ?? fallbackBlankParentGroup
       });
     }
   };
@@ -836,6 +863,15 @@ export default function AdmissionRowWisePage() {
                       onChange={(e) => handleOptionChange({ trimStrings: e.target.checked })} 
                     />
                     <span>Sanitize escape artifacts (convert <code>\N</code>, <code>null</code>, <code>NaN</code> to clean blanks)</span>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={fallbackBlankParentGroup} 
+                      onChange={(e) => handleOptionChange({ fallbackBlankParentGroup: e.target.checked })} 
+                    />
+                    <span>Copy <strong>ImmediateParentGroupName</strong> to <strong>ParentGroupName</strong> when ParentGroupName is blank</span>
                   </label>
                 </div>
 

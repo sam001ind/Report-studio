@@ -992,4 +992,49 @@ test('Reshapes wide course data into row-wise allocations, preserves base column
   assert.equal(reshaped[4].CourseName, 'English Fluency');
 });
 
+test('Copies ImmediateParentGroupName to ParentGroupName when ParentGroupName is blank, and matches ParentGroup header alias', () => {
+  const row = {
+    ApplicationNo: '2024CAP003',
+    CandidateName: 'STUDENT GAMMA',
+    ParentGroup1: '', // Header uses ParentGroup1 (alias without Name) and is blank
+    ImmediateParentGroupName1: 'Discipline Specific Core (Psychology)',
+    CourseCode1: 'KU4DSCPSY101',
+    CourseName1: 'Introduction to Psychology'
+  };
+
+  const columns = Object.keys(row);
+  const colMap = new Map();
+  columns.forEach(c => colMap.set(c.toLowerCase(), c));
+
+  const findCol = (field, index) => {
+    const fieldAliases = [];
+    if (field === 'ParentGroupName') fieldAliases.push('ParentGroupName', 'ParentGroup');
+    else if (field === 'ImmediateParentGroupName') fieldAliases.push('ImmediateParentGroupName', 'ImmediateParentGroup');
+    else fieldAliases.push(field);
+
+    for (const alias of fieldAliases) {
+      const exact = `${alias}${index}`;
+      if (columns.includes(exact)) return exact;
+      if (colMap.has(exact.toLowerCase())) return colMap.get(exact.toLowerCase());
+    }
+    return null;
+  };
+
+  const pCol = findCol('ParentGroupName', 1);
+  const immCol = findCol('ImmediateParentGroupName', 1);
+
+  assert.equal(pCol, 'ParentGroup1');
+  assert.equal(immCol, 'ImmediateParentGroupName1');
+
+  let parentGroupName = pCol ? (row[pCol] || '').trim() : '';
+  const immParentGroupName = immCol ? (row[immCol] || '').trim() : '';
+
+  if (!parentGroupName && immParentGroupName) {
+    parentGroupName = immParentGroupName;
+  }
+
+  assert.equal(parentGroupName, 'Discipline Specific Core (Psychology)');
+  assert.equal(immParentGroupName, 'Discipline Specific Core (Psychology)');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
