@@ -878,4 +878,118 @@ test('2 Lakh rows scale: sub-second reconciliation with Map and Uint8Array index
   assert.equal(totalPages, 2010);
 });
 
+// -------------------------------------------------------------
+// 19. Admission Report Maker - Row Wise (Wide-to-Long Reshaper)
+// -------------------------------------------------------------
+console.log('\n[Test Suite 19: Admission Report Maker - Row Wise Engine]');
+
+test('Reshapes wide course data into row-wise allocations, preserves base columns, and omits empty slots', () => {
+  const wideRows = [
+    {
+      ApplicationNo: '2024CAP001',
+      CandidateName: 'STUDENT ALPHA',
+      CollegeCode: 'AA',
+      Mobile: '9876543210',
+      ParentGroupName1: 'Major Core',
+      ImmediateParentGroupName1: 'Discipline Specific Core',
+      CourseCode1: 'KU4DSCHIS101',
+      CourseName1: 'Early Indian History',
+      ParentGroupName2: 'Minor Group',
+      ImmediateParentGroupName2: 'Minor Stream A',
+      CourseCode2: 'KU4MINPOL101',
+      CourseName2: 'Political Theory',
+      ParentGroupName3: '',
+      ImmediateParentGroupName3: '',
+      CourseCode3: '',
+      CourseName3: ''
+    },
+    {
+      ApplicationNo: '2024CAP002',
+      CandidateName: 'STUDENT BETA',
+      CollegeCode: 'BB',
+      Mobile: '9876543211',
+      ParentGroupName1: 'Major Core',
+      ImmediateParentGroupName1: 'Discipline Specific Core',
+      CourseCode1: 'KU4DSCENG101',
+      CourseName1: 'Literary Studies',
+      ParentGroupName2: 'Minor Group',
+      ImmediateParentGroupName2: 'Minor Stream B',
+      CourseCode2: 'KU4MINSOC101',
+      CourseName2: 'Sociology',
+      ParentGroupName3: 'AEC Language',
+      ImmediateParentGroupName3: 'English AEC',
+      CourseCode3: 'KU4AECENG101',
+      CourseName3: 'English Fluency'
+    }
+  ];
+
+  const columns = Object.keys(wideRows[0]);
+
+  // Test dynamic numeric index detection
+  const indicesSet = new Set();
+  columns.forEach(col => {
+    const match = col.trim().match(/^course[\s_]*code[\s_]*(\d+)$/i);
+    if (match) {
+      indicesSet.add(parseInt(match[1], 10));
+    }
+  });
+  const indices = Array.from(indicesSet).sort((a, b) => a - b);
+  assert.deepEqual(indices, [1, 2, 3]);
+
+  // Identify base columns
+  const courseFields = ['ParentGroupName', 'ImmediateParentGroupName', 'CourseCode', 'CourseName'];
+  const repeatedCols = new Set();
+  for (const field of courseFields) {
+    for (const i of indices) {
+      repeatedCols.add(`${field}${i}`);
+    }
+  }
+  const baseCols = columns.filter(c => !repeatedCols.has(c));
+  assert.deepEqual(baseCols, ['ApplicationNo', 'CandidateName', 'CollegeCode', 'Mobile']);
+
+  // Reshape wide rows
+  const isValid = (val) => val !== null && val !== undefined && String(val).trim() !== '' && String(val).trim().toLowerCase() !== 'nan';
+  const reshaped = [];
+  let omitted = 0;
+
+  for (const row of wideRows) {
+    const baseData = {};
+    for (const bCol of baseCols) {
+      baseData[bCol] = row[bCol];
+    }
+
+    for (const i of indices) {
+      const code = row[`CourseCode${i}`];
+      const name = row[`CourseName${i}`];
+      if (isValid(code) || isValid(name)) {
+        reshaped.push({
+          ...baseData,
+          ParentGroupName: row[`ParentGroupName${i}`] || '',
+          ImmediateParentGroupName: row[`ImmediateParentGroupName${i}`] || '',
+          CourseCode: code || '',
+          CourseName: name || ''
+        });
+      } else {
+        omitted++;
+      }
+    }
+  }
+
+  // Student ALPHA has 2 courses (slot 3 empty), Student BETA has 3 courses -> Total 5 rows
+  assert.equal(reshaped.length, 5);
+  assert.equal(omitted, 1);
+
+  // Validate Student ALPHA row 1
+  assert.equal(reshaped[0].ApplicationNo, '2024CAP001');
+  assert.equal(reshaped[0].CandidateName, 'STUDENT ALPHA');
+  assert.equal(reshaped[0].CourseCode, 'KU4DSCHIS101');
+  assert.equal(reshaped[0].ParentGroupName, 'Major Core');
+
+  // Validate Student BETA row 3
+  assert.equal(reshaped[4].ApplicationNo, '2024CAP002');
+  assert.equal(reshaped[4].CandidateName, 'STUDENT BETA');
+  assert.equal(reshaped[4].CourseCode, 'KU4AECENG101');
+  assert.equal(reshaped[4].CourseName, 'English Fluency');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);

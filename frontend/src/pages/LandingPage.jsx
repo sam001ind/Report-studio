@@ -298,6 +298,25 @@ const LandingPage = () => {
             </div>
           </div>
 
+          {/* 12b. Admission report maker - Row Wise */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/admission-row-wise')}
+          >
+            <div style={styles.featureIcon}><Database size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Admission report maker - Row Wise</h3>
+            <p style={styles.featureText}>Reshape wide admission spreadsheets with repeated course columns (CourseCode1..N) into normalized row-by-row course allocations.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('admission-row-wise'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
           {/* 13. Course Master Import */}
           <div 
             style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
@@ -498,11 +517,13 @@ const LandingPage = () => {
                   else if (key === 'image-tools') navigate('/image-tools');
                   else if (key === 'pdf-tools') navigate('/pdf-tools');
                   else if (key === 'admission-import') navigate('/admission-import');
+                  else if (key === 'admission-row-wise') navigate('/admission-row-wise');
                   else if (key === 'course-master-import') navigate('/course-master-import');
                   else if (key === 'affiliated-programs') navigate('/affiliated-programs');
                   else if (key === 'ades-result-calculator') navigate('/ades-result-calculator');
                   else if (key === 'ades-supplementary-calculator') navigate('/ades-supplementary-calculator');
                   else if (key === 'scheduler') navigate('/scheduler');
+                  else if (key === 'payment-reconciler') navigate('/payment-reconciler');
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', background: 'var(--accent)', color: 'white', borderRadius: '6px', border: 'none', fontWeight: 600, fontSize: '12px', cursor: 'pointer' }}
               >

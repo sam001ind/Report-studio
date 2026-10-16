@@ -20,6 +20,7 @@ const UrlShortenerPage = lazy(() => import('./pages/UrlShortenerPage'));
 const ImageToolsPage = lazy(() => import('./pages/ImageToolsPage'));
 const PdfToolsPage = lazy(() => import('./pages/PdfToolsPage'));
 const AdmissionImportPage = lazy(() => import('./pages/AdmissionImportPage'));
+const AdmissionRowWisePage = lazy(() => import('./pages/AdmissionRowWisePage'));
 const CourseMasterImportPage = lazy(() => import('./pages/CourseMasterImportPage'));
 const AffiliatedProgrammePage = lazy(() => import('./pages/AffiliatedProgrammePage'));
 const AdesResultCalculatorPage = lazy(() => import('./pages/AdesResultCalculatorPage'));
@@ -170,6 +171,16 @@ function App() {
               <Route path="/admission" element={
                 <ProtectedRoute requiredPermission="can_access_studio">
                   <AdmissionImportPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admission-row-wise" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <AdmissionRowWisePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admission-report-maker-row-wise" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <AdmissionRowWisePage />
                 </ProtectedRoute>
               } />
               <Route path="/course-master-import" element={

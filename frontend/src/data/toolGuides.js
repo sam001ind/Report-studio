@@ -231,6 +231,29 @@ export const TOOL_GUIDES = {
       }
     ]
   },
+  'admission-row-wise': {
+    title: 'Admission Report Maker (Row-Wise) - Extraction Logic & Guide',
+    icon: 'Database',
+    description: 'Unpivot wide admission registers with repeated course attributes (CourseCode1..N) into normalized row-by-row course allocations while preserving applicant base columns.',
+    sections: [
+      {
+        heading: '1. Dynamic Slot Detection (CourseCode 1..N)',
+        content: 'Automatically identifies all numeric course slot indices from columns like CourseCode1, CourseCode2, ..., CourseCodeN (supporting flexible whitespace and underscores).'
+      },
+      {
+        heading: '2. Four Key Course Attributes Unpivoting',
+        content: 'Extracts ParentGroupName{i}, ImmediateParentGroupName{i}, CourseCode{i}, and CourseName{i} for each course slot into normalized row records.'
+      },
+      {
+        heading: '3. Automatic Blank Slot Elimination',
+        content: 'Omit empty or unallocated course slots (where CourseCode and CourseName are empty, \\N, or NaN) to avoid creating phantom rows.'
+      },
+      {
+        heading: '4. Candidate Base Data Replication',
+        content: 'Preserves all student metadata (Application No, Candidate Name, Gender, College, Category, Mobile, Rank, etc.) on every generated course allocation row.'
+      }
+    ]
+  },
   'course-master-import': {
     title: 'Course Master Import - Extraction Logic & Guide',
     icon: 'BookOpen',
