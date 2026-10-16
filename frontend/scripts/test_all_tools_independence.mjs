@@ -1440,6 +1440,129 @@ test('Admission Report Maker - Generates Unique 4-Column Course Master Report (P
   assert.equal(report[2].CourseCode, 'KU4GEECO101');
 });
 
+test('Generates unique 3-column Course Master report across ParentGroupName, CourseCode, CourseName with fallback', () => {
+  const reshapedRows = [
+    {
+      CandidateName: 'STUDENT ALPHA',
+      CollegeCode: 'AA',
+      Program: 'B.A. History',
+      ParentGroupName: 'Major Core',
+      ImmediateParentGroupName: 'Discipline Specific Core - Section A',
+      CourseCode: 'KU4DSCHIS101',
+      CourseName: 'Early Indian History'
+    },
+    {
+      CandidateName: 'STUDENT BETA',
+      CollegeCode: 'BB',
+      Program: 'B.A. Archaeology',
+      ParentGroupName: 'Major Core',
+      ImmediateParentGroupName: 'Discipline Specific Core - Section B', // Different Immediate group, but same Parent, Code, Name!
+      CourseCode: 'KU4DSCHIS101',
+      CourseName: 'Early Indian History'
+    },
+    {
+      CandidateName: 'STUDENT GAMMA',
+      CollegeCode: 'CC',
+      Program: 'B.Sc. Psychology',
+      ParentGroupName: '', // blank -> must fallback to ImmediateParentGroupName
+      ImmediateParentGroupName: 'Discipline Specific Core (Psychology)',
+      CourseCode: 'KU4DSCPSY101',
+      CourseName: 'Foundations of Psychology'
+    },
+    {
+      CandidateName: 'STUDENT DELTA',
+      CollegeCode: 'DD',
+      Program: 'B.Com.',
+      ParentGroupName: 'Elective',
+      ImmediateParentGroupName: 'Generic Elective',
+      CourseCode: 'KU4GEECO101',
+      CourseName: 'Business Economics'
+    }
+  ];
+
+  // Logic matching generateUniqueThreeColCourseReport in AdmissionRowWisePage
+  const generateUniqueThreeColCourseReport = (transformedRows) => {
+    if (!transformedRows || !Array.isArray(transformedRows)) return [];
+
+    const uniqueMap = new Map();
+
+    for (const row of transformedRows) {
+      const courseCode = (row['CourseCode'] || '').trim();
+      const courseName = (row['CourseName'] || '').trim();
+
+      // Skip empty course slots
+      if (!courseCode && !courseName) continue;
+
+      let immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+      let parentGroupName = (row['ParentGroupName'] || '').trim();
+      // Fallback if blank
+      if (!parentGroupName && immediateParentGroupName) {
+        parentGroupName = immediateParentGroupName;
+      }
+
+      const dedupKey = [
+        parentGroupName.toLowerCase(),
+        courseCode.toLowerCase(),
+        courseName.toLowerCase()
+      ].join('|||');
+
+      if (!uniqueMap.has(dedupKey)) {
+        uniqueMap.set(dedupKey, {
+          'ParentGroupName': parentGroupName,
+          'CourseCode': courseCode,
+          'CourseName': courseName
+        });
+      }
+    }
+
+    const list = Array.from(uniqueMap.values());
+    list.sort((a, b) => {
+      const pgCmp = a['ParentGroupName'].localeCompare(b['ParentGroupName']);
+      if (pgCmp !== 0) return pgCmp;
+      const codeCmp = a['CourseCode'].localeCompare(b['CourseCode']);
+      if (codeCmp !== 0) return codeCmp;
+      return a['CourseName'].localeCompare(b['CourseName']);
+    });
+
+    return list;
+  };
+
+  const report = generateUniqueThreeColCourseReport(reshapedRows);
+
+  // 4 rows input:
+  // - 2 for KU4DSCHIS101 with same ParentGroupName & Name but differing ImmediateParentGroupName -> must be deduplicated into 1
+  // - 1 for KU4DSCPSY101 with blank ParentGroupName -> falls back to ImmediateParentGroupName
+  // - 1 for KU4GEECO101
+  // Total unique = 3 records
+  assert.equal(report.length, 3);
+
+  // Validate exact 3 headers
+  const expectedHeaders = [
+    'ParentGroupName',
+    'CourseCode',
+    'CourseName'
+  ];
+  assert.deepEqual(Object.keys(report[0]), expectedHeaders);
+  assert.equal(Object.keys(report[0]).length, 3);
+
+  // Validate sorted output and values
+  // Record 1: 'Discipline Specific Core (Psychology)' (due to fallback from blank)
+  assert.equal(report[0].ParentGroupName, 'Discipline Specific Core (Psychology)');
+  assert.equal(report[0].CourseCode, 'KU4DSCPSY101');
+  assert.equal(report[0].CourseName, 'Foundations of Psychology');
+  assert.equal(report[0].ImmediateParentGroupName, undefined);
+
+  // Record 2: 'Elective'
+  assert.equal(report[1].ParentGroupName, 'Elective');
+  assert.equal(report[1].CourseCode, 'KU4GEECO101');
+  assert.equal(report[1].CourseName, 'Business Economics');
+
+  // Record 3: 'Major Core'
+  assert.equal(report[2].ParentGroupName, 'Major Core');
+  assert.equal(report[2].CourseCode, 'KU4DSCHIS101');
+  assert.equal(report[2].CourseName, 'Early Indian History');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
 
 

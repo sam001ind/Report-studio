@@ -431,6 +431,10 @@ export const TOOL_GUIDES = {
       {
         heading: '5. Unique Course Master Report (4 Columns)',
         content: 'Generates an unduplicated curriculum catalog report across exactly 4 columns: ParentGroupName, ImmediateParentGroupName, CourseCode, and CourseName. Deduplicates across all institutions and programs, applying the ImmediateParentGroupName fallback when ParentGroupName is blank.'
+      },
+      {
+        heading: '6. Unique Course Master Report (3 Columns)',
+        content: 'Generates a streamlined curriculum catalog report across exactly 3 columns: ParentGroupName, CourseCode, and CourseName. For cases where only parent group and course identifiers are required, applying the ImmediateParentGroupName fallback when ParentGroupName is blank.'
       }
     ]
   }
