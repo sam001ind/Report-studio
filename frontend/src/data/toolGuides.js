@@ -427,6 +427,10 @@ export const TOOL_GUIDES = {
       {
         heading: '4. Unique Institute Course Master Report',
         content: 'Generates an institution-level curriculum offering report with unique combinations across 6 key columns: Institute Code, Institute Name, ParentGroupName, ImmediateParentGroupName, CourseCode, and CourseName. Automatically matches college code and name columns.'
+      },
+      {
+        heading: '5. Unique Course Master Report (4 Columns)',
+        content: 'Generates an unduplicated curriculum catalog report across exactly 4 columns: ParentGroupName, ImmediateParentGroupName, CourseCode, and CourseName. Deduplicates across all institutions and programs, applying the ImmediateParentGroupName fallback when ParentGroupName is blank.'
       }
     ]
   }

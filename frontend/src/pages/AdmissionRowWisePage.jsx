@@ -18,7 +18,8 @@ import {
   ChevronRight,
   Database,
   GraduationCap,
-  Building2
+  Building2,
+  BookOpen
 } from 'lucide-react';
 import { parseWorkbookFromBuffer } from '../utils/excelParser';
 
@@ -358,6 +359,60 @@ export const generateUniqueInstituteCourseReport = (transformedRows, options = {
   return list;
 };
 
+/**
+ * Generates a unique course master report containing exactly 4 columns:
+ * ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName
+ */
+export const generateUniqueCourseMasterReport = (transformedRows) => {
+  if (!transformedRows || !Array.isArray(transformedRows)) return [];
+
+  const uniqueMap = new Map();
+
+  for (const row of transformedRows) {
+    const courseCode = (row['CourseCode'] || '').trim();
+    const courseName = (row['CourseName'] || '').trim();
+
+    // Skip empty course slots
+    if (!courseCode && !courseName) continue;
+
+    let immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+    let parentGroupName = (row['ParentGroupName'] || '').trim();
+    // Fallback if blank
+    if (!parentGroupName && immediateParentGroupName) {
+      parentGroupName = immediateParentGroupName;
+    }
+
+    const dedupKey = [
+      parentGroupName.toLowerCase(),
+      immediateParentGroupName.toLowerCase(),
+      courseCode.toLowerCase(),
+      courseName.toLowerCase()
+    ].join('|||');
+
+    if (!uniqueMap.has(dedupKey)) {
+      uniqueMap.set(dedupKey, {
+        'ParentGroupName': parentGroupName,
+        'ImmediateParentGroupName': immediateParentGroupName,
+        'CourseCode': courseCode,
+        'CourseName': courseName
+      });
+    }
+  }
+
+  const list = Array.from(uniqueMap.values());
+  list.sort((a, b) => {
+    const pgCmp = a['ParentGroupName'].localeCompare(b['ParentGroupName']);
+    if (pgCmp !== 0) return pgCmp;
+    const ipgCmp = a['ImmediateParentGroupName'].localeCompare(b['ImmediateParentGroupName']);
+    if (ipgCmp !== 0) return ipgCmp;
+    const codeCmp = a['CourseCode'].localeCompare(b['CourseCode']);
+    if (codeCmp !== 0) return codeCmp;
+    return a['CourseName'].localeCompare(b['CourseName']);
+  });
+
+  return list;
+};
+
 export const transformWideToRowWise = (columns, rows, options = {}) => {
   const {
     includeSlotNumber = false,
@@ -567,7 +622,12 @@ export default function AdmissionRowWisePage() {
   const [uniqueInstPage, setUniqueInstPage] = useState(1);
   const [uniqueInstPageSize, setUniqueInstPageSize] = useState(50);
 
-  // Active View Tab: 'rowwise' | 'uniqueCourses' | 'uniqueInstitutes'
+  // Unique 4-Column Course Master Report (ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName)
+  const [uniquePureCourseSearchQuery, setUniquePureCourseSearchQuery] = useState('');
+  const [uniquePureCoursePage, setUniquePureCoursePage] = useState(1);
+  const [uniquePureCoursePageSize, setUniquePureCoursePageSize] = useState(50);
+
+  // Active View Tab: 'rowwise' | 'uniqueCourses' | 'uniqueInstitutes' | 'uniquePureCourses'
   const [activeViewTab, setActiveViewTab] = useState('rowwise');
   const [uniqueSearchQuery, setUniqueSearchQuery] = useState('');
   const [uniquePage, setUniquePage] = useState(1);
@@ -1077,6 +1137,108 @@ export default function AdmissionRowWisePage() {
     }
   };
 
+  // Computed Unique 4-Column Course Master List (ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName)
+  const uniquePureCoursesList = useMemo(() => {
+    if (!transformResult || !transformResult.transformedRows || transformResult.transformedRows.length === 0) {
+      return [];
+    }
+    return generateUniqueCourseMasterReport(transformResult.transformedRows);
+  }, [transformResult]);
+
+  const filteredUniquePureCourseItems = useMemo(() => {
+    if (!uniquePureCourseSearchQuery.trim()) return uniquePureCoursesList;
+    const q = uniquePureCourseSearchQuery.toLowerCase().trim();
+    return uniquePureCoursesList.filter(row => {
+      return Object.values(row).some(val => 
+        val !== null && val !== undefined && String(val).toLowerCase().includes(q)
+      );
+    });
+  }, [uniquePureCoursesList, uniquePureCourseSearchQuery]);
+
+  const totalUniquePureCoursePages = Math.max(1, Math.ceil(filteredUniquePureCourseItems.length / uniquePureCoursePageSize));
+  const safeUniquePureCoursePage = Math.min(Math.max(1, uniquePureCoursePage), totalUniquePureCoursePages);
+
+  const pagedUniquePureCourseItems = useMemo(() => {
+    const start = (safeUniquePureCoursePage - 1) * uniquePureCoursePageSize;
+    return filteredUniquePureCourseItems.slice(start, start + uniquePureCoursePageSize);
+  }, [filteredUniquePureCourseItems, safeUniquePureCoursePage, uniquePureCoursePageSize]);
+
+  // Download Unique 4-Column Course Master Excel
+  const handleExportUniquePureCoursesExcel = () => {
+    if (!uniquePureCoursesList || uniquePureCoursesList.length === 0) {
+      setStatus('No unique course master records available to export.', 'warning');
+      return;
+    }
+
+    try {
+      const headers = [
+        'ParentGroupName',
+        'ImmediateParentGroupName',
+        'CourseCode',
+        'CourseName'
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(uniquePureCoursesList, { header: headers });
+
+      const colWidths = headers.map(h => {
+        const headerLen = String(h).length;
+        let maxDataLen = 0;
+        for (let i = 0; i < Math.min(uniquePureCoursesList.length, 100); i++) {
+          const val = uniquePureCoursesList[i][h];
+          if (val) maxDataLen = Math.max(maxDataLen, String(val).length);
+        }
+        return { wch: Math.max(headerLen + 2, Math.min(maxDataLen + 2, 45)) };
+      });
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Course_Master');
+
+      const baseName = fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Admission_Report';
+      XLSX.writeFile(wb, `${baseName}_Unique_Course_Master.xlsx`);
+      setStatus(`Exported ${uniquePureCoursesList.length.toLocaleString()} unique course master records to Excel successfully!`, 'success');
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to export Unique Course Master Excel: ${err.message}`, 'error');
+    }
+  };
+
+  // Download Unique 4-Column Course Master CSV
+  const handleExportUniquePureCoursesCsv = () => {
+    if (!uniquePureCoursesList || uniquePureCoursesList.length === 0) {
+      setStatus('No unique course master records available to export.', 'warning');
+      return;
+    }
+
+    try {
+      const headers = [
+        'ParentGroupName',
+        'ImmediateParentGroupName',
+        'CourseCode',
+        'CourseName'
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(uniquePureCoursesList, { header: headers });
+      const csv = XLSX.utils.sheet_to_csv(ws);
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const baseName = fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Admission_Report';
+      link.href = url;
+      link.setAttribute('download', `${baseName}_Unique_Course_Master.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setStatus(`Exported ${uniquePureCoursesList.length.toLocaleString()} unique course master records to CSV successfully!`, 'success');
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to export Unique Course Master CSV: ${err.message}`, 'error');
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)', padding: '24px 32px', fontFamily: 'var(--font-family)' }}>
       <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1169,6 +1331,26 @@ export default function AdmissionRowWisePage() {
                 >
                   <Building2 size={14} /> Institute Report Excel ({uniqueInstituteCoursesList.length.toLocaleString()})
                 </button>
+
+                <button 
+                  type="button" 
+                  onClick={handleExportUniquePureCoursesExcel}
+                  style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '6px', 
+                    fontSize: '12.5px', 
+                    padding: '7px 14px', 
+                    background: '#f59e0b', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '6px', 
+                    fontWeight: 700, 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  <BookOpen size={14} /> Course Master Excel ({uniquePureCoursesList.length.toLocaleString()})
+                </button>
               </>
             )}
 
@@ -1202,13 +1384,34 @@ export default function AdmissionRowWisePage() {
                 Admission report maker - Row Wise
               </h1>
               <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--muted)', lineHeight: '1.5' }}>
-                Unpivot wide-format admission spreadsheets with multiple course attributes (e.g. <code>CourseCode1..N</code>, <code>CourseName1..N</code>, <code>ParentGroupName1..N</code>) into normalized, row-by-row student-course records, plus generate unique <strong>Program - Part - Term - Courses</strong> and <strong>Institute - Courses</strong> Master Reports.
+                Unpivot wide-format admission spreadsheets with multiple course attributes (e.g. <code>CourseCode1..N</code>, <code>CourseName1..N</code>, <code>ParentGroupName1..N</code>) into normalized, row-by-row student-course records, plus generate unique <strong>Program - Part - Term - Courses</strong>, <strong>Institute - Courses</strong>, and 4-column <strong>Course Master</strong> Reports.
               </p>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
               {transformResult && transformResult.transformedRows.length > 0 ? (
                 <>
+                  <button 
+                    type="button"
+                    onClick={handleExportUniquePureCoursesExcel}
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      padding: '11px 18px', 
+                      fontSize: '13.5px', 
+                      fontWeight: 700,
+                      background: '#f59e0b',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(245, 158, 11, 0.25)'
+                    }}
+                  >
+                    <BookOpen size={16} /> Download Course Master (.xlsx)
+                  </button>
+
                   <button 
                     type="button"
                     onClick={handleExportUniqueInstituteCoursesExcel}
@@ -1227,7 +1430,7 @@ export default function AdmissionRowWisePage() {
                       boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)'
                     }}
                   >
-                    <Building2 size={16} /> Download Institute Courses Report (.xlsx)
+                    <Building2 size={16} /> Institute Courses (.xlsx)
                   </button>
 
                   <button 
@@ -1248,7 +1451,7 @@ export default function AdmissionRowWisePage() {
                       boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
                     }}
                   >
-                    <GraduationCap size={16} /> Unique Program Courses (.xlsx)
+                    <GraduationCap size={16} /> Program Courses (.xlsx)
                   </button>
 
                   <button 
@@ -1275,11 +1478,13 @@ export default function AdmissionRowWisePage() {
                     type="button"
                     className="secondary"
                     onClick={
-                      activeViewTab === 'uniqueInstitutes' 
-                        ? handleExportUniqueInstituteCoursesCsv 
-                        : activeViewTab === 'uniqueCourses' 
-                          ? handleExportUniqueCoursesCsv 
-                          : handleExportCsv
+                      activeViewTab === 'uniquePureCourses'
+                        ? handleExportUniquePureCoursesCsv
+                        : activeViewTab === 'uniqueInstitutes' 
+                          ? handleExportUniqueInstituteCoursesCsv 
+                          : activeViewTab === 'uniqueCourses' 
+                            ? handleExportUniqueCoursesCsv 
+                            : handleExportCsv
                     }
                     style={{ 
                       display: 'inline-flex', 
@@ -1599,7 +1804,7 @@ export default function AdmissionRowWisePage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>📥 Download Available Reports:</span>
                     <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>
-                      <strong style={{ color: 'var(--accent)' }}>{transformResult.outputRowCount.toLocaleString()}</strong> Rows | <strong style={{ color: '#10b981' }}>{uniqueCoursesList.length.toLocaleString()}</strong> Prog Courses | <strong style={{ color: '#8b5cf6' }}>{uniqueInstituteCoursesList.length.toLocaleString()}</strong> Inst Courses
+                      <strong style={{ color: 'var(--accent)' }}>{transformResult.outputRowCount.toLocaleString()}</strong> Rows | <strong style={{ color: '#10b981' }}>{uniqueCoursesList.length.toLocaleString()}</strong> Prog Courses | <strong style={{ color: '#8b5cf6' }}>{uniqueInstituteCoursesList.length.toLocaleString()}</strong> Inst Courses | <strong style={{ color: '#d97706' }}>{uniquePureCoursesList.length.toLocaleString()}</strong> Master Courses
                     </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
@@ -1623,6 +1828,13 @@ export default function AdmissionRowWisePage() {
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 10px', fontSize: '12px', fontWeight: 700, background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
                     >
                       <Building2 size={14} /> Inst Report (.xlsx)
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={handleExportUniquePureCoursesExcel}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 10px', fontSize: '12px', fontWeight: 700, background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <BookOpen size={14} /> Course Master (.xlsx)
                     </button>
                   </div>
                 </div>
@@ -1674,8 +1886,14 @@ export default function AdmissionRowWisePage() {
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Normalized student-course rows</div>
             </div>
 
+            <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid #f59e0b', background: 'rgba(245,158,11,0.02)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Course Master (4-Col)</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: '#d97706' }}>{uniquePureCoursesList.length.toLocaleString()}</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>ParentGroup & Course combinations</div>
+            </div>
+
             <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid #059669', background: 'rgba(16,185,129,0.02)' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Unique Courses</div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Unique Program Courses</div>
               <div style={{ fontSize: '24px', fontWeight: 800, color: '#059669' }}>{uniqueCoursesList.length.toLocaleString()}</div>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Program-Term Master Combinations</div>
             </div>
@@ -1692,9 +1910,9 @@ export default function AdmissionRowWisePage() {
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Distinct academic streams</div>
             </div>
 
-            <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid #f59e0b' }}>
+            <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid #64748b' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Empty Slots Omitted</div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: '#d97706' }}>{transformResult.omittedSlotCount.toLocaleString()}</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: '#475569' }}>{transformResult.omittedSlotCount.toLocaleString()}</div>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Blanks skipped automatically</div>
             </div>
           </div>
@@ -1733,6 +1951,31 @@ export default function AdmissionRowWisePage() {
 
               <button
                 type="button"
+                onClick={() => setActiveViewTab('uniquePureCourses')}
+                style={{
+                  padding: '12px 20px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: activeViewTab === 'uniquePureCourses' ? 'var(--panel)' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeViewTab === 'uniquePureCourses' ? '2px solid #f59e0b' : '2px solid transparent',
+                  color: activeViewTab === 'uniquePureCourses' ? '#d97706' : 'var(--muted)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <BookOpen size={16} />
+                <span>Course Master (4 Col)</span>
+                <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '10px', background: 'rgba(245,158,11,0.1)', color: '#d97706' }}>
+                  {uniquePureCoursesList.length.toLocaleString()} Unique
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveViewTab('uniqueCourses')}
                 style={{
                   padding: '12px 20px',
@@ -1752,7 +1995,7 @@ export default function AdmissionRowWisePage() {
                 <GraduationCap size={16} />
                 <span>Program Course Master</span>
                 <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '10px', background: 'rgba(16,185,129,0.1)', color: '#059669' }}>
-                  {uniqueCoursesList.length.toLocaleString()} Unique Courses
+                  {uniqueCoursesList.length.toLocaleString()} Unique
                 </span>
               </button>
 
@@ -2447,6 +2690,207 @@ export default function AdmissionRowWisePage() {
               </>
             )}
 
+            {/* TAB 4: UNIQUE 4-COLUMN COURSE MASTER REPORT VIEW */}
+            {activeViewTab === 'uniquePureCourses' && (
+              <>
+                {/* Unique 4-Column Course Master Toolbar */}
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  
+                  {/* Search Course Master */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '320px', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+                      <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                      <input 
+                        type="text" 
+                        placeholder="Search across CourseCode, CourseName, ParentGroupName..."
+                        value={uniquePureCourseSearchQuery}
+                        onChange={(e) => { setUniquePureCourseSearchQuery(e.target.value); setUniquePureCoursePage(1); }}
+                        style={{ width: '100%', paddingLeft: '32px', fontSize: '13px' }}
+                      />
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>
+                      {filteredUniquePureCourseItems.length.toLocaleString()} matching courses
+                    </span>
+                  </div>
+
+                  {/* Export Buttons */}
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button 
+                      type="button"
+                      onClick={handleExportUniquePureCoursesExcel}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '8px 16px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      <Download size={15} /> Download Course Master (.xlsx)
+                    </button>
+
+                    <button 
+                      type="button"
+                      className="secondary"
+                      onClick={handleExportUniquePureCoursesCsv}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '8px 16px' }}
+                    >
+                      <FileText size={15} /> Export CSV (.csv)
+                    </button>
+                  </div>
+
+                </div>
+
+                {/* Sub-header Banner */}
+                <div style={{ padding: '8px 20px', background: 'rgba(245,158,11,0.04)', borderBottom: '1px solid var(--line)', fontSize: '12px', color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <BookOpen size={15} />
+                  <span>Unique combinations of <strong>ParentGroupName</strong>, <strong>ImmediateParentGroupName</strong>, <strong>CourseCode</strong>, and <strong>CourseName</strong>.</span>
+                </div>
+
+                {/* Course Master Table Container */}
+                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg)', borderBottom: '2px solid var(--line)', position: 'sticky', top: 0, zIndex: 2 }}>
+                        <th style={{ padding: '10px 14px', width: '50px', textAlign: 'center' }}>#</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>ParentGroupName</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>ImmediateParentGroupName</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap', color: 'var(--accent)' }}>CourseCode</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>CourseName</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedUniquePureCourseItems.length > 0 ? (
+                        pagedUniquePureCourseItems.map((item, idx) => {
+                          const globalIdx = (safeUniquePureCoursePage - 1) * uniquePureCoursePageSize + idx + 1;
+                          return (
+                            <tr 
+                              key={idx} 
+                              style={{ 
+                                borderBottom: '1px solid var(--line)', 
+                                background: idx % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)' 
+                              }}
+                            >
+                              <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
+                                {globalIdx}
+                              </td>
+                              <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 600, color: 'var(--ink)' }}>
+                                {item.ParentGroupName || <span style={{ color: 'var(--muted)' }}>—</span>}
+                              </td>
+                              <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                                {item.ImmediateParentGroupName || <span style={{ color: 'var(--muted)' }}>—</span>}
+                              </td>
+                              <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                                <span style={{ 
+                                  fontFamily: 'monospace', 
+                                  fontWeight: 700, 
+                                  padding: '2px 7px', 
+                                  borderRadius: '4px', 
+                                  background: 'rgba(245,158,11,0.1)', 
+                                  color: '#d97706',
+                                  fontSize: '11.5px'
+                                }}>
+                                  {item.CourseCode || '—'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 14px', fontWeight: 500 }}>
+                                {item.CourseName || <span style={{ color: 'var(--muted)' }}>—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                            No courses match query "{uniquePureCourseSearchQuery}".
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Course Master Pagination Footer */}
+                <div style={{ 
+                  padding: '12px 20px', 
+                  background: 'var(--bg)', 
+                  borderTop: '1px solid var(--line)', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  fontSize: '13px', 
+                  color: 'var(--muted)' 
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div>
+                      Showing <strong>{filteredUniquePureCourseItems.length === 0 ? 0 : (safeUniquePureCoursePage - 1) * uniquePureCoursePageSize + 1}</strong> to <strong>{Math.min(safeUniquePureCoursePage * uniquePureCoursePageSize, filteredUniquePureCourseItems.length)}</strong> of <strong>{filteredUniquePureCourseItems.length.toLocaleString()}</strong> unique course(s)
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>Rows per page:</span>
+                      <select 
+                        value={uniquePureCoursePageSize} 
+                        onChange={(e) => { 
+                          setUniquePureCoursePageSize(Number(e.target.value)); 
+                          setUniquePureCoursePage(1); 
+                        }}
+                        style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }}
+                      >
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={250}>250</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {totalUniquePureCoursePages > 1 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button 
+                        type="button"
+                        className="secondary" 
+                        onClick={() => setUniquePureCoursePage(1)} 
+                        disabled={safeUniquePureCoursePage <= 1}
+                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                      >
+                        « First
+                      </button>
+
+                      <button 
+                        type="button"
+                        className="secondary" 
+                        onClick={() => setUniquePureCoursePage(p => Math.max(1, p - 1))} 
+                        disabled={safeUniquePureCoursePage <= 1}
+                        style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                      >
+                        <ChevronLeft size={14} /> Prev
+                      </button>
+
+                      <span style={{ margin: '0 8px', fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>
+                        Page {safeUniquePureCoursePage} of {totalUniquePureCoursePages}
+                      </span>
+
+                      <button 
+                        type="button"
+                        className="secondary" 
+                        onClick={() => setUniquePureCoursePage(p => Math.min(totalUniquePureCoursePages, p + 1))} 
+                        disabled={safeUniquePureCoursePage >= totalUniquePureCoursePages}
+                        style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                      >
+                        Next <ChevronRight size={14} />
+                      </button>
+
+                      <button 
+                        type="button"
+                        className="secondary" 
+                        onClick={() => setUniquePureCoursePage(totalUniquePureCoursePages)} 
+                        disabled={safeUniquePureCoursePage >= totalUniquePureCoursePages}
+                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                      >
+                        Last »
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
           </div>
         )}
 
@@ -2549,6 +2993,13 @@ export default function AdmissionRowWisePage() {
                 <h4 style={{ margin: '0 0 6px 0', color: '#7c3aed', fontSize: '14px' }}>6. Unique Institute Course Master Report (Excel)</h4>
                 <p style={{ margin: 0, color: 'var(--muted)' }}>
                   Generates an institution-level curriculum offering report containing unique combinations across 6 key columns: <code>Institute Code</code>, <code>Institute Name</code>, <code>ParentGroupName</code>, <code>ImmediateParentGroupName</code>, <code>CourseCode</code>, and <code>CourseName</code>. Automatically detects college code and name columns (e.g. <code>CollegeCode</code>, <code>CollegeName</code>).
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 6px 0', color: '#d97706', fontSize: '14px' }}>7. Unique Course Master Report (4 Columns)</h4>
+                <p style={{ margin: 0, color: 'var(--muted)' }}>
+                  Generates an unduplicated curriculum catalog report across exactly 4 columns: <code>ParentGroupName</code>, <code>ImmediateParentGroupName</code>, <code>CourseCode</code>, and <code>CourseName</code>. If ParentGroupName is blank, it automatically falls back to ImmediateParentGroupName.
                 </p>
               </div>
             </div>
