@@ -17,7 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
-  GraduationCap
+  GraduationCap,
+  Building2
 } from 'lucide-react';
 import { parseWorkbookFromBuffer } from '../utils/excelParser';
 
@@ -288,6 +289,75 @@ export const generateUniqueCourseReport = (transformedRows, options = {}) => {
   return list;
 };
 
+/**
+ * Generates a unique institute course master report containing:
+ * Institute Code, Institute Name, ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName
+ */
+export const generateUniqueInstituteCourseReport = (transformedRows, options = {}) => {
+  const {
+    instituteCodeCol = '',
+    instituteNameCol = '',
+    fallbackInstituteCode = '',
+    fallbackInstituteName = ''
+  } = options;
+
+  if (!transformedRows || !Array.isArray(transformedRows)) return [];
+
+  const uniqueMap = new Map();
+
+  for (const row of transformedRows) {
+    const courseCode = (row['CourseCode'] || '').trim();
+    const courseName = (row['CourseName'] || '').trim();
+
+    // Skip empty course slots
+    if (!courseCode && !courseName) continue;
+
+    let instCode = instituteCodeCol && row[instituteCodeCol] !== undefined ? String(row[instituteCodeCol]).trim() : '';
+    if (!instCode) instCode = fallbackInstituteCode || '';
+
+    let instName = instituteNameCol && row[instituteNameCol] !== undefined ? String(row[instituteNameCol]).trim() : '';
+    if (!instName) instName = fallbackInstituteName || '';
+
+    const parentGroupName = (row['ParentGroupName'] || '').trim();
+    const immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+
+    const dedupKey = [
+      instCode.toLowerCase(),
+      instName.toLowerCase(),
+      parentGroupName.toLowerCase(),
+      immediateParentGroupName.toLowerCase(),
+      courseCode.toLowerCase(),
+      courseName.toLowerCase()
+    ].join('|||');
+
+    if (!uniqueMap.has(dedupKey)) {
+      uniqueMap.set(dedupKey, {
+        'Institute Code': instCode,
+        'Institute Name': instName,
+        'ParentGroupName': parentGroupName,
+        'ImmediateParentGroupName': immediateParentGroupName,
+        'CourseCode': courseCode,
+        'CourseName': courseName
+      });
+    }
+  }
+
+  const list = Array.from(uniqueMap.values());
+  list.sort((a, b) => {
+    const codeCmp = a['Institute Code'].localeCompare(b['Institute Code'], undefined, { numeric: true });
+    if (codeCmp !== 0) return codeCmp;
+    const nameCmp = a['Institute Name'].localeCompare(b['Institute Name']);
+    if (nameCmp !== 0) return nameCmp;
+    const pgCmp = a['ParentGroupName'].localeCompare(b['ParentGroupName']);
+    if (pgCmp !== 0) return pgCmp;
+    const ipgCmp = a['ImmediateParentGroupName'].localeCompare(b['ImmediateParentGroupName']);
+    if (ipgCmp !== 0) return ipgCmp;
+    return a['CourseCode'].localeCompare(b['CourseCode']);
+  });
+
+  return list;
+};
+
 export const transformWideToRowWise = (columns, rows, options = {}) => {
   const {
     includeSlotNumber = false,
@@ -488,7 +558,16 @@ export default function AdmissionRowWisePage() {
   const [fallbackPart, setFallbackPart] = useState('1');
   const [fallbackTerm, setFallbackTerm] = useState('1');
 
-  // Active View Tab: 'rowwise' | 'uniqueCourses'
+  // Unique Institute Report Mapping & Settings
+  const [selectedInstCodeCol, setSelectedInstCodeCol] = useState('');
+  const [selectedInstNameCol, setSelectedInstNameCol] = useState('');
+  const [fallbackInstCode, setFallbackInstCode] = useState('');
+  const [fallbackInstName, setFallbackInstName] = useState('');
+  const [uniqueInstSearchQuery, setUniqueInstSearchQuery] = useState('');
+  const [uniqueInstPage, setUniqueInstPage] = useState(1);
+  const [uniqueInstPageSize, setUniqueInstPageSize] = useState(50);
+
+  // Active View Tab: 'rowwise' | 'uniqueCourses' | 'uniqueInstitutes'
   const [activeViewTab, setActiveViewTab] = useState('rowwise');
   const [uniqueSearchQuery, setUniqueSearchQuery] = useState('');
   const [uniquePage, setUniquePage] = useState(1);
@@ -516,10 +595,14 @@ export default function AdmissionRowWisePage() {
     const detectedProg = detectColumnMatch(cols, ['Program', 'ProgramName', 'Programme', 'ProgrammeName', 'Degree', 'CourseStream', 'Stream']);
     const detectedPart = detectColumnMatch(cols, ['Part', 'PartName', 'PartNo', 'Year']);
     const detectedTerm = detectColumnMatch(cols, ['Term', 'TermName', 'TermNo', 'Semester', 'Sem']);
+    const detectedInstCode = detectColumnMatch(cols, ['Institute Code', 'InstituteCode', 'CollegeCode', 'College Code', 'CenterCode', 'CentreCode', 'InstCode', 'Center_Code', 'College_Code', 'Institute_Code']);
+    const detectedInstName = detectColumnMatch(cols, ['Institute Name', 'InstituteName', 'CollegeName', 'College Name', 'CenterName', 'CentreName', 'InstName', 'College', 'Center_Name', 'College_Name', 'Institute_Name']);
 
     setSelectedProgramCol(detectedProg || '');
     setSelectedPartCol(detectedPart || '');
     setSelectedTermCol(detectedTerm || '');
+    setSelectedInstCodeCol(detectedInstCode || '');
+    setSelectedInstNameCol(detectedInstName || '');
   };
 
   // Process rows whenever raw data or options change
@@ -879,6 +962,121 @@ export default function AdmissionRowWisePage() {
     }
   };
 
+  // Computed Unique Institute Courses List (Institute Code, Institute Name, ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName)
+  const uniqueInstituteCoursesList = useMemo(() => {
+    if (!transformResult || !transformResult.transformedRows || transformResult.transformedRows.length === 0) {
+      return [];
+    }
+    return generateUniqueInstituteCourseReport(transformResult.transformedRows, {
+      instituteCodeCol: selectedInstCodeCol,
+      instituteNameCol: selectedInstNameCol,
+      fallbackInstituteCode: fallbackInstCode,
+      fallbackInstituteName: fallbackInstName
+    });
+  }, [transformResult, selectedInstCodeCol, selectedInstNameCol, fallbackInstCode, fallbackInstName]);
+
+  const uniqueInstitutesCount = useMemo(() => {
+    return new Set(uniqueInstituteCoursesList.map(c => c['Institute Code'])).size;
+  }, [uniqueInstituteCoursesList]);
+
+  const filteredUniqueInstItems = useMemo(() => {
+    if (!uniqueInstSearchQuery.trim()) return uniqueInstituteCoursesList;
+    const q = uniqueInstSearchQuery.toLowerCase().trim();
+    return uniqueInstituteCoursesList.filter(row => {
+      return Object.values(row).some(val => 
+        val !== null && val !== undefined && String(val).toLowerCase().includes(q)
+      );
+    });
+  }, [uniqueInstituteCoursesList, uniqueInstSearchQuery]);
+
+  const totalUniqueInstPages = Math.max(1, Math.ceil(filteredUniqueInstItems.length / uniqueInstPageSize));
+  const safeUniqueInstPage = Math.min(Math.max(1, uniqueInstPage), totalUniqueInstPages);
+
+  const pagedUniqueInstItems = useMemo(() => {
+    const start = (safeUniqueInstPage - 1) * uniqueInstPageSize;
+    return filteredUniqueInstItems.slice(start, start + uniqueInstPageSize);
+  }, [filteredUniqueInstItems, safeUniqueInstPage, uniqueInstPageSize]);
+
+  // Download Unique Institute Courses Master Excel
+  const handleExportUniqueInstituteCoursesExcel = () => {
+    if (!uniqueInstituteCoursesList || uniqueInstituteCoursesList.length === 0) {
+      setStatus('No unique institute course records available to export.', 'warning');
+      return;
+    }
+
+    try {
+      const headers = [
+        'Institute Code',
+        'Institute Name',
+        'ParentGroupName',
+        'ImmediateParentGroupName',
+        'CourseCode',
+        'CourseName'
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(uniqueInstituteCoursesList, { header: headers });
+
+      const colWidths = headers.map(h => {
+        const headerLen = String(h).length;
+        let maxDataLen = 0;
+        for (let i = 0; i < Math.min(uniqueInstituteCoursesList.length, 100); i++) {
+          const val = uniqueInstituteCoursesList[i][h];
+          if (val) maxDataLen = Math.max(maxDataLen, String(val).length);
+        }
+        return { wch: Math.max(headerLen + 2, Math.min(maxDataLen + 2, 45)) };
+      });
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Institute_Courses');
+
+      const baseName = fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Admission_Report';
+      XLSX.writeFile(wb, `${baseName}_Unique_Institute_Courses.xlsx`);
+      setStatus(`Exported ${uniqueInstituteCoursesList.length.toLocaleString()} unique institute course records to Excel successfully!`, 'success');
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to export Unique Institute Courses Excel: ${err.message}`, 'error');
+    }
+  };
+
+  // Download Unique Institute Courses Master CSV
+  const handleExportUniqueInstituteCoursesCsv = () => {
+    if (!uniqueInstituteCoursesList || uniqueInstituteCoursesList.length === 0) {
+      setStatus('No unique institute course records available to export.', 'warning');
+      return;
+    }
+
+    try {
+      const headers = [
+        'Institute Code',
+        'Institute Name',
+        'ParentGroupName',
+        'ImmediateParentGroupName',
+        'CourseCode',
+        'CourseName'
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(uniqueInstituteCoursesList, { header: headers });
+      const csv = XLSX.utils.sheet_to_csv(ws);
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const baseName = fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Admission_Report';
+      link.href = url;
+      link.setAttribute('download', `${baseName}_Unique_Institute_Courses.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setStatus(`Exported ${uniqueInstituteCoursesList.length.toLocaleString()} unique institute course records to CSV successfully!`, 'success');
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to export Unique Institute Courses CSV: ${err.message}`, 'error');
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)', padding: '24px 32px', fontFamily: 'var(--font-family)' }}>
       <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -951,6 +1149,26 @@ export default function AdmissionRowWisePage() {
                 >
                   <GraduationCap size={14} /> Unique Report Excel ({uniqueCoursesList.length.toLocaleString()})
                 </button>
+
+                <button 
+                  type="button" 
+                  onClick={handleExportUniqueInstituteCoursesExcel}
+                  style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '6px', 
+                    fontSize: '12.5px', 
+                    padding: '7px 14px', 
+                    background: '#8b5cf6', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '6px', 
+                    fontWeight: 700, 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  <Building2 size={14} /> Institute Report Excel ({uniqueInstituteCoursesList.length.toLocaleString()})
+                </button>
               </>
             )}
 
@@ -984,13 +1202,34 @@ export default function AdmissionRowWisePage() {
                 Admission report maker - Row Wise
               </h1>
               <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--muted)', lineHeight: '1.5' }}>
-                Unpivot wide-format admission spreadsheets with multiple course attributes (e.g. <code>CourseCode1..N</code>, <code>CourseName1..N</code>, <code>ParentGroupName1..N</code>) into normalized, row-by-row student-course records, plus generate unique <strong>Program - Part - Term - Courses</strong> Master Reports.
+                Unpivot wide-format admission spreadsheets with multiple course attributes (e.g. <code>CourseCode1..N</code>, <code>CourseName1..N</code>, <code>ParentGroupName1..N</code>) into normalized, row-by-row student-course records, plus generate unique <strong>Program - Part - Term - Courses</strong> and <strong>Institute - Courses</strong> Master Reports.
               </p>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
               {transformResult && transformResult.transformedRows.length > 0 ? (
                 <>
+                  <button 
+                    type="button"
+                    onClick={handleExportUniqueInstituteCoursesExcel}
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      padding: '11px 18px', 
+                      fontSize: '13.5px', 
+                      fontWeight: 700,
+                      background: '#8b5cf6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)'
+                    }}
+                  >
+                    <Building2 size={16} /> Download Institute Courses Report (.xlsx)
+                  </button>
+
                   <button 
                     type="button"
                     onClick={handleExportUniqueCoursesExcel}
@@ -1009,7 +1248,7 @@ export default function AdmissionRowWisePage() {
                       boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
                     }}
                   >
-                    <GraduationCap size={16} /> Download Unique Courses Report (.xlsx)
+                    <GraduationCap size={16} /> Unique Program Courses (.xlsx)
                   </button>
 
                   <button 
@@ -1035,7 +1274,13 @@ export default function AdmissionRowWisePage() {
                   <button 
                     type="button"
                     className="secondary"
-                    onClick={activeViewTab === 'uniqueCourses' ? handleExportUniqueCoursesCsv : handleExportCsv}
+                    onClick={
+                      activeViewTab === 'uniqueInstitutes' 
+                        ? handleExportUniqueInstituteCoursesCsv 
+                        : activeViewTab === 'uniqueCourses' 
+                          ? handleExportUniqueCoursesCsv 
+                          : handleExportCsv
+                    }
                     style={{ 
                       display: 'inline-flex', 
                       alignItems: 'center', 
@@ -1279,26 +1524,105 @@ export default function AdmissionRowWisePage() {
                   )}
                 </div>
 
+                {/* Institute Course Report Column Mapping */}
+                <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed var(--line)' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Building2 size={15} color="#8b5cf6" />
+                    <span>Institute Course Master Mapping:</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#7c3aed', background: 'rgba(139,92,246,0.1)', padding: '2px 7px', borderRadius: '10px' }}>
+                      {uniqueInstituteCoursesList.length} Combinations ({uniqueInstitutesCount} Institutes)
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '3px' }}>
+                        Institute Code Column:
+                      </label>
+                      <select 
+                        value={selectedInstCodeCol} 
+                        onChange={(e) => setSelectedInstCodeCol(e.target.value)}
+                        style={{ width: '100%', fontSize: '12px', padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--ink)' }}
+                      >
+                        <option value="">-- Fixed/Default Value --</option>
+                        {transformResult.baseCols.map(col => <option key={col} value={col}>{col}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '3px' }}>
+                        Institute Name Column:
+                      </label>
+                      <select 
+                        value={selectedInstNameCol} 
+                        onChange={(e) => setSelectedInstNameCol(e.target.value)}
+                        style={{ width: '100%', fontSize: '12px', padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--ink)' }}
+                      >
+                        <option value="">-- Fixed/Default Value --</option>
+                        {transformResult.baseCols.map(col => <option key={col} value={col}>{col}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {(!selectedInstCodeCol || !selectedInstNameCol) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginTop: '6px' }}>
+                      {!selectedInstCodeCol && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Default Code:</span>
+                          <input 
+                            type="text" 
+                            value={fallbackInstCode} 
+                            onChange={(e) => setFallbackInstCode(e.target.value)}
+                            placeholder="e.g. INST001"
+                            style={{ flex: 1, fontSize: '11.5px', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--line)' }}
+                          />
+                        </div>
+                      )}
+                      {!selectedInstNameCol && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Default Name:</span>
+                          <input 
+                            type="text" 
+                            value={fallbackInstName} 
+                            onChange={(e) => setFallbackInstName(e.target.value)}
+                            placeholder="e.g. University College"
+                            style={{ flex: 1, fontSize: '11.5px', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--line)' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Direct Download Actions Box */}
                 <div style={{ marginTop: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>📥 Download Available Reports:</span>
-                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#10b981' }}>{transformResult.outputRowCount.toLocaleString()} Rows | {uniqueCoursesList.length.toLocaleString()} Unique</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>
+                      <strong style={{ color: 'var(--accent)' }}>{transformResult.outputRowCount.toLocaleString()}</strong> Rows | <strong style={{ color: '#10b981' }}>{uniqueCoursesList.length.toLocaleString()}</strong> Prog Courses | <strong style={{ color: '#8b5cf6' }}>{uniqueInstituteCoursesList.length.toLocaleString()}</strong> Inst Courses
+                    </span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
                     <button 
                       type="button"
                       onClick={handleExportExcel}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 12px', fontSize: '12.5px', fontWeight: 700, background: 'var(--panel)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: '6px', cursor: 'pointer' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 10px', fontSize: '12px', fontWeight: 700, background: 'var(--panel)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: '6px', cursor: 'pointer' }}
                     >
-                      <Download size={14} /> Full Row-Wise (.xlsx)
+                      <Download size={14} /> Row-Wise (.xlsx)
                     </button>
                     <button 
                       type="button"
                       onClick={handleExportUniqueCoursesExcel}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 12px', fontSize: '12.5px', fontWeight: 700, background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 10px', fontSize: '12px', fontWeight: 700, background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
                     >
-                      <GraduationCap size={14} /> Unique Report (.xlsx)
+                      <GraduationCap size={14} /> Prog Report (.xlsx)
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={handleExportUniqueInstituteCoursesExcel}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 10px', fontSize: '12px', fontWeight: 700, background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Building2 size={14} /> Inst Report (.xlsx)
                     </button>
                   </div>
                 </div>
@@ -1356,9 +1680,15 @@ export default function AdmissionRowWisePage() {
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Program-Term Master Combinations</div>
             </div>
 
-            <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid #8b5cf6' }}>
+            <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid #8b5cf6', background: 'rgba(139,92,246,0.02)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Institute Courses</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: '#7c3aed' }}>{uniqueInstituteCoursesList.length.toLocaleString()}</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Unique College-Course Pairs ({uniqueInstitutesCount} Inst)</div>
+            </div>
+
+            <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid #3b82f6' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Unique Programs</div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: '#7c3aed' }}>{uniqueProgramsCount}</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: '#2563eb' }}>{uniqueProgramsCount}</div>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Distinct academic streams</div>
             </div>
 
@@ -1375,7 +1705,7 @@ export default function AdmissionRowWisePage() {
           <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
             
             {/* View Switcher Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--line)', background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--line)', background: 'var(--bg)', overflowX: 'auto' }}>
               <button
                 type="button"
                 onClick={() => setActiveViewTab('rowwise')}
@@ -1390,7 +1720,8 @@ export default function AdmissionRowWisePage() {
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 <FileSpreadsheet size={15} />
@@ -1414,13 +1745,39 @@ export default function AdmissionRowWisePage() {
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 <GraduationCap size={16} />
-                <span>Unique Course Master Report</span>
+                <span>Program Course Master</span>
                 <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '10px', background: 'rgba(16,185,129,0.1)', color: '#059669' }}>
                   {uniqueCoursesList.length.toLocaleString()} Unique Courses
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveViewTab('uniqueInstitutes')}
+                style={{
+                  padding: '12px 20px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: activeViewTab === 'uniqueInstitutes' ? 'var(--panel)' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeViewTab === 'uniqueInstitutes' ? '2px solid #8b5cf6' : '2px solid transparent',
+                  color: activeViewTab === 'uniqueInstitutes' ? '#7c3aed' : 'var(--muted)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Building2 size={16} />
+                <span>Institute Course Master</span>
+                <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '10px', background: 'rgba(139,92,246,0.1)', color: '#7c3aed' }}>
+                  {uniqueInstituteCoursesList.length.toLocaleString()} Combinations
                 </span>
               </button>
             </div>
@@ -1871,6 +2228,225 @@ export default function AdmissionRowWisePage() {
               </>
             )}
 
+            {/* TAB 3: UNIQUE INSTITUTE COURSE MASTER REPORT VIEW */}
+            {activeViewTab === 'uniqueInstitutes' && (
+              <>
+                {/* Unique Institutes Toolbar */}
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  
+                  {/* Search Unique Institute Courses */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '320px', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+                      <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                      <input 
+                        type="text" 
+                        placeholder="Search across Institute Code, Name, CourseCode, CourseName, Groups..."
+                        value={uniqueInstSearchQuery}
+                        onChange={(e) => { setUniqueInstSearchQuery(e.target.value); setUniqueInstPage(1); }}
+                        style={{ width: '100%', paddingLeft: '32px', fontSize: '13px' }}
+                      />
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>
+                      {filteredUniqueInstItems.length.toLocaleString()} matching records
+                    </span>
+                  </div>
+
+                  {/* Export Buttons */}
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button 
+                      type="button"
+                      onClick={handleExportUniqueInstituteCoursesExcel}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '8px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      <Download size={15} /> Download Institute Courses (.xlsx)
+                    </button>
+
+                    <button 
+                      type="button"
+                      className="secondary"
+                      onClick={handleExportUniqueInstituteCoursesCsv}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '8px 16px' }}
+                    >
+                      <FileText size={15} /> Export CSV (.csv)
+                    </button>
+                  </div>
+
+                </div>
+
+                {/* Sub-header Banner */}
+                <div style={{ padding: '8px 20px', background: 'rgba(139,92,246,0.04)', borderBottom: '1px solid var(--line)', fontSize: '12px', color: '#7c3aed', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Building2 size={15} />
+                  <span>Unique combinations of <strong>Institute Code</strong>, <strong>Institute Name</strong>, <strong>ParentGroupName</strong>, <strong>ImmediateParentGroupName</strong>, <strong>CourseCode</strong>, and <strong>CourseName</strong>.</span>
+                </div>
+
+                {/* Unique Institute Table Container */}
+                <div style={{ overflowX: 'auto', maxHeight: '560px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg)', borderBottom: '2px solid var(--line)', position: 'sticky', top: 0, zIndex: 2 }}>
+                        <th style={{ padding: '10px 14px', width: '50px', textAlign: 'center' }}>#</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap', color: 'var(--accent)' }}>Institute Code</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>Institute Name</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>ParentGroupName</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>ImmediateParentGroupName</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap', color: 'var(--accent)' }}>CourseCode</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>CourseName</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedUniqueInstItems.length > 0 ? (
+                        pagedUniqueInstItems.map((item, idx) => {
+                          const globalIdx = (safeUniqueInstPage - 1) * uniqueInstPageSize + idx + 1;
+                          return (
+                            <tr 
+                              key={idx} 
+                              style={{ 
+                                borderBottom: '1px solid var(--line)', 
+                                background: idx % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)' 
+                              }}
+                            >
+                              <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
+                                {globalIdx}
+                              </td>
+                              <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                                <span style={{ 
+                                  fontFamily: 'monospace', 
+                                  fontWeight: 700, 
+                                  padding: '2px 7px', 
+                                  borderRadius: '4px', 
+                                  background: 'rgba(139,92,246,0.1)', 
+                                  color: '#7c3aed',
+                                  fontSize: '11.5px'
+                                }}>
+                                  {item['Institute Code'] || '—'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
+                                {item['Institute Name'] || '—'}
+                              </td>
+                              <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                                {item.ParentGroupName || <span style={{ color: 'var(--muted)' }}>—</span>}
+                              </td>
+                              <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                                {item.ImmediateParentGroupName || <span style={{ color: 'var(--muted)' }}>—</span>}
+                              </td>
+                              <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                                <span style={{ 
+                                  fontFamily: 'monospace', 
+                                  fontWeight: 700, 
+                                  padding: '2px 7px', 
+                                  borderRadius: '4px', 
+                                  background: 'rgba(23,107,135,0.1)', 
+                                  color: 'var(--accent)',
+                                  fontSize: '11.5px'
+                                }}>
+                                  {item.CourseCode || '—'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 14px', fontWeight: 500 }}>
+                                {item.CourseName || <span style={{ color: 'var(--muted)' }}>—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                            No institute course combinations match query "{uniqueInstSearchQuery}".
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Unique Institute Pagination Footer */}
+                <div style={{ 
+                  padding: '12px 20px', 
+                  background: 'var(--bg)', 
+                  borderTop: '1px solid var(--line)', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  fontSize: '13px', 
+                  color: 'var(--muted)' 
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div>
+                      Showing <strong>{filteredUniqueInstItems.length === 0 ? 0 : (safeUniqueInstPage - 1) * uniqueInstPageSize + 1}</strong> to <strong>{Math.min(safeUniqueInstPage * uniqueInstPageSize, filteredUniqueInstItems.length)}</strong> of <strong>{filteredUniqueInstItems.length.toLocaleString()}</strong> combination(s)
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>Rows per page:</span>
+                      <select 
+                        value={uniqueInstPageSize} 
+                        onChange={(e) => { 
+                          setUniqueInstPageSize(Number(e.target.value)); 
+                          setUniqueInstPage(1); 
+                        }}
+                        style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--line)' }}
+                      >
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={250}>250</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {totalUniqueInstPages > 1 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button 
+                        type="button"
+                        className="secondary" 
+                        onClick={() => setUniqueInstPage(1)} 
+                        disabled={safeUniqueInstPage <= 1}
+                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                      >
+                        « First
+                      </button>
+
+                      <button 
+                        type="button"
+                        className="secondary" 
+                        onClick={() => setUniqueInstPage(p => Math.max(1, p - 1))} 
+                        disabled={safeUniqueInstPage <= 1}
+                        style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                      >
+                        <ChevronLeft size={14} /> Prev
+                      </button>
+
+                      <span style={{ margin: '0 8px', fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>
+                        Page {safeUniqueInstPage} of {totalUniqueInstPages}
+                      </span>
+
+                      <button 
+                        type="button"
+                        className="secondary" 
+                        onClick={() => setUniqueInstPage(p => Math.min(totalUniqueInstPages, p + 1))} 
+                        disabled={safeUniqueInstPage >= totalUniqueInstPages}
+                        style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                      >
+                        Next <ChevronRight size={14} />
+                      </button>
+
+                      <button 
+                        type="button"
+                        className="secondary" 
+                        onClick={() => setUniqueInstPage(totalUniqueInstPages)} 
+                        disabled={safeUniqueInstPage >= totalUniqueInstPages}
+                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                      >
+                        Last »
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
           </div>
         )}
 
@@ -1963,9 +2539,16 @@ export default function AdmissionRowWisePage() {
               </div>
 
               <div>
-                <h4 style={{ margin: '0 0 6px 0', color: '#059669', fontSize: '14px' }}>5. Unique Course Master Report (Excel)</h4>
+                <h4 style={{ margin: '0 0 6px 0', color: '#059669', fontSize: '14px' }}>5. Unique Program Course Master Report (Excel)</h4>
                 <p style={{ margin: 0, color: 'var(--muted)' }}>
                   Generates an exportable curriculum report containing deduplicated records across 7 core columns: <code>Program</code>, <code>Part</code>, <code>Term</code>, <code>ParentGroupName</code>, <code>ImmediateParentGroupName</code>, <code>CourseCode</code>, and <code>CourseName</code>. Ideal for populating university syllabus master databases and verifying course codes.
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 6px 0', color: '#7c3aed', fontSize: '14px' }}>6. Unique Institute Course Master Report (Excel)</h4>
+                <p style={{ margin: 0, color: 'var(--muted)' }}>
+                  Generates an institution-level curriculum offering report containing unique combinations across 6 key columns: <code>Institute Code</code>, <code>Institute Name</code>, <code>ParentGroupName</code>, <code>ImmediateParentGroupName</code>, <code>CourseCode</code>, and <code>CourseName</code>. Automatically detects college code and name columns (e.g. <code>CollegeCode</code>, <code>CollegeName</code>).
                 </p>
               </div>
             </div>

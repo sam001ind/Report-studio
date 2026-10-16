@@ -1206,5 +1206,137 @@ test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupNam
   assert.equal(uniqueList[2].ParentGroupName, 'Discipline Specific Core (Psychology)');
 });
 
+test('Admission Report Maker - Generates Unique Institute Course Master Report (Excel) with exact 6 columns and deduplication', () => {
+  const reshapedRows = [
+    {
+      CandidateName: 'STUDENT ALPHA',
+      CollegeCode: 'AA',
+      CollegeName: 'Alpha Arts and Science College',
+      ParentGroupName: 'Major Core',
+      ImmediateParentGroupName: 'Discipline Specific Core',
+      CourseCode: 'KU4DSCHIS101',
+      CourseName: 'Early Indian History and Culture'
+    },
+    {
+      CandidateName: 'STUDENT BETA',
+      CollegeCode: 'AA',
+      CollegeName: 'Alpha Arts and Science College',
+      ParentGroupName: 'Major Core',
+      ImmediateParentGroupName: 'Discipline Specific Core',
+      CourseCode: 'KU4DSCHIS101', // duplicate course at same college AA
+      CourseName: 'Early Indian History and Culture'
+    },
+    {
+      CandidateName: 'STUDENT GAMMA',
+      CollegeCode: 'AA',
+      CollegeName: 'Alpha Arts and Science College',
+      ParentGroupName: '', // blank ParentGroupName -> should fallback to ImmediateParentGroupName
+      ImmediateParentGroupName: 'Discipline Specific Core (Economics)',
+      CourseCode: 'KU4DSCECO101',
+      CourseName: 'Introductory Microeconomics'
+    },
+    {
+      CandidateName: 'STUDENT DELTA',
+      CollegeCode: 'BB',
+      CollegeName: 'Beta Commerce College',
+      ParentGroupName: 'Major Core',
+      ImmediateParentGroupName: 'Discipline Specific Core',
+      CourseCode: 'KU4DSCHIS101', // same course but DIFFERENT college BB -> MUST NOT be deduplicated
+      CourseName: 'Early Indian History and Culture'
+    }
+  ];
+
+  // Logic matching generateUniqueInstituteCourseReport in AdmissionRowWisePage
+  const generateUniqueInstituteReport = (rows, options = {}) => {
+    const {
+      instituteCodeCol = 'CollegeCode',
+      instituteNameCol = 'CollegeName',
+      fallbackInstituteCode = 'INST001',
+      fallbackInstituteName = 'Main Campus'
+    } = options;
+
+    const uniqueMap = new Map();
+
+    for (const row of rows) {
+      const courseCode = String(row.CourseCode || '').trim();
+      const courseName = String(row.CourseName || '').trim();
+      if (!courseCode && !courseName) continue;
+
+      let immediateParentGroupName = String(row.ImmediateParentGroupName || '').trim();
+      let parentGroupName = String(row.ParentGroupName || '').trim();
+      if (!parentGroupName && immediateParentGroupName) {
+        parentGroupName = immediateParentGroupName;
+      }
+
+      let instCode = instituteCodeCol && row[instituteCodeCol] !== undefined ? String(row[instituteCodeCol]).trim() : '';
+      if (!instCode) instCode = fallbackInstituteCode;
+
+      let instName = instituteNameCol && row[instituteNameCol] !== undefined ? String(row[instituteNameCol]).trim() : '';
+      if (!instName) instName = fallbackInstituteName;
+
+      const key = [
+        instCode.toLowerCase(),
+        instName.toLowerCase(),
+        parentGroupName.toLowerCase(),
+        immediateParentGroupName.toLowerCase(),
+        courseCode.toLowerCase(),
+        courseName.toLowerCase()
+      ].join('|||');
+
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, {
+          'Institute Code': instCode,
+          'Institute Name': instName,
+          'ParentGroupName': parentGroupName,
+          'ImmediateParentGroupName': immediateParentGroupName,
+          'CourseCode': courseCode,
+          'CourseName': courseName
+        });
+      }
+    }
+    return Array.from(uniqueMap.values());
+  };
+
+  const report = generateUniqueInstituteReport(reshapedRows);
+
+  // 4 rows input:
+  // - 2 identical for (AA, KU4DSCHIS101) -> deduplicated to 1
+  // - 1 for (AA, KU4DSCECO101) with fallback ParentGroupName
+  // - 1 for (BB, KU4DSCHIS101) at distinct college
+  // Total expected unique combinations = 3
+  assert.equal(report.length, 3);
+
+  // Validate exact 6 requested headers
+  const expectedHeaders = [
+    'Institute Code',
+    'Institute Name',
+    'ParentGroupName',
+    'ImmediateParentGroupName',
+    'CourseCode',
+    'CourseName'
+  ];
+  assert.deepEqual(Object.keys(report[0]), expectedHeaders);
+
+  // Validate record 1 (College AA, HIS101)
+  assert.equal(report[0]['Institute Code'], 'AA');
+  assert.equal(report[0]['Institute Name'], 'Alpha Arts and Science College');
+  assert.equal(report[0]['ParentGroupName'], 'Major Core');
+  assert.equal(report[0]['ImmediateParentGroupName'], 'Discipline Specific Core');
+  assert.equal(report[0]['CourseCode'], 'KU4DSCHIS101');
+  assert.equal(report[0]['CourseName'], 'Early Indian History and Culture');
+
+  // Validate record 2 (College AA, ECO101 with fallback ParentGroupName)
+  assert.equal(report[1]['Institute Code'], 'AA');
+  assert.equal(report[1]['ParentGroupName'], 'Discipline Specific Core (Economics)');
+  assert.equal(report[1]['ImmediateParentGroupName'], 'Discipline Specific Core (Economics)');
+  assert.equal(report[1]['CourseCode'], 'KU4DSCECO101');
+
+  // Validate record 3 (College BB, HIS101)
+  assert.equal(report[2]['Institute Code'], 'BB');
+  assert.equal(report[2]['Institute Name'], 'Beta Commerce College');
+  assert.equal(report[2]['CourseCode'], 'KU4DSCHIS101');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
+
 

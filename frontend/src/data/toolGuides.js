@@ -406,5 +406,28 @@ export const TOOL_GUIDES = {
         content: 'Generates a ready-to-import "UPS Sync Update" Excel list with Student PRN, Transaction ID, Gateway Ref, and Amount to update the university portal. Provides 1-click clipboard copy of PRNs for batch verification and SQL IN (...) statements for database queries.'
       }
     ]
+  },
+  'admission-row-wise': {
+    title: 'Admission Report Maker (Row Wise) - Logic & Guide',
+    icon: 'Database',
+    description: 'Unpivot wide admission registers with repeated course attributes (CourseCode1..N, CourseName1..N, ParentGroupName1..N) into normalized student records and extract Unique Program/Institute Course Masters.',
+    sections: [
+      {
+        heading: '1. Unpivoting Repeated Course Columns',
+        content: 'Scans all column headers to detect numeric suffixes (CourseCode1, CourseCode2, ..., CourseCode10). For each student, only slots with non-empty course code or name are extracted into clean, normalized row-by-row records.'
+      },
+      {
+        heading: '2. ParentGroupName Fallback Rule',
+        content: 'If ImmediateParentGroupName is present but ParentGroupName is blank for a course, the engine automatically copies ImmediateParentGroupName into ParentGroupName to ensure consistent classification.'
+      },
+      {
+        heading: '3. Unique Program Course Master Report',
+        content: 'Generates an exportable curriculum report containing deduplicated records across 7 core columns: Program, Part, Term, ParentGroupName, ImmediateParentGroupName, CourseCode, and CourseName.'
+      },
+      {
+        heading: '4. Unique Institute Course Master Report',
+        content: 'Generates an institution-level curriculum offering report with unique combinations across 6 key columns: Institute Code, Institute Name, ParentGroupName, ImmediateParentGroupName, CourseCode, and CourseName. Automatically matches college code and name columns.'
+      }
+    ]
   }
 };
