@@ -589,6 +589,28 @@ export default function AdmissionRowWisePage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {transformResult && transformResult.transformedRows.length > 0 && (
+              <button 
+                type="button" 
+                onClick={handleExportExcel}
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  fontSize: '12.5px', 
+                  padding: '7px 14px', 
+                  background: '#10b981', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '6px', 
+                  fontWeight: 700, 
+                  cursor: 'pointer' 
+                }}
+              >
+                <Download size={14} /> Download Excel ({transformResult.transformedRows.length.toLocaleString()})
+              </button>
+            )}
+
             <button 
               type="button" 
               className="secondary" 
@@ -613,7 +635,7 @@ export default function AdmissionRowWisePage() {
 
         {/* Hero Section */}
         <div className="card" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(23,107,135,0.06) 0%, rgba(92,187,212,0.03) 100%)', border: '1px solid var(--line)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
             <div style={{ flex: 1, minWidth: '300px' }}>
               <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--ink)', letterSpacing: '-0.02em' }}>
                 Admission report maker - Row Wise
@@ -623,26 +645,67 @@ export default function AdmissionRowWisePage() {
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button 
-                type="button"
-                onClick={handleLoadSample}
-                style={{ 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
-                  padding: '9px 16px', 
-                  fontSize: '13px', 
-                  fontWeight: 600,
-                  background: 'var(--panel)',
-                  color: 'var(--accent)',
-                  border: '1px solid var(--accent)',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                <Sparkles size={15} /> Load Sample FYIMP Data
-              </button>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {transformResult && transformResult.transformedRows.length > 0 ? (
+                <>
+                  <button 
+                    type="button"
+                    onClick={handleExportExcel}
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      padding: '11px 20px', 
+                      fontSize: '13.5px', 
+                      fontWeight: 700,
+                      background: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
+                    }}
+                  >
+                    <Download size={16} /> Download Reshaped Excel (.xlsx)
+                  </button>
+
+                  <button 
+                    type="button"
+                    className="secondary"
+                    onClick={handleExportCsv}
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      padding: '11px 16px', 
+                      fontSize: '13.5px', 
+                      fontWeight: 600 
+                    }}
+                  >
+                    <FileText size={16} /> Export CSV
+                  </button>
+                </>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={handleLoadSample}
+                  style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '6px', 
+                    padding: '9px 16px', 
+                    fontSize: '13px', 
+                    fontWeight: 600,
+                    background: 'var(--panel)',
+                    color: 'var(--accent)',
+                    border: '1px solid var(--accent)',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Sparkles size={15} /> Load Sample FYIMP Data
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -702,6 +765,15 @@ export default function AdmissionRowWisePage() {
                 >
                   {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+              </div>
+            )}
+
+            {rawRows.length === 0 && (
+              <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '6px', background: 'var(--panel)', border: '1px solid var(--line)', fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FileSpreadsheet size={18} color="var(--accent)" style={{ flexShrink: 0 }} />
+                <div>
+                  <strong>How to download:</strong> Upload your wide Excel/CSV file above, or click <strong>"Load Sample FYIMP Data"</strong> in the top header. The <strong>Download Reshaped Excel (.xlsx)</strong> and <strong>Export CSV</strong> buttons will activate immediately.
+                </div>
               </div>
             )}
           </div>
@@ -765,6 +837,31 @@ export default function AdmissionRowWisePage() {
                     />
                     <span>Sanitize escape artifacts (convert <code>\N</code>, <code>null</code>, <code>NaN</code> to clean blanks)</span>
                   </label>
+                </div>
+
+                {/* Direct Download Actions Box */}
+                <div style={{ marginTop: '16px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>📥 Download Reshaped Output:</span>
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#10b981' }}>{transformResult.outputRowCount.toLocaleString()} Records Ready</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button 
+                      type="button"
+                      onClick={handleExportExcel}
+                      style={{ flex: 1, minWidth: '160px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 16px', fontSize: '13px', fontWeight: 700, background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      <Download size={15} /> Download Excel (.xlsx)
+                    </button>
+                    <button 
+                      type="button"
+                      className="secondary"
+                      onClick={handleExportCsv}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 16px', fontSize: '13px', fontWeight: 600 }}
+                    >
+                      <FileText size={15} /> Export CSV (.csv)
+                    </button>
+                  </div>
                 </div>
               </div>
 
