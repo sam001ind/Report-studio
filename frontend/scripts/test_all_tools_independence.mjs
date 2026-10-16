@@ -1037,4 +1037,174 @@ test('Copies ImmediateParentGroupName to ParentGroupName when ParentGroupName is
   assert.equal(immParentGroupName, 'Discipline Specific Core (Psychology)');
 });
 
+test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupName CourseCode CourseName report', () => {
+  // Mock reshaped rows for multiple students
+  const reshapedRows = [
+    {
+      ApplicationNo: '2024CAP001',
+      CandidateName: 'STUDENT ALPHA',
+      ProgrammeName: 'B.A. History (FYIMP)',
+      PartNo: '1',
+      Semester: '1',
+      ParentGroupName: 'Major Core',
+      ImmediateParentGroupName: 'Discipline Specific Core',
+      CourseCode: 'KU4DSCHIS101',
+      CourseName: 'Early Indian History and Culture'
+    },
+    {
+      ApplicationNo: '2024CAP001',
+      CandidateName: 'STUDENT ALPHA',
+      ProgrammeName: 'B.A. History (FYIMP)',
+      PartNo: '1',
+      Semester: '1',
+      ParentGroupName: 'Minor Group',
+      ImmediateParentGroupName: 'Minor Stream A',
+      CourseCode: 'KU4MINPOL101',
+      CourseName: 'Principles of Political Theory'
+    },
+    // STUDENT EPSILON takes the EXACT same courses in the same program/term/groups
+    {
+      ApplicationNo: '2024CAP005',
+      CandidateName: 'STUDENT EPSILON',
+      ProgrammeName: 'B.A. History (FYIMP)',
+      PartNo: '1',
+      Semester: '1',
+      ParentGroupName: 'Major Core',
+      ImmediateParentGroupName: 'Discipline Specific Core',
+      CourseCode: 'KU4DSCHIS101',
+      CourseName: 'Early Indian History and Culture'
+    },
+    {
+      ApplicationNo: '2024CAP005',
+      CandidateName: 'STUDENT EPSILON',
+      ProgrammeName: 'B.A. History (FYIMP)',
+      PartNo: '1',
+      Semester: '1',
+      ParentGroupName: 'Minor Group',
+      ImmediateParentGroupName: 'Minor Stream A',
+      CourseCode: 'KU4MINPOL101',
+      CourseName: 'Principles of Political Theory'
+    },
+    // STUDENT BETA has a row where ParentGroupName is blank
+    {
+      ApplicationNo: '2024CAP002',
+      CandidateName: 'STUDENT BETA',
+      ProgrammeName: 'B.A. English (FYIMP)',
+      PartNo: '1',
+      Semester: '1',
+      ParentGroupName: 'Discipline Specific Core (Psychology)', // Fallback already applied
+      ImmediateParentGroupName: 'Discipline Specific Core (Psychology)',
+      CourseCode: 'KU4DSCPSY101',
+      CourseName: 'Introduction to Psychology'
+    }
+  ];
+
+  // Helper matching detectColumnMatch
+  const detectColumnMatch = (columns, candidateNames) => {
+    if (!columns || columns.length === 0) return '';
+    const lowerCols = columns.map(c => ({
+      original: c,
+      clean: String(c).trim().toLowerCase().replace(/[\s_]+/g, '')
+    }));
+
+    for (const cand of candidateNames) {
+      const cleanCand = cand.toLowerCase().replace(/[\s_]+/g, '');
+      const found = lowerCols.find(c => c.clean === cleanCand);
+      if (found) return found.original;
+    }
+
+    for (const cand of candidateNames) {
+      const cleanCand = cand.toLowerCase().replace(/[\s_]+/g, '');
+      const found = lowerCols.find(c => c.clean.includes(cleanCand) || cleanCand.includes(c.clean));
+      if (found) return found.original;
+    }
+    return '';
+  };
+
+  const sampleCols = Object.keys(reshapedRows[0]);
+  const progCol = detectColumnMatch(sampleCols, ['Program', 'ProgramName', 'Programme', 'ProgrammeName']);
+  const partCol = detectColumnMatch(sampleCols, ['Part', 'PartName', 'PartNo', 'Year']);
+  const termCol = detectColumnMatch(sampleCols, ['Term', 'TermName', 'TermNo', 'Semester', 'Sem']);
+
+  assert.equal(progCol, 'ProgrammeName');
+  assert.equal(partCol, 'PartNo');
+  assert.equal(termCol, 'Semester');
+
+  // Helper matching generateUniqueCourseReport
+  const generateUniqueReport = (rows, mapping) => {
+    const uniqueMap = new Map();
+
+    for (const row of rows) {
+      const courseCode = (row['CourseCode'] || '').trim();
+      const courseName = (row['CourseName'] || '').trim();
+      if (!courseCode && !courseName) continue;
+
+      const program = mapping.programCol && row[mapping.programCol] !== undefined ? String(row[mapping.programCol]).trim() : 'Default Program';
+      const part = mapping.partCol && row[mapping.partCol] !== undefined ? String(row[mapping.partCol]).trim() : '1';
+      const term = mapping.termCol && row[mapping.termCol] !== undefined ? String(row[mapping.termCol]).trim() : '1';
+      const parentGroupName = (row['ParentGroupName'] || '').trim();
+      const immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+
+      const key = [
+        program.toLowerCase(),
+        part.toLowerCase(),
+        term.toLowerCase(),
+        parentGroupName.toLowerCase(),
+        immediateParentGroupName.toLowerCase(),
+        courseCode.toLowerCase(),
+        courseName.toLowerCase()
+      ].join('|||');
+
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, {
+          Program: program,
+          Part: part,
+          Term: term,
+          ParentGroupName: parentGroupName,
+          ImmediateParentGroupName: immediateParentGroupName,
+          CourseCode: courseCode,
+          CourseName: courseName
+        });
+      }
+    }
+    return Array.from(uniqueMap.values());
+  };
+
+  const uniqueList = generateUniqueReport(reshapedRows, {
+    programCol: progCol,
+    partCol: partCol,
+    termCol: termCol
+  });
+
+  // Out of 5 student allocations, exactly 3 unique courses exist (the 2 identical ones from Student Epsilon are deduped)
+  assert.equal(uniqueList.length, 3);
+
+  // Validate exact headers/keys
+  const expectedKeys = [
+    'Program',
+    'Part',
+    'Term',
+    'ParentGroupName',
+    'ImmediateParentGroupName',
+    'CourseCode',
+    'CourseName'
+  ];
+  assert.deepEqual(Object.keys(uniqueList[0]), expectedKeys);
+
+  // Validate values for course 1
+  assert.equal(uniqueList[0].Program, 'B.A. History (FYIMP)');
+  assert.equal(uniqueList[0].Part, '1');
+  assert.equal(uniqueList[0].Term, '1');
+  assert.equal(uniqueList[0].ParentGroupName, 'Major Core');
+  assert.equal(uniqueList[0].ImmediateParentGroupName, 'Discipline Specific Core');
+  assert.equal(uniqueList[0].CourseCode, 'KU4DSCHIS101');
+  assert.equal(uniqueList[0].CourseName, 'Early Indian History and Culture');
+
+  // Validate course 3 with fallback group
+  assert.equal(uniqueList[2].Program, 'B.A. English (FYIMP)');
+  assert.equal(uniqueList[2].CourseCode, 'KU4DSCPSY101');
+  assert.equal(uniqueList[2].ParentGroupName, 'Discipline Specific Core (Psychology)');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
+

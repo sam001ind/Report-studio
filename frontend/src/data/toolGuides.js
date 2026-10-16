@@ -251,6 +251,10 @@ export const TOOL_GUIDES = {
       {
         heading: '4. Candidate Base Data Replication',
         content: 'Preserves all student metadata (Application No, Candidate Name, Gender, College, Category, Mobile, Rank, etc.) on every generated course allocation row.'
+      },
+      {
+        heading: '5. Unique Course Master Report (Excel)',
+        content: 'Deduplicates records across Program, Part, Term, ParentGroupName, ImmediateParentGroupName, CourseCode, and CourseName into a clean 7-column syllabus export.'
       }
     ]
   },
