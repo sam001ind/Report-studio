@@ -136,6 +136,29 @@ export const TOOL_GUIDES = {
       }
     ]
   },
+  'course-wise-venue-date': {
+    title: 'Course Wise Venue Wise Datewise Report - Logic & Guide',
+    icon: 'CalendarDays',
+    description: 'Merge student pre-exam registration rosters with timetables into structured course allocations with candidate counts and verification keys.',
+    sections: [
+      {
+        heading: '1. Dual Source Ingestion',
+        content: 'Upload Source 1 (Pre-Exam candidate registration spreadsheet) and Source 2 (Examination Timetable schedule).'
+      },
+      {
+        heading: '2. Candidate Count Aggregation',
+        content: 'Groups student registrations by Programme Name, Course Code, and Venue Code, summing the registered student count.'
+      },
+      {
+        heading: '3. Timetable Date & Timing Enrichment',
+        content: 'Matches Course Code against Timetable to populate Exam Date (DD/MM/YYYY), Course Start Time, and Course End Time.'
+      },
+      {
+        heading: '4. Group Hierarchy & Verification Keys',
+        content: 'Copies ImmediateParentGroupName to ParentGroupName when blank, and generates Concatenate_Groupname_Course Code and PGM_Date_CourseCode_Venue composite keys.'
+      }
+    ]
+  },
   'compare': {
     title: 'Data Comparison & Reconciliation - Logic & Guide',
     icon: 'GitCompare',

@@ -26,6 +26,7 @@ const AffiliatedProgrammePage = lazy(() => import('./pages/AffiliatedProgrammePa
 const AdesResultCalculatorPage = lazy(() => import('./pages/AdesResultCalculatorPage'));
 const AdesSupplementaryCalculatorPage = lazy(() => import('./pages/AdesSupplementaryCalculatorPage'));
 const PaymentReconciliationPage = lazy(() => import('./pages/PaymentReconciliationPage'));
+const CourseWiseVenueDatePage = lazy(() => import('./pages/CourseWiseVenueDatePage'));
 const UrlRedirectHandler = lazy(() => import('./pages/UrlRedirectHandler'));
 const AuthPage = lazy(() => import('./pages/AuthPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -131,6 +132,16 @@ function App() {
               <Route path="/qp-label" element={
                 <ProtectedRoute requiredPermission="can_access_studio">
                   <QpLabelPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/course-wise-venue-date" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <CourseWiseVenueDatePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/course-venue-date-report" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <CourseWiseVenueDatePage />
                 </ProtectedRoute>
               } />
               <Route path="/compare" element={

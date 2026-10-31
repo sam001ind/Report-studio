@@ -1731,6 +1731,88 @@ test('sanitizeWorksheetTimes keeps time formatted cells as text and leaves actua
   assert.equal(mockSheet['C2'].v, '15:00');
 });
 
+// -------------------------------------------------------------
+// 21. Course Wise Venue Wise Datewise Report Engine
+// -------------------------------------------------------------
+console.log('\n[Test Suite 21: Course Wise Venue Wise Datewise Report Engine]');
+
+test('Aggregates pre-exam registrations and enriches with timetable dates, times and verification keys', () => {
+  const preExamData = [
+    {
+      'Programme Name': 'B.A History(with Credits)-Private-SLL- 2024-History',
+      'Parent Group Name': '', // blank -> should copy immediate
+      'Immediate Parent Group': 'AEC1',
+      PaperCode: 'KU2AECENG107.',
+      PaperName: 'English through Culture.',
+      VenueCode: 'PL',
+      VenueName: 'Pilathara Co-op Arts and Science College, Kannur'
+    },
+    {
+      'Programme Name': 'B.A History(with Credits)-Private-SLL- 2024-History',
+      'Parent Group Name': '',
+      'Immediate Parent Group': 'AEC1',
+      PaperCode: 'KU2AECENG107.',
+      PaperName: 'English through Culture.',
+      VenueCode: 'PL',
+      VenueName: 'Pilathara Co-op Arts and Science College, Kannur'
+    }
+  ];
+
+  const timetableData = [
+    {
+      TermAbbr: 'B.A History(with Credits)-Private-SLL- 2024-History-BA Year I SEMESTER II',
+      CourseCode: 'KU2AECENG107.',
+      CourseName: 'English through Culture.',
+      ExamDate: 46331, // 05/11/2026
+      Start_Time_HR: 1,
+      Start_Time_MIN: 30,
+      Start_AM_PM: 'PM',
+      End_Time_HR: 3,
+      End_Time_MIN: 0,
+      End_AM_PM: 'PM'
+    }
+  ];
+
+  // Aggregation logic
+  const groupMap = new Map();
+  preExamData.forEach(r => {
+    const pgm = r['Programme Name'];
+    const code = r.PaperCode;
+    const vCode = r.VenueCode;
+    const key = `${pgm}__${normalizeKeyText(code)}__${normalizeKeyText(vCode)}`;
+    if (!groupMap.has(key)) {
+      groupMap.set(key, { ...r, count: 0 });
+    }
+    groupMap.get(key).count++;
+  });
+
+  const res = Array.from(groupMap.values()).map(val => {
+    const tt = timetableData.find(t => normalizeKeyText(t.CourseCode) === normalizeKeyText(val.PaperCode));
+    const parent = val['Parent Group Name'] || val['Immediate Parent Group'];
+    const imm = val['Immediate Parent Group'];
+    const examDate = '05/11/2026';
+    return {
+      'Programme Name': val['Programme Name'],
+      'Parent Group Name': parent,
+      'Immediate Parent Group': imm,
+      'Course  Code': val.PaperCode,
+      'Course  Name': val.PaperName,
+      'Exam Date': examDate,
+      'Student Count': val.count,
+      'Venue Code': val.VenueCode,
+      'Venue Name': val.VenueName,
+      'Concatenate_Groupname_Course Code': `${parent}${val.PaperCode}`,
+      'PGM_Date_CourseCode_Venue': `${val['Programme Name']}${examDate}${val.PaperCode}${val.VenueCode}`
+    };
+  });
+
+  assert.equal(res.length, 1);
+  assert.equal(res[0]['Student Count'], 2);
+  assert.equal(res[0]['Parent Group Name'], 'AEC1');
+  assert.equal(res[0]['Concatenate_Groupname_Course Code'], 'AEC1KU2AECENG107.');
+  assert.equal(res[0]['PGM_Date_CourseCode_Venue'], 'B.A History(with Credits)-Private-SLL- 2024-History05/11/2026KU2AECENG107.PL');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
 
 

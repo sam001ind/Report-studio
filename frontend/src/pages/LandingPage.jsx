@@ -203,6 +203,25 @@ const LandingPage = () => {
             </div>
           </div>
 
+          {/* 7b. Course Wise Venue Wise Datewise Report */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/course-wise-venue-date')}
+          >
+            <div style={styles.featureIcon}><CalendarDays size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Course Wise Venue Wise Datewise Report</h3>
+            <p style={styles.featureText}>Merge student pre-exam registration rosters with timetables into structured course allocations with candidate counts and verification keys.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('course-wise-venue-date'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
           {/* 8. Data Comparison & Reconciliation */}
           <div 
             style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
@@ -512,6 +531,7 @@ const LandingPage = () => {
                   else if (key === 'sll-nominal') navigate('/sll-nominal');
                   else if (key === 'qp-statement') navigate('/qp-statement');
                   else if (key === 'qp-label') navigate('/qp-label');
+                  else if (key === 'course-wise-venue-date') navigate('/course-wise-venue-date');
                   else if (key === 'compare') navigate('/compare');
                   else if (key === 'shortener') navigate('/shortener');
                   else if (key === 'image-tools') navigate('/image-tools');
