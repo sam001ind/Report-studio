@@ -20,6 +20,70 @@ const hasSpreadsheetExtension = (name) => {
 };
 
 /**
+ * Strips 1899 / 1900 date and GMT timezone artifacts from time strings.
+ * Excel stores time-only values with base epoch Dec 30, 1899, which SheetJS
+ * converts to e.g. "Sat Dec 30 1899 13:30:00 GMT+0521 (India Standard Time)".
+ * This function preserves clean time text (e.g. "13:30", "13:30:00", "13:30 - 15:00", "01:30 PM").
+ */
+export const cleanTimeText = (val) => {
+  if (val === null || val === undefined) return '';
+  if (val instanceof Date) {
+    if (val.getFullYear() <= 1900) {
+      const hh = String(val.getHours()).padStart(2, '0');
+      const mm = String(val.getMinutes()).padStart(2, '0');
+      const ss = val.getSeconds() ? ':' + String(val.getSeconds()).padStart(2, '0') : '';
+      return `${hh}:${mm}${ss}`;
+    }
+    return val.toLocaleTimeString();
+  }
+  let str = String(val).trim();
+  // Match full JS date strings for 1899 / 1900 (e.g. "Sat Dec 30 1899 13:30:00 GMT+0521 (India Standard Time)")
+  const regex = /(?:[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d+\s+)?(?:1899|1900)\s+(\d{1,2}:\d{2}(?::\d{2})?)\s+GMT[^\s-]+(?:\s*\([^)]*\))?/gi;
+  str = str.replace(regex, '$1');
+  // Match ISO strings for 1899 / 1900
+  str = str.replace(/(?:1899|1900)-12-30[T\s](\d{1,2}:\d{2}(?::\d{2})?)(?:\.\d+)?Z?/gi, '$1');
+  return str.trim();
+};
+
+/**
+ * Sanitizes worksheet cells: if a cell is an Excel time-only value (epoch year <= 1900),
+ * replace it with the formatted text string (cell.w) or clean time string, keeping it as text.
+ */
+export const sanitizeWorksheetTimes = (sheet) => {
+  if (!sheet || typeof sheet !== 'object') return sheet;
+
+  const fixCell = (cell) => {
+    if (!cell || typeof cell !== 'object') return;
+    if (cell.t === 'd' || cell.v instanceof Date) {
+      const d = cell.v;
+      if (d instanceof Date && d.getFullYear() <= 1900) {
+        let timeStr = cell.w;
+        if (!timeStr) {
+          const hh = String(d.getHours()).padStart(2, '0');
+          const mm = String(d.getMinutes()).padStart(2, '0');
+          const ss = d.getSeconds() ? ':' + String(d.getSeconds()).padStart(2, '0') : '';
+          timeStr = `${hh}:${mm}${ss}`;
+        }
+        cell.t = 's';
+        cell.v = timeStr;
+        cell.w = timeStr;
+      }
+    }
+  };
+
+  for (const key of Object.keys(sheet)) {
+    if (key.startsWith('!')) continue;
+    const val = sheet[key];
+    if (Array.isArray(val)) {
+      for (let c = 0; c < val.length; c++) fixCell(val[c]);
+    } else {
+      fixCell(val);
+    }
+  }
+  return sheet;
+};
+
+/**
  * Parses raw ArrayBuffer / Uint8Array with multi-stage fallback and memory-efficient dense mode:
  * 1. Binary (True OpenXML .xlsx & BIFF8 .xls) with dense: true
  * 2. UTF-8 String (HTML-tables, CSVs, TSVs exported as .xls/.xlsx)
@@ -27,21 +91,29 @@ const hasSpreadsheetExtension = (name) => {
  */
 export const parseWorkbookFromBuffer = (buffer) => {
   const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  let wb = null;
   try {
-    return XLSX.read(uint8, { type: "array", cellDates: true, dense: true });
+    wb = XLSX.read(uint8, { type: "array", cellDates: true, dense: true });
   } catch {
     try {
       const text = new TextDecoder("utf-8").decode(uint8);
-      return XLSX.read(text, { type: "string", raw: true, dense: true });
+      wb = XLSX.read(text, { type: "string", raw: true, dense: true });
     } catch {
       try {
         const text = new TextDecoder("windows-1252").decode(uint8);
-        return XLSX.read(text, { type: "string", raw: true, dense: true });
+        wb = XLSX.read(text, { type: "string", raw: true, dense: true });
       } catch {
         return null;
       }
     }
   }
+
+  if (wb && wb.Sheets) {
+    Object.keys(wb.Sheets).forEach(sheetName => {
+      sanitizeWorksheetTimes(wb.Sheets[sheetName]);
+    });
+  }
+  return wb;
 };
 
 /**

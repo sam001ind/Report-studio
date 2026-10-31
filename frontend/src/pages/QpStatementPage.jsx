@@ -21,7 +21,7 @@ import {
   Sliders,
   MapPin
 } from 'lucide-react';
-import { readSpreadsheetAsAoa } from '../utils/excelParser';
+import { readSpreadsheetAsAoa, cleanTimeText } from '../utils/excelParser';
 
 const QpStatementPage = () => {
 
@@ -52,6 +52,7 @@ const QpStatementPage = () => {
     centerName: -1,
     programName: -1,
     examDate: -1,
+    courseTime: -1,
     courseStartTime: -1,
     courseEndTime: -1,
     courseCode: -1,
@@ -153,6 +154,7 @@ const QpStatementPage = () => {
       centerName: -1,
       programName: -1,
       examDate: -1,
+      courseTime: -1,
       courseStartTime: -1,
       courseEndTime: -1,
       courseCode: -1,
@@ -171,8 +173,13 @@ const QpStatementPage = () => {
       if (lower === 'centername' || lower === 'centrename') mapping.centerName = idx;
       if (lower.includes('programname') || lower.includes('programme')) mapping.programName = idx;
       if (lower.includes('examdate') || lower === 'date') mapping.examDate = idx;
-      if (lower.includes('coursestarttime') || lower.includes('starttime')) mapping.courseStartTime = idx;
-      if (lower.includes('courseendtime') || lower.includes('endtime')) mapping.courseEndTime = idx;
+      if (lower.includes('coursestarttime') || lower.includes('starttime')) {
+        mapping.courseStartTime = idx;
+      } else if (lower.includes('courseendtime') || lower.includes('endtime')) {
+        mapping.courseEndTime = idx;
+      } else if (lower === 'time' || lower === 'coursetime' || lower === 'examtime' || lower === 'sessiontime' || lower === 'timing' || lower === 'timings') {
+        mapping.courseTime = idx;
+      }
       if (lower === 'coursecode' || lower === 'qpcoursename' || lower.includes('subjectcode')) mapping.courseCode = idx;
       if (lower === 'coursename' || lower.includes('subjectname') || lower.includes('coursetitle')) mapping.courseName = idx;
       if (lower.includes('studentcount') || lower === 'count' || lower === 'nc' || lower.includes('candidatecount')) mapping.studentCount = idx;
@@ -294,8 +301,19 @@ const QpStatementPage = () => {
       let cName = columnMapping.courseName !== -1 && row[columnMapping.courseName] ? String(row[columnMapping.courseName]).trim() : '';
       
       const countVal = columnMapping.studentCount !== -1 ? parseInt(row[columnMapping.studentCount], 10) || 0 : 0;
-      const startTime = columnMapping.courseStartTime !== -1 && row[columnMapping.courseStartTime] ? String(row[columnMapping.courseStartTime]).trim() : '';
-      const endTime = columnMapping.courseEndTime !== -1 && row[columnMapping.courseEndTime] ? String(row[columnMapping.courseEndTime]).trim() : '';
+      const timeVal = columnMapping.courseTime !== -1 && row[columnMapping.courseTime] !== undefined && row[columnMapping.courseTime] !== null
+        ? cleanTimeText(row[columnMapping.courseTime])
+        : '';
+      let startTime = columnMapping.courseStartTime !== -1 && row[columnMapping.courseStartTime] !== undefined && row[columnMapping.courseStartTime] !== null
+        ? cleanTimeText(row[columnMapping.courseStartTime])
+        : '';
+      const endTime = columnMapping.courseEndTime !== -1 && row[columnMapping.courseEndTime] !== undefined && row[columnMapping.courseEndTime] !== null
+        ? cleanTimeText(row[columnMapping.courseEndTime])
+        : '';
+
+      if (timeVal && !startTime) {
+        startTime = timeVal;
+      }
 
       groups[groupKey].items.push({
         rawDate: dateRaw,
@@ -975,6 +993,39 @@ const QpStatementPage = () => {
               <select 
                 value={columnMapping.studentCount}
                 onChange={(e) => setColumnMapping({ ...columnMapping, studentCount: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Course Time (Single / Combined)</label>
+              <select 
+                value={columnMapping.courseTime}
+                onChange={(e) => setColumnMapping({ ...columnMapping, courseTime: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Course Start Time</label>
+              <select 
+                value={columnMapping.courseStartTime}
+                onChange={(e) => setColumnMapping({ ...columnMapping, courseStartTime: parseInt(e.target.value, 10) })}
+              >
+                <option value="-1">-- Not Specified --</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Course End Time</label>
+              <select 
+                value={columnMapping.courseEndTime}
+                onChange={(e) => setColumnMapping({ ...columnMapping, courseEndTime: parseInt(e.target.value, 10) })}
               >
                 <option value="-1">-- Not Specified --</option>
                 {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}

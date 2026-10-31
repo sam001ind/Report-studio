@@ -1563,6 +1563,105 @@ test('Generates unique 3-column Course Master report across ParentGroupName, Cou
   assert.equal(report[2].CourseName, 'Early Indian History');
 });
 
+// -------------------------------------------------------------
+// 20. Time Format Preservation & Text Cleaning Engine Test
+// -------------------------------------------------------------
+console.log('\n[Test Suite 20: Time Format Preservation & Text Cleaning Engine]');
+
+test('Strips 1899 Excel epoch dates and GMT timezone artifacts, preserving exact text time', () => {
+  // Logic matching cleanTimeText from excelParser.js
+  const cleanTimeText = (val) => {
+    if (val === null || val === undefined) return '';
+    if (val instanceof Date) {
+      if (val.getFullYear() <= 1900) {
+        const hh = String(val.getHours()).padStart(2, '0');
+        const mm = String(val.getMinutes()).padStart(2, '0');
+        const ss = val.getSeconds() ? ':' + String(val.getSeconds()).padStart(2, '0') : '';
+        return `${hh}:${mm}${ss}`;
+      }
+      return val.toLocaleTimeString();
+    }
+    let str = String(val).trim();
+    const regex = /(?:[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d+\s+)?(?:1899|1900)\s+(\d{1,2}:\d{2}(?::\d{2})?)\s+GMT[^\s-]+(?:\s*\([^)]*\))?/gi;
+    str = str.replace(regex, '$1');
+    str = str.replace(/(?:1899|1900)-12-30[T\s](\d{1,2}:\d{2}(?::\d{2})?)(?:\.\d+)?Z?/gi, '$1');
+    return str.trim();
+  };
+
+  // 1. Dual-range time string produced by concatenated 1899 SheetJS Date objects
+  const rawDualTime = 'Sat Dec 30 1899 13:30:00 GMT+0521 (India Standard Time) - Sat Dec 30 1899 15:00:00 GMT+0521 (India Standard Time)';
+  assert.equal(cleanTimeText(rawDualTime), '13:30:00 - 15:00:00');
+
+  // 2. Single 1899 date string
+  const rawSingleTime = 'Sat Dec 30 1899 13:30:00 GMT+0521 (India Standard Time)';
+  assert.equal(cleanTimeText(rawSingleTime), '13:30:00');
+
+  // 3. Date object representing 1899 Excel epoch time
+  const epochDate = new Date(1899, 11, 30, 13, 30, 0);
+  assert.equal(cleanTimeText(epochDate), '13:30');
+
+  // 4. Native text time ranges remain preserved without corruption
+  assert.equal(cleanTimeText('13:30 - 15:00'), '13:30 - 15:00');
+  assert.equal(cleanTimeText('01:30 PM to 04:30 PM'), '01:30 PM to 04:30 PM');
+  assert.equal(cleanTimeText('10:00 AM - 01:00 PM'), '10:00 AM - 01:00 PM');
+});
+
+test('sanitizeWorksheetTimes keeps time formatted cells as text and leaves actual exam dates untouched', () => {
+  const sanitizeWorksheetTimes = (sheet) => {
+    if (!sheet || typeof sheet !== 'object') return sheet;
+    const fixCell = (cell) => {
+      if (!cell || typeof cell !== 'object') return;
+      if (cell.t === 'd' || cell.v instanceof Date) {
+        const d = cell.v;
+        if (d instanceof Date && d.getFullYear() <= 1900) {
+          let timeStr = cell.w;
+          if (!timeStr) {
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const ss = d.getSeconds() ? ':' + String(d.getSeconds()).padStart(2, '0') : '';
+            timeStr = `${hh}:${mm}${ss}`;
+          }
+          cell.t = 's';
+          cell.v = timeStr;
+          cell.w = timeStr;
+        }
+      }
+    };
+    for (const key of Object.keys(sheet)) {
+      if (key.startsWith('!')) continue;
+      const val = sheet[key];
+      if (Array.isArray(val)) {
+        for (let c = 0; c < val.length; c++) fixCell(val[c]);
+      } else {
+        fixCell(val);
+      }
+    }
+    return sheet;
+  };
+
+  // Mock sheet with exam date (2025) and time cells (1899 epoch)
+  const mockSheet = {
+    'A1': { t: 's', v: 'ExamDate', w: 'ExamDate' },
+    'B1': { t: 's', v: 'StartTime', w: 'StartTime' },
+    'C1': { t: 's', v: 'EndTime', w: 'EndTime' },
+    'A2': { t: 'd', v: new Date(2025, 3, 20), w: '2025-04-20' },
+    'B2': { t: 'd', v: new Date(1899, 11, 30, 13, 30, 0), w: '13:30' },
+    'C2': { t: 'd', v: new Date(1899, 11, 30, 15, 0, 0), w: '15:00' }
+  };
+
+  sanitizeWorksheetTimes(mockSheet);
+
+  // Exam date MUST remain Date object
+  assert.equal(mockSheet['A2'].t, 'd');
+  assert.equal(mockSheet['A2'].v.getFullYear(), 2025);
+
+  // Time cells MUST be converted to string text
+  assert.equal(mockSheet['B2'].t, 's');
+  assert.equal(mockSheet['B2'].v, '13:30');
+  assert.equal(mockSheet['C2'].t, 's');
+  assert.equal(mockSheet['C2'].v, '15:00');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
 
 
