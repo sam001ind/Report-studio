@@ -1813,6 +1813,118 @@ test('Aggregates pre-exam registrations and enriches with timetable dates, times
   assert.equal(res[0]['PGM_Date_CourseCode_Venue'], 'B.A History(with Credits)-Private-SLL- 2024-History05/11/2026KU2AECENG107.PL');
 });
 
+test('Course Wise Venue Wise Datewise Report formats Date strictly as DD/MM/YYYY and Times as 12h AM/PM', () => {
+  const formatExamDate = (val) => {
+    if (!val) return '';
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      const noon = new Date(val.getTime() + 12 * 3600 * 1000);
+      const dd = String(noon.getDate()).padStart(2, '0');
+      const mm = String(noon.getMonth() + 1).padStart(2, '0');
+      const yyyy = noon.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+    if (typeof val === 'number') {
+      if (XLSX?.SSF?.parse_date_code) {
+        const p = XLSX.SSF.parse_date_code(val);
+        if (p && p.y && p.m && p.d) {
+          return `${String(p.d).padStart(2, '0')}/${String(p.m).padStart(2, '0')}/${p.y}`;
+        }
+      }
+      const d = new Date(Math.round((val - 25569) * 86400 * 1000) + 12 * 3600 * 1000);
+      return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+    }
+    const str = String(val).replace(/[\u00A0\u200B\uFEFF]/g, ' ').trim();
+    if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(str)) {
+      const p = str.split(/[-/.T\s]/);
+      return `${p[2].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[0]}`;
+    }
+    if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(str)) {
+      const p = str.split(/[-/.]/);
+      return `${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`;
+    }
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900) {
+      const noon = new Date(parsed.getTime() + 12 * 3600 * 1000);
+      const dd = String(noon.getDate()).padStart(2, '0');
+      const mm = String(noon.getMonth() + 1).padStart(2, '0');
+      const yyyy = noon.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+    return str;
+  };
+
+  const formatTimeDisplay = (val) => {
+    if (val === null || val === undefined || val === '') return '';
+    if (val instanceof Date) {
+      let h = val.getHours();
+      const m = val.getMinutes();
+      const s = val.getSeconds();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      let dispH = h % 12;
+      if (dispH === 0) dispH = 12;
+      const secStr = s > 0 ? ':' + String(s).padStart(2, '0') : ':00';
+      return `${dispH}:${String(m).padStart(2, '0')}${secStr} ${ampm}`;
+    }
+    const num = typeof val === 'number' ? val : (typeof val === 'string' && /^\d*\.\d+$/.test(val.trim()) ? parseFloat(val.trim()) : NaN);
+    if (!isNaN(num) && num > 0 && num < 1) {
+      const totalSeconds = Math.round(num * 86400);
+      const h24 = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      const ampm = h24 >= 12 ? 'PM' : 'AM';
+      let h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      const secStr = s > 0 ? ':' + String(s).padStart(2, '0') : ':00';
+      return `${h12}:${String(m).padStart(2, '0')}${secStr} ${ampm}`;
+    }
+    const str = String(val).trim();
+    if (/(?:1899|1900)/.test(str)) {
+      const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (match) {
+        let h24 = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const s = match[3] ? parseInt(match[3], 10) : 0;
+        const ampm = h24 >= 12 ? 'PM' : 'AM';
+        let h12 = h24 % 12;
+        if (h12 === 0) h12 = 12;
+        const secStr = s > 0 ? ':' + String(s).padStart(2, '0') : ':00';
+        return `${h12}:${String(m).padStart(2, '0')}${secStr} ${ampm}`;
+      }
+    }
+    const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?/i);
+    if (match) {
+      let h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const s = match[3] ? parseInt(match[3], 10) : 0;
+      const ap = match[4] ? match[4].toUpperCase() : (h >= 12 ? 'PM' : 'AM');
+      let dispH = h % 12;
+      if (dispH === 0) dispH = 12;
+      const secStr = s > 0 ? ':' + String(s).padStart(2, '0') : ':00';
+      return `${dispH}:${String(m).padStart(2, '0')}${secStr} ${ap}`;
+    }
+    return str;
+  };
+
+  // Test full JS date string from user bug report
+  assert.equal(formatExamDate('Tue Nov 10 2026 00:00:00 GMT+0530 (India Standard Time)'), '10/11/2026');
+  // Test SheetJS date object with India timezone shift
+  assert.equal(formatExamDate(new Date('2026-11-04T18:29:50.000Z')), '05/11/2026');
+  // Test numeric Excel serial
+  assert.equal(formatExamDate(46331), '05/11/2026');
+  // Test ISO string
+  assert.equal(formatExamDate('2026-11-05'), '05/11/2026');
+  // Test standard format
+  assert.equal(formatExamDate('05/11/2026'), '05/11/2026');
+
+  // Test decimal time fractions from user bug report
+  assert.equal(formatTimeDisplay(0.5625), '1:30:00 PM');
+  assert.equal(formatTimeDisplay(0.625), '3:00:00 PM');
+  assert.equal(formatTimeDisplay('0.5625'), '1:30:00 PM');
+  assert.equal(formatTimeDisplay('0.625'), '3:00:00 PM');
+  assert.equal(formatTimeDisplay('13:30'), '1:30:00 PM');
+  assert.equal(formatTimeDisplay('15:00:00'), '3:00:00 PM');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
 
 

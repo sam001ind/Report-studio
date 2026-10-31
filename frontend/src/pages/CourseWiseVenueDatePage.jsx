@@ -261,11 +261,25 @@ const CourseWiseVenueDatePage = () => {
     }
   };
 
-  // Format date to DD/MM/YYYY
+  // Format date strictly to DD/MM/YYYY
   const formatExamDate = (val) => {
     if (!val) return '';
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      // Add 12 hours to neutralize LMT/historic timezone offset (23:59:50 -> 11:59:50 next day)
+      const noon = new Date(val.getTime() + 12 * 3600 * 1000);
+      const dd = String(noon.getDate()).padStart(2, '0');
+      const mm = String(noon.getMonth() + 1).padStart(2, '0');
+      const yyyy = noon.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
     if (typeof val === 'number') {
-      const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+      if (XLSX?.SSF?.parse_date_code) {
+        const p = XLSX.SSF.parse_date_code(val);
+        if (p && p.y && p.m && p.d) {
+          return `${String(p.d).padStart(2, '0')}/${String(p.m).padStart(2, '0')}/${p.y}`;
+        }
+      }
+      const d = new Date(Math.round((val - 25569) * 86400 * 1000) + 12 * 3600 * 1000);
       const dd = String(d.getUTCDate()).padStart(2, '0');
       const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
       const yyyy = d.getUTCFullYear();
@@ -276,9 +290,18 @@ const CourseWiseVenueDatePage = () => {
       const p = str.split(/[-/.T\s]/);
       return `${p[2].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[0]}`;
     }
-    if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}/.test(str)) {
-      const p = str.split(/[-/.T\s]/);
+    if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(str)) {
+      const p = str.split(/[-/.]/);
       return `${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`;
+    }
+    // Also parse date strings like "Tue Nov 10 2026 00:00:00 GMT+0530..." or "05 Nov 2026"
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900) {
+      const noon = new Date(parsed.getTime() + 12 * 3600 * 1000);
+      const dd = String(noon.getDate()).padStart(2, '0');
+      const mm = String(noon.getMonth() + 1).padStart(2, '0');
+      const yyyy = noon.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
     }
     return str;
   };
@@ -315,16 +338,56 @@ const CourseWiseVenueDatePage = () => {
   // Format fraction or time to display string e.g. "1:30:00 PM"
   const formatTimeDisplay = (val) => {
     if (val === null || val === undefined || val === '') return '';
-    if (typeof val === 'number') {
-      const totalMinutes = Math.round(val * 1440);
-      let h = Math.floor(totalMinutes / 60);
-      const m = totalMinutes % 60;
+    if (val instanceof Date) {
+      let h = val.getHours();
+      const m = val.getMinutes();
+      const s = val.getSeconds();
       const ampm = h >= 12 ? 'PM' : 'AM';
       let dispH = h % 12;
       if (dispH === 0) dispH = 12;
-      return `${dispH}:${String(m).padStart(2, '0')}:00 ${ampm}`;
+      const secStr = s > 0 ? ':' + String(s).padStart(2, '0') : ':00';
+      return `${dispH}:${String(m).padStart(2, '0')}${secStr} ${ampm}`;
     }
-    return cleanTimeText(val);
+    const num = typeof val === 'number' ? val : (typeof val === 'string' && /^\d*\.\d+$/.test(val.trim()) ? parseFloat(val.trim()) : NaN);
+    if (!isNaN(num) && num > 0 && num < 1) {
+      const totalSeconds = Math.round(num * 86400);
+      const h24 = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      const ampm = h24 >= 12 ? 'PM' : 'AM';
+      let h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      const secStr = s > 0 ? ':' + String(s).padStart(2, '0') : ':00';
+      return `${h12}:${String(m).padStart(2, '0')}${secStr} ${ampm}`;
+    }
+    const str = String(val).trim();
+    if (/(?:1899|1900)/.test(str)) {
+      const cleaned = cleanTimeText(str);
+      const match = cleaned.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (match) {
+        let h24 = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const s = match[3] ? parseInt(match[3], 10) : 0;
+        const ampm = h24 >= 12 ? 'PM' : 'AM';
+        let h12 = h24 % 12;
+        if (h12 === 0) h12 = 12;
+        const secStr = s > 0 ? ':' + String(s).padStart(2, '0') : ':00';
+        return `${h12}:${String(m).padStart(2, '0')}${secStr} ${ampm}`;
+      }
+      return cleaned;
+    }
+    const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?/i);
+    if (match) {
+      let h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const s = match[3] ? parseInt(match[3], 10) : 0;
+      const ap = match[4] ? match[4].toUpperCase() : (h >= 12 ? 'PM' : 'AM');
+      let dispH = h % 12;
+      if (dispH === 0) dispH = 12;
+      const secStr = s > 0 ? ':' + String(s).padStart(2, '0') : ':00';
+      return `${dispH}:${String(m).padStart(2, '0')}${secStr} ${ap}`;
+    }
+    return cleanTimeText(str);
   };
 
   // Main Report Generation Engine
@@ -452,9 +515,9 @@ const CourseWiseVenueDatePage = () => {
       let parentGroup = val.parent || val.imm || matched?.parentGroup || matched?.immediateGroup || '';
       let immediateGroup = val.imm || matched?.immediateGroup || parentGroup;
 
-      const examDate = matched?.examDate || '';
-      const startTime = matched?.startTime !== undefined && matched.startTime !== '' ? matched.startTime : '';
-      const endTime = matched?.endTime !== undefined && matched.endTime !== '' ? matched.endTime : '';
+      const examDate = formatExamDate(matched?.examDate || '');
+      const startTime = formatTimeDisplay(matched?.startTime);
+      const endTime = formatTimeDisplay(matched?.endTime);
       const courseName = val.name || matched?.courseName || '';
 
       // Concat columns
@@ -570,9 +633,9 @@ const CourseWiseVenueDatePage = () => {
       'Immediate Parent Group': r.immediateParentGroup,
       'Course  Code': r.courseCode,
       'Course  Name': r.courseName,
-      'Exam Date': r.examDate,
-      'Course  Start Time': r.courseStartTime,
-      'Course  End Time': r.courseEndTime,
+      'Exam Date': formatExamDate(r.examDate),
+      'Course  Start Time': formatTimeDisplay(r.courseStartTime),
+      'Course  End Time': formatTimeDisplay(r.courseEndTime),
       'Student Count': r.studentCount,
       'Venue Code': r.venueCode,
       'Venue Name': r.venueName,
@@ -1078,7 +1141,7 @@ const CourseWiseVenueDatePage = () => {
                     </td>
                     <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 600 }}>{row.courseCode}</td>
                     <td style={{ padding: '8px 10px' }}>{row.courseName}</td>
-                    <td style={{ padding: '8px', textAlign: 'center', whiteSpace: 'nowrap', fontWeight: 600 }}>{row.examDate}</td>
+                    <td style={{ padding: '8px', textAlign: 'center', whiteSpace: 'nowrap', fontWeight: 600 }}>{formatExamDate(row.examDate)}</td>
                     <td style={{ padding: '8px', textAlign: 'center', whiteSpace: 'nowrap', color: 'var(--muted)' }}>
                       {formatTimeDisplay(row.courseStartTime)}
                     </td>
