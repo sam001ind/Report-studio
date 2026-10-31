@@ -1925,6 +1925,106 @@ test('Course Wise Venue Wise Datewise Report formats Date strictly as DD/MM/YYYY
   assert.equal(formatTimeDisplay('15:00:00'), '3:00:00 PM');
 });
 
+test('detectPreExamColumns strictly prioritizes Programme Name over ProgramFullName and VenueCode over CenterCode', () => {
+  const headers = [
+    'Faculty',
+    'Programme Code',
+    'ProgramFullName',
+    'Programme Name',
+    'Programme ABBR',
+    'Parent Group Name',
+    'Immediate Parent Group',
+    'PaperCode',
+    'PaperName',
+    'CenterCode',
+    'CenterName',
+    'VenueCode',
+    'VenueName'
+  ];
+
+  const detectPreExamColumns = (headersList) => {
+    let pgmExact = -1, pgmName = -1, pgmOnly = -1, pgmFull = -1;
+    let parentGrpExact = -1, parentGrpFallback = -1;
+    let immGrpExact = -1;
+    let courseCodeExact = -1, courseCodeFallback = -1;
+    let courseNameExact = -1, courseNameFallback = -1;
+    let venueCodeExact = -1, centerCodeFallback = -1;
+    let venueNameExact = -1, centerNameFallback = -1;
+    let countIdx = -1;
+
+    headersList.forEach((h, idx) => {
+      const lower = String(h).toLowerCase().replace(/[^a-z0-9]/g, '');
+      const rawTrimmed = String(h).trim().toLowerCase();
+
+      if (rawTrimmed === 'programme name' || lower === 'programmename') {
+        pgmExact = idx;
+      } else if (rawTrimmed === 'program name' || lower === 'programname') {
+        pgmName = idx;
+      } else if (rawTrimmed === 'programme' || lower === 'programme') {
+        pgmOnly = idx;
+      } else if (rawTrimmed === 'programfullname' || lower === 'programfullname') {
+        pgmFull = idx;
+      }
+
+      if (lower === 'parentgroupname') {
+        parentGrpExact = idx;
+      } else if (lower === 'parentgroup') {
+        parentGrpFallback = idx;
+      }
+
+      if (lower === 'immediateparentgroup' || lower === 'immediategroupname' || lower === 'immediateparent' || lower === 'immediategroup') {
+        immGrpExact = idx;
+      }
+
+      if (lower === 'coursecode' || lower === 'papercode') {
+        courseCodeExact = idx;
+      } else if (lower.includes('subjectcode')) {
+        courseCodeFallback = idx;
+      }
+
+      if (lower === 'coursename' || lower === 'papername') {
+        courseNameExact = idx;
+      } else if (lower.includes('subjectname') || lower.includes('coursetitle')) {
+        courseNameFallback = idx;
+      }
+
+      if (lower === 'venuecode') {
+        venueCodeExact = idx;
+      } else if (lower === 'centercode' || lower === 'centrecode') {
+        centerCodeFallback = idx;
+      }
+
+      if (lower === 'venuename') {
+        venueNameExact = idx;
+      } else if (lower === 'centername' || lower === 'centrename') {
+        centerNameFallback = idx;
+      }
+
+      if (lower.includes('studentcount') || lower === 'count' || lower === 'candidates') {
+        countIdx = idx;
+      }
+    });
+
+    return {
+      programmeName: pgmExact !== -1 ? pgmExact : (pgmName !== -1 ? pgmName : (pgmOnly !== -1 ? pgmOnly : pgmFull)),
+      parentGroupName: parentGrpExact !== -1 ? parentGrpExact : parentGrpFallback,
+      immediateGroupName: immGrpExact,
+      courseCode: courseCodeExact !== -1 ? courseCodeExact : courseCodeFallback,
+      courseName: courseNameExact !== -1 ? courseNameExact : courseNameFallback,
+      venueCode: venueCodeExact !== -1 ? venueCodeExact : centerCodeFallback,
+      venueName: venueNameExact !== -1 ? venueNameExact : centerNameFallback,
+      studentCount: countIdx
+    };
+  };
+
+  const mapping = detectPreExamColumns(headers);
+  assert.equal(mapping.programmeName, 3, 'programmeName must be index 3 (Programme Name), not index 2 (ProgramFullName)');
+  assert.equal(mapping.venueCode, 11, 'venueCode must be index 11 (VenueCode), not index 9 (CenterCode)');
+  assert.equal(mapping.venueName, 12, 'venueName must be index 12 (VenueName), not index 10 (CenterName)');
+  assert.equal(mapping.courseCode, 7, 'courseCode must be index 7 (PaperCode)');
+  assert.equal(mapping.courseName, 8, 'courseName must be index 8 (PaperName)');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
 
 

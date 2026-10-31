@@ -77,47 +77,90 @@ const CourseWiseVenueDatePage = () => {
 
   // Auto-detect columns in Pre-Exam file
   const detectPreExamColumns = (headersList) => {
-    const mapping = {
-      programmeName: -1,
-      parentGroupName: -1,
-      immediateGroupName: -1,
-      courseCode: -1,
-      courseName: -1,
-      venueCode: -1,
-      venueName: -1,
-      studentCount: -1
-    };
+    let pgmExact = -1, pgmName = -1, pgmOnly = -1, pgmFull = -1;
+    let parentGrpExact = -1, parentGrpFallback = -1;
+    let immGrpExact = -1;
+    let courseCodeExact = -1, courseCodeFallback = -1;
+    let courseNameExact = -1, courseNameFallback = -1;
+    let venueCodeExact = -1, centerCodeFallback = -1;
+    let venueNameExact = -1, centerNameFallback = -1;
+    let countIdx = -1;
 
     headersList.forEach((h, idx) => {
       const lower = String(h).toLowerCase().replace(/[^a-z0-9]/g, '');
+      const rawTrimmed = String(h).trim().toLowerCase();
 
-      if (lower.includes('programmename') || lower === 'programme' || lower === 'programname' || lower === 'programfullname') {
-        if (mapping.programmeName === -1) mapping.programmeName = idx;
+      // Programme Name priorities:
+      // 1. Strict exact match "Programme Name" / "programmename"
+      // 2. "Program Name" / "programname"
+      // 3. "Programme"
+      // 4. "ProgramFullName"
+      if (rawTrimmed === 'programme name' || lower === 'programmename') {
+        pgmExact = idx;
+      } else if (rawTrimmed === 'program name' || lower === 'programname') {
+        pgmName = idx;
+      } else if (rawTrimmed === 'programme' || lower === 'programme') {
+        pgmOnly = idx;
+      } else if (rawTrimmed === 'programfullname' || lower === 'programfullname') {
+        pgmFull = idx;
       }
-      if (lower === 'parentgroupname' || lower === 'parentgroup') {
-        mapping.parentGroupName = idx;
+
+      // Parent Group Name
+      if (lower === 'parentgroupname') {
+        parentGrpExact = idx;
+      } else if (lower === 'parentgroup') {
+        parentGrpFallback = idx;
       }
-      if (lower === 'immediateparentgroup' || lower === 'immediategroupname' || lower === 'immediateparent') {
-        mapping.immediateGroupName = idx;
+
+      // Immediate Parent Group
+      if (lower === 'immediateparentgroup' || lower === 'immediategroupname' || lower === 'immediateparent' || lower === 'immediategroup') {
+        immGrpExact = idx;
       }
-      if (lower === 'papercode' || lower === 'coursecode' || lower.includes('subjectcode')) {
-        mapping.courseCode = idx;
+
+      // Course / Paper Code
+      if (lower === 'papercode' || lower === 'coursecode') {
+        courseCodeExact = idx;
+      } else if (lower.includes('subjectcode')) {
+        courseCodeFallback = idx;
       }
-      if (lower === 'papername' || lower === 'coursename' || lower.includes('subjectname') || lower.includes('coursetitle')) {
-        mapping.courseName = idx;
+
+      // Course / Paper Name
+      if (lower === 'papername' || lower === 'coursename') {
+        courseNameExact = idx;
+      } else if (lower.includes('subjectname') || lower.includes('coursetitle')) {
+        courseNameFallback = idx;
       }
-      if (lower === 'venuecode' || lower === 'centercode' || lower === 'centrecode') {
-        if (mapping.venueCode === -1) mapping.venueCode = idx;
+
+      // Venue Code: strictly prefer VenueCode over CenterCode
+      if (lower === 'venuecode') {
+        venueCodeExact = idx;
+      } else if (lower === 'centercode' || lower === 'centrecode') {
+        centerCodeFallback = idx;
       }
-      if (lower === 'venuename' || lower === 'centername' || lower === 'centrename') {
-        if (mapping.venueName === -1) mapping.venueName = idx;
+
+      // Venue Name: strictly prefer VenueName over CenterName
+      if (lower === 'venuename') {
+        venueNameExact = idx;
+      } else if (lower === 'centername' || lower === 'centrename') {
+        centerNameFallback = idx;
       }
+
+      // Student count
       if (lower.includes('studentcount') || lower === 'count' || lower === 'candidates') {
-        mapping.studentCount = idx;
+        countIdx = idx;
       }
     });
 
-    return mapping;
+    return {
+      programmeName: pgmExact !== -1 ? pgmExact : (pgmName !== -1 ? pgmName : (pgmOnly !== -1 ? pgmOnly : pgmFull)),
+      parentGroupName: parentGrpExact !== -1 ? parentGrpExact : parentGrpFallback,
+      immediateGroupName: immGrpExact,
+      courseCode: courseCodeExact !== -1 ? courseCodeExact : courseCodeFallback,
+      courseName: courseNameExact !== -1 ? courseNameExact : courseNameFallback,
+      venueCode: venueCodeExact !== -1 ? venueCodeExact : centerCodeFallback,
+      venueName: venueNameExact !== -1 ? venueNameExact : centerNameFallback,
+      studentCount: countIdx
+    };
   };
 
   // Auto-detect columns in Timetable file
