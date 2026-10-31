@@ -46,6 +46,36 @@ export const cleanTimeText = (val) => {
 };
 
 /**
+ * Normalizes text for comparison / composite deduplication keys:
+ * Strips non-breaking spaces, zero-width characters, leading/trailing dots and spaces,
+ * collapses internal whitespace sequences, and converts to lowercase.
+ */
+export const normalizeKeyText = (str) => {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/[\u00A0\u200B\uFEFF]/g, ' ')
+    .trim()
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+};
+
+/**
+ * Cleans user-facing text:
+ * Strips non-breaking spaces, zero-width characters, and leading/trailing dots and whitespace,
+ * while preserving original letter casing and internal structure.
+ */
+export const cleanDisplayField = (str) => {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/[\u00A0\u200B\uFEFF]/g, ' ')
+    .trim()
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+    .trim();
+};
+
+/**
  * Sanitizes worksheet cells: if a cell is an Excel time-only value (epoch year <= 1900),
  * replace it with the formatted text string (cell.w) or clean time string, keeping it as text.
  */

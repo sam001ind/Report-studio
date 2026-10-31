@@ -13,6 +13,7 @@
 
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
+import { normalizeKeyText, cleanDisplayField } from '../src/utils/excelParser.js';
 
 console.log('=== STARTING AUTOMATED TEST SUITE FOR REPORT STUDIO ENGINES ===\n');
 
@@ -404,6 +405,74 @@ test('Calculates 20, 10, 5 packet bundles with buffer correctly', () => {
   assert.equal(p5, 2);
   assert.equal(totalPapers, 70);
   assert.ok(totalPapers >= count);
+});
+
+test('Aggregates same course on same date & venue with trailing spaces and periods into single row summing student count', () => {
+
+  const rawRows = [
+    {
+      venueCode: 'V101 ',
+      venueName: 'Govt College Campus',
+      examDate: '2026-11-05',
+      courseCode: 'KU2AECENG106. ', // trailing dot + space
+      courseName: 'English for Career. ', // trailing dot + space
+      studentCount: 37
+    },
+    {
+      venueCode: 'V101',
+      venueName: 'Govt College Campus',
+      examDate: '2026-11-05 09:30:00', // date with time
+      courseCode: 'KU2AECENG106.', // trailing dot
+      courseName: 'English for Career', // without trailing dot
+      studentCount: 38
+    }
+  ];
+
+  // Group by venue
+  const groups = {};
+  rawRows.forEach(row => {
+    const vCode = cleanDisplayField(row.venueCode);
+    const vName = cleanDisplayField(row.venueName);
+    const groupKey = `${vCode} - ${vName}`;
+    if (!groups[groupKey]) groups[groupKey] = { code: vCode, name: vName, items: [] };
+
+    groups[groupKey].items.push({
+      date: '2026-11-05',
+      courseCode: row.courseCode,
+      courseName: row.courseName,
+      studentCount: row.studentCount
+    });
+  });
+
+  // Aggregate within group
+  Object.keys(groups).forEach(key => {
+    const mergedMap = new Map();
+    groups[key].items.forEach(item => {
+      const cleanCode = normalizeKeyText(item.courseCode);
+      const cleanName = normalizeKeyText(item.courseName);
+      const cleanDate = normalizeKeyText(item.date);
+      const vCode = normalizeKeyText(groups[key].code);
+
+      const mKey = `${vCode}__${cleanDate}__${cleanCode}__${cleanName}`;
+      if (mergedMap.has(mKey)) {
+        const existing = mergedMap.get(mKey);
+        existing.studentCount += item.studentCount;
+      } else {
+        mergedMap.set(mKey, {
+          ...item,
+          courseCode: cleanDisplayField(item.courseCode),
+          courseName: cleanDisplayField(item.courseName)
+        });
+      }
+    });
+    groups[key].items = Array.from(mergedMap.values());
+  });
+
+  const groupItems = groups['V101 - Govt College Campus'].items;
+  assert.equal(groupItems.length, 1, 'Should have aggregated 2 duplicate course rows into exactly 1');
+  assert.equal(groupItems[0].studentCount, 75, 'Student count should sum 37 + 38 = 75');
+  assert.equal(groupItems[0].courseCode, 'KU2AECENG106');
+  assert.equal(groupItems[0].courseName, 'English for Career');
 });
 
 // -------------------------------------------------------------

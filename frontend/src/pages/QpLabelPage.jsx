@@ -24,7 +24,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { logoBase64 } from '../assets/logoBase64';
-import { readSpreadsheetAsAoa, cleanTimeText } from '../utils/excelParser';
+import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
 
 const QpLabelPage = () => {
   
@@ -171,11 +171,8 @@ const QpLabelPage = () => {
 
   // Helper to format course display text
   const formatCourseDisplay = (courseCode, courseName) => {
-    let codeStr = String(courseCode || '').trim();
-    let nameStr = String(courseName || '').trim();
-
-    codeStr = codeStr.replace(/\.+$/, '').trim();
-    nameStr = nameStr.replace(/\.+$/, '').trim();
+    let codeStr = cleanDisplayField(courseCode);
+    let nameStr = cleanDisplayField(courseName);
 
     if (courseCodeDot) {
       if (codeStr) codeStr += '.';
@@ -198,12 +195,12 @@ const QpLabelPage = () => {
       const isBlank = row.every(cell => cell === null || cell === undefined || cell === '');
       if (isBlank) return;
 
-      let vCode = columnMapping.venueCode !== -1 && row[columnMapping.venueCode] ? String(row[columnMapping.venueCode]).trim() : '';
-      let vName = columnMapping.venueName !== -1 && row[columnMapping.venueName] ? String(row[columnMapping.venueName]).trim() : '';
+      let vCode = columnMapping.venueCode !== -1 && row[columnMapping.venueCode] ? cleanDisplayField(row[columnMapping.venueCode]) : '';
+      let vName = columnMapping.venueName !== -1 && row[columnMapping.venueName] ? cleanDisplayField(row[columnMapping.venueName]) : '';
 
       if (!vCode && !vName && columnMapping.centerCode !== -1) {
-        vCode = String(row[columnMapping.centerCode] || '').trim();
-        vName = String(row[columnMapping.centerName] || '').trim();
+        vCode = cleanDisplayField(row[columnMapping.centerCode]);
+        vName = cleanDisplayField(row[columnMapping.centerName]);
       }
 
       if (!vCode && !vName) {
@@ -298,9 +295,10 @@ const QpLabelPage = () => {
       }
 
       // Clean normalized comparison key
-      const normCode = rawCourseCode.replace(/\.+$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
-      const normName = rawCourseName.replace(/\.+$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
-      const labelKey = `${sortDate}__${normCode}__${normName}`;
+      const normCode = normalizeKeyText(rawCourseCode);
+      const normName = normalizeKeyText(rawCourseName);
+      const cleanDate = normalizeKeyText(sortDate || rowDate);
+      const labelKey = `${cleanDate}__${normCode}__${normName}`;
 
       if (vMap[venueKey].labelMap.has(labelKey)) {
         const existing = vMap[venueKey].labelMap.get(labelKey);
@@ -310,8 +308,8 @@ const QpLabelPage = () => {
           venueCode: vCode,
           venueName: vName,
           fullVenue: venueKey,
-          courseCode: rawCourseCode.replace(/\.+$/, '').trim(),
-          courseName: rawCourseName.replace(/\.+$/, '').trim(),
+          courseCode: cleanDisplayField(rawCourseCode),
+          courseName: cleanDisplayField(rawCourseName),
           day: rowDay,
           date: rowDate,
           sortDate,

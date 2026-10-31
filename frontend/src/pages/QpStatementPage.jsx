@@ -21,7 +21,7 @@ import {
   Sliders,
   MapPin
 } from 'lucide-react';
-import { readSpreadsheetAsAoa, cleanTimeText } from '../utils/excelParser';
+import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
 
 const QpStatementPage = () => {
 
@@ -71,36 +71,40 @@ const QpStatementPage = () => {
     setStatusType(type);
   };
 
+  // Robust Date Parser
+  const parseDateObject = (dateVal) => {
+    if (!dateVal) return null;
+    if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+      return dateVal;
+    }
+    if (typeof dateVal === 'number') {
+      const d = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const strVal = String(dateVal).replace(/[\u00A0\u200B\uFEFF]/g, ' ').trim();
+    if (!strVal) return null;
+
+    // YYYY-MM-DD or YYYY/MM/DD
+    if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(strVal)) {
+      const parts = strVal.split(/[-/.T\s]/);
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+    // DD/MM/YYYY or DD-MM-YYYY
+    if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}/.test(strVal)) {
+      const parts = strVal.split(/[-/.T\s]/);
+      const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+    const parsed = new Date(strVal);
+    if (!isNaN(parsed.getTime())) return parsed;
+    return null;
+  };
+
   // Helper to format date with Day of Week
   const formatDateWithDay = (dateVal) => {
     if (!dateVal) return '';
-    let dateObj;
-
-    if (dateVal instanceof Date && !isNaN(dateVal)) {
-      dateObj = dateVal;
-    } else if (typeof dateVal === 'number') {
-      // Excel serial date format
-      dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
-    } else {
-      const strVal = String(dateVal).trim();
-      // Try YYYY-MM-DD
-      if (/^\d{4}-\d{2}-\d{2}/.test(strVal)) {
-        const parts = strVal.split(/[-T\s]/);
-        dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-      } else if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}/.test(strVal)) {
-        // DD/MM/YYYY or DD-MM-YYYY
-        const parts = strVal.split(/[/-]/);
-        dateObj = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-      } else {
-        const parsed = new Date(strVal);
-        if (!isNaN(parsed.getTime())) {
-          dateObj = parsed;
-        } else {
-          return strVal;
-        }
-      }
-    }
-
+    const dateObj = parseDateObject(dateVal);
     if (!dateObj || isNaN(dateObj.getTime())) {
       return String(dateVal).trim();
     }
@@ -117,27 +121,8 @@ const QpStatementPage = () => {
   // Raw date key for sorting (YYYY-MM-DD)
   const getSortableDate = (dateVal) => {
     if (!dateVal) return '9999-99-99';
-    let dateObj;
-    if (dateVal instanceof Date && !isNaN(dateVal)) {
-      dateObj = dateVal;
-    } else if (typeof dateVal === 'number') {
-      dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
-    } else {
-      const strVal = String(dateVal).trim();
-      if (/^\d{4}-\d{2}-\d{2}/.test(strVal)) {
-        const parts = strVal.split(/[-T\s]/);
-        dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-      } else if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}/.test(strVal)) {
-        const parts = strVal.split(/[/-]/);
-        dateObj = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-      } else {
-        const parsed = new Date(strVal);
-        if (!isNaN(parsed.getTime())) {
-          dateObj = parsed;
-        }
-      }
-    }
-    if (!dateObj || isNaN(dateObj.getTime())) return String(dateVal);
+    const dateObj = parseDateObject(dateVal);
+    if (!dateObj || isNaN(dateObj.getTime())) return String(dateVal).trim().toLowerCase();
     const yyyy = dateObj.getFullYear();
     const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
     const dd = String(dateObj.getDate()).padStart(2, '0');
@@ -266,15 +251,15 @@ const QpStatementPage = () => {
       let name;
 
       if (groupByOption === 'venue') {
-        const vCode = columnMapping.venueCode !== -1 && row[columnMapping.venueCode] ? String(row[columnMapping.venueCode]).trim() : '';
-        const vName = columnMapping.venueName !== -1 && row[columnMapping.venueName] ? String(row[columnMapping.venueName]).trim() : '';
-        code = vCode || (columnMapping.centerCode !== -1 ? String(row[columnMapping.centerCode] || '').trim() : '');
-        name = vName || (columnMapping.centerName !== -1 ? String(row[columnMapping.centerName] || '').trim() : '');
+        const vCode = columnMapping.venueCode !== -1 && row[columnMapping.venueCode] ? cleanDisplayField(row[columnMapping.venueCode]) : '';
+        const vName = columnMapping.venueName !== -1 && row[columnMapping.venueName] ? cleanDisplayField(row[columnMapping.venueName]) : '';
+        code = vCode || (columnMapping.centerCode !== -1 ? cleanDisplayField(row[columnMapping.centerCode]) : '');
+        name = vName || (columnMapping.centerName !== -1 ? cleanDisplayField(row[columnMapping.centerName]) : '');
       } else {
-        const cCode = columnMapping.centerCode !== -1 && row[columnMapping.centerCode] ? String(row[columnMapping.centerCode]).trim() : '';
-        const cName = columnMapping.centerName !== -1 && row[columnMapping.centerName] ? String(row[columnMapping.centerName]).trim() : '';
-        code = cCode || (columnMapping.venueCode !== -1 ? String(row[columnMapping.venueCode] || '').trim() : '');
-        name = cName || (columnMapping.venueName !== -1 ? String(row[columnMapping.venueName] || '').trim() : '');
+        const cCode = columnMapping.centerCode !== -1 && row[columnMapping.centerCode] ? cleanDisplayField(row[columnMapping.centerCode]) : '';
+        const cName = columnMapping.centerName !== -1 && row[columnMapping.centerName] ? cleanDisplayField(row[columnMapping.centerName]) : '';
+        code = cCode || (columnMapping.venueCode !== -1 ? cleanDisplayField(row[columnMapping.venueCode]) : '');
+        name = cName || (columnMapping.venueName !== -1 ? cleanDisplayField(row[columnMapping.venueName]) : '');
       }
 
       if (!code && !name) {
@@ -297,10 +282,16 @@ const QpStatementPage = () => {
       const formattedDate = formatDateWithDay(dateRaw);
       const sortDate = getSortableDate(dateRaw);
 
-      let cCode = columnMapping.courseCode !== -1 && row[columnMapping.courseCode] ? String(row[columnMapping.courseCode]).trim() : '';
-      let cName = columnMapping.courseName !== -1 && row[columnMapping.courseName] ? String(row[columnMapping.courseName]).trim() : '';
+      let cCode = columnMapping.courseCode !== -1 && row[columnMapping.courseCode] ? cleanDisplayField(row[columnMapping.courseCode]) : '';
+      let cName = columnMapping.courseName !== -1 && row[columnMapping.courseName] ? cleanDisplayField(row[columnMapping.courseName]) : '';
       
-      const countVal = columnMapping.studentCount !== -1 ? parseInt(row[columnMapping.studentCount], 10) || 0 : 0;
+      let countVal = 0;
+      if (columnMapping.studentCount !== -1 && row[columnMapping.studentCount] !== undefined && row[columnMapping.studentCount] !== null) {
+        const cleanedCount = String(row[columnMapping.studentCount]).replace(/,/g, '').trim();
+        const parsedCount = parseInt(cleanedCount, 10);
+        if (!isNaN(parsedCount)) countVal = parsedCount;
+      }
+
       const timeVal = columnMapping.courseTime !== -1 && row[columnMapping.courseTime] !== undefined && row[columnMapping.courseTime] !== null
         ? cleanTimeText(row[columnMapping.courseTime])
         : '';
@@ -334,20 +325,26 @@ const QpStatementPage = () => {
       if (aggregateSameCourse) {
         const mergedMap = new Map();
         items.forEach(item => {
-          // Normalize course code and name by removing trailing dots, trimming whitespace, and ignoring case
-          const cleanCode = item.courseCode.replace(/\.+$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
-          const cleanName = item.courseName.replace(/\.+$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
-          const mKey = `${item.sortDate}__${cleanCode}__${cleanName}`;
+          // Normalize course code, name, and date: removes trailing/leading dots, non-breaking spaces, collapses spaces, lowercase
+          const cleanCode = normalizeKeyText(item.courseCode);
+          const cleanName = normalizeKeyText(item.courseName);
+          const cleanDate = normalizeKeyText(item.sortDate || item.formattedDate);
+          const vCode = normalizeKeyText(groups[key].code);
+
+          // Unique composite key: Venue Code + Exam Date + Course Code + Course Name
+          const mKey = `${vCode}__${cleanDate}__${cleanCode}__${cleanName}`;
 
           if (mergedMap.has(mKey)) {
             const existing = mergedMap.get(mKey);
             existing.studentCount += item.studentCount;
+            if (!existing.startTime && item.startTime) existing.startTime = item.startTime;
+            if (!existing.endTime && item.endTime) existing.endTime = item.endTime;
           } else {
             // Keep clean normalized base representation
             mergedMap.set(mKey, {
               ...item,
-              courseCode: item.courseCode.replace(/\.+$/, '').trim(),
-              courseName: item.courseName.replace(/\.+$/, '').trim()
+              courseCode: cleanDisplayField(item.courseCode),
+              courseName: cleanDisplayField(item.courseName)
             });
           }
         });
@@ -421,12 +418,8 @@ const QpStatementPage = () => {
 
   // Helper to format course display text e.g. "KU3MDCARS202. - Kerala Culture in Arabic Narratives."
   const formatCourseDisplay = (courseCode, courseName) => {
-    let codeStr = String(courseCode || '').trim();
-    let nameStr = String(courseName || '').trim();
-
-    // Strip existing trailing dots first
-    codeStr = codeStr.replace(/\.+$/, '').trim();
-    nameStr = nameStr.replace(/\.+$/, '').trim();
+    let codeStr = cleanDisplayField(courseCode);
+    let nameStr = cleanDisplayField(courseName);
 
     if (courseCodeDot) {
       if (codeStr) codeStr += '.';
@@ -873,7 +866,7 @@ const QpStatementPage = () => {
                 checked={aggregateSameCourse} 
                 onChange={(e) => setAggregateSameCourse(e.target.checked)} 
               />
-              Sum NC for duplicate course on same date
+              Sum NC for duplicate course (Course Code + Course Name + Exam Date + Venue)
             </label>
 
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
