@@ -14,6 +14,13 @@
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import { normalizeKeyText, cleanDisplayField } from '../src/utils/excelParser.js';
+import { 
+  DEFAULT_LOOKUP_DATA, 
+  LOOKUP_TAB_CONFIG, 
+  buildLookupMaps, 
+  normalizeLookupKey, 
+  parseUploadedLookupSpreadsheet 
+} from '../src/data/admissionLookups.js';
 
 console.log('=== STARTING AUTOMATED TEST SUITE FOR REPORT STUDIO ENGINES ===\n');
 
@@ -2275,6 +2282,102 @@ PR24BBA001	AMITH K	670741	842228132551	VILLAGE\\\\STREET
   // Row 2
   assert.equal(tables['students'].rows[1][0], 'PR24BBA001');
   assert.equal(tables['students'].rows[1][4], 'VILLAGE\\STREET');
+});
+
+// -------------------------------------------------------------
+// 23. Admission ID Lookup Definition & Management Engine
+// -------------------------------------------------------------
+console.log('\n[Test Suite 23: Admission ID Lookup Definition & Management Engine]');
+
+test('DEFAULT_LOOKUP_DATA contains all 7 required entity lookup lists with valid names and IDs', () => {
+  assert.equal(LOOKUP_TAB_CONFIG.length, 7);
+  const keys = LOOKUP_TAB_CONFIG.map(t => t.key);
+  assert.deepEqual(keys.sort(), ['caste', 'category', 'country', 'qualification', 'religion', 'state', 'stream'].sort());
+
+  // Check categories
+  assert.ok(DEFAULT_LOOKUP_DATA.category.length >= 8);
+  assert.ok(DEFAULT_LOOKUP_DATA.category.some(c => c.name === 'Scheduled Castes' && c.id === '2'));
+  assert.ok(DEFAULT_LOOKUP_DATA.category.some(c => c.name === 'SEBC-Muslim' && c.id === '10'));
+
+  // Check castes
+  assert.ok(DEFAULT_LOOKUP_DATA.caste.length >= 135);
+  assert.ok(DEFAULT_LOOKUP_DATA.caste.some(c => c.name === 'Mukkuvan' && (c.id === '111' || c.id === '320')));
+  assert.ok(DEFAULT_LOOKUP_DATA.caste.some(c => c.name === 'Thiyya' && c.id === '169'));
+
+  // Check religions
+  assert.ok(DEFAULT_LOOKUP_DATA.religion.length >= 4);
+  assert.ok(DEFAULT_LOOKUP_DATA.religion.some(r => r.name === 'Hindu' && r.id === '1'));
+  assert.ok(DEFAULT_LOOKUP_DATA.religion.some(r => r.name === 'Islam' && r.id === '2'));
+
+  // Check countries
+  assert.ok(DEFAULT_LOOKUP_DATA.country.length >= 4);
+  assert.ok(DEFAULT_LOOKUP_DATA.country.some(c => c.name === 'Indian' && c.id === '107'));
+
+  // Check states
+  assert.ok(DEFAULT_LOOKUP_DATA.state.length >= 30);
+  assert.ok(DEFAULT_LOOKUP_DATA.state.some(s => s.name === 'Kerala' && s.id === '18'));
+  assert.ok(DEFAULT_LOOKUP_DATA.state.some(s => s.name === 'Karnataka' && s.id === '17'));
+  assert.ok(DEFAULT_LOOKUP_DATA.state.some(s => s.name === 'Tamil Nadu' && s.id === '31'));
+
+  // Check qualifications & streams
+  assert.ok(DEFAULT_LOOKUP_DATA.qualification.some(q => q.name === 'HSE - Kerala' && q.id === '2'));
+  assert.ok(DEFAULT_LOOKUP_DATA.stream.some(s => s.name === 'Science' && s.id === '1'));
+});
+
+test('buildLookupMaps indexes both Name -> ID and ID -> Name and supports dynamic user additions/edits', () => {
+  const customLookups = JSON.parse(JSON.stringify(DEFAULT_LOOKUP_DATA));
+  // Add a brand new custom caste: Thevar -> 250
+  customLookups.caste.push({ name: 'Thevar', id: '250' });
+  // Edit an existing caste: Mukkuvan -> 325
+  const mukkuvanIdx = customLookups.caste.findIndex(c => c.name === 'Mukkuvan');
+  customLookups.caste[mukkuvanIdx].id = '325';
+
+  const maps = buildLookupMaps(customLookups);
+
+  // Verify new caste
+  assert.equal(maps.casteByName['thevar'].id, '250');
+  assert.equal(maps.casteById['250'].name, 'Thevar');
+
+  // Verify edited caste
+  assert.equal(maps.casteByName['mukkuvan'].id, '325');
+  assert.equal(maps.casteById['325'].name, 'Mukkuvan');
+
+  // Verify state resolution
+  assert.equal(maps.stateByName['kerala'].id, '18');
+  assert.equal(maps.stateByName['tamilnadu'].id, '31');
+  assert.equal(maps.stateById['31'].name, 'Tamil Nadu');
+});
+
+test('parseUploadedLookupSpreadsheet extracts multi-table reference sheet and dedicated 2-column sheets', () => {
+  // 1. Multi-column workbook (like Kannur IDs)
+  const multiColWs = XLSX.utils.aoa_to_sheet([
+    ['categoryName', 'CategoryId', '', 'religion', 'religionId', '', 'Caste', 'CasteId'],
+    ['SEBC-Muslim', '10', '', 'Islam', '2', '', 'Mukkuvan', '320'],
+    ['Scheduled Castes', '2', '', 'Hindu', '1', '', 'Thiyyas', '169'],
+    ['General', '1', '', 'Christian', '3', '', 'Thevar', '250']
+  ]);
+  const multiWb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(multiWb, multiColWs, 'Kannur IDs');
+
+  const parsedMulti = parseUploadedLookupSpreadsheet(multiWb, 'caste');
+  assert.equal(parsedMulti.imported.category.length, 3);
+  assert.equal(parsedMulti.imported.religion.length, 3);
+  assert.equal(parsedMulti.imported.caste.length, 3);
+  assert.ok(parsedMulti.imported.caste.some(c => c.name === 'Thevar' && c.id === '250'));
+
+  // 2. Dedicated 2-column spreadsheet for active tab
+  const twoColWs = XLSX.utils.aoa_to_sheet([
+    ['Caste', 'CasteId'],
+    ['Vellalar', '260'],
+    ['Mudaliar', '261']
+  ]);
+  const twoColWb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(twoColWb, twoColWs, 'Castes');
+
+  const parsedTwoCol = parseUploadedLookupSpreadsheet(twoColWb, 'caste');
+  assert.equal(parsedTwoCol.imported.caste.length, 2);
+  assert.equal(parsedTwoCol.imported.caste[0].name, 'Vellalar');
+  assert.equal(parsedTwoCol.imported.caste[0].id, '260');
 });
 
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);

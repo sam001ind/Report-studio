@@ -10,7 +10,8 @@ import {
   AlertTriangle, 
   Search, 
   Sparkles,
-  Database
+  Database,
+  SlidersHorizontal
 } from 'lucide-react';
 import { 
   TARGET_COLUMNS, 
@@ -20,8 +21,13 @@ import {
   PROGRAM_LOOKUP, 
   COLLEGE_LOOKUP,
   STREAM_LOOKUP,
-  QUALIFICATION_LOOKUP
+  QUALIFICATION_LOOKUP,
+  DEFAULT_LOOKUP_DATA,
+  loadSavedLookups,
+  buildLookupMaps,
+  normalizeLookupKey
 } from '../data/admissionLookups';
+import LookupIdManagerModal from '../components/LookupIdManagerModal';
 
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -466,12 +472,19 @@ export default function AdmissionImportPage() {
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
+  // Custom User-Defined Lookups
+  const [lookups, setLookups] = useState(() => loadSavedLookups());
+  const [isLookupModalOpen, setIsLookupModalOpen] = useState(false);
+  const [lastExtractedData, setLastExtractedData] = useState(null);
+
+  const lookupMaps = useMemo(() => buildLookupMaps(lookups), [lookups]);
+
   const setStatus = (msg, type = 'info') => {
     setStatusMsg(msg);
     setStatusType(type);
   };
 
-  const transformRow = (rawRow, headerMap) => {
+  const transformRow = (rawRow, headerMap, activeLookupMaps = lookupMaps) => {
     const getVal = (...keys) => {
       for (const k of keys) {
         const norm = normalizeKey(k);
@@ -522,12 +535,18 @@ export default function AdmissionImportPage() {
     const abcId = rawABC.replace(/\D/g, '').slice(0, 12);
 
     // 10 & 11. CountryId & CountryName
-    const countryId = getVal('countryid') || '107';
-    const countryName = getVal('countryname') || 'Indian';
+    const rawCountry = getVal('countryname', 'country', 'nationality');
+    const normCountry = normalizeLookupKey(rawCountry);
+    const customCountry = activeLookupMaps?.countryByName?.[normCountry] || activeLookupMaps?.countryByName?.[rawCountry.toLowerCase()];
+    const countryId = getVal('countryid') || (customCountry ? customCountry.id : '') || '107';
+    const countryName = rawCountry || (activeLookupMaps?.countryById?.[countryId]?.name) || (customCountry ? customCountry.name : '') || 'Indian';
 
-    // 12 & 13. State
-    const corrStateId = getVal('corrstateid', 'stateid') || '';
-    const corrStateName = getVal('corrstatename', 'statename', 'state') || 'Kerala';
+    // 12 & 13. State (corrStateId & corrStateName)
+    const rawState = getVal('corrstatename', 'statename', 'state', 'corrstate');
+    const normState = normalizeLookupKey(rawState);
+    const customState = activeLookupMaps?.stateByName?.[normState] || activeLookupMaps?.stateByName?.[rawState.toLowerCase()];
+    const corrStateId = getVal('corrstateid', 'stateid') || (customState ? customState.id : '') || (normState === 'kerala' ? '18' : '');
+    const corrStateName = rawState || (activeLookupMaps?.stateById?.[corrStateId]?.name) || (customState ? customState.name : '') || 'Kerala';
 
     // 14, 15, 16. Address, City, Pin
     const corrAddress = getVal('corraddress', 'address', 'communicationaddress', 'permaddress');
@@ -535,25 +554,29 @@ export default function AdmissionImportPage() {
     const rawPin = getVal('corrpin', 'pincode', 'pin', 'postalcode');
     const corrPin = rawPin.replace(/\D/g, '').slice(0, 6);
 
-    // 17 & 18. Category
+    // 17 & 18. Category (categoryId & categoryName)
     const rawCategory = getVal('category', 'categoryname', 'castecategory', 'community', 'actual_category');
-    const normCategory = normalizeKey(rawCategory);
-    const categoryLookup = CATEGORY_LOOKUP[normCategory] || { id: '10', name: rawCategory || 'General' };
-    const categoryId = getVal('categoryid') || categoryLookup.id;
-    const categoryName = rawCategory || categoryLookup.name;
+    const normCategory = normalizeLookupKey(rawCategory);
+    const customCategory = activeLookupMaps?.categoryByName?.[normCategory] || activeLookupMaps?.categoryByName?.[rawCategory.toLowerCase()];
+    const fallbackCategory = CATEGORY_LOOKUP[normCategory] || { id: '10', name: rawCategory || 'General' };
+    const categoryId = getVal('categoryid') || (customCategory ? customCategory.id : '') || fallbackCategory.id;
+    const categoryName = rawCategory || (customCategory ? customCategory.name : '') || fallbackCategory.name;
 
-    // 19 & 20. Caste
+    // 19 & 20. Caste (CasteId & Caste)
     const rawCaste = getVal('caste', 'subcaste');
-    const normCaste = normalizeKey(rawCaste);
-    const casteId = getVal('casteid') || CASTE_LOOKUP[normCaste] || CASTE_LOOKUP[rawCaste] || '1';
-    const caste = rawCaste || 'General';
+    const normCaste = normalizeLookupKey(rawCaste);
+    const customCaste = activeLookupMaps?.casteByName?.[normCaste] || activeLookupMaps?.casteByName?.[rawCaste.toLowerCase()];
+    const fallbackCasteId = CASTE_LOOKUP[normCaste] || CASTE_LOOKUP[rawCaste] || '1';
+    const casteId = getVal('casteid') || (customCaste ? customCaste.id : '') || fallbackCasteId;
+    const caste = rawCaste || (customCaste ? customCaste.name : '') || (activeLookupMaps?.casteById?.[casteId]?.name) || 'General';
 
-    // 21 & 22. Religion
+    // 21 & 22. Religion (religionId & religion)
     const rawReligion = getVal('religion', 'religionname');
-    const normReligion = normalizeKey(rawReligion);
-    const religionLookup = RELIGION_LOOKUP[normReligion] || { id: '1', name: rawReligion || 'Hindu' };
-    const religionId = getVal('religionid') || religionLookup.id;
-    const religion = rawReligion || religionLookup.name;
+    const normReligion = normalizeLookupKey(rawReligion);
+    const customReligion = activeLookupMaps?.religionByName?.[normReligion] || activeLookupMaps?.religionByName?.[rawReligion.toLowerCase()];
+    const fallbackReligion = RELIGION_LOOKUP[normReligion] || { id: '1', name: rawReligion || 'Hindu' };
+    const religionId = getVal('religionid') || (customReligion ? customReligion.id : '') || fallbackReligion.id;
+    const religion = rawReligion || (customReligion ? customReligion.name : '') || fallbackReligion.name;
 
     // 23, 24, 25, 26. Program Details
     // Sourced from course, coursename, program, programname
@@ -587,21 +610,25 @@ export default function AdmissionImportPage() {
     const collegeName = collegeLookup.name || rawCollegeName;
     const collegeCode = collegeLookup.code || rawCollegeCode;
 
-    // 31 & 32. Qualification
+    // 31 & 32. Qualification (QualificationFacultyId & QualificationName)
     const rawQual = getVal('qualificationname', 'qcboard', 'board', 'qualifyingexam', 'boardname');
-    const normQual = normalizeKey(rawQual);
-    const qualLookup = QUALIFICATION_LOOKUP[rawQual.toLowerCase()] || QUALIFICATION_LOOKUP[normQual] || null;
-    let qualificationFacultyId = getVal('qualificationfacultyid') || (qualLookup ? qualLookup.facultyId : '2');
-    if (!qualLookup && normQual && !normQual.includes('hse') && !normQual.includes('cbse') && !normQual.includes('vhse') && !normQual.includes('isc')) {
+    const normQual = normalizeLookupKey(rawQual);
+    const customQual = activeLookupMaps?.qualificationByName?.[normQual] || activeLookupMaps?.qualificationByName?.[rawQual.toLowerCase()];
+    const fallbackQual = QUALIFICATION_LOOKUP[rawQual.toLowerCase()] || QUALIFICATION_LOOKUP[normQual] || null;
+    let qualificationFacultyId = getVal('qualificationfacultyid') || (customQual ? customQual.id : '') || (fallbackQual ? fallbackQual.facultyId : '2');
+    if (!customQual && !fallbackQual && normQual && !normQual.includes('hse') && !normQual.includes('cbse') && !normQual.includes('vhse') && !normQual.includes('isc')) {
       qualificationFacultyId = '7';
     }
-    const qualificationName = rawQual || 'HSE - Kerala';
+    const qualificationName = rawQual || (customQual ? customQual.name : '') || 'HSE - Kerala';
 
-    // 33 & 34. Stream
+    // 33 & 34. Stream (Stream & QualificationSpecializationId)
     const rawStream = getVal('stream', 'group', 'specialization', 'branch');
-    const normStream = normalizeKey(rawStream);
+    const normStream = normalizeLookupKey(rawStream);
+    const customStream = activeLookupMaps?.streamByName?.[normStream] || activeLookupMaps?.streamByName?.[rawStream.toLowerCase()];
     let qualificationSpecializationId = '2'; // Default Commerce (2)
-    if (STREAM_LOOKUP[normStream]) {
+    if (customStream) {
+      qualificationSpecializationId = customStream.id;
+    } else if (STREAM_LOOKUP[normStream]) {
       qualificationSpecializationId = STREAM_LOOKUP[normStream].id;
     } else if (normStream.includes('sci')) {
       qualificationSpecializationId = '1';
@@ -610,7 +637,7 @@ export default function AdmissionImportPage() {
     } else if (normStream.includes('hum') || normStream.includes('art')) {
       qualificationSpecializationId = '3';
     }
-    const stream = rawStream || (qualificationSpecializationId === '1' ? 'Science' : qualificationSpecializationId === '3' ? 'Humanities' : 'Commerce');
+    const stream = rawStream || (customStream ? customStream.name : '') || (qualificationSpecializationId === '1' ? 'Science' : qualificationSpecializationId === '3' ? 'Humanities' : 'Commerce');
 
     // 35. Certificate Number
     const certificateNumber = getVal('certificatenumber', 'qcno', 'regno', 'rollno', 'register_number', 'registerno');
@@ -713,19 +740,20 @@ export default function AdmissionImportPage() {
     };
   };
 
-  const applyExtractedRows = (extractedData, originName = 'file') => {
+  const applyExtractedRows = (extractedData, originName = 'file', customLookupMaps = lookupMaps) => {
     const { rows, headers } = extractedData;
     if (!rows || rows.length === 0) {
       throw new Error('No candidate data rows found in the selected worksheet.');
     }
 
+    setLastExtractedData({ rows, headers, originName });
     setSourceHeaders(headers);
     const headerMap = {};
     headers.forEach(h => {
       headerMap[normalizeKey(h)] = h;
     });
 
-    const transformed = rows.map(row => transformRow(row, headerMap));
+    const transformed = rows.map(row => transformRow(row, headerMap, customLookupMaps));
     setNormalizedRows(transformed);
 
     const warningCount = transformed.filter(r => r._warnings && r._warnings.length > 0).length;
@@ -735,7 +763,15 @@ export default function AdmissionImportPage() {
       ready: transformed.length - warningCount
     });
 
-    setStatus(`Successfully normalized ${transformed.length} candidate record(s) from "${originName}" into 40 master columns!`, 'success');
+    setStatus(`Successfully normalized ${transformed.length} candidate record(s) from "${originName}" into ${TARGET_COLUMNS.length} master columns!`, 'success');
+  };
+
+  const handleSaveLookups = (updatedLookups) => {
+    setLookups(updatedLookups);
+    const updatedMaps = buildLookupMaps(updatedLookups);
+    if (lastExtractedData && lastExtractedData.rows && lastExtractedData.rows.length > 0) {
+      applyExtractedRows(lastExtractedData, lastExtractedData.originName, updatedMaps);
+    }
   };
 
   const handleFileUpload = async (e) => {
@@ -950,13 +986,46 @@ export default function AdmissionImportPage() {
             {statusMsg}
           </div>
 
+          <button
+            type="button"
+            onClick={() => setIsLookupModalOpen(true)}
+            title="Define and manage ID mappings for Category, Caste, Religion, Country, State, Qualification, and Stream"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 600,
+              background: 'var(--panel)',
+              color: 'var(--ink)',
+              border: '1px solid var(--line)',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            <SlidersHorizontal size={14} color="var(--accent)" />
+            <span>Define / Manage IDs</span>
+            <span style={{
+              fontSize: '10px',
+              background: 'var(--accent-soft)',
+              color: 'var(--accent)',
+              padding: '1px 6px',
+              borderRadius: '10px',
+              marginLeft: '2px',
+              fontWeight: 700
+            }}>
+              7 Lookups
+            </span>
+          </button>
+
           <button 
             type="button" 
             disabled={!normalizedRows.length || isProcessing}
             onClick={exportStandardXlsx}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', fontSize: '12px' }}
           >
-            <Download size={14} /> Export 40-Col Master XLSX
+            <Download size={14} /> Export {TARGET_COLUMNS.length}-Col Master XLSX
           </button>
         </div>
       </header>
@@ -1007,6 +1076,57 @@ export default function AdmissionImportPage() {
           >
             <Sparkles size={14} /> Load Sample Allotment Data (Instant Demo)
           </button>
+
+          {/* ID Lookups & Master Codes Card */}
+          <div className="card" style={{ padding: '14px', margin: 0, display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--panel)', border: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <SlidersHorizontal size={13} color="var(--accent)" /> ID Lookups & Master Codes
+              </span>
+              <span style={{ fontSize: '10.5px', color: 'var(--accent)', fontWeight: 600 }}>Active</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11px' }}>
+              <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)' }}>
+                <span style={{ color: 'var(--muted)' }}>Castes:</span> <strong>{lookups.caste?.length || 0}</strong>
+              </div>
+              <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)' }}>
+                <span style={{ color: 'var(--muted)' }}>Categories:</span> <strong>{lookups.category?.length || 0}</strong>
+              </div>
+              <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)' }}>
+                <span style={{ color: 'var(--muted)' }}>Religions:</span> <strong>{lookups.religion?.length || 0}</strong>
+              </div>
+              <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)' }}>
+                <span style={{ color: 'var(--muted)' }}>Countries:</span> <strong>{lookups.country?.length || 0}</strong>
+              </div>
+              <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)' }}>
+                <span style={{ color: 'var(--muted)' }}>States:</span> <strong>{lookups.state?.length || 0}</strong>
+              </div>
+              <div style={{ padding: '6px 8px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--line)' }}>
+                <span style={{ color: 'var(--muted)' }}>Boards:</span> <strong>{lookups.qualification?.length || 0}</strong>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsLookupModalOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '7px 10px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                background: 'var(--bg)',
+                border: '1px solid var(--accent)',
+                color: 'var(--accent)',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                marginTop: '2px'
+              }}
+            >
+              <SlidersHorizontal size={13} /> Manage / Upload Lookup IDs
+            </button>
+          </div>
 
           {/* Worksheet Selector (Multi-Sheet Workbooks) */}
           {sheetList.length > 1 && (
@@ -1247,6 +1367,14 @@ export default function AdmissionImportPage() {
 
         </main>
       </div>
+
+      {/* ID Lookups Definition & Management Modal */}
+      <LookupIdManagerModal
+        isOpen={isLookupModalOpen}
+        onClose={() => setIsLookupModalOpen(false)}
+        lookups={lookups}
+        onSaveLookups={handleSaveLookups}
+      />
     </div>
   );
 }

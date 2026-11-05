@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx';
+
 // Official Kannur University Lookups & Standard Target Schema
 // Sourced from kreap26vfyfyimp2026updated_working file.xlsx (Kannur IDs sheet)
 
@@ -1982,3 +1984,895 @@ export const TARGET_COLUMNS = [
   'Result Date ',
   'ResultStatus'
 ];
+
+
+export const LOOKUP_TAB_CONFIG = [
+  {
+    key: 'category',
+    label: 'Categories',
+    nameHeader: 'categoryName',
+    idHeader: 'categoryId',
+    nameLabel: 'Category Name',
+    idLabel: 'Category ID',
+    description: 'Social and reservation categories (e.g., SEBC-Muslim -> 10, Scheduled Castes -> 2, General -> 1)'
+  },
+  {
+    key: 'caste',
+    label: 'Castes',
+    nameHeader: 'Caste',
+    idHeader: 'CasteId',
+    nameLabel: 'Caste',
+    idLabel: 'Caste ID',
+    description: 'Community & caste classifications (e.g., Mukkuvan -> 320, Thiyyas -> 169, Mappila -> 168)'
+  },
+  {
+    key: 'religion',
+    label: 'Religions',
+    nameHeader: 'religion',
+    idHeader: 'religionId',
+    nameLabel: 'Religion',
+    idLabel: 'Religion ID',
+    description: 'Religion codes (e.g., Hindu -> 1, Islam -> 2, Christian -> 3, Others -> 5)'
+  },
+  {
+    key: 'country',
+    label: 'Countries',
+    nameHeader: 'CountryName',
+    idHeader: 'CountryId',
+    nameLabel: 'Country Name',
+    idLabel: 'Country ID',
+    description: 'Nationality & country of origin (e.g., Indian / India -> 107, Nepal -> 108)'
+  },
+  {
+    key: 'state',
+    label: 'States',
+    nameHeader: 'corrStateName',
+    idHeader: 'corrStateId',
+    nameLabel: 'State Name',
+    idLabel: 'State ID',
+    description: 'State of correspondence (e.g., Kerala -> 18, Karnataka -> 17, Tamil Nadu -> 31)'
+  },
+  {
+    key: 'qualification',
+    label: 'Qualifications',
+    nameHeader: 'QualificationName',
+    idHeader: 'QualificationFacultyId',
+    nameLabel: 'Qualification Name',
+    idLabel: 'Faculty ID',
+    description: 'Qualifying boards & examinations (e.g., HSE - Kerala -> 2, CBSE -> 2, Others -> 7)'
+  },
+  {
+    key: 'stream',
+    label: 'Streams',
+    nameHeader: 'Stream',
+    idHeader: 'QualificationSpecializationId',
+    nameLabel: 'Stream Name',
+    idLabel: 'Specialization ID',
+    description: 'Academic streams / groups (e.g., Science -> 1, Commerce -> 2, Humanities -> 3)'
+  }
+];
+
+export const DEFAULT_LOOKUP_DATA = {
+  category: [
+    { name: 'SEBC-Other Backward Hindu', id: '10' },
+    { name: 'SEBC-Muslim', id: '10' },
+    { name: 'SEBC-Ezhava/Thiyya/Billava', id: '10' },
+    { name: 'Scheduled Castes', id: '2' },
+    { name: 'General', id: '1' },
+    { name: 'EWS', id: '1' },
+    { name: 'Scheduled Tribes', id: '3' },
+    { name: 'SEBC-Latin Catholic(LC)', id: '10' }
+  ],
+  caste: [
+  {
+    "name": "Adi Karnataka",
+    "id": "223"
+  },
+  {
+    "name": "Adiyan",
+    "id": "328"
+  },
+  {
+    "name": "Agasa",
+    "id": "2"
+  },
+  {
+    "name": "Andhuru Nair",
+    "id": "183"
+  },
+  {
+    "name": "Arayan",
+    "id": "6"
+  },
+  {
+    "name": "Arunthathiyar",
+    "id": "225"
+  },
+  {
+    "name": "Arya",
+    "id": "10"
+  },
+  {
+    "name": "Asari",
+    "id": "11"
+  },
+  {
+    "name": "Baira",
+    "id": "227"
+  },
+  {
+    "name": "Bakuda",
+    "id": "228"
+  },
+  {
+    "name": "Bestha",
+    "id": "15"
+  },
+  {
+    "name": "Bhandari or Bhondari",
+    "id": "16"
+  },
+  {
+    "name": "Bharathar(Other than Parathar)",
+    "id": "230"
+  },
+  {
+    "name": "Billava",
+    "id": "312"
+  },
+  {
+    "name": "Bovies",
+    "id": "17"
+  },
+  {
+    "name": "Chakkiliyan",
+    "id": "231"
+  },
+  {
+    "name": "Chaliya",
+    "id": "22"
+  },
+  {
+    "name": "Cheramar",
+    "id": "238"
+  },
+  {
+    "name": "Cheruman",
+    "id": "239"
+  },
+  {
+    "name": "Chetty/Chetties",
+    "id": "313"
+  },
+  {
+    "name": "Converts from Scheduled Castes to Christianity",
+    "id": "314"
+  },
+  {
+    "name": "Devadiga",
+    "id": "26"
+  },
+  {
+    "name": "Devanga",
+    "id": "27"
+  },
+  {
+    "name": "Dheevara",
+    "id": "28"
+  },
+  {
+    "name": "Eruman",
+    "id": "31"
+  },
+  {
+    "name": "Ezhava",
+    "id": "169"
+  },
+  {
+    "name": "Ezhavas",
+    "id": "316"
+  },
+  {
+    "name": "Ezhuthachan",
+    "id": "33"
+  },
+  {
+    "name": "Ganaka",
+    "id": "35"
+  },
+  {
+    "name": "Gatti",
+    "id": "38"
+  },
+  {
+    "name": "General",
+    "id": "393"
+  },
+  {
+    "name": "Gowda",
+    "id": "40"
+  },
+  {
+    "name": "Hegde",
+    "id": "42"
+  },
+  {
+    "name": "Hindu Nadar",
+    "id": "43"
+  },
+  {
+    "name": "Irivavan",
+    "id": "192"
+  },
+  {
+    "name": "Irular",
+    "id": "334"
+  },
+  {
+    "name": "Islam",
+    "id": "323"
+  },
+  {
+    "name": "Jogi",
+    "id": "50"
+  },
+  {
+    "name": "Kadar (Wayanad Kadar)",
+    "id": "336"
+  },
+  {
+    "name": "Kalladi",
+    "id": "247"
+  },
+  {
+    "name": "Kammalas",
+    "id": "59"
+  },
+  {
+    "name": "Kanakkan",
+    "id": "248"
+  },
+  {
+    "name": "Kanisan",
+    "id": "63"
+  },
+  {
+    "name": "Kaniyan",
+    "id": "65"
+  },
+  {
+    "name": "Kannian",
+    "id": "69"
+  },
+  {
+    "name": "Karimpalan",
+    "id": "339"
+  },
+  {
+    "name": "Karuvan",
+    "id": "72"
+  },
+  {
+    "name": "Kattunayakan",
+    "id": "340"
+  },
+  {
+    "name": "Kavara",
+    "id": "249"
+  },
+  {
+    "name": "Kavuthiyan",
+    "id": "74"
+  },
+  {
+    "name": "Kitaran",
+    "id": "79"
+  },
+  {
+    "name": "Kollan",
+    "id": "81"
+  },
+  {
+    "name": "Koraga",
+    "id": "343"
+  },
+  {
+    "name": "Koteyar",
+    "id": "320"
+  },
+  {
+    "name": "Kottar Chetties",
+    "id": "321"
+  },
+  {
+    "name": "Kudiya",
+    "id": "344"
+  },
+  {
+    "name": "Kudumbi",
+    "id": "85"
+  },
+  {
+    "name": "Kulala",
+    "id": "86"
+  },
+  {
+    "name": "Kulalan",
+    "id": "196"
+  },
+  {
+    "name": "Kurava",
+    "id": "254"
+  },
+  {
+    "name": "Kuravan",
+    "id": "255"
+  },
+  {
+    "name": "Kurichchan (Kurichiyan)",
+    "id": "347"
+  },
+  {
+    "name": "Kuruman",
+    "id": "348"
+  },
+  {
+    "name": "Kurumans",
+    "id": "349"
+  },
+  {
+    "name": "Kusavan",
+    "id": "90"
+  },
+  {
+    "name": "Latin Catholics",
+    "id": "322"
+  },
+  {
+    "name": "Maila",
+    "id": "257"
+  },
+  {
+    "name": "Mala Vettuvan",
+    "id": "358"
+  },
+  {
+    "name": "Malayan",
+    "id": "205"
+  },
+  {
+    "name": "Malayarayar",
+    "id": "365"
+  },
+  {
+    "name": "Maniyani",
+    "id": "95"
+  },
+  {
+    "name": "Mannan",
+    "id": "259"
+  },
+  {
+    "name": "Mappila",
+    "id": "323"
+  },
+  {
+    "name": "Maratis of HosdurgTaluk",
+    "id": "96"
+  },
+  {
+    "name": "Maratis of Kasaragod and hosdurg Taluk",
+    "id": "367"
+  },
+  {
+    "name": "Maravan (Maravar)",
+    "id": "97"
+  },
+  {
+    "name": "Maruthuvar",
+    "id": "98"
+  },
+  {
+    "name": "Mavilan",
+    "id": "368"
+  },
+  {
+    "name": "Melakudi",
+    "id": "369"
+  },
+  {
+    "name": "Moger (Other than Mogeyar)",
+    "id": "261"
+  },
+  {
+    "name": "Mokaya",
+    "id": "208"
+  },
+  {
+    "name": "Moosari",
+    "id": "108"
+  },
+  {
+    "name": "Mukaya",
+    "id": "109"
+  },
+  {
+    "name": "Mukhari",
+    "id": "110"
+  },
+  {
+    "name": "Mukkuvan",
+    "id": "111"
+  },
+  {
+    "name": "Mundala",
+    "id": "263"
+  },
+  {
+    "name": "Muslim",
+    "id": "168"
+  },
+  {
+    "name": "Muslims",
+    "id": "323"
+  },
+  {
+    "name": "Muvari",
+    "id": "112"
+  },
+  {
+    "name": "Nadar belonging to Christian religious denominations other than SIUC",
+    "id": "324"
+  },
+  {
+    "name": "Naicken",
+    "id": "113"
+  },
+  {
+    "name": "Nair",
+    "id": "1"
+  },
+  {
+    "name": "Nalkadaya",
+    "id": "265"
+  },
+  {
+    "name": "Not Mentioned",
+    "id": "393"
+  },
+  {
+    "name": "Other",
+    "id": "268"
+  },
+  {
+    "name": "Padmasali",
+    "id": "120"
+  },
+  {
+    "name": "Paniyan",
+    "id": "383"
+  },
+  {
+    "name": "Paravan",
+    "id": "277"
+  },
+  {
+    "name": "Paraya",
+    "id": "278"
+  },
+  {
+    "name": "Parayan",
+    "id": "279"
+  },
+  {
+    "name": "Pathiyan",
+    "id": "281"
+  },
+  {
+    "name": "Perumannan",
+    "id": "282"
+  },
+  {
+    "name": "Perumkollen",
+    "id": "129"
+  },
+  {
+    "name": "Pulaya",
+    "id": "284"
+  },
+  {
+    "name": "Pulayan",
+    "id": "286"
+  },
+  {
+    "name": "Pulluvan",
+    "id": "288"
+  },
+  {
+    "name": "Rajapuri",
+    "id": "131"
+  },
+  {
+    "name": "Sadhu Chetty",
+    "id": "132"
+  },
+  {
+    "name": "Saliyas",
+    "id": "136"
+  },
+  {
+    "name": "Sambava",
+    "id": "293"
+  },
+  {
+    "name": "Scheduled Tribes (Lakshadweep)",
+    "id": "393"
+  },
+  {
+    "name": "Sidhanar",
+    "id": "298"
+  },
+  {
+    "name": "SIUC",
+    "id": "326"
+  },
+  {
+    "name": "Thandan",
+    "id": "301"
+  },
+  {
+    "name": "Thattan",
+    "id": "144"
+  },
+  {
+    "name": "Thiyya",
+    "id": "169"
+  },
+  {
+    "name": "Thiyyas",
+    "id": "327"
+  },
+  {
+    "name": "Thiyyas (who are known as Thandan, in the erstwhile Cochin and Malabar areas)",
+    "id": "327"
+  },
+  {
+    "name": "Uraly",
+    "id": "391"
+  },
+  {
+    "name": "Vakkaliga",
+    "id": "155"
+  },
+  {
+    "name": "Valan",
+    "id": "157"
+  },
+  {
+    "name": "Valluvan",
+    "id": "304"
+  },
+  {
+    "name": "Vanika Vaisya",
+    "id": "160"
+  },
+  {
+    "name": "Vaniya",
+    "id": "161"
+  },
+  {
+    "name": "Vaniyan",
+    "id": "162"
+  },
+  {
+    "name": "Vannan",
+    "id": "305"
+  },
+  {
+    "name": "Vannathan",
+    "id": "163"
+  },
+  {
+    "name": "Veera Saivas",
+    "id": "164"
+  },
+  {
+    "name": "Velan",
+    "id": "306"
+  },
+  {
+    "name": "Veluthedan",
+    "id": "166"
+  },
+  {
+    "name": "Veluthedathu Nair",
+    "id": "167"
+  },
+  {
+    "name": "Vetta Kuruman",
+    "id": "392"
+  },
+  {
+    "name": "Vettuvan",
+    "id": "308"
+  },
+  {
+    "name": "Vilakkathalavan",
+    "id": "169"
+  },
+  {
+    "name": "Vilakkithala Nair",
+    "id": "170"
+  },
+  {
+    "name": "Viswakarmas",
+    "id": "175"
+  },
+  {
+    "name": "WynadanChetty",
+    "id": "176"
+  },
+  {
+    "name": "Yadava",
+    "id": "177"
+  },
+  {
+    "name": "Yogi",
+    "id": "180"
+  }
+],
+  religion: [
+    { name: 'Hindu', id: '1' },
+    { name: 'Islam', id: '2' },
+    { name: 'Christian', id: '3' },
+    { name: 'Others', id: '5' }
+  ],
+  country: [
+    { name: 'Indian', id: '107' },
+    { name: 'India', id: '107' },
+    { name: 'Nepal', id: '108' },
+    { name: 'Bhutan', id: '109' },
+    { name: 'Others', id: '999' }
+  ],
+  state: [
+    { name: 'Kerala', id: '18' },
+    { name: 'Karnataka', id: '17' },
+    { name: 'Tamil Nadu', id: '31' },
+    { name: 'Maharashtra', id: '20' },
+    { name: 'Lakshadweep', id: '19' },
+    { name: 'Andhra Pradesh', id: '2' },
+    { name: 'Telangana', id: '32' },
+    { name: 'Delhi', id: '10' },
+    { name: 'Manipur', id: '21' },
+    { name: 'Goa', id: '11' },
+    { name: 'Gujarat', id: '12' },
+    { name: 'Haryana', id: '13' },
+    { name: 'Himachal Pradesh', id: '14' },
+    { name: 'Jammu & Kashmir', id: '15' },
+    { name: 'Jharkhand', id: '16' },
+    { name: 'Madhya Pradesh', id: '19' },
+    { name: 'Meghalaya', id: '22' },
+    { name: 'Mizoram', id: '23' },
+    { name: 'Nagaland', id: '24' },
+    { name: 'Odisha', id: '25' },
+    { name: 'Punjab', id: '26' },
+    { name: 'Rajasthan', id: '27' },
+    { name: 'Sikkim', id: '28' },
+    { name: 'Tripura', id: '29' },
+    { name: 'Uttar Pradesh', id: '33' },
+    { name: 'Uttarakhand', id: '34' },
+    { name: 'West Bengal', id: '35' },
+    { name: 'Assam', id: '4' },
+    { name: 'Bihar', id: '5' },
+    { name: 'Chhattisgarh', id: '7' },
+    { name: 'Chandigarh', id: '6' },
+    { name: 'Puducherry', id: '25' },
+    { name: 'Andaman and Nicobar Islands', id: '1' },
+    { name: 'Ladakh', id: '37' }
+  ],
+  qualification: [
+    { name: 'HSE - Kerala', id: '2' },
+    { name: 'CBSE', id: '2' },
+    { name: 'VHSE - Kerala/HSE NSQF', id: '2' },
+    { name: 'ISC', id: '2' },
+    { name: 'Others', id: '7' }
+  ],
+  stream: [
+    { name: 'Commerce', id: '2' },
+    { name: 'Humanities', id: '3' },
+    { name: 'Science', id: '1' }
+  ]
+};
+
+export function normalizeLookupKey(str) {
+  return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+export function buildLookupMaps(lookupData) {
+  const maps = {
+    categoryByName: {},
+    categoryById: {},
+    casteByName: {},
+    casteById: {},
+    religionByName: {},
+    religionById: {},
+    countryByName: {},
+    countryById: {},
+    stateByName: {},
+    stateById: {},
+    qualificationByName: {},
+    qualificationById: {},
+    streamByName: {},
+    streamById: {}
+  };
+
+  const populate = (list, byName, byId) => {
+    if (!Array.isArray(list)) return;
+    for (const item of list) {
+      if (!item) continue;
+      const name = String(item.name || '').trim();
+      const id = String(item.id !== undefined && item.id !== null ? item.id : '').trim();
+      if (name) {
+        byName[name.toLowerCase()] = { id, name };
+        byName[normalizeLookupKey(name)] = { id, name };
+      }
+      if (id) {
+        byId[id] = { id, name };
+      }
+    }
+  };
+
+  const data = lookupData || DEFAULT_LOOKUP_DATA;
+  populate(data.category, maps.categoryByName, maps.categoryById);
+  populate(data.caste, maps.casteByName, maps.casteById);
+  populate(data.religion, maps.religionByName, maps.religionById);
+  populate(data.country, maps.countryByName, maps.countryById);
+  populate(data.state, maps.stateByName, maps.stateById);
+  populate(data.qualification, maps.qualificationByName, maps.qualificationById);
+  populate(data.stream, maps.streamByName, maps.streamById);
+
+  return maps;
+}
+
+const LOOKUP_STORAGE_KEY = 'report_studio_custom_lookups';
+
+export function loadSavedLookups() {
+  if (typeof window === 'undefined') return DEFAULT_LOOKUP_DATA;
+  try {
+    const raw = localStorage.getItem(LOOKUP_STORAGE_KEY);
+    if (!raw) return DEFAULT_LOOKUP_DATA;
+    const parsed = JSON.parse(raw);
+    return {
+      category: Array.isArray(parsed.category) && parsed.category.length > 0 ? parsed.category : DEFAULT_LOOKUP_DATA.category,
+      caste: Array.isArray(parsed.caste) && parsed.caste.length > 0 ? parsed.caste : DEFAULT_LOOKUP_DATA.caste,
+      religion: Array.isArray(parsed.religion) && parsed.religion.length > 0 ? parsed.religion : DEFAULT_LOOKUP_DATA.religion,
+      country: Array.isArray(parsed.country) && parsed.country.length > 0 ? parsed.country : DEFAULT_LOOKUP_DATA.country,
+      state: Array.isArray(parsed.state) && parsed.state.length > 0 ? parsed.state : DEFAULT_LOOKUP_DATA.state,
+      qualification: Array.isArray(parsed.qualification) && parsed.qualification.length > 0 ? parsed.qualification : DEFAULT_LOOKUP_DATA.qualification,
+      stream: Array.isArray(parsed.stream) && parsed.stream.length > 0 ? parsed.stream : DEFAULT_LOOKUP_DATA.stream
+    };
+  } catch (err) {
+    console.warn('Failed to parse saved lookups from localStorage:', err);
+    return DEFAULT_LOOKUP_DATA;
+  }
+}
+
+export function saveLookupsToStorage(lookupData) {
+  if (typeof window === 'undefined') return false;
+  try {
+    localStorage.setItem(LOOKUP_STORAGE_KEY, JSON.stringify(lookupData));
+    return true;
+  } catch (err) {
+    console.error('Failed to save lookups to localStorage:', err);
+    return false;
+  }
+}
+
+export function parseUploadedLookupSpreadsheet(workbook, activeTabKey = 'caste') {
+  if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+    throw new Error('Workbook is empty or contains no valid sheets.');
+  }
+
+  const pairsDef = [
+    { key: 'category', nameKeys: ['categoryname', 'category', 'community'], idKeys: ['categoryid', 'catid'] },
+    { key: 'caste', nameKeys: ['caste', 'subcaste', 'castename'], idKeys: ['casteid'] },
+    { key: 'religion', nameKeys: ['religion', 'religionname'], idKeys: ['religionid', 'relid'] },
+    { key: 'country', nameKeys: ['countryname', 'country', 'nationality'], idKeys: ['countryid'] },
+    { key: 'state', nameKeys: ['corrstatename', 'statename', 'state', 'corrstate'], idKeys: ['corrstateid', 'stateid'] },
+    { key: 'qualification', nameKeys: ['qualificationname', 'qualification', 'board', 'exam', 'qualifyingexam'], idKeys: ['qualificationfacultyid', 'facultyid', 'qualid'] },
+    { key: 'stream', nameKeys: ['stream', 'streamname', 'specialization', 'branch'], idKeys: ['qualificationspecializationid', 'streamid', 'stream_id'] }
+  ];
+
+  const imported = {
+    category: [],
+    caste: [],
+    religion: [],
+    country: [],
+    state: [],
+    qualification: [],
+    stream: []
+  };
+
+  let matchedSpecificPairs = 0;
+
+  // Scan sheets
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!aoa || aoa.length < 2) continue;
+
+    // Search for header row in first 5 rows
+    for (let rIdx = 0; rIdx < Math.min(5, aoa.length); rIdx++) {
+      const row = aoa[rIdx];
+      if (!Array.isArray(row)) continue;
+      const colMap = {};
+      row.forEach((cell, idx) => {
+        const norm = normalizeLookupKey(cell);
+        if (norm) colMap[norm] = idx;
+      });
+
+      // Check standard pairs
+      for (const pair of pairsDef) {
+        const nameCol = pair.nameKeys.map(k => colMap[k]).find(idx => idx !== undefined);
+        const idCol = pair.idKeys.map(k => colMap[k]).find(idx => idx !== undefined);
+
+        if (nameCol !== undefined && idCol !== undefined) {
+          matchedSpecificPairs++;
+          const seen = new Set(imported[pair.key].map(x => x.name.toLowerCase()));
+          for (let r = rIdx + 1; r < aoa.length; r++) {
+            const dataRow = aoa[r];
+            if (!Array.isArray(dataRow)) continue;
+            const name = String(dataRow[nameCol] || '').trim();
+            const id = String(dataRow[idCol] !== undefined && dataRow[idCol] !== null ? dataRow[idCol] : '').trim();
+            if (name && id && !seen.has(name.toLowerCase())) {
+              seen.add(name.toLowerCase());
+              imported[pair.key].push({ name, id });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback: If no specific pairs matched but sheet has 2 columns, map to activeTabKey
+  if (matchedSpecificPairs === 0) {
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+    if (aoa && aoa.length >= 2) {
+      const headerRow = aoa[0];
+      let nameIdx = 0;
+      let idIdx = 1;
+
+      // Detect if second column looks like ID
+      const h0 = String(headerRow[0] || '').toLowerCase();
+      const h1 = String(headerRow[1] || '').toLowerCase();
+      if (h0.includes('id') && !h1.includes('id')) {
+        idIdx = 0;
+        nameIdx = 1;
+      }
+
+      const targetKey = activeTabKey || 'caste';
+      const seen = new Set();
+      for (let r = 1; r < aoa.length; r++) {
+        const dataRow = aoa[r];
+        if (!Array.isArray(dataRow)) continue;
+        const name = String(dataRow[nameIdx] || '').trim();
+        const id = String(dataRow[idIdx] !== undefined && dataRow[idIdx] !== null ? dataRow[idIdx] : '').trim();
+        if (name && id && !seen.has(name.toLowerCase())) {
+          seen.add(name.toLowerCase());
+          imported[targetKey].push({ name, id });
+        }
+      }
+    }
+  }
+
+  const summary = {};
+  let total = 0;
+  for (const k of Object.keys(imported)) {
+    summary[k] = imported[k].length;
+    total += imported[k].length;
+  }
+
+  return { imported, summary, total };
+}
