@@ -1988,8 +1988,29 @@ export const TARGET_COLUMNS = [
 
 export const LOOKUP_TAB_CONFIG = [
   {
+    key: 'program',
+    label: 'Programmes',
+    type: 'program',
+    nameHeader: 'Programme Name (Reference)',
+    idHeader: 'ProgramCode / workFlowId',
+    nameLabel: 'Programme Name (Reference)',
+    idLabel: 'Program Details',
+    description: 'Programme Name (Reference) ↔ ProgramCode ↔ workFlowId ↔ Program Name'
+  },
+  {
+    key: 'college',
+    label: 'Colleges',
+    type: 'college',
+    nameHeader: 'College Name',
+    idHeader: 'CollegeId / CollegeCode',
+    nameLabel: 'College Name',
+    idLabel: 'College Details',
+    description: 'CollegeId ↔ CollegeCode ↔ College Name ↔ CLG Name'
+  },
+  {
     key: 'category',
     label: 'Categories',
+    type: 'simple',
     nameHeader: 'categoryName',
     idHeader: 'categoryId',
     nameLabel: 'Category Name',
@@ -2053,6 +2074,8 @@ export const LOOKUP_TAB_CONFIG = [
 ];
 
 export const DEFAULT_LOOKUP_DATA = {
+  program: KANNUR_PROGRAMMES,
+  college: KANNUR_COLLEGES,
   category: [
     { name: 'SEBC-Other Backward Hindu', id: '10' },
     { name: 'SEBC-Muslim', id: '10' },
@@ -2690,6 +2713,11 @@ export function normalizeLookupKey(str) {
 
 export function buildLookupMaps(lookupData) {
   const maps = {
+    programByName: {},
+    programByCode: {},
+    collegeByName: {},
+    collegeByCode: {},
+    collegeById: {},
     categoryByName: {},
     categoryById: {},
     casteByName: {},
@@ -2706,7 +2734,7 @@ export function buildLookupMaps(lookupData) {
     streamById: {}
   };
 
-  const populate = (list, byName, byId) => {
+  const populateSimple = (list, byName, byId) => {
     if (!Array.isArray(list)) return;
     for (const item of list) {
       if (!item) continue;
@@ -2723,13 +2751,66 @@ export function buildLookupMaps(lookupData) {
   };
 
   const data = lookupData || DEFAULT_LOOKUP_DATA;
-  populate(data.category, maps.categoryByName, maps.categoryById);
-  populate(data.caste, maps.casteByName, maps.casteById);
-  populate(data.religion, maps.religionByName, maps.religionById);
-  populate(data.country, maps.countryByName, maps.countryById);
-  populate(data.state, maps.stateByName, maps.stateById);
-  populate(data.qualification, maps.qualificationByName, maps.qualificationById);
-  populate(data.stream, maps.streamByName, maps.streamById);
+
+  // Populate Programmes
+  if (Array.isArray(data.program)) {
+    for (const p of data.program) {
+      if (!p) continue;
+      const pgmName = String(p.pgmName || '').trim();
+      const code = String(p.code || '').trim();
+      const workflowId = String(p.workflowId !== undefined && p.workflowId !== null ? p.workflowId : '').trim();
+      const name = String(p.name || '').trim();
+      const entry = { pgmName, code, workflowId, name };
+      if (pgmName) {
+        maps.programByName[pgmName.toLowerCase()] = entry;
+        maps.programByName[normalizeLookupKey(pgmName)] = entry;
+      }
+      if (name) {
+        maps.programByName[name.toLowerCase()] = entry;
+        maps.programByName[normalizeLookupKey(name)] = entry;
+      }
+      if (code) {
+        maps.programByCode[code.toLowerCase()] = entry;
+        maps.programByCode[code] = entry;
+      }
+    }
+  }
+
+  // Populate Colleges
+  if (Array.isArray(data.college)) {
+    for (const c of data.college) {
+      if (!c) continue;
+      const id = String(c.id !== undefined && c.id !== null ? c.id : '').trim();
+      const code = String(c.code !== undefined && c.code !== null ? c.code : '').trim();
+      const name = String(c.name || '').trim();
+      const clgRef = String(c.clgRef || '').trim();
+      const entry = { id, code, name, clgRef };
+      if (name) {
+        maps.collegeByName[name.toLowerCase()] = entry;
+        maps.collegeByName[normalizeLookupKey(name)] = entry;
+      }
+      if (clgRef) {
+        maps.collegeByName[clgRef.toLowerCase()] = entry;
+        maps.collegeByName[normalizeLookupKey(clgRef)] = entry;
+      }
+      if (code) {
+        maps.collegeByCode[code] = entry;
+        maps.collegeByCode[code.toLowerCase()] = entry;
+      }
+      if (id) {
+        maps.collegeById[id] = entry;
+      }
+    }
+  }
+
+  // Populate Simple Lookups
+  populateSimple(data.category, maps.categoryByName, maps.categoryById);
+  populateSimple(data.caste, maps.casteByName, maps.casteById);
+  populateSimple(data.religion, maps.religionByName, maps.religionById);
+  populateSimple(data.country, maps.countryByName, maps.countryById);
+  populateSimple(data.state, maps.stateByName, maps.stateById);
+  populateSimple(data.qualification, maps.qualificationByName, maps.qualificationById);
+  populateSimple(data.stream, maps.streamByName, maps.streamById);
 
   return maps;
 }
@@ -2743,6 +2824,8 @@ export function loadSavedLookups() {
     if (!raw) return DEFAULT_LOOKUP_DATA;
     const parsed = JSON.parse(raw);
     return {
+      program: Array.isArray(parsed.program) && parsed.program.length > 0 ? parsed.program : DEFAULT_LOOKUP_DATA.program,
+      college: Array.isArray(parsed.college) && parsed.college.length > 0 ? parsed.college : DEFAULT_LOOKUP_DATA.college,
       category: Array.isArray(parsed.category) && parsed.category.length > 0 ? parsed.category : DEFAULT_LOOKUP_DATA.category,
       caste: Array.isArray(parsed.caste) && parsed.caste.length > 0 ? parsed.caste : DEFAULT_LOOKUP_DATA.caste,
       religion: Array.isArray(parsed.religion) && parsed.religion.length > 0 ? parsed.religion : DEFAULT_LOOKUP_DATA.religion,
@@ -2784,6 +2867,8 @@ export function parseUploadedLookupSpreadsheet(workbook, activeTabKey = 'caste')
   ];
 
   const imported = {
+    program: [],
+    college: [],
     category: [],
     caste: [],
     religion: [],
@@ -2812,7 +2897,54 @@ export function parseUploadedLookupSpreadsheet(workbook, activeTabKey = 'caste')
         if (norm) colMap[norm] = idx;
       });
 
-      // Check standard pairs
+      // Check Program columns
+      const progRefCol = ['programmenamereference', 'pgmname', 'programreference', 'programmereference'].map(k => colMap[k]).find(idx => idx !== undefined);
+      const progCodeCol = ['programcode', 'progcode', 'coursecode'].map(k => colMap[k]).find(idx => idx !== undefined);
+      const progWfCol = ['workflowid', 'workflow'].map(k => colMap[k]).find(idx => idx !== undefined);
+      const progNameCol = ['programname', 'fullname', 'name'].map(k => colMap[k]).find(idx => idx !== undefined && idx !== progRefCol);
+
+      if ((progRefCol !== undefined || progNameCol !== undefined) && (progCodeCol !== undefined || progWfCol !== undefined)) {
+        matchedSpecificPairs++;
+        const seen = new Set(imported.program.map(x => x.pgmName.toLowerCase()));
+        for (let r = rIdx + 1; r < aoa.length; r++) {
+          const dataRow = aoa[r];
+          if (!Array.isArray(dataRow)) continue;
+          const pgmName = String(progRefCol !== undefined ? dataRow[progRefCol] : (dataRow[progNameCol] || '')).trim();
+          const code = String(progCodeCol !== undefined ? dataRow[progCodeCol] : '').trim();
+          const workflowId = String(progWfCol !== undefined ? dataRow[progWfCol] : '').trim();
+          const name = String(progNameCol !== undefined ? dataRow[progNameCol] : pgmName).trim();
+          if (pgmName && !seen.has(pgmName.toLowerCase())) {
+            seen.add(pgmName.toLowerCase());
+            imported.program.push({ pgmName, code, workflowId, name });
+          }
+        }
+      }
+
+      // Check College columns
+      const clgIdCol = ['collegeid', 'colid'].map(k => colMap[k]).find(idx => idx !== undefined);
+      const clgCodeCol = ['collegecode', 'colcode', 'centrecode'].map(k => colMap[k]).find(idx => idx !== undefined);
+      const clgNameCol = ['collegename', 'college', 'centername'].map(k => colMap[k]).find(idx => idx !== undefined);
+      const clgRefCol = ['clgname', 'collegeref', 'collegeaddress', 'campus'].map(k => colMap[k]).find(idx => idx !== undefined);
+
+      if ((clgIdCol !== undefined || clgCodeCol !== undefined) && (clgNameCol !== undefined || clgRefCol !== undefined)) {
+        matchedSpecificPairs++;
+        const seen = new Set(imported.college.map(x => (x.name + '_' + x.id).toLowerCase()));
+        for (let r = rIdx + 1; r < aoa.length; r++) {
+          const dataRow = aoa[r];
+          if (!Array.isArray(dataRow)) continue;
+          const id = String(clgIdCol !== undefined ? dataRow[clgIdCol] : (clgCodeCol !== undefined ? dataRow[clgCodeCol] : '')).trim();
+          const code = String(clgCodeCol !== undefined ? dataRow[clgCodeCol] : id).trim();
+          const name = String(clgNameCol !== undefined ? dataRow[clgNameCol] : (clgRefCol !== undefined ? dataRow[clgRefCol] : '')).trim();
+          const clgRef = String(clgRefCol !== undefined ? dataRow[clgRefCol] : name).trim();
+          const dedupeKey = (name + '_' + id).toLowerCase();
+          if (name && !seen.has(dedupeKey)) {
+            seen.add(dedupeKey);
+            imported.college.push({ id, code, name, clgRef });
+          }
+        }
+      }
+
+      // Check standard 2-column pairs
       for (const pair of pairsDef) {
         const nameCol = pair.nameKeys.map(k => colMap[k]).find(idx => idx !== undefined);
         const idCol = pair.idKeys.map(k => colMap[k]).find(idx => idx !== undefined);
@@ -2835,7 +2967,7 @@ export function parseUploadedLookupSpreadsheet(workbook, activeTabKey = 'caste')
     }
   }
 
-  // Fallback: If no specific pairs matched but sheet has 2 columns, map to activeTabKey
+  // Fallback: If no specific pairs matched but sheet has 2 columns, map to activeTabKey (if not program/college)
   if (matchedSpecificPairs === 0) {
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const aoa = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
@@ -2852,7 +2984,7 @@ export function parseUploadedLookupSpreadsheet(workbook, activeTabKey = 'caste')
         nameIdx = 1;
       }
 
-      const targetKey = activeTabKey || 'caste';
+      const targetKey = (activeTabKey && imported[activeTabKey] && activeTabKey !== 'program' && activeTabKey !== 'college') ? activeTabKey : 'caste';
       const seen = new Set();
       for (let r = 1; r < aoa.length; r++) {
         const dataRow = aoa[r];

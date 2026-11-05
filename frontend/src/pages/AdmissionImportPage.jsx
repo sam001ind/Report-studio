@@ -582,7 +582,18 @@ export default function AdmissionImportPage() {
     // Sourced from course, coursename, program, programname
     const rawProgram = getVal('program', 'programname', 'programmname', 'coursename', 'course');
     const normProg = normalizeKey(rawProgram);
-    let programMatch = PROGRAM_LOOKUP[rawProgram.toLowerCase()] || PROGRAM_LOOKUP[normProg];
+    let programMatch = activeLookupMaps?.programByName?.[rawProgram.toLowerCase()] || 
+                       activeLookupMaps?.programByName?.[normProg] || 
+                       PROGRAM_LOOKUP[rawProgram.toLowerCase()] || 
+                       PROGRAM_LOOKUP[normProg];
+    if (!programMatch && activeLookupMaps?.programByName) {
+      for (const [pk, pv] of Object.entries(activeLookupMaps.programByName)) {
+        if (normProg && (normProg.includes(normalizeKey(pk)) || normalizeKey(pk).includes(normProg))) {
+          programMatch = pv;
+          break;
+        }
+      }
+    }
     if (!programMatch) {
       for (const [pk, pv] of Object.entries(PROGRAM_LOOKUP)) {
         if (normProg.includes(normalizeKey(pk)) || normalizeKey(pk).includes(normProg)) {
@@ -599,7 +610,11 @@ export default function AdmissionImportPage() {
     // 27, 28, 29, 30. College Details
     const rawCollegeCode = getVal('collegecode', 'colcode', 'centre', 'center', 'centercode');
     const rawCollegeName = getVal('collegename', 'college', 'centername');
-    const collegeLookup = COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeCode)] || {
+    const customCollege = activeLookupMaps?.collegeByName?.[normalizeKey(rawCollegeName)] ||
+                          activeLookupMaps?.collegeByName?.[rawCollegeName.toLowerCase()] ||
+                          activeLookupMaps?.collegeByCode?.[rawCollegeCode] ||
+                          activeLookupMaps?.collegeById?.[rawCollegeCode];
+    const collegeLookup = customCollege || COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeCode)] || {
       id: (getVal('collegeid') !== 'CollegeId' ? getVal('collegeid') : '') || rawCollegeCode || '133',
       code: rawCollegeCode || '133',
       name: rawCollegeName || 'Department of Management Studies',
@@ -1015,7 +1030,7 @@ export default function AdmissionImportPage() {
               marginLeft: '2px',
               fontWeight: 700
             }}>
-              7 Lookups
+              9 Master Entities
             </span>
           </button>
 

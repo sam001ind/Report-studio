@@ -19,6 +19,7 @@ import {
   MapPin,
   GraduationCap,
   BookOpen,
+  Building2,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -32,13 +33,15 @@ import {
 } from '../data/admissionLookups';
 
 const TAB_ICONS = {
+  program: BookOpen,
+  college: Building2,
   category: Tag,
   caste: Users,
   religion: Heart,
   country: Globe,
   state: MapPin,
   qualification: GraduationCap,
-  stream: BookOpen
+  stream: FileSpreadsheet
 };
 
 export default function LookupIdManagerModal({
@@ -47,13 +50,38 @@ export default function LookupIdManagerModal({
   lookups,
   onSaveLookups
 }) {
-  const [activeTab, setActiveTab] = useState('caste');
+  const [activeTab, setActiveTab] = useState('program');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Simple lookup add state
   const [newName, setNewName] = useState('');
   const [newId, setNewId] = useState('');
+
+  // Programme add state
+  const [newProgRef, setNewProgRef] = useState('');
+  const [newProgCode, setNewProgCode] = useState('');
+  const [newProgWorkflow, setNewProgWorkflow] = useState('');
+  const [newProgName, setNewProgName] = useState('');
+
+  // College add state
+  const [newClgId, setNewClgId] = useState('');
+  const [newClgCode, setNewClgCode] = useState('');
+  const [newClgName, setNewClgName] = useState('');
+  const [newClgRef, setNewClgRef] = useState('');
+
+  // Edit states
   const [editingIdx, setEditingIdx] = useState(null);
   const [editName, setEditName] = useState('');
   const [editId, setEditId] = useState('');
+  const [editProgRef, setEditProgRef] = useState('');
+  const [editProgCode, setEditProgCode] = useState('');
+  const [editProgWorkflow, setEditProgWorkflow] = useState('');
+  const [editProgName, setEditProgName] = useState('');
+  const [editClgId, setEditClgId] = useState('');
+  const [editClgCode, setEditClgCode] = useState('');
+  const [editClgName, setEditClgName] = useState('');
+  const [editClgRef, setEditClgRef] = useState('');
+
   const [page, setPage] = useState(0);
   const [statusAlert, setStatusAlert] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -72,12 +100,33 @@ export default function LookupIdManagerModal({
   const filteredList = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return currentList;
+
+    if (activeTab === 'program') {
+      return currentList.filter(item => {
+        const ref = String(item.pgmName || '').toLowerCase();
+        const code = String(item.code || '').toLowerCase();
+        const wf = String(item.workflowId || '').toLowerCase();
+        const name = String(item.name || '').toLowerCase();
+        return ref.includes(q) || code.includes(q) || wf.includes(q) || name.includes(q);
+      });
+    }
+
+    if (activeTab === 'college') {
+      return currentList.filter(item => {
+        const id = String(item.id || '').toLowerCase();
+        const code = String(item.code || '').toLowerCase();
+        const name = String(item.name || '').toLowerCase();
+        const ref = String(item.clgRef || '').toLowerCase();
+        return id.includes(q) || code.includes(q) || name.includes(q) || ref.includes(q);
+      });
+    }
+
     return currentList.filter(item => {
       const n = String(item.name || '').toLowerCase();
       const id = String(item.id || '').toLowerCase();
       return n.includes(q) || id.includes(q);
     });
-  }, [currentList, searchQuery]);
+  }, [currentList, searchQuery, activeTab]);
 
   const paginatedList = useMemo(() => {
     const start = page * pageSize;
@@ -100,11 +149,97 @@ export default function LookupIdManagerModal({
     setPage(0);
     setNewName('');
     setNewId('');
+    setNewProgRef('');
+    setNewProgCode('');
+    setNewProgWorkflow('');
+    setNewProgName('');
+    setNewClgId('');
+    setNewClgCode('');
+    setNewClgName('');
+    setNewClgRef('');
     setStatusAlert(null);
   };
 
   const handleAdd = (e) => {
     e?.preventDefault();
+
+    if (activeTab === 'program') {
+      const pgmName = newProgRef.trim();
+      const code = newProgCode.trim();
+      const workflowId = newProgWorkflow.trim();
+      const name = newProgName.trim();
+
+      if (!pgmName || !code || !workflowId || !name) {
+        setStatusAlert({
+          type: 'warning',
+          message: 'Please fill all 4 fields for Programme (Reference, Code, workFlowId, Name).'
+        });
+        return;
+      }
+
+      const exists = currentList.some(item => (item.pgmName || '').toLowerCase() === pgmName.toLowerCase());
+      if (exists) {
+        setStatusAlert({
+          type: 'warning',
+          message: `Programme "${pgmName}" already exists.`
+        });
+        return;
+      }
+
+      const updatedTabList = [{ pgmName, code, workflowId, name }, ...currentList];
+      const updatedAll = { ...lookups, program: updatedTabList };
+      onSaveLookups(updatedAll);
+      saveLookupsToStorage(updatedAll);
+      setNewProgRef('');
+      setNewProgCode('');
+      setNewProgWorkflow('');
+      setNewProgName('');
+      setStatusAlert({
+        type: 'success',
+        message: `Added Programme "${pgmName}" (${code} / ${workflowId}).`
+      });
+      return;
+    }
+
+    if (activeTab === 'college') {
+      const id = newClgId.trim();
+      const code = newClgCode.trim();
+      const name = newClgName.trim();
+      const clgRef = newClgRef.trim();
+
+      if (!id || !code || !name) {
+        setStatusAlert({
+          type: 'warning',
+          message: 'Please fill CollegeId, CollegeCode, and College Name.'
+        });
+        return;
+      }
+
+      const exists = currentList.some(item => (item.id === id || (item.name || '').toLowerCase() === name.toLowerCase()));
+      if (exists) {
+        setStatusAlert({
+          type: 'warning',
+          message: `College with ID ${id} or name "${name}" already exists.`
+        });
+        return;
+      }
+
+      const updatedTabList = [{ id, code, name, clgRef: clgRef || name }, ...currentList];
+      const updatedAll = { ...lookups, college: updatedTabList };
+      onSaveLookups(updatedAll);
+      saveLookupsToStorage(updatedAll);
+      setNewClgId('');
+      setNewClgCode('');
+      setNewClgName('');
+      setNewClgRef('');
+      setStatusAlert({
+        type: 'success',
+        message: `Added College "${name}" (ID: ${id}).`
+      });
+      return;
+    }
+
+    // Simple lookup add
     const trimmedName = newName.trim();
     const trimmedId = newId.trim();
 
@@ -116,7 +251,7 @@ export default function LookupIdManagerModal({
       return;
     }
 
-    const exists = currentList.some(item => item.name.toLowerCase() === trimmedName.toLowerCase());
+    const exists = currentList.some(item => (item.name || '').toLowerCase() === trimmedName.toLowerCase());
     if (exists) {
       setStatusAlert({
         type: 'warning',
@@ -143,17 +278,92 @@ export default function LookupIdManagerModal({
 
   const startEdit = (item, actualIndex) => {
     setEditingIdx(actualIndex);
-    setEditName(item.name);
-    setEditId(item.id);
+    if (activeTab === 'program') {
+      setEditProgRef(item.pgmName || '');
+      setEditProgCode(item.code || '');
+      setEditProgWorkflow(item.workflowId || '');
+      setEditProgName(item.name || '');
+    } else if (activeTab === 'college') {
+      setEditClgId(item.id || '');
+      setEditClgCode(item.code || '');
+      setEditClgName(item.name || '');
+      setEditClgRef(item.clgRef || '');
+    } else {
+      setEditName(item.name || '');
+      setEditId(item.id || '');
+    }
   };
 
   const cancelEdit = () => {
     setEditingIdx(null);
     setEditName('');
     setEditId('');
+    setEditProgRef('');
+    setEditProgCode('');
+    setEditProgWorkflow('');
+    setEditProgName('');
+    setEditClgId('');
+    setEditClgCode('');
+    setEditClgName('');
+    setEditClgRef('');
   };
 
   const saveEdit = (actualIndex) => {
+    const updatedTabList = [...currentList];
+
+    if (activeTab === 'program') {
+      const pgmName = editProgRef.trim();
+      const code = editProgCode.trim();
+      const workflowId = editProgWorkflow.trim();
+      const name = editProgName.trim();
+
+      if (!pgmName || !code || !workflowId || !name) {
+        setStatusAlert({
+          type: 'warning',
+          message: 'Programme fields cannot be blank.'
+        });
+        return;
+      }
+
+      updatedTabList[actualIndex] = { pgmName, code, workflowId, name };
+      const updatedAll = { ...lookups, program: updatedTabList };
+      onSaveLookups(updatedAll);
+      saveLookupsToStorage(updatedAll);
+      cancelEdit();
+      setStatusAlert({
+        type: 'success',
+        message: `Updated Programme "${pgmName}" successfully.`
+      });
+      return;
+    }
+
+    if (activeTab === 'college') {
+      const id = editClgId.trim();
+      const code = editClgCode.trim();
+      const name = editClgName.trim();
+      const clgRef = editClgRef.trim();
+
+      if (!id || !code || !name) {
+        setStatusAlert({
+          type: 'warning',
+          message: 'College fields cannot be blank.'
+        });
+        return;
+      }
+
+      updatedTabList[actualIndex] = { id, code, name, clgRef: clgRef || name };
+      const updatedAll = { ...lookups, college: updatedTabList };
+      onSaveLookups(updatedAll);
+      saveLookupsToStorage(updatedAll);
+      cancelEdit();
+      setStatusAlert({
+        type: 'success',
+        message: `Updated College "${name}" successfully.`
+      });
+      return;
+    }
+
+    // Simple edit
     const trimmedName = editName.trim();
     const trimmedId = editId.trim();
 
@@ -165,9 +375,7 @@ export default function LookupIdManagerModal({
       return;
     }
 
-    const updatedTabList = [...currentList];
     updatedTabList[actualIndex] = { name: trimmedName, id: trimmedId };
-
     const updatedAll = {
       ...lookups,
       [activeTab]: updatedTabList
@@ -182,7 +390,7 @@ export default function LookupIdManagerModal({
     });
   };
 
-  const handleDelete = (actualIndex, itemName) => {
+  const handleDelete = (actualIndex, title) => {
     const updatedTabList = currentList.filter((_, idx) => idx !== actualIndex);
     const updatedAll = {
       ...lookups,
@@ -193,7 +401,7 @@ export default function LookupIdManagerModal({
     saveLookupsToStorage(updatedAll);
     setStatusAlert({
       type: 'info',
-      message: `Removed "${itemName}" from ${currentTabConfig.label}.`
+      message: `Removed "${title}" from ${currentTabConfig.label}.`
     });
   };
 
@@ -204,7 +412,7 @@ export default function LookupIdManagerModal({
       setEditingIdx(null);
       setStatusAlert({
         type: 'success',
-        message: 'Reset all 7 ID lookup definitions to official university defaults.'
+        message: 'Reset all 9 master ID definitions to official Kannur University defaults.'
       });
     }
   };
@@ -224,7 +432,7 @@ export default function LookupIdManagerModal({
       if (total === 0) {
         setStatusAlert({
           type: 'warning',
-          message: 'No matching lookup columns found. Upload a sheet matching: Caste/CasteId, categoryName/categoryId, religion/religionId, CountryName/CountryId, corrStateName/corrStateId, QualificationName/QualificationFacultyId, Stream/QualificationSpecializationId, or a 2-column Name/ID sheet.'
+          message: 'No matching lookup columns found. Supported headers: [Programme Name (Reference), ProgramCode, workFlowId, Program Name], [CollegeId, CollegeCode, College Name, CLG Name], or [Name, ID] pairs.'
         });
         setIsProcessing(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -237,18 +445,42 @@ export default function LookupIdManagerModal({
       for (const [key, items] of Object.entries(imported)) {
         if (!items || items.length === 0) continue;
         const existing = [...(merged[key] || [])];
-        const existingMap = new Map(existing.map((x, idx) => [x.name.toLowerCase(), idx]));
 
-        for (const item of items) {
-          const lower = item.name.toLowerCase();
-          if (existingMap.has(lower)) {
-            const idx = existingMap.get(lower);
-            existing[idx] = { ...existing[idx], id: item.id };
-          } else {
-            existing.push(item);
-            existingMap.set(lower, existing.length - 1);
+        if (key === 'program') {
+          const map = new Map(existing.map((x, idx) => [(x.pgmName || '').toLowerCase(), idx]));
+          for (const item of items) {
+            const k = (item.pgmName || '').toLowerCase();
+            if (map.has(k)) {
+              existing[map.get(k)] = { ...existing[map.get(k)], ...item };
+            } else {
+              existing.push(item);
+              map.set(k, existing.length - 1);
+            }
+          }
+        } else if (key === 'college') {
+          const map = new Map(existing.map((x, idx) => [(x.name + '_' + x.id).toLowerCase(), idx]));
+          for (const item of items) {
+            const k = (item.name + '_' + item.id).toLowerCase();
+            if (map.has(k)) {
+              existing[map.get(k)] = { ...existing[map.get(k)], ...item };
+            } else {
+              existing.push(item);
+              map.set(k, existing.length - 1);
+            }
+          }
+        } else {
+          const map = new Map(existing.map((x, idx) => [(x.name || '').toLowerCase(), idx]));
+          for (const item of items) {
+            const lower = (item.name || '').toLowerCase();
+            if (map.has(lower)) {
+              existing[map.get(lower)] = { ...existing[map.get(lower)], id: item.id };
+            } else {
+              existing.push(item);
+              map.set(lower, existing.length - 1);
+            }
           }
         }
+
         merged[key] = existing;
         const tabConf = LOOKUP_TAB_CONFIG.find(t => t.key === key);
         summaryMsgParts.push(`${items.length} ${tabConf ? tabConf.label : key}`);
@@ -279,32 +511,37 @@ export default function LookupIdManagerModal({
 
       LOOKUP_TAB_CONFIG.forEach(cfg => {
         const list = lookups[cfg.key] || [];
-        const rows = list.map(item => ({
-          [cfg.nameHeader]: item.name,
-          [cfg.idHeader]: item.id
-        }));
-        const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{ [cfg.nameHeader]: '', [cfg.idHeader]: '' }]);
+        let rows = [];
+
+        if (cfg.key === 'program') {
+          rows = list.map(item => ({
+            'Programme Name (Reference)': item.pgmName || '',
+            'ProgramCode': item.code || '',
+            'workFlowId': item.workflowId || '',
+            'Program Name': item.name || ''
+          }));
+        } else if (cfg.key === 'college') {
+          rows = list.map(item => ({
+            'CollegeId': item.id || '',
+            'CollegeCode': item.code || '',
+            'College Name': item.name || '',
+            'CLG Name': item.clgRef || ''
+          }));
+        } else {
+          rows = list.map(item => ({
+            [cfg.nameHeader]: item.name || '',
+            [cfg.idHeader]: item.id || ''
+          }));
+        }
+
+        const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}]);
         XLSX.utils.book_append_sheet(wb, ws, cfg.label);
       });
 
-      const maxRows = Math.max(...LOOKUP_TAB_CONFIG.map(cfg => (lookups[cfg.key] || []).length));
-      const masterRows = [];
-      for (let i = 0; i < maxRows; i++) {
-        const row = {};
-        LOOKUP_TAB_CONFIG.forEach(cfg => {
-          const item = (lookups[cfg.key] || [])[i];
-          row[cfg.nameHeader] = item ? item.name : '';
-          row[cfg.idHeader] = item ? item.id : '';
-        });
-        masterRows.push(row);
-      }
-      const masterWs = XLSX.utils.json_to_sheet(masterRows);
-      XLSX.utils.book_append_sheet(wb, masterWs, 'All Defined IDs');
-
-      XLSX.writeFile(wb, 'Defined_Admission_Lookup_IDs.xlsx');
+      XLSX.writeFile(wb, 'Defined_Admission_Master_Lookups.xlsx');
       setStatusAlert({
         type: 'success',
-        message: 'Downloaded Defined_Admission_Lookup_IDs.xlsx with all 7 entity ID mappings.'
+        message: 'Downloaded Defined_Admission_Master_Lookups.xlsx with all 9 master entity definitions.'
       });
     } catch (err) {
       console.error('Export error:', err);
@@ -341,9 +578,9 @@ export default function LookupIdManagerModal({
           backgroundColor: 'var(--panel)',
           border: '1px solid var(--line)',
           borderRadius: '12px',
-          maxWidth: '960px',
+          maxWidth: '1080px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: '92vh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -397,7 +634,7 @@ export default function LookupIdManagerModal({
                 </span>
               </div>
               <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                Configure codes for Category, Caste, Religion, Country, State, Qualification, and Stream.
+                Configure codes for Programmes, Colleges, Category, Caste, Religion, Country, State, Qualification, and Stream.
               </p>
             </div>
           </div>
@@ -414,7 +651,7 @@ export default function LookupIdManagerModal({
             <a
               href="/Admission_ID_Upload_Template.xlsx"
               download="Admission_ID_Upload_Template.xlsx"
-              title="Download pre-formatted Excel template with sample IDs for all 7 entities"
+              title="Download pre-formatted Excel template with sample IDs for all master entities"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -574,7 +811,7 @@ export default function LookupIdManagerModal({
           </div>
         )}
 
-        {/* 7 Tabs Navigation Bar */}
+        {/* 9 Tabs Navigation Bar */}
         <div
           style={{
             display: 'flex',
@@ -641,18 +878,60 @@ export default function LookupIdManagerModal({
             justifyContent: 'space-between',
             alignItems: 'center',
             fontSize: '11.5px',
-            color: 'var(--muted)'
+            color: 'var(--muted)',
+            flexWrap: 'wrap',
+            gap: '8px'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Output Column Mapping:</span>
-            <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
-              {currentTabConfig.nameHeader}
-            </code>
-            <span>↔</span>
-            <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
-              {currentTabConfig.idHeader}
-            </code>
+            {activeTab === 'program' ? (
+              <>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  Programme Name (Reference)
+                </code>
+                <span>↔</span>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  ProgramCode
+                </code>
+                <span>↔</span>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  workFlowId
+                </code>
+                <span>↔</span>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  Program Name
+                </code>
+              </>
+            ) : activeTab === 'college' ? (
+              <>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  CollegeId
+                </code>
+                <span>↔</span>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  CollegeCode
+                </code>
+                <span>↔</span>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  College Name
+                </code>
+                <span>↔</span>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  CLG Name
+                </code>
+              </>
+            ) : (
+              <>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  {currentTabConfig.nameHeader}
+                </code>
+                <span>↔</span>
+                <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
+                  {currentTabConfig.idHeader}
+                </code>
+              </>
+            )}
             <span style={{ marginLeft: '6px' }}>— {currentTabConfig.description}</span>
           </div>
           <div>
@@ -673,7 +952,7 @@ export default function LookupIdManagerModal({
           }}
         >
           {/* Live Search */}
-          <div style={{ position: 'relative', flex: '1', minWidth: '220px' }}>
+          <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
             <Search
               size={14}
               color="var(--muted)"
@@ -686,7 +965,7 @@ export default function LookupIdManagerModal({
                 setSearchQuery(e.target.value);
                 setPage(0);
               }}
-              placeholder={`Search ${currentTabConfig.label} by name or ID...`}
+              placeholder={`Search ${currentTabConfig.label}...`}
               style={{
                 width: '100%',
                 padding: '7px 10px 7px 32px',
@@ -700,68 +979,250 @@ export default function LookupIdManagerModal({
             />
           </div>
 
-          {/* Quick Add Entry Form */}
-          <form
-            onSubmit={handleAdd}
-            style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
-          >
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder={`New ${currentTabConfig.nameLabel} (e.g. Mukkuvan)`}
-              style={{
-                width: '210px',
-                padding: '7px 10px',
-                fontSize: '12px',
-                borderRadius: '6px',
-                border: '1px solid var(--line)',
-                background: 'var(--bg)',
-                color: 'var(--ink)',
-                outline: 'none'
-              }}
-            />
-            <input
-              type="text"
-              value={newId}
-              onChange={(e) => setNewId(e.target.value)}
-              placeholder={`ID (e.g. 320)`}
-              style={{
-                width: '95px',
-                padding: '7px 10px',
-                fontSize: '12px',
-                borderRadius: '6px',
-                border: '1px solid var(--line)',
-                background: 'var(--bg)',
-                color: 'var(--ink)',
-                outline: 'none'
-              }}
-            />
-            <button
-              type="submit"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '7px 14px',
-                fontSize: '12px',
-                fontWeight: 600,
-                background: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
+          {/* Quick Add Entry Form: Tailored per tab type */}
+          {activeTab === 'program' ? (
+            <form
+              onSubmit={handleAdd}
+              style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}
             >
-              <Plus size={14} />
-              <span>Add Entry</span>
-            </button>
-          </form>
+              <input
+                type="text"
+                value={newProgRef}
+                onChange={(e) => setNewProgRef(e.target.value)}
+                placeholder="Programme Name (Reference)"
+                style={{
+                  width: '180px',
+                  padding: '7px 9px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <input
+                type="text"
+                value={newProgCode}
+                onChange={(e) => setNewProgCode(e.target.value)}
+                placeholder="ProgramCode (e.g. PFPSYGS25)"
+                style={{
+                  width: '140px',
+                  padding: '7px 9px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <input
+                type="text"
+                value={newProgWorkflow}
+                onChange={(e) => setNewProgWorkflow(e.target.value)}
+                placeholder="workFlowId (e.g. 151)"
+                style={{
+                  width: '110px',
+                  padding: '7px 9px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <input
+                type="text"
+                value={newProgName}
+                onChange={(e) => setNewProgName(e.target.value)}
+                placeholder="Full Program Name"
+                style={{
+                  width: '180px',
+                  padding: '7px 9px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  background: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Plus size={14} />
+                <span>Add Programme</span>
+              </button>
+            </form>
+          ) : activeTab === 'college' ? (
+            <form
+              onSubmit={handleAdd}
+              style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}
+            >
+              <input
+                type="text"
+                value={newClgId}
+                onChange={(e) => setNewClgId(e.target.value)}
+                placeholder="CollegeId (e.g. 435)"
+                style={{
+                  width: '100px',
+                  padding: '7px 9px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <input
+                type="text"
+                value={newClgCode}
+                onChange={(e) => setNewClgCode(e.target.value)}
+                placeholder="CollegeCode"
+                style={{
+                  width: '100px',
+                  padding: '7px 9px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <input
+                type="text"
+                value={newClgName}
+                onChange={(e) => setNewClgName(e.target.value)}
+                placeholder="College Name"
+                style={{
+                  width: '190px',
+                  padding: '7px 9px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <input
+                type="text"
+                value={newClgRef}
+                onChange={(e) => setNewClgRef(e.target.value)}
+                placeholder="CLG Name (Address/Campus)"
+                style={{
+                  width: '190px',
+                  padding: '7px 9px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  background: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Plus size={14} />
+                <span>Add College</span>
+              </button>
+            </form>
+          ) : (
+            <form
+              onSubmit={handleAdd}
+              style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
+            >
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={`New ${currentTabConfig.nameLabel}`}
+                style={{
+                  width: '210px',
+                  padding: '7px 10px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <input
+                type="text"
+                value={newId}
+                onChange={(e) => setNewId(e.target.value)}
+                placeholder="ID"
+                style={{
+                  width: '95px',
+                  padding: '7px 10px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  background: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Plus size={14} />
+                <span>Add Entry</span>
+              </button>
+            </form>
+          )}
         </div>
 
         {/* Scrollable Table Content */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: '260px', maxHeight: '45vh' }}>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: '260px', maxHeight: '46vh' }}>
           {filteredList.length === 0 ? (
             <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)' }}>
               <Database size={36} color="var(--line)" style={{ margin: '0 auto 8px' }} />
@@ -769,10 +1230,323 @@ export default function LookupIdManagerModal({
                 {searchQuery ? `No entries matching "${searchQuery}"` : `No ${currentTabConfig.label} defined yet.`}
               </p>
               <span style={{ fontSize: '11.5px', marginTop: '4px', display: 'inline-block' }}>
-                Use the inputs above to add a new ID pair, or upload an Excel/CSV file to bulk import.
+                Use the inputs above to add an entry, or upload an Excel/CSV file to bulk import.
               </span>
             </div>
+          ) : activeTab === 'program' ? (
+            /* Programme Table */
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                textAlign: 'left',
+                fontSize: '12px'
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--bg)',
+                    borderBottom: '2px solid var(--line)',
+                    color: 'var(--muted)',
+                    fontSize: '11px',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                    zIndex: 5
+                  }}
+                >
+                  <th style={{ padding: '8px 14px', width: '40px', textAlign: 'center' }}>#</th>
+                  <th style={{ padding: '8px 14px', width: '220px' }}>Programme Name (Reference)</th>
+                  <th style={{ padding: '8px 14px', width: '120px' }}>ProgramCode</th>
+                  <th style={{ padding: '8px 14px', width: '90px' }}>workFlowId</th>
+                  <th style={{ padding: '8px 14px' }}>Program Name</th>
+                  <th style={{ padding: '8px 14px', width: '90px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedList.map((item, idx) => {
+                  const actualIndex = currentList.indexOf(item);
+                  const isEditing = editingIdx === actualIndex;
+
+                  return (
+                    <tr
+                      key={`${item.code}-${item.workflowId}-${actualIndex}`}
+                      style={{
+                        borderBottom: '1px solid var(--line)',
+                        background: isEditing ? 'var(--accent-soft)' : (idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)')
+                      }}
+                    >
+                      <td style={{ padding: '8px 14px', textAlign: 'center', color: 'var(--muted)', fontFamily: 'monospace', fontSize: '11px' }}>
+                        {page * pageSize + idx + 1}
+                      </td>
+
+                      {/* Reference Name */}
+                      <td style={{ padding: '8px 14px' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editProgRef}
+                            onChange={(e) => setEditProgRef(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11.5px', borderRadius: '4px', border: '1px solid var(--accent)', background: 'var(--panel)', color: 'var(--ink)' }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{item.pgmName}</span>
+                        )}
+                      </td>
+
+                      {/* ProgramCode */}
+                      <td style={{ padding: '8px 14px' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editProgCode}
+                            onChange={(e) => setEditProgCode(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11.5px', fontFamily: 'monospace', borderRadius: '4px', border: '1px solid var(--accent)', background: 'var(--panel)', color: 'var(--ink)' }}
+                          />
+                        ) : (
+                          <span style={{ padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 700, fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--line)', display: 'inline-block' }}>
+                            {item.code}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* workFlowId */}
+                      <td style={{ padding: '8px 14px' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editProgWorkflow}
+                            onChange={(e) => setEditProgWorkflow(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11.5px', fontFamily: 'monospace', borderRadius: '4px', border: '1px solid var(--accent)', background: 'var(--panel)', color: 'var(--ink)' }}
+                          />
+                        ) : (
+                          <span style={{ padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 700, fontSize: '11px', background: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1px solid rgba(22, 163, 74, 0.25)', display: 'inline-block' }}>
+                            {item.workflowId}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Full Program Name */}
+                      <td style={{ padding: '8px 14px' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editProgName}
+                            onChange={(e) => setEditProgName(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11.5px', borderRadius: '4px', border: '1px solid var(--accent)', background: 'var(--panel)', color: 'var(--ink)' }}
+                          />
+                        ) : (
+                          <span style={{ color: 'var(--muted)', fontSize: '11.5px' }}>{item.name}</span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ padding: '8px 14px', textAlign: 'right' }}>
+                        {isEditing ? (
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => saveEdit(actualIndex)}
+                              title="Save changes"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              <Check size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              title="Cancel"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: 'var(--panel)', color: 'var(--muted)', border: '1px solid var(--line)', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => startEdit(item, actualIndex)}
+                              title="Edit"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: 'var(--panel)', color: 'var(--accent)', border: '1px solid var(--line)', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(actualIndex, item.pgmName)}
+                              title="Delete"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: 'var(--panel)', color: 'var(--danger)', border: '1px solid var(--line)', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : activeTab === 'college' ? (
+            /* College Table */
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                textAlign: 'left',
+                fontSize: '12px'
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--bg)',
+                    borderBottom: '2px solid var(--line)',
+                    color: 'var(--muted)',
+                    fontSize: '11px',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                    zIndex: 5
+                  }}
+                >
+                  <th style={{ padding: '8px 14px', width: '40px', textAlign: 'center' }}>#</th>
+                  <th style={{ padding: '8px 14px', width: '90px' }}>CollegeId</th>
+                  <th style={{ padding: '8px 14px', width: '90px' }}>CollegeCode</th>
+                  <th style={{ padding: '8px 14px', width: '230px' }}>College Name</th>
+                  <th style={{ padding: '8px 14px' }}>CLG Name (Address/Campus)</th>
+                  <th style={{ padding: '8px 14px', width: '90px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedList.map((item, idx) => {
+                  const actualIndex = currentList.indexOf(item);
+                  const isEditing = editingIdx === actualIndex;
+
+                  return (
+                    <tr
+                      key={`${item.id}-${item.code}-${actualIndex}`}
+                      style={{
+                        borderBottom: '1px solid var(--line)',
+                        background: isEditing ? 'var(--accent-soft)' : (idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)')
+                      }}
+                    >
+                      <td style={{ padding: '8px 14px', textAlign: 'center', color: 'var(--muted)', fontFamily: 'monospace', fontSize: '11px' }}>
+                        {page * pageSize + idx + 1}
+                      </td>
+
+                      {/* CollegeId */}
+                      <td style={{ padding: '8px 14px' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editClgId}
+                            onChange={(e) => setEditClgId(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11.5px', fontFamily: 'monospace', borderRadius: '4px', border: '1px solid var(--accent)', background: 'var(--panel)', color: 'var(--ink)' }}
+                          />
+                        ) : (
+                          <span style={{ padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 700, fontSize: '11px', background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--line)', display: 'inline-block' }}>
+                            {item.id}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* CollegeCode */}
+                      <td style={{ padding: '8px 14px' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editClgCode}
+                            onChange={(e) => setEditClgCode(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11.5px', fontFamily: 'monospace', borderRadius: '4px', border: '1px solid var(--accent)', background: 'var(--panel)', color: 'var(--ink)' }}
+                          />
+                        ) : (
+                          <span style={{ padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 700, fontSize: '11px', background: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1px solid rgba(22, 163, 74, 0.25)', display: 'inline-block' }}>
+                            {item.code}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* College Name */}
+                      <td style={{ padding: '8px 14px' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editClgName}
+                            onChange={(e) => setEditClgName(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11.5px', borderRadius: '4px', border: '1px solid var(--accent)', background: 'var(--panel)', color: 'var(--ink)' }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{item.name}</span>
+                        )}
+                      </td>
+
+                      {/* CLG Name */}
+                      <td style={{ padding: '8px 14px' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editClgRef}
+                            onChange={(e) => setEditClgRef(e.target.value)}
+                            style={{ width: '100%', padding: '4px 6px', fontSize: '11.5px', borderRadius: '4px', border: '1px solid var(--accent)', background: 'var(--panel)', color: 'var(--ink)' }}
+                          />
+                        ) : (
+                          <span style={{ color: 'var(--muted)', fontSize: '11.5px' }}>{item.clgRef || item.name}</span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ padding: '8px 14px', textAlign: 'right' }}>
+                        {isEditing ? (
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => saveEdit(actualIndex)}
+                              title="Save changes"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              <Check size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              title="Cancel"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: 'var(--panel)', color: 'var(--muted)', border: '1px solid var(--line)', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => startEdit(item, actualIndex)}
+                              title="Edit"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: 'var(--panel)', color: 'var(--accent)', border: '1px solid var(--line)', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(actualIndex, item.name)}
+                              title="Delete"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: 'var(--panel)', color: 'var(--danger)', border: '1px solid var(--line)', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           ) : (
+            /* Simple 2-column Table */
             <table
               style={{
                 width: '100%',

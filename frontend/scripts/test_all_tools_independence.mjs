@@ -2289,10 +2289,20 @@ PR24BBA001	AMITH K	670741	842228132551	VILLAGE\\\\STREET
 // -------------------------------------------------------------
 console.log('\n[Test Suite 23: Admission ID Lookup Definition & Management Engine]');
 
-test('DEFAULT_LOOKUP_DATA contains all 7 required entity lookup lists with valid names and IDs', () => {
-  assert.equal(LOOKUP_TAB_CONFIG.length, 7);
+test('DEFAULT_LOOKUP_DATA contains all 9 required entity lookup lists with valid names and IDs', () => {
+  assert.equal(LOOKUP_TAB_CONFIG.length, 9);
   const keys = LOOKUP_TAB_CONFIG.map(t => t.key);
-  assert.deepEqual(keys.sort(), ['caste', 'category', 'country', 'qualification', 'religion', 'state', 'stream'].sort());
+  assert.deepEqual(keys.sort(), ['caste', 'category', 'college', 'country', 'program', 'qualification', 'religion', 'state', 'stream'].sort());
+
+  // Check programmes
+  assert.ok(DEFAULT_LOOKUP_DATA.program.length >= 15);
+  assert.ok(DEFAULT_LOOKUP_DATA.program.some(p => p.code === 'PFPSYGS25' && p.workflowId === '151'));
+  assert.ok(DEFAULT_LOOKUP_DATA.program.some(p => p.code === 'PFCOMGS25' && p.workflowId === '148'));
+
+  // Check colleges
+  assert.ok(DEFAULT_LOOKUP_DATA.college.length >= 15);
+  assert.ok(DEFAULT_LOOKUP_DATA.college.some(c => c.id === '435' && c.code === '435' && c.name === 'Department of Anthropology'));
+  assert.ok(DEFAULT_LOOKUP_DATA.college.some(c => c.id === '432' && c.name.includes('Behavioural Sciences')));
 
   // Check categories
   assert.ok(DEFAULT_LOOKUP_DATA.category.length >= 8);
@@ -2332,6 +2342,22 @@ test('buildLookupMaps indexes both Name -> ID and ID -> Name and supports dynami
   const mukkuvanIdx = customLookups.caste.findIndex(c => c.name === 'Mukkuvan');
   customLookups.caste[mukkuvanIdx].id = '325';
 
+  // Add custom programme
+  customLookups.program.push({
+    pgmName: 'Custom Data Science Program',
+    code: 'PFDS2026',
+    workflowId: '999',
+    name: 'Custom Data Science FYUGP Program 2026'
+  });
+
+  // Add custom college
+  customLookups.college.push({
+    id: '888',
+    code: '888',
+    name: 'College of Advanced AI Studies',
+    clgRef: 'College of Advanced AI Studies, Thavakkara Campus'
+  });
+
   const maps = buildLookupMaps(customLookups);
 
   // Verify new caste
@@ -2342,27 +2368,38 @@ test('buildLookupMaps indexes both Name -> ID and ID -> Name and supports dynami
   assert.equal(maps.casteByName['mukkuvan'].id, '325');
   assert.equal(maps.casteById['325'].name, 'Mukkuvan');
 
+  // Verify custom programme indexing
+  assert.equal(maps.programByName['custom data science program'].code, 'PFDS2026');
+  assert.equal(maps.programByCode['pfds2026'].workflowId, '999');
+
+  // Verify custom college indexing
+  assert.equal(maps.collegeByName['college of advanced ai studies'].id, '888');
+  assert.equal(maps.collegeById['888'].code, '888');
+
   // Verify state resolution
   assert.equal(maps.stateByName['kerala'].id, '18');
   assert.equal(maps.stateByName['tamilnadu'].id, '31');
   assert.equal(maps.stateById['31'].name, 'Tamil Nadu');
 });
 
-test('parseUploadedLookupSpreadsheet extracts multi-table reference sheet and dedicated 2-column sheets', () => {
+test('parseUploadedLookupSpreadsheet extracts multi-table reference sheet including programmes and colleges', () => {
   // 1. Multi-column workbook (like Kannur IDs)
   const multiColWs = XLSX.utils.aoa_to_sheet([
-    ['categoryName', 'CategoryId', '', 'religion', 'religionId', '', 'Caste', 'CasteId'],
-    ['SEBC-Muslim', '10', '', 'Islam', '2', '', 'Mukkuvan', '320'],
-    ['Scheduled Castes', '2', '', 'Hindu', '1', '', 'Thiyyas', '169'],
-    ['General', '1', '', 'Christian', '3', '', 'Thevar', '250']
+    ['Programme Name (Reference)', 'ProgramCode', 'workFlowId', 'Program Name', '', 'CollegeId', 'CollegeCode', 'College Name', 'CLG Name', '', 'categoryName', 'CategoryId', '', 'Caste', 'CasteId'],
+    ['Five Year Integrated Masters Programme in Clinical Psychology', 'PFPSYGS25', '151', 'Five Year Integrated Masters Programme in Clinical Psychology(with Credits)-Regular-FYIMP-2025-Clinical Psychology-FYIMP Year I SEMESTER I', '', '435', '435', 'Department of Anthropology', 'Department of Anthropology,Dr. Janaki Ammal Campus,Palayad', '', 'SEBC-Muslim', '10', '', 'Mukkuvan', '320'],
+    ['Five Year Integrated Masters Programme in Commerce', 'PFCOMGS25', '148', 'Five Year Integrated Masters Programme in Commerce(with Credits)-Regular-FYIMP-2025-Commerce-FYIMP Year I SEMESTER I', '', '432', '432', 'School of Behavioural Sciences, Mangattuparamba', 'Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus', '', 'Scheduled Castes', '2', '', 'Thiyyas', '169'],
+    ['Five Year Integrated Masters Programme in Music', 'PFMUSGA25', '153', 'Five Year Integrated Masters Programme in Music', '', '434', '434', 'Department of Commerce and Business Studies', 'Department of Commerce and Business Studies,DR.P.K.R.M.Campus', '', 'General', '1', '', 'Thevar', '250']
   ]);
   const multiWb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(multiWb, multiColWs, 'Kannur IDs');
 
   const parsedMulti = parseUploadedLookupSpreadsheet(multiWb, 'caste');
+  assert.equal(parsedMulti.imported.program.length, 3);
+  assert.equal(parsedMulti.imported.college.length, 3);
   assert.equal(parsedMulti.imported.category.length, 3);
-  assert.equal(parsedMulti.imported.religion.length, 3);
   assert.equal(parsedMulti.imported.caste.length, 3);
+  assert.ok(parsedMulti.imported.program.some(p => p.code === 'PFPSYGS25' && p.workflowId === '151'));
+  assert.ok(parsedMulti.imported.college.some(c => c.id === '435' && c.name === 'Department of Anthropology'));
   assert.ok(parsedMulti.imported.caste.some(c => c.name === 'Thevar' && c.id === '250'));
 
   // 2. Dedicated 2-column spreadsheet for active tab
