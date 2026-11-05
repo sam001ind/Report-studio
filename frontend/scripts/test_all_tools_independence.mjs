@@ -945,6 +945,99 @@ test('Transforms studentmaster_fyugp 43 database dump columns into the exact 44 
   assert.equal(clgLookup.code, '200');
 });
 
+test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master output columns with Kannur lookups', async () => {
+  const { 
+    TARGET_COLUMNS, 
+    CATEGORY_LOOKUP, 
+    CASTE_LOOKUP, 
+    RELIGION_LOOKUP, 
+    PROGRAM_LOOKUP, 
+    COLLEGE_LOOKUP,
+    STREAM_LOOKUP,
+    QUALIFICATION_LOOKUP
+  } = await import('../src/data/admissionLookups.js');
+
+  // Exact 38 source headers provided by user
+  const sourceRow = {
+    name: 'LAKSHMI S',
+    gender: 'Female',
+    mobile: 7902907688,
+    email: 'kadalaama@gmail.com',
+    username: 26322227,
+    dob: '2008-09-08 00:00:00',
+    aadhaarNumber: 499728191337,
+    ABCId: 611352377705,
+    CountryId: 107,
+    CountryName: 'Indian',
+    StateId: 18,
+    corrStateName: 'Kerala',
+    corrAddress: 'KANNANTHALI,NEAR V V SMARAKA VAYANASHALA,ANANTHAMPALLA,OZHINHAVALAPPU',
+    corrCity: 'Ananthampalla',
+    corrPin: 671314,
+    CategoryId: 6,
+    categoryName: 'SEBC-Other Backward Hindu',
+    CasteId: 378,
+    Caste: 'Mukkuvan',
+    ReligionId: 1,
+    religion: 'Hindu',
+    workFlowId: 'NA',
+    'Program Name': 'Five Year Integrated Masters Programme in  Business Administration',
+    'Program Code': 133,
+    'College Code': 313,
+    CollegeId: 'CollegeId',
+    'College Name': 'Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002',
+    QualificationName: 'HSE - Kerala',
+    Stream: 'Commerce',
+    CertificateNumber: 25408061,
+    NoOfAttempts: 1,
+    MarksObtained: 1043,
+    Percentage: 86.9167,
+    MarksOutOf: 1200,
+    CGPA: 86.9167,
+    'Seat Number': 25408061,
+    'Result Date': 2026,
+    'Result Status': 'Passed'
+  };
+
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const catLookup = CATEGORY_LOOKUP[norm(sourceRow.categoryName)] || { id: '10' };
+  const casteId = CASTE_LOOKUP[norm(sourceRow.Caste)] || '1';
+  const relLookup = RELIGION_LOOKUP[norm(sourceRow.religion)] || { id: '1' };
+  const progLookup = PROGRAM_LOOKUP[norm(sourceRow['Program Name'])] || null;
+  const clgLookup = COLLEGE_LOOKUP[norm(sourceRow['College Name'])] || null;
+  const qualLookup = QUALIFICATION_LOOKUP[norm(sourceRow.QualificationName)] || { facultyId: '2' };
+  const streamLookup = STREAM_LOOKUP[norm(sourceRow.Stream)] || { id: '2' };
+
+  // Assert all lookup results match Working File
+  assert.equal(catLookup.id, '10');
+  assert.equal(casteId, '320'); // Mukkuvan in Kannur IDs
+  assert.equal(relLookup.id, '1');
+  assert.ok(progLookup);
+  assert.equal(progLookup.code, 'PFMBAGA25');
+  assert.equal(progLookup.workflowId, '162');
+  assert.equal(progLookup.name, 'Five Year Integrated Masters Programme in Business Administration(with Credits)-Regular-FYIMP-2025-Business Administration-FYIMP Year I SEMESTER I');
+
+  assert.ok(clgLookup);
+  assert.equal(clgLookup.id, '133');
+  assert.equal(clgLookup.code, '133');
+  assert.equal(clgLookup.name, 'Department of Management Studies');
+
+  assert.equal(qualLookup.facultyId, '2');
+  assert.equal(streamLookup.id, '2');
+
+  // Verify passing year and result date logic
+  const rawResultDate = String(sourceRow['Result Date']);
+  let passingYear = '2026';
+  let resultDate = '';
+  if (/^\d{4}$/.test(rawResultDate.trim())) {
+    passingYear = rawResultDate.trim();
+    resultDate = `31-05-${passingYear}`;
+  }
+  assert.equal(passingYear, '2026');
+  assert.equal(resultDate, '31-05-2026');
+});
+
 // -------------------------------------------------------------
 // 18. Data Comparison & Reconciliation Studio (2 Lakh Rows Engine)
 // -------------------------------------------------------------

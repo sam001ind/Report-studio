@@ -576,14 +576,14 @@ export default function AdmissionImportPage() {
     // 27, 28, 29, 30. College Details
     const rawCollegeCode = getVal('collegecode', 'colcode', 'centre', 'center', 'centercode');
     const rawCollegeName = getVal('collegename', 'college', 'centername');
-    const collegeLookup = COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || {
-      id: rawCollegeCode || '133',
+    const collegeLookup = COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeCode)] || {
+      id: (getVal('collegeid') !== 'CollegeId' ? getVal('collegeid') : '') || rawCollegeCode || '133',
       code: rawCollegeCode || '133',
       name: rawCollegeName || 'Department of Management Studies',
       clgRef: rawCollegeName || 'Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002'
     };
     const clgName = getVal('clgname') || collegeLookup.clgRef || collegeLookup.name;
-    const collegeId = getVal('collegeid') || collegeLookup.id;
+    const collegeId = (collegeLookup ? collegeLookup.id : '') || (getVal('collegeid') !== 'CollegeId' ? getVal('collegeid') : '') || '133';
     const collegeName = collegeLookup.name || rawCollegeName;
     const collegeCode = collegeLookup.code || rawCollegeCode;
 
@@ -640,17 +640,20 @@ export default function AdmissionImportPage() {
     const seatNumber = rawSeat || certificateNumber;
 
     // 42. Passing Year (Column 42 with blank header '')
-    const passingYear = getVal('qcyear', 'passingyear', 'admyear') || '2026';
-
-    // 43. Result Date (Column name: 'Result Date ')
-    const rawResultDate = getVal('resultdate', 'admit_date', 'passeddate');
+    const rawResultDate = getVal('resultdate', 'passeddate', 'admit_date');
+    let passingYear = getVal('qcyear', 'passingyear', 'admyear');
     let resultDate = '';
-    if (rawResultDate) {
+
+    // If Result Date is a 4-digit year like "2026", "2025", "2024"
+    if (rawResultDate && /^\d{4}$/.test(rawResultDate.trim())) {
+      passingYear = rawResultDate.trim();
+      resultDate = `31-05-${passingYear}`;
+    } else if (rawResultDate) {
       resultDate = parseDobDMY(rawResultDate);
     }
-    if (!resultDate) {
-      resultDate = `31-05-${passingYear}`;
-    }
+
+    if (!passingYear) passingYear = '2026';
+    if (!resultDate) resultDate = `31-05-${passingYear}`;
 
     // 44. ResultStatus
     const resultStatus = getVal('resultstatus', 'status', 'result') || 'Passed';
