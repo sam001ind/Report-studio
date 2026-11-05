@@ -83,9 +83,12 @@ export default function LookupIdManagerModal({
     return filteredList.slice(start, start + pageSize);
   }, [filteredList, page, pageSize]);
 
-  const totalPages = Math.ceil(filteredList.length / pageSize) || 1;
+  const totalEntriesCount = useMemo(() => {
+    if (!lookups) return 0;
+    return Object.values(lookups).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+  }, [lookups]);
 
-  if (!isOpen) return null;
+  const totalPages = Math.ceil(filteredList.length / pageSize) || 1;
 
   const handleTabChange = (newTab) => {
     setActiveTab(newTab);
@@ -318,10 +321,7 @@ export default function LookupIdManagerModal({
     }
   };
 
-  const totalEntriesCount = useMemo(() => {
-    if (!lookups) return 0;
-    return Object.values(lookups).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
-  }, [lookups]);
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
