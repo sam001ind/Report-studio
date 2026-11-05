@@ -856,6 +856,95 @@ test('Multi-sheet workbook: skips blank/instruction sheet 0 and selects candidat
   assert.equal(bestCount, 2);
 });
 
+test('Transforms studentmaster_fyugp 43 database dump columns into the exact 44 master target columns with Kannur lookups', async () => {
+  const { 
+    TARGET_COLUMNS, 
+    CATEGORY_LOOKUP, 
+    CASTE_LOOKUP, 
+    RELIGION_LOOKUP, 
+    PROGRAM_LOOKUP, 
+    COLLEGE_LOOKUP 
+  } = await import('../src/data/admissionLookups.js');
+
+  assert.equal(TARGET_COLUMNS.length, 44);
+  assert.equal(TARGET_COLUMNS[0], 'Name');
+  assert.equal(TARGET_COLUMNS[5], 'dob');
+  assert.equal(TARGET_COLUMNS[6], 'Date of Birth (DD/MM/YY)');
+  assert.equal(TARGET_COLUMNS[22], 'PGM Name');
+  assert.equal(TARGET_COLUMNS[26], 'CLG NAME');
+  assert.equal(TARGET_COLUMNS[41], '');
+  assert.equal(TARGET_COLUMNS[42], 'Result Date ');
+  assert.equal(TARGET_COLUMNS[43], 'ResultStatus');
+
+  // Simulate a raw student master dump row
+  const rawDumpRow = {
+    regno: '',
+    name: 'RAKSHAN BHANDARY',
+    dob: '08-12-22',
+    sex: 'M',
+    address: 'NEJIKKAR HOUSE,BADAJE,BADAJE,BADAJE',
+    district: 'Kasaragod',
+    state: 'Kerala',
+    pin: '671323',
+    phone: '9633275268',
+    religion: 'Hindu',
+    caste: 'Bhandari or Bhondari',
+    category: 'SEBC-Other Backward Hindu',
+    centre: 'GP',
+    admyear: '2026',
+    applno: '26310435',
+    course: 'AKN',
+    fee: 'N',
+    qcno: '25408861',
+    qcyear: '2026',
+    qcboard: 'HSE - Kerala',
+    collegecode: '200',
+    admnum: '7119',
+    email: 'n97262046@gmail.com',
+    aadhar: '309000414229',
+    abcid: '207611003542',
+    admit_date: '01/07/2026'
+  };
+
+  const headerMap = {};
+  Object.keys(rawDumpRow).forEach(k => {
+    headerMap[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = k;
+  });
+
+  const getVal = (...keys) => {
+    for (const k of keys) {
+      const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const actualKey = headerMap[norm];
+      if (actualKey && rawDumpRow[actualKey] !== undefined && rawDumpRow[actualKey] !== null) {
+        return String(rawDumpRow[actualKey]).trim();
+      }
+    }
+    return '';
+  };
+
+  // Transformation logic
+  const normCategory = getVal('category').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const catLookup = CATEGORY_LOOKUP[normCategory] || { id: '10', name: getVal('category') };
+
+  const normCaste = getVal('caste').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const casteId = CASTE_LOOKUP[normCaste] || CASTE_LOOKUP[getVal('caste')] || '1';
+
+  const normRel = getVal('religion').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const relLookup = RELIGION_LOOKUP[normRel] || { id: '1', name: getVal('religion') };
+
+  const rawCourse = getVal('course');
+  const progMatch = PROGRAM_LOOKUP[rawCourse.toLowerCase()] || null;
+
+  const clgLookup = COLLEGE_LOOKUP[getVal('collegecode')] || null;
+
+  assert.equal(catLookup.id, '10');
+  assert.equal(casteId, '16'); // Bhandari is 16 in Kannur IDs
+  assert.equal(relLookup.id, '1'); // Hindu is 1
+  assert.equal(progMatch.code, 'KAN_BA(HONOURS)');
+  assert.equal(clgLookup.name, 'Govt. College Mananthavady');
+  assert.equal(clgLookup.code, '200');
+});
+
 // -------------------------------------------------------------
 // 18. Data Comparison & Reconciliation Studio (2 Lakh Rows Engine)
 // -------------------------------------------------------------

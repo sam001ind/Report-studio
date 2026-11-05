@@ -18,7 +18,9 @@ import {
   CASTE_LOOKUP, 
   RELIGION_LOOKUP, 
   PROGRAM_LOOKUP, 
-  COLLEGE_LOOKUP 
+  COLLEGE_LOOKUP,
+  STREAM_LOOKUP,
+  QUALIFICATION_LOOKUP
 } from '../data/admissionLookups';
 
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -32,7 +34,8 @@ const cleanEscapeArtifacts = (val) => {
   return str;
 };
 
-const parseExcelDate = (val) => {
+// Formats date to YYYY-MM-DD
+export const parseDobYMD = (val) => {
   const clean = cleanEscapeArtifacts(val);
   if (!clean) return '';
   if (/^\d{4,5}$/.test(clean)) {
@@ -40,30 +43,65 @@ const parseExcelDate = (val) => {
     if (serial > 10000 && serial < 60000) {
       const d = new Date((serial - 25569) * 86400 * 1000);
       if (!isNaN(d.getTime())) {
-        return d.toISOString().split('T')[0];
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
       }
     }
   }
+  // Check YY-MM-DD (e.g. "08-12-22" from dump)
+  const yyMatch = clean.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (yyMatch) {
+    let year = parseInt(yyMatch[1], 10);
+    year = year > 50 ? 1900 + year : 2000 + year;
+    const m = String(parseInt(yyMatch[2], 10)).padStart(2, '0');
+    const d = String(parseInt(yyMatch[3], 10)).padStart(2, '0');
+    return `${year}-${m}-${d}`;
+  }
+  // Check DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dmyMatch) {
+    const d = String(parseInt(dmyMatch[1], 10)).padStart(2, '0');
+    const m = String(parseInt(dmyMatch[2], 10)).padStart(2, '0');
+    const y = dmyMatch[3];
+    return `${y}-${m}-${d}`;
+  }
+  // Standard JS Date
   const d = new Date(clean);
   if (!isNaN(d.getTime())) {
-    return d.toISOString().split('T')[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
   return clean;
+};
+
+// Formats date to DD/MM/YYYY
+export const parseDobDMY = (val) => {
+  const ymd = parseDobYMD(val);
+  if (!ymd) return '';
+  const parts = ymd.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return ymd;
 };
 
 // Admission allotment header recognition weights
 export const ADMISSION_HEADER_WEIGHTS = [
   { keys: ['name', 'candidatename', 'studentname', 'fullname', 'applicantname', 'nameofthecandidate'], weight: 12, label: 'Name' },
-  { keys: ['appno', 'applicationno', 'applno', 'applicationnumber', 'regno', 'registerno', 'registrationno', 'prn', 'candidateid', 'username', 'slno', 'sno', 'rollno', 'seatno'], weight: 10, label: 'Identifier / SlNo' },
+  { keys: ['appno', 'applicationno', 'applno', 'applicationnumber', 'regno', 'registerno', 'registrationno', 'prn', 'candidateid', 'username', 'slno', 'sno', 'rollno', 'seatno', 'admnum'], weight: 10, label: 'Identifier / SlNo' },
   { keys: ['gender', 'sex'], weight: 5, label: 'Gender' },
   { keys: ['dob', 'dateofbirth', 'birthdate'], weight: 5, label: 'DOB' },
-  { keys: ['category', 'community', 'allotmentquota', 'quota', 'allottedcategory', 'caste', 'religion'], weight: 8, label: 'Category' },
+  { keys: ['category', 'community', 'allotmentquota', 'quota', 'allottedcategory', 'caste', 'religion', 'actual_category'], weight: 8, label: 'Category' },
   { keys: ['mobile', 'mobilenumber', 'phone', 'contact', 'contactnumber'], weight: 8, label: 'Mobile' },
   { keys: ['email', 'emailid', 'mail'], weight: 6, label: 'Email' },
   { keys: ['marks', 'marksobtained', 'indexmark', 'totalmarks', 'percentage', 'percent', 'cgpa', 'rank', 'allotmentrank', 'securedmarks', 'marksoutof'], weight: 8, label: 'Marks' },
-  { keys: ['course', 'coursename', 'program', 'programname', 'programme', 'degree', 'subject', 'stream'], weight: 6, label: 'Course/Program' },
-  { keys: ['college', 'collegename', 'institution', 'center', 'collegecode', 'centercode', 'colcode'], weight: 5, label: 'College' },
-  { keys: ['aadhaar', 'aadhaarnumber', 'adhar', 'abcid', 'certificatenumber'], weight: 5, label: 'Aadhaar/Cert' }
+  { keys: ['course', 'coursename', 'program', 'programname', 'programme', 'degree', 'subject', 'stream'], weight: 8, label: 'Course/Program' },
+  { keys: ['college', 'collegename', 'institution', 'center', 'centre', 'collegecode', 'centercode', 'colcode'], weight: 6, label: 'College' },
+  { keys: ['aadhaar', 'aadhaarnumber', 'adhar', 'abcid', 'certificatenumber', 'qcno', 'qcboard', 'qcyear', 'admit_date'], weight: 8, label: 'Student Master Dump Identifiers' }
 ];
 
 export const scoreAdmissionHeaderRow = (rowArray) => {
@@ -450,150 +488,178 @@ export default function AdmissionImportPage() {
     };
 
     // 1. Name
-    const name = getVal('name', 'fullname', 'candidatename', 'studentname');
+    const name = getVal('name', 'fullname', 'candidatename', 'studentname', 'cname');
 
     // 2. Gender
     const rawGender = getVal('gender', 'sex');
     let gender = 'Male';
     if (rawGender.toLowerCase().startsWith('f')) gender = 'Female';
     else if (rawGender.toLowerCase().startsWith('m')) gender = 'Male';
-    else if (rawGender) gender = 'Other';
+    else if (rawGender) gender = rawGender;
 
-    // 3. Mobile (Strip whitespace, country prefixes like +91)
+    // 3. Mobile (clean 10 digits)
     const rawMobile = getVal('mobile', 'mobilenumber', 'contact', 'contactnumber', 'phone');
     const mobile = rawMobile.replace(/\D/g, '').slice(-10);
 
-    // 4. Email
+    // 4. Email (clean lowercase)
     const rawEmail = getVal('email', 'emailid', 'mail');
-    const email = rawEmail.toLowerCase();
+    const email = rawEmail.toLowerCase().trim();
 
-    // 5. Username (Application ID / Registration Number)
-    const username = getVal('username', 'applicationnumber', 'appno', 'regno', 'prn', 'candidateid');
+    // 5. Username (Application Number / Reg No / Admn No)
+    const username = getVal('username', 'applno', 'applicationnumber', 'appno', 'regno', 'registerno', 'admnum', 'prn', 'candidateid');
 
-    // 6. Date of Birth (Handles Excel Serial Dates like 38302, 39067)
+    // 6 & 7. Date of Birth: YYYY-MM-DD for `dob` and DD/MM/YYYY for `Date of Birth (DD/MM/YY)`
     const rawDob = getVal('dob', 'dateofbirth', 'birthdate');
-    const dob = parseExcelDate(rawDob);
+    const dob = parseDobYMD(rawDob);
+    const dobDMY = parseDobDMY(rawDob);
 
-    // 7. AadhaarNumber
-    const rawAadhaar = getVal('aadhaarnumber', 'aadhaar', 'adharnumber', 'adhar');
+    // 8. AadhaarNumber (Preserve exact 12 digits as string)
+    const rawAadhaar = getVal('aadhaarnumber', 'aadhar', 'adharnumber', 'adhar');
     const aadhaarNumber = rawAadhaar.replace(/\D/g, '').slice(0, 12);
 
-    // 8. ABCId
+    // 9. ABCId (Preserve exact 12 digits as string)
     const rawABC = getVal('abcid', 'abc', 'academicbankofcredits');
     const abcId = rawABC.replace(/\D/g, '').slice(0, 12);
 
-    // 9. CountryId & CountryName
+    // 10 & 11. CountryId & CountryName
     const countryId = getVal('countryid') || '107';
-    const countryName = getVal('countryname') || 'India';
+    const countryName = getVal('countryname') || 'Indian';
 
-    // 11. State
-    const corrStateId = getVal('corrstateid', 'stateid') || '18';
+    // 12 & 13. State
+    const corrStateId = getVal('corrstateid', 'stateid') || '';
     const corrStateName = getVal('corrstatename', 'statename', 'state') || 'Kerala';
 
-    // 13. Address, City, Pin
+    // 14, 15, 16. Address, City, Pin
     const corrAddress = getVal('corraddress', 'address', 'communicationaddress', 'permaddress');
     let corrCity = getVal('corrcity', 'city', 'town', 'place', 'district');
     const rawPin = getVal('corrpin', 'pincode', 'pin', 'postalcode');
     const corrPin = rawPin.replace(/\D/g, '').slice(0, 6);
 
-    // 16. Category
-    const rawCategory = getVal('category', 'categoryname', 'castecategory', 'community');
+    // 17 & 18. Category
+    const rawCategory = getVal('category', 'categoryname', 'castecategory', 'community', 'actual_category');
     const normCategory = normalizeKey(rawCategory);
     const categoryLookup = CATEGORY_LOOKUP[normCategory] || { id: '10', name: rawCategory || 'General' };
     const categoryId = getVal('categoryid') || categoryLookup.id;
     const categoryName = rawCategory || categoryLookup.name;
 
-    // 18. Caste
+    // 19 & 20. Caste
     const rawCaste = getVal('caste', 'subcaste');
     const normCaste = normalizeKey(rawCaste);
-    const casteId = getVal('casteid') || CASTE_LOOKUP[normCaste] || '393';
+    const casteId = getVal('casteid') || CASTE_LOOKUP[normCaste] || CASTE_LOOKUP[rawCaste] || '1';
     const caste = rawCaste || 'General';
 
-    // 20. Religion
+    // 21 & 22. Religion
     const rawReligion = getVal('religion', 'religionname');
     const normReligion = normalizeKey(rawReligion);
     const religionLookup = RELIGION_LOOKUP[normReligion] || { id: '1', name: rawReligion || 'Hindu' };
     const religionId = getVal('religionid') || religionLookup.id;
     const religion = rawReligion || religionLookup.name;
 
-    // 22. Program & Workflow (FYUGP & FYIMP / IMPES Compatible)
+    // 23, 24, 25, 26. Program Details
+    // Sourced from course, coursename, program, programname
     const rawProgram = getVal('program', 'programname', 'programmname', 'coursename', 'course');
     const normProg = normalizeKey(rawProgram);
-    let programMatch = null;
-    for (const [pk, pv] of Object.entries(PROGRAM_LOOKUP)) {
-      if (normProg.includes(normalizeKey(pk)) || normalizeKey(pk).includes(normProg)) {
-        programMatch = pv;
-        break;
+    let programMatch = PROGRAM_LOOKUP[rawProgram.toLowerCase()] || PROGRAM_LOOKUP[normProg];
+    if (!programMatch) {
+      for (const [pk, pv] of Object.entries(PROGRAM_LOOKUP)) {
+        if (normProg.includes(normalizeKey(pk)) || normalizeKey(pk).includes(normProg)) {
+          programMatch = pv;
+          break;
+        }
       }
     }
+    const pgmName = getVal('pgmname') || (programMatch ? programMatch.pgmName : rawProgram) || 'Five Year Integrated Masters Programme in  Business Administration';
     const programName = programMatch ? programMatch.name : (rawProgram || 'FYUGP Program');
-    const programCode = getVal('programcode', 'coursecode') || (programMatch ? programMatch.code : 'UCAHISGS25');
-    const workFlowId = getVal('workflowid') || (programMatch ? programMatch.workflowId : '81');
+    const programCode = getVal('programcode', 'coursecode') || (programMatch ? programMatch.code : 'PFMBAGA25');
+    const workFlowId = getVal('workflowid') || (programMatch ? programMatch.workflowId : '162');
 
-    // 25. College (Handles 447, 304, 347, 358, 397, 351, 404)
-    const rawCollegeCode = getVal('collegecode', 'colcode', 'center', 'centercode');
+    // 27, 28, 29, 30. College Details
+    const rawCollegeCode = getVal('collegecode', 'colcode', 'centre', 'center', 'centercode');
     const rawCollegeName = getVal('collegename', 'college', 'centername');
-    const collegeLookup = COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || { code: rawCollegeCode || '101', name: rawCollegeName || 'Alpha Arts and Science College' };
-    const collegeCode = collegeLookup.code;
-    const collegeId = collegeCode; // Clears raw 'CollegeId' text artifact
-    const collegeName = collegeLookup.name;
+    const collegeLookup = COLLEGE_LOOKUP[rawCollegeCode] || COLLEGE_LOOKUP[normalizeKey(rawCollegeName)] || {
+      id: rawCollegeCode || '133',
+      code: rawCollegeCode || '133',
+      name: rawCollegeName || 'Department of Management Studies',
+      clgRef: rawCollegeName || 'Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002'
+    };
+    const clgName = getVal('clgname') || collegeLookup.clgRef || collegeLookup.name;
+    const collegeId = getVal('collegeid') || collegeLookup.id;
+    const collegeName = collegeLookup.name || rawCollegeName;
+    const collegeCode = collegeLookup.code || rawCollegeCode;
 
-    // 28. Qualification Faculty
-    const rawQual = getVal('qualificationname', 'board', 'qualifyingexam', 'boardname');
+    // 31 & 32. Qualification
+    const rawQual = getVal('qualificationname', 'qcboard', 'board', 'qualifyingexam', 'boardname');
     const normQual = normalizeKey(rawQual);
-    let qualificationFacultyId = '2'; // Default HSE, CBSE, VHSE, THSE
-    if (normQual && !normQual.includes('hse') && !normQual.includes('cbse') && !normQual.includes('vhse') && !normQual.includes('thse') && !normQual.includes('kerala')) {
+    const qualLookup = QUALIFICATION_LOOKUP[rawQual.toLowerCase()] || QUALIFICATION_LOOKUP[normQual] || null;
+    let qualificationFacultyId = getVal('qualificationfacultyid') || (qualLookup ? qualLookup.facultyId : '2');
+    if (!qualLookup && normQual && !normQual.includes('hse') && !normQual.includes('cbse') && !normQual.includes('vhse') && !normQual.includes('isc')) {
       qualificationFacultyId = '7';
     }
     const qualificationName = rawQual || 'HSE - Kerala';
 
-    // 30. Qualification Specialization & Stream (Science/Integrated Science -> 1, Commerce -> 2, Humanities -> 3)
+    // 33 & 34. Stream
     const rawStream = getVal('stream', 'group', 'specialization', 'branch');
     const normStream = normalizeKey(rawStream);
-    let qualificationSpecializationId = '1'; // Science / Integrated Science
-    if (normStream.includes('comm')) qualificationSpecializationId = '2';
-    else if (normStream.includes('hum') || normStream.includes('art')) qualificationSpecializationId = '3';
-    else if (normStream) qualificationSpecializationId = '4';
-    const stream = rawStream || (qualificationSpecializationId === '1' ? 'Science' : qualificationSpecializationId === '2' ? 'Commerce' : 'Humanities');
+    let qualificationSpecializationId = '2'; // Default Commerce (2)
+    if (STREAM_LOOKUP[normStream]) {
+      qualificationSpecializationId = STREAM_LOOKUP[normStream].id;
+    } else if (normStream.includes('sci')) {
+      qualificationSpecializationId = '1';
+    } else if (normStream.includes('comm')) {
+      qualificationSpecializationId = '2';
+    } else if (normStream.includes('hum') || normStream.includes('art')) {
+      qualificationSpecializationId = '3';
+    }
+    const stream = rawStream || (qualificationSpecializationId === '1' ? 'Science' : qualificationSpecializationId === '3' ? 'Humanities' : 'Commerce');
 
-    // 32. Certificate Number / Roll No
-    const certificateNumber = getVal('certificatenumber', 'regno', 'rollno', 'register_number', 'registerno');
+    // 35. Certificate Number
+    const certificateNumber = getVal('certificatenumber', 'qcno', 'regno', 'rollno', 'register_number', 'registerno');
 
-    // 33. Attempts
+    // 36. Attempts
     const rawAttempts = getVal('noofattempts', 'attempts');
     const noOfAttempts = rawAttempts ? parseInt(rawAttempts, 10) || 1 : 1;
 
-    // 34. Marks & Percentage
+    // 37, 38, 39, 40. Marks, Percentage, CGPA
     const rawMarks = getVal('marksobtained', 'totalmarks', 'securedmarks', 'marks');
-    const marksObtained = rawMarks ? parseFloat(rawMarks) || 0 : 0;
+    const marksObtained = rawMarks ? (parseFloat(rawMarks) || '') : '';
     const rawMax = getVal('marksoutof', 'maxmarks', 'maximummarks', 'total');
-    const marksOutOf = rawMax ? parseFloat(rawMax) || 1200 : 1200;
+    const marksOutOf = rawMax ? (parseFloat(rawMax) || '1200') : (marksObtained ? '1200' : '');
 
     let percentage = getVal('percentage', 'percent');
     if (!percentage && marksOutOf > 0 && marksObtained > 0) {
-      percentage = ((marksObtained / marksOutOf) * 100).toFixed(4);
+      percentage = ((parseFloat(marksObtained) / parseFloat(marksOutOf)) * 100).toFixed(4);
     } else if (percentage) {
       percentage = parseFloat(percentage).toFixed(4);
     } else {
-      percentage = '0.0000';
+      percentage = '';
     }
-
     const cgpa = getVal('cgpa', 'gpa') || (parseFloat(percentage) > 0 ? (parseFloat(percentage) / 9.5).toFixed(2) : '');
 
-    // 38. SeatNumber (Fallback to CertificateNumber)
-    const rawSeat = getVal('seatnumber', 'seatno');
+    // 41. SeatNumber
+    const rawSeat = getVal('seatnumber', 'seatno', 'qcno');
     const seatNumber = rawSeat || certificateNumber;
 
-    // 39. Result Date & Status
-    const resultDate = parseExcelDate(getVal('resultdate', 'passeddate')) || new Date().toISOString().split('T')[0];
+    // 42. Passing Year (Column 42 with blank header '')
+    const passingYear = getVal('qcyear', 'passingyear', 'admyear') || '2026';
+
+    // 43. Result Date (Column name: 'Result Date ')
+    const rawResultDate = getVal('resultdate', 'admit_date', 'passeddate');
+    let resultDate = '';
+    if (rawResultDate) {
+      resultDate = parseDobDMY(rawResultDate);
+    }
+    if (!resultDate) {
+      resultDate = `31-05-${passingYear}`;
+    }
+
+    // 44. ResultStatus
     const resultStatus = getVal('resultstatus', 'status', 'result') || 'Passed';
 
     // Warnings flag
     let warnings = [];
     if (!name) warnings.push('Missing Name');
     if (!mobile || mobile.length < 10) warnings.push('Invalid Mobile');
-    if (!email) warnings.push('Missing Email');
-    if (!certificateNumber) warnings.push('Missing Reg/Cert No');
+    if (!username && !certificateNumber) warnings.push('Missing Identifier/RegNo');
 
     return {
       Name: name,
@@ -602,6 +668,7 @@ export default function AdmissionImportPage() {
       Email: email,
       username: username || certificateNumber,
       dob: dob,
+      'Date of Birth (DD/MM/YY)': dobDMY,
       AadhaarNumber: aadhaarNumber,
       ABCId: abcId,
       CountryId: countryId,
@@ -617,12 +684,14 @@ export default function AdmissionImportPage() {
       Caste: caste,
       religionId: religionId,
       religion: religion,
+      'PGM Name': pgmName,
       workFlowId: workFlowId,
       'Program Name': programName,
       ProgramCode: programCode,
-      CollegeCode: collegeCode,
+      'CLG NAME': clgName,
       CollegeId: collegeId,
       'College Name': collegeName,
+      CollegeCode: collegeCode,
       QualificationFacultyId: qualificationFacultyId,
       QualificationName: qualificationName,
       QualificationSpecializationId: qualificationSpecializationId,
@@ -634,7 +703,8 @@ export default function AdmissionImportPage() {
       MarksOutOf: marksOutOf,
       CGPA: cgpa,
       SeatNumber: seatNumber,
-      'Result Date': resultDate,
+      '': passingYear,
+      'Result Date ': resultDate,
       ResultStatus: resultStatus,
       _warnings: warnings
     };
@@ -778,7 +848,7 @@ export default function AdmissionImportPage() {
   const exportStandardXlsx = () => {
     if (!normalizedRows.length) return alert('No data available to export.');
     setIsProcessing(true);
-    setStatus('Generating standardized 40-column master Excel workbook...', 'info');
+    setStatus(`Generating standardized ${TARGET_COLUMNS.length}-column master Excel workbook...`, 'info');
 
     try {
       // Export array of arrays for dense mode memory efficiency
@@ -790,7 +860,7 @@ export default function AdmissionImportPage() {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(exportAoa, { dense: true });
 
-      // Auto-filter on all 40 columns
+      // Auto-filter on all columns
       ws['!autofilter'] = {
         ref: XLSX.utils.encode_range({
           s: { r: 0, c: 0 },
@@ -799,7 +869,7 @@ export default function AdmissionImportPage() {
       };
 
       // Set column widths
-      ws['!cols'] = TARGET_COLUMNS.map(c => ({ wch: Math.max(c.length + 3, 14) }));
+      ws['!cols'] = TARGET_COLUMNS.map(c => ({ wch: Math.max((c || 'Year').length + 3, 14) }));
 
       XLSX.utils.book_append_sheet(wb, ws, 'Master_Admission');
 
@@ -810,13 +880,13 @@ export default function AdmissionImportPage() {
       const a = document.createElement('a');
       a.href = url;
       const baseName = (sourceFile?.name || 'allotment').replace(/\.[^/.]+$/, '');
-      a.download = `${baseName}_40Col_Master.xlsx`;
+      a.download = `${baseName}_Master_Admission.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-      setStatus(`Exported 40-column Master XLSX with ${normalizedRows.length} records!`, 'success');
+      setStatus(`Exported ${TARGET_COLUMNS.length}-column Master XLSX with ${normalizedRows.length} records!`, 'success');
     } catch (err) {
       console.error('Export error:', err);
       setStatus(`Export failed: ${err.message}`, 'error');
@@ -1099,7 +1169,7 @@ export default function AdmissionImportPage() {
                     <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1.5px solid var(--line)', color: 'var(--muted)', width: '40px' }}>#</th>
                     {TARGET_COLUMNS.map((col, idx) => (
                       <th 
-                        key={col} 
+                        key={col || `col_${idx}`} 
                         style={{ 
                           padding: '8px 10px', 
                           textAlign: 'left', 
@@ -1111,7 +1181,7 @@ export default function AdmissionImportPage() {
                         }}
                       >
                         <span style={{ fontSize: '9px', color: 'var(--muted)', display: 'block', fontWeight: 600 }}>Col {idx + 1}</span>
-                        {col}
+                        {col || <span style={{ fontStyle: 'italic', color: 'var(--muted)' }}>(Passing Year)</span>}
                       </th>
                     ))}
                   </tr>
@@ -1131,9 +1201,9 @@ export default function AdmissionImportPage() {
                         <td style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--muted)', borderRight: '1px solid var(--line)', fontWeight: 600 }}>
                           {actualIdx + 1}
                         </td>
-                        {TARGET_COLUMNS.map(col => (
+                        {TARGET_COLUMNS.map((col, cIdx) => (
                           <td 
-                            key={col} 
+                            key={col || `col_${cIdx}`} 
                             style={{ 
                               padding: '5px 8px', 
                               borderRight: '1px solid var(--line)',
@@ -1167,7 +1237,7 @@ export default function AdmissionImportPage() {
           {/* Footer Info */}
           {normalizedRows.length > 0 && (
             <div style={{ padding: '8px 16px', background: 'var(--bg)', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
-              <span>Showing {pagedRows.length} of {filteredRows.length} filtered candidate records • All 40 columns verified</span>
+              <span>Showing {pagedRows.length} of {filteredRows.length} filtered candidate records • All {TARGET_COLUMNS.length} columns verified</span>
               <span>Click any table cell to perform inline edits before exporting</span>
             </div>
           )}
