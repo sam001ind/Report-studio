@@ -21,7 +21,8 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  Database
+  Database,
+  FileSpreadsheet
 } from 'lucide-react';
 import {
   LOOKUP_TAB_CONFIG,
@@ -410,6 +411,28 @@ export default function LookupIdManagerModal({
               accept=".xlsx,.xls,.csv"
               style={{ display: 'none' }}
             />
+            <a
+              href="/Admission_ID_Upload_Template.xlsx"
+              download="Admission_ID_Upload_Template.xlsx"
+              title="Download pre-formatted Excel template with sample IDs for all 7 entities"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'var(--panel)',
+                color: 'var(--ink)',
+                border: '1px solid var(--line)',
+                borderRadius: '6px',
+                textDecoration: 'none'
+              }}
+            >
+              <FileSpreadsheet size={14} color="var(--accent)" />
+              <span>Download Template (.xlsx)</span>
+            </a>
+
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
