@@ -8,7 +8,7 @@ import {
   Edit2,
   Check,
   RotateCcw,
-  UploadCloud,
+  Upload,
   Download,
   AlertCircle,
   CheckCircle2,
@@ -90,6 +90,8 @@ export default function LookupIdManagerModal({
 
   const totalPages = Math.ceil(filteredList.length / pageSize) || 1;
 
+  if (!isOpen) return null;
+
   const handleTabChange = (newTab) => {
     setActiveTab(newTab);
     setSearchQuery('');
@@ -113,7 +115,6 @@ export default function LookupIdManagerModal({
       return;
     }
 
-    // Check duplicate name in current tab
     const exists = currentList.some(item => item.name.toLowerCase() === trimmedName.toLowerCase());
     if (exists) {
       setStatusAlert({
@@ -217,19 +218,18 @@ export default function LookupIdManagerModal({
 
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
-      const { imported, summary, total } = parseUploadedLookupSpreadsheet(workbook, activeTab);
+      const { imported, total } = parseUploadedLookupSpreadsheet(workbook, activeTab);
 
       if (total === 0) {
         setStatusAlert({
           type: 'warning',
-          message: 'No matching lookup columns found. Upload a sheet with columns matching any of: Caste/CasteId, categoryName/categoryId, religion/religionId, CountryName/CountryId, corrStateName/corrStateId, QualificationName/QualificationFacultyId, Stream/QualificationSpecializationId, or a 2-column Name/ID list.'
+          message: 'No matching lookup columns found. Upload a sheet matching: Caste/CasteId, categoryName/categoryId, religion/religionId, CountryName/CountryId, corrStateName/corrStateId, QualificationName/QualificationFacultyId, Stream/QualificationSpecializationId, or a 2-column Name/ID sheet.'
         });
         setIsProcessing(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
-      // Merge imported into current lookups
       const merged = { ...lookups };
       const summaryMsgParts = [];
 
@@ -238,19 +238,14 @@ export default function LookupIdManagerModal({
         const existing = [...(merged[key] || [])];
         const existingMap = new Map(existing.map((x, idx) => [x.name.toLowerCase(), idx]));
 
-        let addedCount = 0;
-        let updatedCount = 0;
-
         for (const item of items) {
           const lower = item.name.toLowerCase();
           if (existingMap.has(lower)) {
             const idx = existingMap.get(lower);
             existing[idx] = { ...existing[idx], id: item.id };
-            updatedCount++;
           } else {
             existing.push(item);
             existingMap.set(lower, existing.length - 1);
-            addedCount++;
           }
         }
         merged[key] = existing;
@@ -281,7 +276,6 @@ export default function LookupIdManagerModal({
     try {
       const wb = XLSX.utils.book_new();
 
-      // Create a master summary sheet and 7 individual sheets
       LOOKUP_TAB_CONFIG.forEach(cfg => {
         const list = lookups[cfg.key] || [];
         const rows = list.map(item => ({
@@ -292,7 +286,6 @@ export default function LookupIdManagerModal({
         XLSX.utils.book_append_sheet(wb, ws, cfg.label);
       });
 
-      // Also create a "Kannur IDs Master" sheet combining all columns side by side
       const maxRows = Math.max(...LOOKUP_TAB_CONFIG.map(cfg => (lookups[cfg.key] || []).length));
       const masterRows = [];
       for (let i = 0; i < maxRows; i++) {
@@ -321,108 +314,254 @@ export default function LookupIdManagerModal({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
-        
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+        padding: '20px'
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: 'var(--panel)',
+          border: '1px solid var(--line)',
+          borderRadius: '12px',
+          maxWidth: '960px',
+          width: '100%',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.35)',
+          color: 'var(--ink)'
+        }}
+      >
         {/* Top Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-xl">
-              <Database className="w-6 h-6" />
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '16px 24px',
+            borderBottom: '1px solid var(--line)',
+            background: 'var(--bg)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: 'var(--accent-soft)',
+                color: 'var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Database size={20} />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--ink)' }}>
                   Define & Manage ID Lookups
-                </h2>
-                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/50">
+                </h3>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'var(--accent-soft)',
+                    color: 'var(--accent)',
+                    border: '1px solid var(--line)'
+                  }}
+                >
                   {totalEntriesCount} Total Defined
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Define and map IDs for the 7 standard university master entities. Changes persist automatically and drive the 44-column output.
+              <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                Configure codes for Category, Caste, Religion, Country, State, Qualification, and Stream.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          {/* Header Action Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileUpload}
               accept=".xlsx,.xls,.csv"
-              className="hidden"
+              style={{ display: 'none' }}
             />
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
-              title="Upload an Excel or CSV file containing ID definitions"
-              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-sm"
+              title="Upload spreadsheet with lookup ID definitions"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'var(--panel)',
+                color: 'var(--ink)',
+                border: '1px solid var(--line)',
+                borderRadius: '6px'
+              }}
             >
-              <UploadCloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <Upload size={14} color="var(--accent)" />
               <span>{isProcessing ? 'Importing...' : 'Upload IDs (.xlsx / .csv)'}</span>
             </button>
 
             <button
+              type="button"
               onClick={handleExportAllToExcel}
-              title="Download all defined IDs into an Excel workbook"
-              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-sm"
+              title="Export all defined IDs to Excel"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'var(--panel)',
+                color: 'var(--ink)',
+                border: '1px solid var(--line)',
+                borderRadius: '6px'
+              }}
             >
-              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Export All (.xlsx)</span>
+              <Download size={14} color="#16a34a" />
+              <span>Export All</span>
             </button>
 
             <button
+              type="button"
               onClick={handleResetToDefaults}
-              title="Reset all lookups back to official Kannur University defaults"
-              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/60 transition shadow-sm"
+              title="Reset to official Kannur University definitions"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'var(--panel)',
+                color: 'var(--danger)',
+                border: '1px solid var(--line)',
+                borderRadius: '6px'
+              }}
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Defaults</span>
+              <RotateCcw size={14} />
+              <span>Reset</span>
             </button>
 
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition ml-2"
+              title="Close Modal"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                padding: 0,
+                background: 'transparent',
+                color: 'var(--muted)',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
             >
-              <X className="w-5 h-5" />
+              <X size={18} />
             </button>
           </div>
         </div>
 
         {/* Status Alert Banner */}
         {statusAlert && (
-          <div className={`px-6 py-2.5 text-xs flex items-center justify-between border-b ${
-            statusAlert.type === 'error'
-              ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800'
-              : statusAlert.type === 'warning'
-              ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800'
-              : statusAlert.type === 'success'
-              ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
-              : 'bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800'
-          }`}>
-            <div className="flex items-center space-x-2">
+          <div
+            style={{
+              padding: '10px 24px',
+              fontSize: '12px',
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid var(--line)',
+              background:
+                statusAlert.type === 'error'
+                  ? 'rgba(180, 35, 24, 0.12)'
+                  : statusAlert.type === 'warning'
+                  ? 'rgba(217, 119, 6, 0.12)'
+                  : statusAlert.type === 'success'
+                  ? 'rgba(22, 163, 74, 0.12)'
+                  : 'var(--accent-soft)',
+              color:
+                statusAlert.type === 'error'
+                  ? 'var(--danger)'
+                  : statusAlert.type === 'warning'
+                  ? '#b45309'
+                  : statusAlert.type === 'success'
+                  ? '#15803d'
+                  : 'var(--accent)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {statusAlert.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <CheckCircle2 size={16} />
               ) : (
-                <AlertCircle className="w-4 h-4 shrink-0" />
+                <AlertCircle size={16} />
               )}
               <span>{statusAlert.message}</span>
             </div>
             <button
+              type="button"
               onClick={() => setStatusAlert(null)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex'
+              }}
             >
-              <X className="w-3.5 h-3.5" />
+              <X size={14} />
             </button>
           </div>
         )}
 
-        {/* 7 Tabs Bar */}
-        <div className="flex items-center space-x-1 px-6 pt-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 overflow-x-auto no-scrollbar">
+        {/* 7 Tabs Navigation Bar */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '6px',
+            padding: '10px 24px 0',
+            borderBottom: '1px solid var(--line)',
+            background: 'var(--bg)',
+            overflowX: 'auto'
+          }}
+        >
           {LOOKUP_TAB_CONFIG.map(tab => {
             const Icon = TAB_ICONS[tab.key] || Tag;
             const count = (lookups && Array.isArray(lookups[tab.key])) ? lookups[tab.key].length : 0;
@@ -431,20 +570,37 @@ export default function LookupIdManagerModal({
             return (
               <button
                 key={tab.key}
+                type="button"
                 onClick={() => handleTabChange(tab.key)}
-                className={`flex items-center space-x-2 px-3.5 py-2.5 text-xs font-medium rounded-t-xl transition-all whitespace-nowrap border-b-2 ${
-                  isActive
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 shadow-sm'
-                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/50'
-                }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  padding: '9px 14px',
+                  fontSize: '12px',
+                  fontWeight: isActive ? 700 : 500,
+                  border: 'none',
+                  borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                  borderRadius: '6px 6px 0 0',
+                  background: isActive ? 'var(--panel)' : 'transparent',
+                  color: isActive ? 'var(--accent)' : 'var(--muted)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: 'none'
+                }}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
+                <Icon size={14} color={isActive ? 'var(--accent)' : 'var(--muted)'} />
                 <span>{tab.label}</span>
-                <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-semibold ${
-                  isActive
-                    ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300'
-                    : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                }`}>
+                <span
+                  style={{
+                    fontSize: '10.5px',
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: '10px',
+                    background: isActive ? 'var(--accent-soft)' : 'var(--line)',
+                    color: isActive ? 'var(--accent)' : 'var(--muted)'
+                  }}
+                >
                   {count}
                 </span>
               </button>
@@ -452,33 +608,54 @@ export default function LookupIdManagerModal({
           })}
         </div>
 
-        {/* Active Tab Sub-header & Description */}
-        <div className="px-6 py-2.5 bg-blue-50/40 dark:bg-blue-950/20 border-b border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-xs">
-          <div className="flex items-center space-x-2">
-            <span className="font-semibold text-slate-800 dark:text-slate-200">
-              Output Header Mapping:
-            </span>
-            <code className="px-1.5 py-0.5 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 font-mono text-[11px]">
+        {/* Sub-header with column mapping explanation */}
+        <div
+          style={{
+            padding: '8px 24px',
+            background: 'var(--bg)',
+            borderBottom: '1px solid var(--line)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '11.5px',
+            color: 'var(--muted)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Output Column Mapping:</span>
+            <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
               {currentTabConfig.nameHeader}
             </code>
-            <span className="text-slate-400">↔</span>
-            <code className="px-1.5 py-0.5 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 font-mono text-[11px]">
+            <span>↔</span>
+            <code style={{ padding: '2px 6px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--accent)', fontWeight: 700 }}>
               {currentTabConfig.idHeader}
             </code>
-            <span className="text-slate-500 dark:text-slate-400 ml-2 hidden sm:inline">
-              — {currentTabConfig.description}
-            </span>
+            <span style={{ marginLeft: '6px' }}>— {currentTabConfig.description}</span>
           </div>
-          <span className="text-slate-500 dark:text-slate-400">
-            {filteredList.length} of {currentList.length} shown
-          </span>
+          <div>
+            Showing <strong>{filteredList.length}</strong> of <strong>{currentList.length}</strong> defined
+          </div>
         </div>
 
-        {/* Action Bar: Search & Quick Add */}
-        <div className="p-4 px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* Search */}
-          <div className="md:col-span-5 relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        {/* Action Toolbar: Live Search & Add Entry */}
+        <div
+          style={{
+            padding: '12px 24px',
+            borderBottom: '1px solid var(--line)',
+            background: 'var(--panel)',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'center',
+            flexWrap: 'wrap'
+          }}
+        >
+          {/* Live Search */}
+          <div style={{ position: 'relative', flex: '1', minWidth: '220px' }}>
+            <Search
+              size={14}
+              color="var(--muted)"
+              style={{ position: 'absolute', left: '10px', top: '10px' }}
+            />
             <input
               type="text"
               value={searchQuery}
@@ -487,59 +664,121 @@ export default function LookupIdManagerModal({
                 setPage(0);
               }}
               placeholder={`Search ${currentTabConfig.label} by name or ID...`}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              style={{
+                width: '100%',
+                padding: '7px 10px 7px 32px',
+                fontSize: '12px',
+                borderRadius: '6px',
+                border: '1px solid var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)',
+                outline: 'none'
+              }}
             />
           </div>
 
-          {/* Add New Entry Form */}
-          <form onSubmit={handleAdd} className="md:col-span-7 flex items-center space-x-2">
+          {/* Quick Add Entry Form */}
+          <form
+            onSubmit={handleAdd}
+            style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
+          >
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder={`New ${currentTabConfig.nameLabel} (e.g. Mukkuvan)`}
-              className="flex-1 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              style={{
+                width: '210px',
+                padding: '7px 10px',
+                fontSize: '12px',
+                borderRadius: '6px',
+                border: '1px solid var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)',
+                outline: 'none'
+              }}
             />
             <input
               type="text"
               value={newId}
               onChange={(e) => setNewId(e.target.value)}
               placeholder={`ID (e.g. 320)`}
-              className="w-28 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              style={{
+                width: '95px',
+                padding: '7px 10px',
+                fontSize: '12px',
+                borderRadius: '6px',
+                border: '1px solid var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)',
+                outline: 'none'
+              }}
             />
             <button
               type="submit"
-              className="flex items-center space-x-1 px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition whitespace-nowrap"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '7px 14px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus size={14} />
               <span>Add Entry</span>
             </button>
           </form>
         </div>
 
-        {/* Entries Table */}
-        <div className="flex-1 overflow-y-auto px-6 py-2">
+        {/* Scrollable Table Content */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: '260px', maxHeight: '45vh' }}>
           {filteredList.length === 0 ? (
-            <div className="py-12 text-center">
-              <Database className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)' }}>
+              <Database size={36} color="var(--line)" style={{ margin: '0 auto 8px' }} />
+              <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>
                 {searchQuery ? `No entries matching "${searchQuery}"` : `No ${currentTabConfig.label} defined yet.`}
               </p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                Use the form above to add an entry, or upload a spreadsheet to define lookups in bulk.
-              </p>
+              <span style={{ fontSize: '11.5px', marginTop: '4px', display: 'inline-block' }}>
+                Use the inputs above to add a new ID pair, or upload an Excel/CSV file to bulk import.
+              </span>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                textAlign: 'left',
+                fontSize: '12px'
+              }}
+            >
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="py-2.5 px-3 w-12 text-center">#</th>
-                  <th className="py-2.5 px-3">{currentTabConfig.nameLabel} ({currentTabConfig.nameHeader})</th>
-                  <th className="py-2.5 px-3 w-36">{currentTabConfig.idLabel} ({currentTabConfig.idHeader})</th>
-                  <th className="py-2.5 px-3 w-28 text-right">Actions</th>
+                <tr
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--bg)',
+                    borderBottom: '2px solid var(--line)',
+                    color: 'var(--muted)',
+                    fontSize: '11px',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                    zIndex: 5
+                  }}
+                >
+                  <th style={{ padding: '8px 16px', width: '50px', textAlign: 'center' }}>#</th>
+                  <th style={{ padding: '8px 16px' }}>{currentTabConfig.nameLabel} ({currentTabConfig.nameHeader})</th>
+                  <th style={{ padding: '8px 16px', width: '180px' }}>{currentTabConfig.idLabel} ({currentTabConfig.idHeader})</th>
+                  <th style={{ padding: '8px 16px', width: '110px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+              <tbody>
                 {paginatedList.map((item, idx) => {
                   const actualIndex = currentList.indexOf(item);
                   const isEditing = editingIdx === actualIndex;
@@ -547,81 +786,165 @@ export default function LookupIdManagerModal({
                   return (
                     <tr
                       key={`${item.name}-${item.id}-${actualIndex}`}
-                      className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition ${
-                        isEditing ? 'bg-blue-50/30 dark:bg-blue-950/30' : ''
-                      }`}
+                      style={{
+                        borderBottom: '1px solid var(--line)',
+                        background: isEditing ? 'var(--accent-soft)' : (idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)')
+                      }}
                     >
-                      <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">
+                      <td style={{ padding: '8px 16px', textAlign: 'center', color: 'var(--muted)', fontFamily: 'monospace', fontSize: '11px' }}>
                         {page * pageSize + idx + 1}
                       </td>
 
                       {/* Name Cell */}
-                      <td className="py-2 px-3">
+                      <td style={{ padding: '8px 16px' }}>
                         {isEditing ? (
                           <input
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
-                            className="w-full px-2.5 py-1 text-xs bg-white dark:bg-slate-800 border border-blue-500 rounded text-slate-900 dark:text-white focus:outline-none"
+                            style={{
+                              width: '100%',
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--accent)',
+                              background: 'var(--panel)',
+                              color: 'var(--ink)',
+                              outline: 'none'
+                            }}
                             autoFocus
                           />
                         ) : (
-                          <span className="font-medium text-slate-800 dark:text-slate-200">
+                          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>
                             {item.name}
                           </span>
                         )}
                       </td>
 
                       {/* ID Cell */}
-                      <td className="py-2 px-3">
+                      <td style={{ padding: '8px 16px' }}>
                         {isEditing ? (
                           <input
                             type="text"
                             value={editId}
                             onChange={(e) => setEditId(e.target.value)}
-                            className="w-full px-2.5 py-1 text-xs bg-white dark:bg-slate-800 border border-blue-500 rounded text-slate-900 dark:text-white font-mono focus:outline-none"
+                            style={{
+                              width: '120px',
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              fontFamily: 'monospace',
+                              borderRadius: '4px',
+                              border: '1px solid var(--accent)',
+                              background: 'var(--panel)',
+                              color: 'var(--ink)',
+                              outline: 'none'
+                            }}
                           />
                         ) : (
-                          <span className="px-2 py-0.5 font-mono text-xs font-semibold rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                          <span
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontFamily: 'monospace',
+                              fontWeight: 700,
+                              fontSize: '11.5px',
+                              background: 'var(--accent-soft)',
+                              color: 'var(--accent)',
+                              border: '1px solid var(--line)',
+                              display: 'inline-block'
+                            }}
+                          >
                             {item.id}
                           </span>
                         )}
                       </td>
 
-                      {/* Actions Cell */}
-                      <td className="py-2 px-3 text-right">
+                      {/* Actions */}
+                      <td style={{ padding: '8px 16px', textAlign: 'right' }}>
                         {isEditing ? (
-                          <div className="flex items-center justify-end space-x-1">
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
                             <button
+                              type="button"
                               onClick={() => saveEdit(actualIndex)}
                               title="Save changes"
-                              className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded transition"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                background: '#16a34a',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
                             >
-                              <Check className="w-4 h-4" />
+                              <Check size={14} />
                             </button>
                             <button
+                              type="button"
                               onClick={cancelEdit}
-                              title="Cancel editing"
-                              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition"
+                              title="Cancel"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                background: 'var(--panel)',
+                                color: 'var(--muted)',
+                                border: '1px solid var(--line)',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
                             >
-                              <X className="w-4 h-4" />
+                              <X size={14} />
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-end space-x-1">
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
                             <button
+                              type="button"
                               onClick={() => startEdit(item, actualIndex)}
-                              title="Edit this entry"
-                              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded transition"
+                              title="Edit"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                background: 'var(--panel)',
+                                color: 'var(--accent)',
+                                border: '1px solid var(--line)',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
+                              <Edit2 size={13} />
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleDelete(actualIndex, item.name)}
-                              title="Delete this entry"
-                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition"
+                              title="Delete"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                background: 'var(--panel)',
+                                color: 'var(--danger)',
+                                border: '1px solid var(--line)',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 size={13} />
                             </button>
                           </div>
                         )}
@@ -634,37 +957,82 @@ export default function LookupIdManagerModal({
           )}
         </div>
 
-        {/* Footer with Pagination & Close Button */}
-        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70">
-          <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
+        {/* Footer with Pagination & Done button */}
+        <div
+          style={{
+            padding: '12px 24px',
+            borderTop: '1px solid var(--line)',
+            background: 'var(--bg)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--muted)' }}>
             <span>
               Page {page + 1} of {totalPages}
             </span>
-            <div className="flex items-center space-x-1 ml-2">
-              <button
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="p-1 rounded border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-white dark:hover:bg-slate-800"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                className="p-1 rounded border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-white dark:hover:bg-slate-800"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '26px',
+                height: '26px',
+                padding: 0,
+                background: 'var(--panel)',
+                color: 'var(--ink)',
+                border: '1px solid var(--line)',
+                borderRadius: '4px',
+                cursor: page === 0 ? 'not-allowed' : 'pointer',
+                opacity: page === 0 ? 0.4 : 1
+              }}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '26px',
+                height: '26px',
+                padding: 0,
+                background: 'var(--panel)',
+                color: 'var(--ink)',
+                border: '1px solid var(--line)',
+                borderRadius: '4px',
+                cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                opacity: page >= totalPages - 1 ? 0.4 : 1
+              }}
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <span className="text-[11px] text-slate-400 mr-2">
-              All edits automatically save to browser storage
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+              All additions and edits save automatically to browser storage
             </span>
             <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition"
+              style={{
+                padding: '7px 18px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
             >
               Done / Apply to Import
             </button>
