@@ -18,3 +18,5 @@ dist/
 skills-lock.json
 .vercel/
 .vercel
+studentmaster_fyugp_extracted.xlsx
+*.xlsx

@@ -460,5 +460,28 @@ export const TOOL_GUIDES = {
         content: 'Generates a streamlined curriculum catalog report across exactly 3 columns: ParentGroupName, CourseCode, and CourseName. For cases where only parent group and course identifiers are required, applying the ImmediateParentGroupName fallback when ParentGroupName is blank.'
       }
     ]
+  },
+  'dump-extractor': {
+    title: 'Database Dump & Backup to Excel Extractor - Logic & Guide',
+    icon: 'Database',
+    description: 'Convert raw SQL & database dump files (.dump, .sql, .dmp, .bak, .txt) into structured Excel (.xlsx) workbooks while preserving data integrity and formatting.',
+    sections: [
+      {
+        heading: '1. PostgreSQL COPY & SQL INSERT Extraction',
+        content: 'Parses table schema and streaming tab-delimited records from PostgreSQL COPY ... FROM stdin blocks and standard SQL INSERT INTO statements across single or multiple tables.'
+      },
+      {
+        heading: '2. Preserving Leading Zeros and Large Numeric IDs',
+        content: 'Ensures PIN codes (e.g. 067132), phone numbers, Aadhar numbers (309000414229), and registration codes are preserved as text without losing leading zeros or turning into scientific notation (3.09E+11).'
+      },
+      {
+        heading: '3. NULL and Escape Handling',
+        content: 'Converts database null tokens (\\N, NULL) into clean empty cells rather than literal strings, and properly unescapes multiline addresses, tabs, and special characters.'
+      },
+      {
+        heading: '4. High-Volume Python CLI Script',
+        content: 'For large dump files (100MB+), run the bundled Python CLI tool: python3 extract_dump_to_xlsx.py "dumpfile.dump".'
+      }
+    ]
   }
 };

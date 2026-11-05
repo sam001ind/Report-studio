@@ -27,6 +27,7 @@ const AdesResultCalculatorPage = lazy(() => import('./pages/AdesResultCalculator
 const AdesSupplementaryCalculatorPage = lazy(() => import('./pages/AdesSupplementaryCalculatorPage'));
 const PaymentReconciliationPage = lazy(() => import('./pages/PaymentReconciliationPage'));
 const CourseWiseVenueDatePage = lazy(() => import('./pages/CourseWiseVenueDatePage'));
+const DatabaseDumpExtractorPage = lazy(() => import('./pages/DatabaseDumpExtractorPage'));
 const UrlRedirectHandler = lazy(() => import('./pages/UrlRedirectHandler'));
 const AuthPage = lazy(() => import('./pages/AuthPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -142,6 +143,16 @@ function App() {
               <Route path="/course-venue-date-report" element={
                 <ProtectedRoute requiredPermission="can_access_studio">
                   <CourseWiseVenueDatePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dump-extractor" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <DatabaseDumpExtractorPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/db-dump-extractor" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <DatabaseDumpExtractorPage />
                 </ProtectedRoute>
               } />
               <Route path="/compare" element={

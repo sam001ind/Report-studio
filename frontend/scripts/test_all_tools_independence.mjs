@@ -2025,6 +2025,76 @@ test('detectPreExamColumns strictly prioritizes Programme Name over ProgramFullN
   assert.equal(mapping.courseName, 8, 'courseName must be index 8 (PaperName)');
 });
 
+// -------------------------------------------------------------
+// 22. Database Dump & Backup to Excel Extractor Engine
+// -------------------------------------------------------------
+console.log('\n[Test Suite 22: Database Dump & Backup to Excel Extractor Engine]');
+
+test('Database Dump Extractor parses PostgreSQL COPY blocks, unescapes, and preserves IDs intact', () => {
+  const dumpSample = `
+-- PostgreSQL database dump
+CREATE TABLE students (
+    regno character varying(10),
+    name character varying(150),
+    pin character varying(6),
+    aadhar character varying(20),
+    address text
+);
+
+COPY students (regno, name, pin, aadhar, address) FROM stdin;
+\\N	RAKSHAN BHANDARY	067132	309000414229	HOUSE 1\\nBADAJE
+PR24BBA001	AMITH K	670741	842228132551	VILLAGE\\\\STREET
+\\.
+`;
+
+  const lines = dumpSample.split(/\r?\n/);
+  const tables = {};
+  let currentTable = null;
+  let inCopy = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!inCopy) {
+      const m = line.match(/^COPY\s+(?:ONLY\s+)?(?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_"`]+)\s*(?:\(([^)]+)\))?\s+FROM\s+stdin;/i);
+      if (m) {
+        currentTable = m[1].replace(/["`]/g, '').trim();
+        const cols = m[2].split(',').map(c => c.trim());
+        tables[currentTable] = { cols, rows: [] };
+        inCopy = true;
+      }
+    } else {
+      if (line.trim() === '\\.') {
+        inCopy = false;
+        continue;
+      }
+      const rawParts = line.split('\t');
+      const cleaned = rawParts.map(val => {
+        if (val === '\\N') return '';
+        return val.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+      });
+      tables[currentTable].rows.push(cleaned);
+    }
+  }
+
+  assert.ok(tables['students']);
+  assert.equal(tables['students'].cols.length, 5);
+  assert.equal(tables['students'].rows.length, 2);
+
+  // Row 1: NULL regno should be empty string
+  assert.equal(tables['students'].rows[0][0], '');
+  assert.equal(tables['students'].rows[0][1], 'RAKSHAN BHANDARY');
+  // Leading zero in PIN must be preserved exactly
+  assert.equal(tables['students'].rows[0][2], '067132');
+  // Aadhar 12 digits must be preserved as exact text string
+  assert.equal(tables['students'].rows[0][3], '309000414229');
+  // Newline must be unescaped
+  assert.equal(tables['students'].rows[0][4], 'HOUSE 1\nBADAJE');
+
+  // Row 2
+  assert.equal(tables['students'].rows[1][0], 'PR24BBA001');
+  assert.equal(tables['students'].rows[1][4], 'VILLAGE\\STREET');
+});
+
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
 
 

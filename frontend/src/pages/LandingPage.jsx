@@ -222,6 +222,25 @@ const LandingPage = () => {
             </div>
           </div>
 
+          {/* 7c. Database Dump & Backup Extractor */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/dump-extractor')}
+          >
+            <div style={styles.featureIcon}><Database size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Database Dump & Backup Extractor</h3>
+            <p style={styles.featureText}>Convert PostgreSQL COPY dumps, MySQL INSERT INTO, and SQL backup files (.dump, .sql, .bak) into structured Excel (.xlsx) workbooks with formats intact.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('dump-extractor'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
           {/* 8. Data Comparison & Reconciliation */}
           <div 
             style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
