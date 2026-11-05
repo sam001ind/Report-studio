@@ -32,6 +32,32 @@ const DatabaseDumpExtractorPage = () => {
   const [activeTable, setActiveTable] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedCmd, setCopiedCmd] = useState(false);
+  const [dobFormat, setDobFormat] = useState('yy-mm-dd'); // 'yy-mm-dd' | 'yyyy-mm-dd' | 'dd/mm/yyyy' | 'raw'
+
+  // Format DOB values into requested format (e.g. yy-mm-dd: 08-12-22)
+  const formatDobVal = (val, targetFormat = 'yy-mm-dd') => {
+    if (!val || targetFormat === 'raw') return val;
+    const str = String(val).trim();
+    if (targetFormat === 'yy-mm-dd') {
+      const m1 = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+      if (m1) return `${m1[1].slice(-2)}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
+      const m2 = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+      if (m2) return `${m2[3].slice(-2)}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
+      const m3 = str.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+      if (m3) return `${m3[1]}-${m3[2].padStart(2, '0')}-${m3[3].padStart(2, '0')}`;
+    } else if (targetFormat === 'yyyy-mm-dd') {
+      const m1 = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+      if (m1) return `${m1[1]}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
+      const m2 = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+      if (m2) return `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
+    } else if (targetFormat === 'dd/mm/yyyy') {
+      const m1 = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+      if (m1) return `${m1[3].padStart(2, '0')}/${m1[2].padStart(2, '0')}/${m1[1]}`;
+      const m2 = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+      if (m2) return `${m2[1].padStart(2, '0')}/${m2[2].padStart(2, '0')}/${m2[3]}`;
+    }
+    return str;
+  };
 
   // Unescape PostgreSQL COPY string
   const unescapePgVal = (val) => {
@@ -267,10 +293,20 @@ const DatabaseDumpExtractorPage = () => {
       const t = tablesData[tname];
       if (!t || (!t.rows.length && !t.cols.length)) return;
 
+      const dobIndices = t.cols
+        .map((col, idx) => (['dob', 'dateofbirth', 'birthdate'].includes(String(col).toLowerCase().replace(/_/g, '')) ? idx : -1))
+        .filter(idx => idx !== -1);
+
       // Ensure every cell is written with exact text string format to preserve leading zeroes and IDs
       const aoa = [
         t.cols,
-        ...t.rows.map(r => r.map(c => (c === null || c === undefined ? '' : String(c))))
+        ...t.rows.map(r => r.map((c, cIdx) => {
+          if (c === null || c === undefined) return '';
+          if (dobIndices.includes(cIdx)) {
+            return formatDobVal(c, dobFormat);
+          }
+          return String(c);
+        }))
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -300,9 +336,19 @@ const DatabaseDumpExtractorPage = () => {
   const exportToCsv = () => {
     if (!activeTable || !currentTableData.rows.length) return;
 
+    const dobIndices = currentTableData.cols
+      .map((col, idx) => (['dob', 'dateofbirth', 'birthdate'].includes(String(col).toLowerCase().replace(/_/g, '')) ? idx : -1))
+      .filter(idx => idx !== -1);
+
     const aoa = [
       currentTableData.cols,
-      ...currentTableData.rows.map(r => r.map(c => (c === null || c === undefined ? '' : String(c))))
+      ...currentTableData.rows.map(r => r.map((c, cIdx) => {
+        if (c === null || c === undefined) return '';
+        if (dobIndices.includes(cIdx)) {
+          return formatDobVal(c, dobFormat);
+        }
+        return String(c);
+      }))
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -481,21 +527,39 @@ const DatabaseDumpExtractorPage = () => {
             </div>
           </div>
 
-          {/* Active Table Details & Search */}
+          {/* Active Table Details, DOB Format & Search */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ fontSize: '13.5px', color: 'var(--muted)' }}>
               Showing table <strong>{activeTable}</strong>: <strong>{currentTableData.rows.length.toLocaleString()}</strong> records across <strong>{currentTableData.cols.length}</strong> columns
             </div>
 
-            <div style={{ position: 'relative', width: '300px' }}>
-              <Search size={15} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--muted)' }} />
-              <input
-                type="text"
-                placeholder="Search table rows..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px 8px 32px', fontSize: '13px', borderRadius: '6px', border: '1px solid var(--border)' }}
-              />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* DOB Format Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>DOB Format:</span>
+                <select
+                  value={dobFormat}
+                  onChange={(e) => setDobFormat(e.target.value)}
+                  style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', fontWeight: 600 }}
+                >
+                  <option value="yy-mm-dd">YY-MM-DD (e.g. 08-12-22)</option>
+                  <option value="yyyy-mm-dd">YYYY-MM-DD (e.g. 2008-12-22)</option>
+                  <option value="dd/mm/yyyy">DD/MM/YYYY (e.g. 22/12/2008)</option>
+                  <option value="raw">Original Dump Format</option>
+                </select>
+              </div>
+
+              {/* Search Box */}
+              <div style={{ position: 'relative', width: '260px' }}>
+                <Search size={15} style={{ position: 'absolute', left: '10px', top: '9px', color: 'var(--muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Search table rows..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '6px 10px 6px 32px', fontSize: '12.5px', borderRadius: '6px', border: '1px solid var(--border)' }}
+                />
+              </div>
             </div>
           </div>
 
@@ -524,8 +588,10 @@ const DatabaseDumpExtractorPage = () => {
                     <td style={{ padding: '8px', textAlign: 'center', color: 'var(--muted)', fontWeight: 600, borderRight: '1px solid var(--border)' }}>
                       {rIdx + 1}
                     </td>
-                    {currentTableData.cols.map((_, cIdx) => {
-                      const val = row[cIdx];
+                    {currentTableData.cols.map((colName, cIdx) => {
+                      const isDob = ['dob', 'dateofbirth', 'birthdate'].includes(String(colName).toLowerCase().replace(/_/g, ''));
+                      const rawVal = row[cIdx];
+                      const val = isDob ? formatDobVal(rawVal, dobFormat) : rawVal;
                       return (
                         <td
                           key={cIdx}
@@ -535,7 +601,8 @@ const DatabaseDumpExtractorPage = () => {
                             whiteSpace: 'nowrap',
                             maxWidth: '300px',
                             overflow: 'hidden',
-                            textOverflow: 'ellipsis'
+                            textOverflow: 'ellipsis',
+                            fontWeight: isDob ? 600 : 'normal'
                           }}
                           title={val || ''}
                         >

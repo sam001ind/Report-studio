@@ -223,7 +223,39 @@ def parse_dump_file(filepath: str) -> Dict[str, Dict[str, Any]]:
     return tables
 
 
-def export_tables_to_xlsx(tables: Dict[str, Dict[str, Any]], output_filepath: str):
+def format_dob_value(val: Any, target_format: str = 'yy-mm-dd') -> Any:
+    """Format Date of Birth into requested format (e.g. yy-mm-dd: 08-12-22)."""
+    if not val:
+        return ""
+    val_str = str(val).strip()
+    if target_format == 'yy-mm-dd':
+        m = re.match(r'^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$', val_str)
+        if m:
+            return f"{m.group(1)[-2:]}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+        m = re.match(r'^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$', val_str)
+        if m:
+            return f"{m.group(3)[-2:]}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}"
+        m = re.match(r'^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$', val_str)
+        if m:
+            return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+    elif target_format == 'yyyy-mm-dd':
+        m = re.match(r'^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$', val_str)
+        if m:
+            return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+        m = re.match(r'^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$', val_str)
+        if m:
+            return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}"
+    elif target_format == 'dd/mm/yyyy':
+        m = re.match(r'^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$', val_str)
+        if m:
+            return f"{m.group(3).zfill(2)}/{m.group(2).zfill(2)}/{m.group(1)}"
+        m = re.match(r'^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$', val_str)
+        if m:
+            return f"{m.group(1).zfill(2)}/{m.group(2).zfill(2)}/{m.group(3)}"
+    return val_str
+
+
+def export_tables_to_xlsx(tables: Dict[str, Dict[str, Any]], output_filepath: str, dob_format: str = 'yy-mm-dd'):
     """
     Exports parsed tables into an Excel workbook with formatting and data integrity preserved.
     """
@@ -260,6 +292,19 @@ def export_tables_to_xlsx(tables: Dict[str, Dict[str, Any]], output_filepath: st
             num_cols = len(rows[0])
             for c_i in range(len(cols), num_cols):
                 cols.append(f"Column_{c_i + 1}")
+
+        # Format DOB columns if requested (e.g. yy-mm-dd)
+        dob_col_indices = [idx for idx, c in enumerate(cols) if str(c).lower().replace('_', '') in ('dob', 'dateofbirth', 'birthdate')]
+        if dob_col_indices and dob_format and dob_format != 'raw':
+            print(f"[*] Applying '{dob_format}' format to DOB column(s): {[cols[i] for i in dob_col_indices]}")
+            formatted_rows = []
+            for r in rows:
+                r_copy = list(r)
+                for d_idx in dob_col_indices:
+                    if d_idx < len(r_copy):
+                        r_copy[d_idx] = format_dob_value(r_copy[d_idx], dob_format)
+                formatted_rows.append(r_copy)
+            rows = formatted_rows
 
         # Split large tables if row count > EXCEL_MAX_ROWS
         chunks = [rows[i:i + EXCEL_MAX_ROWS] for i in range(0, max(1, len(rows)), EXCEL_MAX_ROWS)]
@@ -323,6 +368,12 @@ def main():
     )
     parser.add_argument("input_file", help="Path to database dump file (.dump, .sql, .dmp, .bak, .txt)")
     parser.add_argument("-o", "--output", help="Optional output .xlsx file path")
+    parser.add_argument(
+        "--dob-format",
+        default="yy-mm-dd",
+        choices=["yy-mm-dd", "yyyy-mm-dd", "dd/mm/yyyy", "raw"],
+        help="Date of birth format (default: yy-mm-dd, e.g. 08-12-22)",
+    )
 
     args = parser.parse_args()
 
@@ -343,7 +394,7 @@ def main():
             print("[-] No table data could be detected in the provided dump file.")
             sys.exit(1)
 
-        export_tables_to_xlsx(tables, output_path)
+        export_tables_to_xlsx(tables, output_path, dob_format=args.dob_format)
     except Exception as e:
         print(f"[-] Extraction failed: {e}")
         import traceback
