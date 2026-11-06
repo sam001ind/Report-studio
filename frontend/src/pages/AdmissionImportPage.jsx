@@ -661,7 +661,7 @@ export default function AdmissionImportPage() {
     const rawAttempts = getVal('noofattempts', 'attempts');
     const noOfAttempts = rawAttempts ? parseInt(rawAttempts, 10) || 1 : 1;
 
-    // 37, 38, 39, 40. Marks, Percentage, CGPA
+    // 37, 38, 39, 40. Marks, Percentage, CGPA (strictly 2 decimal places)
     const rawMarks = getVal('marksobtained', 'totalmarks', 'securedmarks', 'marks');
     const marksObtained = rawMarks ? (parseFloat(rawMarks) || '') : '';
     const rawMax = getVal('marksoutof', 'maxmarks', 'maximummarks', 'total');
@@ -669,13 +669,20 @@ export default function AdmissionImportPage() {
 
     let percentage = getVal('percentage', 'percent');
     if (!percentage && marksOutOf > 0 && marksObtained > 0) {
-      percentage = ((parseFloat(marksObtained) / parseFloat(marksOutOf)) * 100).toFixed(4);
-    } else if (percentage) {
-      percentage = parseFloat(percentage).toFixed(4);
+      percentage = ((parseFloat(marksObtained) / parseFloat(marksOutOf)) * 100).toFixed(2);
+    } else if (percentage && !isNaN(parseFloat(percentage))) {
+      percentage = parseFloat(percentage).toFixed(2);
     } else {
       percentage = '';
     }
-    const cgpa = getVal('cgpa', 'gpa') || (parseFloat(percentage) > 0 ? (parseFloat(percentage) / 9.5).toFixed(2) : '');
+
+    const rawCgpa = getVal('cgpa', 'gpa');
+    let cgpa = '';
+    if (rawCgpa && !isNaN(parseFloat(rawCgpa))) {
+      cgpa = parseFloat(rawCgpa).toFixed(2);
+    } else if (parseFloat(percentage) > 0) {
+      cgpa = (parseFloat(percentage) / 9.5).toFixed(2);
+    }
 
     // 41. SeatNumber
     const rawSeat = getVal('seatnumber', 'seatno', 'qcno');

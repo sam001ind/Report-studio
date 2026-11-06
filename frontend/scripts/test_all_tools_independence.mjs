@@ -1043,6 +1043,21 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
   }
   assert.equal(passingYear, '2026');
   assert.equal(resultDate, '31-05-2026');
+
+  // Verify Percentage and CGPA are formatted strictly to 2 decimal places
+  let pct = sourceRow.Percentage;
+  if (!isNaN(parseFloat(pct))) pct = parseFloat(pct).toFixed(2);
+  assert.equal(pct, '86.92');
+
+  let cg = sourceRow.CGPA;
+  if (!isNaN(parseFloat(cg))) cg = parseFloat(cg).toFixed(2);
+  assert.equal(cg, '86.92');
+
+  // Verify calculation from marks obtained / marks out of gives strictly 2 decimal places
+  const calcPct = ((1043 / 1200) * 100).toFixed(2);
+  assert.equal(calcPct, '86.92');
+  const calcCgpa = (parseFloat(calcPct) / 9.5).toFixed(2);
+  assert.equal(calcCgpa, '9.15');
 });
 
 // -------------------------------------------------------------
