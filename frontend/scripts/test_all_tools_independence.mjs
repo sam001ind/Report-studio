@@ -13,7 +13,12 @@
 
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
-import { normalizeKeyText, cleanDisplayField } from '../src/utils/excelParser.js';
+import JSZip from 'jszip';
+import { 
+  normalizeKeyText, 
+  cleanDisplayField,
+  parseAdmissionWideWorkbookBuffer 
+} from '../src/utils/excelParser.js';
 import { 
   DEFAULT_LOOKUP_DATA, 
   LOOKUP_TAB_CONFIG, 
@@ -30,7 +35,17 @@ let totalTests = 0;
 function test(name, fn) {
   totalTests++;
   try {
-    fn();
+    const res = fn();
+    if (res && typeof res.then === 'function') {
+      return res.then(() => {
+        console.log(`  ✓ ${name}`);
+        passedTests++;
+      }).catch(err => {
+        console.error(`  ✗ FAIL: ${name}`);
+        console.error(`    ${err.message}`);
+        throw err;
+      });
+    }
     console.log(`  ✓ ${name}`);
     passedTests++;
   } catch (err) {
@@ -1834,6 +1849,61 @@ test('Generates unique 3-column Course Master report across ParentGroupName, Cou
   assert.equal(report[2].ParentGroupName, 'Major Core');
   assert.equal(report[2].CourseCode, 'KU4DSCHIS101');
   assert.equal(report[2].CourseName, 'Early Indian History');
+});
+
+await test('Admission Report Maker - Row Wise parses single and multiple spreadsheets from ZIP archive', async () => {
+  const zip = new JSZip();
+
+  // Create wide spreadsheet 1
+  const wb1 = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.json_to_sheet([
+    {
+      ApplicationNo: 'APP1001',
+      CandidateName: 'STUDENT ONE',
+      ParentGroupName1: 'Major Core',
+      ImmediateParentGroupName1: 'DSC Core',
+      CourseCode1: 'KU4DSC101',
+      CourseName1: 'Core Course 1'
+    }
+  ]);
+  XLSX.utils.book_append_sheet(wb1, ws1, 'DeptA');
+  const wb1Buffer = XLSX.write(wb1, { type: 'array', bookType: 'xlsx' });
+  zip.file('CollegeA/DeptA_Admissions.xlsx', wb1Buffer);
+
+  // Create wide spreadsheet 2
+  const wb2 = XLSX.utils.book_new();
+  const ws2 = XLSX.utils.json_to_sheet([
+    {
+      ApplicationNo: 'APP2001',
+      CandidateName: 'STUDENT TWO',
+      ParentGroupName1: 'Minor Group',
+      ImmediateParentGroupName1: 'Minor Stream',
+      CourseCode1: 'KU4MIN201',
+      CourseName1: 'Minor Course 1'
+    }
+  ]);
+  XLSX.utils.book_append_sheet(wb2, ws2, 'DeptB');
+  const wb2Buffer = XLSX.write(wb2, { type: 'array', bookType: 'xlsx' });
+  zip.file('CollegeB/DeptB_Admissions.xlsx', wb2Buffer);
+
+  const zipBuffer = await zip.generateAsync({ type: 'arraybuffer' });
+
+  // Parse the ZIP archive
+  const parsed = await parseAdmissionWideWorkbookBuffer(zipBuffer, 'Allotments_2026.zip');
+
+  assert.equal(parsed.isZip, true);
+  assert.equal(parsed.fileCount, 2);
+  assert.equal(parsed.extractedFiles.length, 2);
+  assert.ok(parsed.sheetNames.includes('Combined All Files (2 rows)'));
+  assert.ok(parsed.sheetNames.some(s => s.includes('DeptA')));
+  assert.ok(parsed.sheetNames.some(s => s.includes('DeptB')));
+
+  // Verify Combined All Files sheet contains all 2 rows
+  const combinedWs = parsed.workbook.Sheets['Combined All Files (2 rows)'];
+  const combinedRows = XLSX.utils.sheet_to_json(combinedWs);
+  assert.equal(combinedRows.length, 2);
+  assert.equal(combinedRows[0].CandidateName, 'STUDENT ONE');
+  assert.equal(combinedRows[1].CandidateName, 'STUDENT TWO');
 });
 
 // -------------------------------------------------------------

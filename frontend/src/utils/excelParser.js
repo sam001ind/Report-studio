@@ -340,3 +340,120 @@ export const readSpreadsheetWorkbook = async (file) => {
   const wb = parseWorkbookFromBuffer(buf);
   return { workbook: wb, sheetNames: wb.SheetNames || [] };
 };
+
+/**
+ * Universal Admission Wide Workbook & ZIP Archive Parser
+ * Extracts single or multiple spreadsheets from ZIP archives (including nested folders & HTML/CSV exports).
+ * If multiple files/sheets exist, aggregates all records into a "Combined All Files" master sheet
+ * while keeping each individual spreadsheet file accessible as its own sheet tab.
+ */
+export const parseAdmissionWideWorkbookBuffer = async (buffer, fileName = '') => {
+  const isZip = String(fileName || '').toLowerCase().endsWith('.zip');
+
+  if (isZip) {
+    const zip = await JSZip.loadAsync(buffer);
+    const validEntries = Object.keys(zip.files).filter(name => !isIgnoredZipEntry(name, zip.files[name]));
+
+    let targetEntries = validEntries.filter(hasSpreadsheetExtension);
+    if (targetEntries.length === 0) {
+      targetEntries = validEntries;
+    }
+
+    if (targetEntries.length === 0) {
+      throw new Error('No readable spreadsheet or data files found inside the uploaded ZIP archive.');
+    }
+
+    if (targetEntries.length === 1) {
+      const entryName = targetEntries[0];
+      const entryBase = entryName.split('/').pop();
+      const uint8 = await zip.files[entryName].async('uint8array');
+      const wb = parseWorkbookFromBuffer(uint8);
+      if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
+        throw new Error(`Could not parse valid workbook or sheets from "${entryBase}".`);
+      }
+      return {
+        workbook: wb,
+        sheetNames: wb.SheetNames,
+        isZip: true,
+        fileCount: 1,
+        extractedFiles: [entryBase]
+      };
+    }
+
+    // Multiple spreadsheets inside ZIP archive
+    const combinedSheets = {};
+    const combinedSheetNames = [];
+    let allCombinedRows = [];
+
+    for (const entryName of targetEntries) {
+      const entryBase = entryName.split('/').pop();
+      try {
+        const uint8 = await zip.files[entryName].async('uint8array');
+        const innerWb = parseWorkbookFromBuffer(uint8);
+
+        if (innerWb && innerWb.SheetNames && innerWb.SheetNames.length > 0) {
+          innerWb.SheetNames.forEach(sheetName => {
+            const ws = innerWb.Sheets[sheetName];
+            if (!ws) return;
+
+            const baseNoExt = entryBase.replace(/\.[^/.]+$/, '');
+            const cleanSheetName = innerWb.SheetNames.length === 1
+              ? baseNoExt
+              : `${baseNoExt} - ${sheetName}`;
+
+            let uniqueName = cleanSheetName;
+            let counter = 1;
+            while (combinedSheets[uniqueName]) {
+              uniqueName = `${cleanSheetName} (${counter++})`;
+            }
+
+            combinedSheets[uniqueName] = ws;
+            combinedSheetNames.push(uniqueName);
+
+            const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            if (json && json.length > 0) {
+              allCombinedRows = allCombinedRows.concat(json);
+            }
+          });
+        }
+      } catch (err) {
+        console.warn(`Could not parse entry "${entryName}" from ZIP:`, err);
+      }
+    }
+
+    if (combinedSheetNames.length === 0) {
+      throw new Error('Could not parse any valid sheets from the files in the ZIP archive.');
+    }
+
+    if (combinedSheetNames.length > 1 && allCombinedRows.length > 0) {
+      const mergedWs = XLSX.utils.json_to_sheet(allCombinedRows);
+      const mergedName = `Combined All Files (${allCombinedRows.length} rows)`;
+      combinedSheets[mergedName] = mergedWs;
+      combinedSheetNames.unshift(mergedName);
+    }
+
+    return {
+      workbook: {
+        Sheets: combinedSheets,
+        SheetNames: combinedSheetNames
+      },
+      sheetNames: combinedSheetNames,
+      isZip: true,
+      fileCount: targetEntries.length,
+      extractedFiles: targetEntries.map(e => e.split('/').pop())
+    };
+  }
+
+  const wb = parseWorkbookFromBuffer(buffer);
+  if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
+    throw new Error('Could not parse valid workbook or sheets from file.');
+  }
+
+  return {
+    workbook: wb,
+    sheetNames: wb.SheetNames,
+    isZip: false,
+    fileCount: 1,
+    extractedFiles: [fileName]
+  };
+};

@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { 
   ArrowLeft, 
   Upload, 
@@ -21,7 +22,7 @@ import {
   Building2,
   BookOpen
 } from 'lucide-react';
-import { parseWorkbookFromBuffer } from '../utils/excelParser';
+import { parseWorkbookFromBuffer, parseAdmissionWideWorkbookBuffer } from '../utils/excelParser';
 
 export const SAMPLE_FYIMP_WIDE_DATA = [
   {
@@ -641,9 +642,14 @@ export const transformWideToRowWise = (columns, rows, options = {}) => {
   };
 };
 
+export { parseAdmissionWideWorkbookBuffer };
+
 export default function AdmissionRowWisePage() {
   const [fileName, setFileName] = useState('');
   const [fileSize, setFileSize] = useState(0);
+  const [extractedFileCount, setExtractedFileCount] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
   const [workbook, setWorkbook] = useState(null);
   const [sheetNames, setSheetNames] = useState([]);
   const [selectedSheet, setSelectedSheet] = useState('');
@@ -751,8 +757,7 @@ export default function AdmissionRowWisePage() {
     }, 20);
   }, []);
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
+  const processSelectedFile = async (file) => {
     if (!file) return;
 
     setFileName(file.name);
@@ -762,23 +767,37 @@ export default function AdmissionRowWisePage() {
 
     try {
       const buffer = await file.arrayBuffer();
-      const wb = parseWorkbookFromBuffer(buffer);
+      const { workbook: wb, sheetNames: sheets, isZip, fileCount } = await parseAdmissionWideWorkbookBuffer(buffer, file.name);
 
-      if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
+      if (!wb || !sheets || sheets.length === 0) {
         throw new Error('Could not parse valid workbook or sheets from file.');
       }
 
+      setExtractedFileCount(fileCount);
       setWorkbook(wb);
-      setSheetNames(wb.SheetNames);
-      
-      const firstSheet = wb.SheetNames[0];
+      setSheetNames(sheets);
+
+      const firstSheet = sheets[0];
       setSelectedSheet(firstSheet);
       loadSheetData(wb, firstSheet);
+
+      if (isZip) {
+        if (fileCount > 1) {
+          setStatus(`Successfully extracted ${fileCount} files from ZIP archive (${sheets.length} sheets available).`, 'success');
+        } else {
+          setStatus(`Successfully extracted and loaded spreadsheet from ${file.name}.`, 'success');
+        }
+      }
     } catch (err) {
       console.error(err);
       setStatus(`Failed to read file: ${err.message}`, 'error');
       setIsProcessing(false);
     }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) processSelectedFile(file);
   };
 
   const loadSheetData = (wb, sheetName) => {
@@ -835,6 +854,7 @@ export default function AdmissionRowWisePage() {
   const handleReset = () => {
     setFileName('');
     setFileSize(0);
+    setExtractedFileCount(0);
     setWorkbook(null);
     setSheetNames([]);
     setSelectedSheet('');
@@ -844,7 +864,10 @@ export default function AdmissionRowWisePage() {
     setSearchQuery('');
     setSlotFilter('ALL');
     setPage(1);
-    setStatus('Upload a wide admission file to reshape.');
+    setStatus('Upload a wide admission file or ZIP archive to reshape.');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleOptionChange = (newOpts) => {
@@ -1738,30 +1761,50 @@ export default function AdmissionRowWisePage() {
               )}
             </div>
 
-            <label style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '28px 20px',
-              border: '2px dashed var(--line)',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              background: 'var(--bg)',
-              transition: 'all 0.2s ease',
-              textAlign: 'center',
-              gap: '8px'
-            }}>
+            <label 
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '28px 20px',
+                border: isDragging ? '2px dashed var(--accent)' : '2px dashed var(--line)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                background: isDragging ? 'var(--accent-soft)' : 'var(--bg)',
+                transition: 'all 0.2s ease',
+                textAlign: 'center',
+                gap: '8px'
+              }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const file = e.dataTransfer?.files?.[0];
+                if (file) processSelectedFile(file);
+              }}
+            >
               <FileSpreadsheet size={32} color="var(--accent)" />
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
-                {fileName ? fileName : 'Choose .xlsx, .xls, or .csv admission spreadsheet'}
+                {fileName ? (
+                  <span>
+                    {fileName}
+                    {extractedFileCount > 1 && (
+                      <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>
+                        ({extractedFileCount} files extracted)
+                      </span>
+                    )}
+                  </span>
+                ) : 'Choose .xlsx, .xls, .csv, or .zip admission archive'}
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                Detects all CourseCode1..N, CourseName1..N, and ParentGroupName1..N columns dynamically
+                Accepts spreadsheets or ZIP archives. Detects all CourseCode1..N, CourseName1..N, and ParentGroupName1..N columns dynamically.
               </div>
               <input 
+                ref={fileInputRef}
                 type="file" 
-                accept=".xlsx,.xls,.csv" 
+                accept=".xlsx,.xls,.csv,.zip,application/zip,application/x-zip-compressed" 
                 onChange={handleFileUpload} 
                 style={{ display: 'none' }} 
               />
@@ -1784,7 +1827,7 @@ export default function AdmissionRowWisePage() {
               <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '6px', background: 'var(--panel)', border: '1px solid var(--line)', fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <FileSpreadsheet size={18} color="var(--accent)" style={{ flexShrink: 0 }} />
                 <div>
-                  <strong>How to download:</strong> Upload your wide Excel/CSV file above, or click <strong>"Load Sample FYIMP Data"</strong> in the top header. The <strong>Download Reshaped Excel (.xlsx)</strong> and <strong>Unique Courses Report (.xlsx)</strong> buttons will activate immediately.
+                  <strong>How to download:</strong> Upload your wide Excel/CSV/ZIP file above, or click <strong>"Load Sample FYIMP Data"</strong> in the top header. The <strong>Download Reshaped Excel (.xlsx)</strong> and <strong>Unique Courses Report (.xlsx)</strong> buttons will activate immediately.
                 </div>
               </div>
             )}
