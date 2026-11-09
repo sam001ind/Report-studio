@@ -20,7 +20,8 @@ import {
   Database,
   GraduationCap,
   Building2,
-  BookOpen
+  BookOpen,
+  Users
 } from 'lucide-react';
 import { parseWorkbookFromBuffer, parseAdmissionWideWorkbookBuffer } from '../utils/excelParser';
 
@@ -292,8 +293,63 @@ export const generateUniqueCourseReport = (transformedRows, options = {}) => {
 };
 
 /**
+ * Intelligent helper to extract student/candidate PRN or unique identifier
+ */
+export const extractCandidateIdentifier = (row, fallbackIdx = 0) => {
+  if (!row || typeof row !== 'object') return `row_${fallbackIdx}`;
+
+  // Direct fast check on standard keys
+  const directKeys = [
+    'PRN', 'prn', 'Prn',
+    'PRNNo', 'prnNo', 'PRN_NO', 'prn_no',
+    'PermanentRegistrationNumber', 'permanentRegistrationNumber',
+    'RegisterNo', 'registerno', 'regNo', 'RegNo', 'reg_no', 'RegistrationNo', 'registrationNo',
+    'ApplicationNo', 'applicationno', 'applicationNo', 'appNo', 'AppNo', 'application_no',
+    'CandidateCode', 'candidateCode', 'candidate_code',
+    'RollNo', 'rollNo', 'roll_no', 'RollNumber',
+    'CandidateName', 'candidateName', 'candidatename', 'StudentName', 'studentName',
+    'AadhaarNumber', 'aadhaarNumber', 'username', 'Username'
+  ];
+
+  for (const k of directKeys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+      return String(row[k]).trim();
+    }
+  }
+
+  // Regex patterns across row keys
+  const priorityPatterns = [
+    /^prn/i,
+    /permanent.*reg/i,
+    /reg.*no/i,
+    /reg.*num/i,
+    /application.*no/i,
+    /app.*no/i,
+    /roll.*no/i,
+    /candidate.*code/i,
+    /candidate.*name/i,
+    /student.*name/i,
+    /aadhaar/i
+  ];
+
+  for (const pattern of priorityPatterns) {
+    for (const [k, v] of Object.entries(row)) {
+      if (pattern.test(k) && v !== null && v !== undefined && String(v).trim() !== '') {
+        return String(v).trim();
+      }
+    }
+  }
+
+  if (row._sourceRowIndex !== undefined && row._sourceRowIndex !== null) {
+    return `src_row_${row._sourceRowIndex}`;
+  }
+
+  return `row_${fallbackIdx}`;
+};
+
+/**
  * Generates a unique institute course master report containing:
- * Institute Code, Institute Name, ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName
+ * Institute Code, Institute Name, ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName, Count of Takers
  */
 export const generateUniqueInstituteCourseReport = (transformedRows, options = {}) => {
   const {
@@ -307,7 +363,8 @@ export const generateUniqueInstituteCourseReport = (transformedRows, options = {
 
   const uniqueMap = new Map();
 
-  for (const row of transformedRows) {
+  for (let rIdx = 0; rIdx < transformedRows.length; rIdx++) {
+    const row = transformedRows[rIdx];
     const courseCode = (row['CourseCode'] || '').trim();
     const courseName = (row['CourseName'] || '').trim();
 
@@ -320,8 +377,12 @@ export const generateUniqueInstituteCourseReport = (transformedRows, options = {
     let instName = instituteNameCol && row[instituteNameCol] !== undefined ? String(row[instituteNameCol]).trim() : '';
     if (!instName) instName = fallbackInstituteName || '';
 
-    const parentGroupName = (row['ParentGroupName'] || '').trim();
-    const immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+    let immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+    let parentGroupName = (row['ParentGroupName'] || '').trim();
+    // Fallback if blank
+    if (!parentGroupName && immediateParentGroupName) {
+      parentGroupName = immediateParentGroupName;
+    }
 
     const dedupKey = [
       instCode.toLowerCase(),
@@ -332,19 +393,33 @@ export const generateUniqueInstituteCourseReport = (transformedRows, options = {
       courseName.toLowerCase()
     ].join('|||');
 
+    const studentId = extractCandidateIdentifier(row, rIdx);
+
     if (!uniqueMap.has(dedupKey)) {
       uniqueMap.set(dedupKey, {
-        'Institute Code': instCode,
-        'Institute Name': instName,
-        'ParentGroupName': parentGroupName,
-        'ImmediateParentGroupName': immediateParentGroupName,
-        'CourseCode': courseCode,
-        'CourseName': courseName
+        instCode,
+        instName,
+        parentGroupName,
+        immediateParentGroupName,
+        courseCode,
+        courseName,
+        takerSet: new Set([studentId])
       });
+    } else {
+      uniqueMap.get(dedupKey).takerSet.add(studentId);
     }
   }
 
-  const list = Array.from(uniqueMap.values());
+  const list = Array.from(uniqueMap.values()).map(item => ({
+    'Institute Code': item.instCode,
+    'Institute Name': item.instName,
+    'ParentGroupName': item.parentGroupName,
+    'ImmediateParentGroupName': item.immediateParentGroupName,
+    'CourseCode': item.courseCode,
+    'CourseName': item.courseName,
+    'Count of Takers': item.takerSet.size
+  }));
+
   list.sort((a, b) => {
     const codeCmp = a['Institute Code'].localeCompare(b['Institute Code'], undefined, { numeric: true });
     if (codeCmp !== 0) return codeCmp;
@@ -597,6 +672,7 @@ export const transformWideToRowWise = (columns, rows, options = {}) => {
 
       if (isValidCourse(courseCode) || isValidCourse(courseName)) {
         const record = { ...baseData };
+        record._sourceRowIndex = r;
         if (includeSlotNumber) {
           record['CourseSlot'] = index;
         }
@@ -1150,7 +1226,8 @@ export default function AdmissionRowWisePage() {
         'ParentGroupName',
         'ImmediateParentGroupName',
         'CourseCode',
-        'CourseName'
+        'CourseName',
+        'Count of Takers'
       ];
 
       const ws = XLSX.utils.json_to_sheet(uniqueInstituteCoursesList, { header: headers });
@@ -1192,7 +1269,8 @@ export default function AdmissionRowWisePage() {
         'ParentGroupName',
         'ImmediateParentGroupName',
         'CourseCode',
-        'CourseName'
+        'CourseName',
+        'Count of Takers'
       ];
 
       const ws = XLSX.utils.json_to_sheet(uniqueInstituteCoursesList, { header: headers });
@@ -2799,7 +2877,7 @@ export default function AdmissionRowWisePage() {
                 {/* Sub-header Banner */}
                 <div style={{ padding: '8px 20px', background: 'rgba(139,92,246,0.04)', borderBottom: '1px solid var(--line)', fontSize: '12px', color: '#7c3aed', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Building2 size={15} />
-                  <span>Unique combinations of <strong>Institute Code</strong>, <strong>Institute Name</strong>, <strong>ParentGroupName</strong>, <strong>ImmediateParentGroupName</strong>, <strong>CourseCode</strong>, and <strong>CourseName</strong>.</span>
+                  <span>Institutional course offering report showing unique combinations of <strong>Institute Code</strong>, <strong>Institute Name</strong>, <strong>ParentGroupName</strong>, <strong>ImmediateParentGroupName</strong>, <strong>CourseCode</strong>, and <strong>CourseName</strong> along with the <strong>Count of Takers</strong> (PRNs/students).</span>
                 </div>
 
                 {/* Unique Institute Table Container */}
@@ -2814,6 +2892,7 @@ export default function AdmissionRowWisePage() {
                         <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>ImmediateParentGroupName</th>
                         <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap', color: 'var(--accent)' }}>CourseCode</th>
                         <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>CourseName</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap', color: '#7c3aed' }}>Count of Takers</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2869,12 +2948,29 @@ export default function AdmissionRowWisePage() {
                               <td style={{ padding: '10px 14px', fontWeight: 500 }}>
                                 {item.CourseName || <span style={{ color: 'var(--muted)' }}>—</span>}
                               </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontFamily: 'monospace',
+                                  fontWeight: 700,
+                                  padding: '3px 9px',
+                                  borderRadius: '12px',
+                                  background: 'rgba(139,92,246,0.1)',
+                                  color: '#7c3aed',
+                                  fontSize: '12px'
+                                }}>
+                                  <Users size={12} />
+                                  {(item['Count of Takers'] || 0).toLocaleString()}
+                                </span>
+                              </td>
                             </tr>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
                             No institute course combinations match query "{uniqueInstSearchQuery}".
                           </td>
                         </tr>
@@ -3469,7 +3565,7 @@ export default function AdmissionRowWisePage() {
               <div>
                 <h4 style={{ margin: '0 0 6px 0', color: '#7c3aed', fontSize: '14px' }}>6. Unique Institute Course Master Report (Excel)</h4>
                 <p style={{ margin: 0, color: 'var(--muted)' }}>
-                  Generates an institution-level curriculum offering report containing unique combinations across 6 key columns: <code>Institute Code</code>, <code>Institute Name</code>, <code>ParentGroupName</code>, <code>ImmediateParentGroupName</code>, <code>CourseCode</code>, and <code>CourseName</code>. Automatically detects college code and name columns (e.g. <code>CollegeCode</code>, <code>CollegeName</code>).
+                  Generates an institution-level curriculum offering report containing unique combinations across 7 key columns: <code>Institute Code</code>, <code>Institute Name</code>, <code>ParentGroupName</code>, <code>ImmediateParentGroupName</code>, <code>CourseCode</code>, <code>CourseName</code>, and <code>Count of Takers</code> (unique count of PRNs/students opting for that offering). Automatically detects college code and name columns (e.g. <code>CollegeCode</code>, <code>CollegeName</code>).
                 </p>
               </div>
 

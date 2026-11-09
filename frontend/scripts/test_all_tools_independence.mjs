@@ -1494,9 +1494,10 @@ test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupNam
   assert.equal(uniqueList[2].ParentGroupName, 'Discipline Specific Core (Psychology)');
 });
 
-test('Admission Report Maker - Generates Unique Institute Course Master Report (Excel) with exact 6 columns and deduplication', () => {
+test('Admission Report Maker - Generates Unique Institute Course Master Report (Excel) with 7 columns including Count of Takers', () => {
   const reshapedRows = [
     {
+      PRN: '2024KU001',
       CandidateName: 'STUDENT ALPHA',
       CollegeCode: 'AA',
       CollegeName: 'Alpha Arts and Science College',
@@ -1506,15 +1507,17 @@ test('Admission Report Maker - Generates Unique Institute Course Master Report (
       CourseName: 'Early Indian History and Culture'
     },
     {
+      PRN: '2024KU002',
       CandidateName: 'STUDENT BETA',
       CollegeCode: 'AA',
       CollegeName: 'Alpha Arts and Science College',
       ParentGroupName: 'Major Core',
       ImmediateParentGroupName: 'Discipline Specific Core',
-      CourseCode: 'KU4DSCHIS101', // duplicate course at same college AA
+      CourseCode: 'KU4DSCHIS101', // duplicate course at same college AA -> increment taker count
       CourseName: 'Early Indian History and Culture'
     },
     {
+      PRN: '2024KU003',
       CandidateName: 'STUDENT GAMMA',
       CollegeCode: 'AA',
       CollegeName: 'Alpha Arts and Science College',
@@ -1524,6 +1527,7 @@ test('Admission Report Maker - Generates Unique Institute Course Master Report (
       CourseName: 'Introductory Microeconomics'
     },
     {
+      PRN: '2024KU004',
       CandidateName: 'STUDENT DELTA',
       CollegeCode: 'BB',
       CollegeName: 'Beta Commerce College',
@@ -1533,6 +1537,20 @@ test('Admission Report Maker - Generates Unique Institute Course Master Report (
       CourseName: 'Early Indian History and Culture'
     }
   ];
+
+  // Helper matching extractCandidateIdentifier
+  const extractCandidateIdentifier = (row, fallbackIdx = 0) => {
+    if (!row || typeof row !== 'object') return `row_${fallbackIdx}`;
+    for (const k of ['PRN', 'prn', 'ApplicationNo', 'applicationno', 'RegisterNo', 'regno', 'CandidateName', 'candidatename']) {
+      if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+        return String(row[k]).trim();
+      }
+    }
+    if (row._sourceRowIndex !== undefined && row._sourceRowIndex !== null) {
+      return `src_row_${row._sourceRowIndex}`;
+    }
+    return `row_${fallbackIdx}`;
+  };
 
   // Logic matching generateUniqueInstituteCourseReport in AdmissionRowWisePage
   const generateUniqueInstituteReport = (rows, options = {}) => {
@@ -1545,7 +1563,8 @@ test('Admission Report Maker - Generates Unique Institute Course Master Report (
 
     const uniqueMap = new Map();
 
-    for (const row of rows) {
+    for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+      const row = rows[rIdx];
       const courseCode = String(row.CourseCode || '').trim();
       const courseName = String(row.CourseName || '').trim();
       if (!courseCode && !courseName) continue;
@@ -1571,37 +1590,51 @@ test('Admission Report Maker - Generates Unique Institute Course Master Report (
         courseName.toLowerCase()
       ].join('|||');
 
+      const studentId = extractCandidateIdentifier(row, rIdx);
+
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, {
-          'Institute Code': instCode,
-          'Institute Name': instName,
-          'ParentGroupName': parentGroupName,
-          'ImmediateParentGroupName': immediateParentGroupName,
-          'CourseCode': courseCode,
-          'CourseName': courseName
+          instCode,
+          instName,
+          parentGroupName,
+          immediateParentGroupName,
+          courseCode,
+          courseName,
+          takerSet: new Set([studentId])
         });
+      } else {
+        uniqueMap.get(key).takerSet.add(studentId);
       }
     }
-    return Array.from(uniqueMap.values());
+    return Array.from(uniqueMap.values()).map(item => ({
+      'Institute Code': item.instCode,
+      'Institute Name': item.instName,
+      'ParentGroupName': item.parentGroupName,
+      'ImmediateParentGroupName': item.immediateParentGroupName,
+      'CourseCode': item.courseCode,
+      'CourseName': item.courseName,
+      'Count of Takers': item.takerSet.size
+    }));
   };
 
   const report = generateUniqueInstituteReport(reshapedRows);
 
   // 4 rows input:
-  // - 2 identical for (AA, KU4DSCHIS101) -> deduplicated to 1
-  // - 1 for (AA, KU4DSCECO101) with fallback ParentGroupName
-  // - 1 for (BB, KU4DSCHIS101) at distinct college
+  // - 2 identical for (AA, KU4DSCHIS101) -> deduplicated to 1 with Count of Takers = 2
+  // - 1 for (AA, KU4DSCECO101) with fallback ParentGroupName -> Count of Takers = 1
+  // - 1 for (BB, KU4DSCHIS101) at distinct college -> Count of Takers = 1
   // Total expected unique combinations = 3
   assert.equal(report.length, 3);
 
-  // Validate exact 6 requested headers
+  // Validate exact 7 requested headers including Count of Takers
   const expectedHeaders = [
     'Institute Code',
     'Institute Name',
     'ParentGroupName',
     'ImmediateParentGroupName',
     'CourseCode',
-    'CourseName'
+    'CourseName',
+    'Count of Takers'
   ];
   assert.deepEqual(Object.keys(report[0]), expectedHeaders);
 
@@ -1612,17 +1645,20 @@ test('Admission Report Maker - Generates Unique Institute Course Master Report (
   assert.equal(report[0]['ImmediateParentGroupName'], 'Discipline Specific Core');
   assert.equal(report[0]['CourseCode'], 'KU4DSCHIS101');
   assert.equal(report[0]['CourseName'], 'Early Indian History and Culture');
+  assert.equal(report[0]['Count of Takers'], 2);
 
   // Validate record 2 (College AA, ECO101 with fallback ParentGroupName)
   assert.equal(report[1]['Institute Code'], 'AA');
   assert.equal(report[1]['ParentGroupName'], 'Discipline Specific Core (Economics)');
   assert.equal(report[1]['ImmediateParentGroupName'], 'Discipline Specific Core (Economics)');
   assert.equal(report[1]['CourseCode'], 'KU4DSCECO101');
+  assert.equal(report[1]['Count of Takers'], 1);
 
   // Validate record 3 (College BB, HIS101)
   assert.equal(report[2]['Institute Code'], 'BB');
   assert.equal(report[2]['Institute Name'], 'Beta Commerce College');
   assert.equal(report[2]['CourseCode'], 'KU4DSCHIS101');
+  assert.equal(report[2]['Count of Takers'], 1);
 });
 
 test('Admission Report Maker - Generates Unique 4-Column Course Master Report (ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName)', () => {
