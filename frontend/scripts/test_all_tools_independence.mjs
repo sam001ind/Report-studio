@@ -1422,7 +1422,8 @@ test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupNam
   const generateUniqueReport = (rows, mapping) => {
     const uniqueMap = new Map();
 
-    for (const row of rows) {
+    for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+      const row = rows[rIdx];
       const courseCode = (row['CourseCode'] || '').trim();
       const courseName = (row['CourseName'] || '').trim();
       if (!courseCode && !courseName) continue;
@@ -1430,8 +1431,11 @@ test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupNam
       const program = mapping.programCol && row[mapping.programCol] !== undefined ? String(row[mapping.programCol]).trim() : 'Default Program';
       const part = mapping.partCol && row[mapping.partCol] !== undefined ? String(row[mapping.partCol]).trim() : '1';
       const term = mapping.termCol && row[mapping.termCol] !== undefined ? String(row[mapping.termCol]).trim() : '1';
-      const parentGroupName = (row['ParentGroupName'] || '').trim();
-      const immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+      let immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+      let parentGroupName = (row['ParentGroupName'] || '').trim();
+      if (!parentGroupName && immediateParentGroupName) {
+        parentGroupName = immediateParentGroupName;
+      }
 
       const key = [
         program.toLowerCase(),
@@ -1443,19 +1447,33 @@ test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupNam
         courseName.toLowerCase()
       ].join('|||');
 
+      const studentId = row.ApplicationNo || row.CandidateName || `row_${rIdx}`;
+
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, {
-          Program: program,
-          Part: part,
-          Term: term,
-          ParentGroupName: parentGroupName,
-          ImmediateParentGroupName: immediateParentGroupName,
-          CourseCode: courseCode,
-          CourseName: courseName
+          program,
+          part,
+          term,
+          parentGroupName,
+          immediateParentGroupName,
+          courseCode,
+          courseName,
+          takerSet: new Set([studentId])
         });
+      } else {
+        uniqueMap.get(key).takerSet.add(studentId);
       }
     }
-    return Array.from(uniqueMap.values());
+    return Array.from(uniqueMap.values()).map(item => ({
+      Program: item.program,
+      Part: item.part,
+      Term: item.term,
+      ParentGroupName: item.parentGroupName,
+      ImmediateParentGroupName: item.immediateParentGroupName,
+      CourseCode: item.courseCode,
+      CourseName: item.courseName,
+      'Count of Takers': item.takerSet.size
+    }));
   };
 
   const uniqueList = generateUniqueReport(reshapedRows, {
@@ -1467,7 +1485,7 @@ test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupNam
   // Out of 5 student allocations, exactly 3 unique courses exist (the 2 identical ones from Student Epsilon are deduped)
   assert.equal(uniqueList.length, 3);
 
-  // Validate exact headers/keys
+  // Validate exact headers/keys including Count of Takers
   const expectedKeys = [
     'Program',
     'Part',
@@ -1475,11 +1493,12 @@ test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupNam
     'ParentGroupName',
     'ImmediateParentGroupName',
     'CourseCode',
-    'CourseName'
+    'CourseName',
+    'Count of Takers'
   ];
   assert.deepEqual(Object.keys(uniqueList[0]), expectedKeys);
 
-  // Validate values for course 1
+  // Validate values for course 1 (2 takers: Student Alpha + Student Epsilon)
   assert.equal(uniqueList[0].Program, 'B.A. History (FYIMP)');
   assert.equal(uniqueList[0].Part, '1');
   assert.equal(uniqueList[0].Term, '1');
@@ -1487,11 +1506,17 @@ test('Generates unique Program Part Term ParentGroupName ImmediateParentGroupNam
   assert.equal(uniqueList[0].ImmediateParentGroupName, 'Discipline Specific Core');
   assert.equal(uniqueList[0].CourseCode, 'KU4DSCHIS101');
   assert.equal(uniqueList[0].CourseName, 'Early Indian History and Culture');
+  assert.equal(uniqueList[0]['Count of Takers'], 2);
 
-  // Validate course 3 with fallback group
+  // Validate values for course 2 (2 takers: Student Alpha + Student Epsilon)
+  assert.equal(uniqueList[1].CourseCode, 'KU4MINPOL101');
+  assert.equal(uniqueList[1]['Count of Takers'], 2);
+
+  // Validate course 3 with fallback group (1 taker: Student Beta)
   assert.equal(uniqueList[2].Program, 'B.A. English (FYIMP)');
   assert.equal(uniqueList[2].CourseCode, 'KU4DSCPSY101');
   assert.equal(uniqueList[2].ParentGroupName, 'Discipline Specific Core (Psychology)');
+  assert.equal(uniqueList[2]['Count of Takers'], 1);
 });
 
 test('Admission Report Maker - Generates Unique Institute Course Master Report (Excel) with 7 columns including Count of Takers', () => {

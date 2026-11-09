@@ -216,7 +216,7 @@ export const detectColumnMatch = (columns, candidateNames) => {
 
 /**
  * Generates a unique course master report containing:
- * Program, Part, Term, ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName
+ * Program, Part, Term, ParentGroupName, ImmediateParentGroupName, CourseCode, CourseName, Count of Takers
  */
 export const generateUniqueCourseReport = (transformedRows, options = {}) => {
   const {
@@ -232,7 +232,8 @@ export const generateUniqueCourseReport = (transformedRows, options = {}) => {
 
   const uniqueMap = new Map();
 
-  for (const row of transformedRows) {
+  for (let rIdx = 0; rIdx < transformedRows.length; rIdx++) {
+    const row = transformedRows[rIdx];
     const courseCode = (row['CourseCode'] || '').trim();
     const courseName = (row['CourseName'] || '').trim();
 
@@ -248,8 +249,11 @@ export const generateUniqueCourseReport = (transformedRows, options = {}) => {
     let term = termCol && row[termCol] !== undefined ? String(row[termCol]).trim() : '';
     if (!term) term = fallbackTerm || '1';
 
-    const parentGroupName = (row['ParentGroupName'] || '').trim();
-    const immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+    let immediateParentGroupName = (row['ImmediateParentGroupName'] || '').trim();
+    let parentGroupName = (row['ParentGroupName'] || '').trim();
+    if (!parentGroupName && immediateParentGroupName) {
+      parentGroupName = immediateParentGroupName;
+    }
 
     const dedupKey = [
       program.toLowerCase(),
@@ -261,20 +265,35 @@ export const generateUniqueCourseReport = (transformedRows, options = {}) => {
       courseName.toLowerCase()
     ].join('|||');
 
+    const studentId = extractCandidateIdentifier(row, rIdx);
+
     if (!uniqueMap.has(dedupKey)) {
       uniqueMap.set(dedupKey, {
-        Program: program,
-        Part: part,
-        Term: term,
-        ParentGroupName: parentGroupName,
-        ImmediateParentGroupName: immediateParentGroupName,
-        CourseCode: courseCode,
-        CourseName: courseName
+        program,
+        part,
+        term,
+        parentGroupName,
+        immediateParentGroupName,
+        courseCode,
+        courseName,
+        takerSet: new Set([studentId])
       });
+    } else {
+      uniqueMap.get(dedupKey).takerSet.add(studentId);
     }
   }
 
-  const list = Array.from(uniqueMap.values());
+  const list = Array.from(uniqueMap.values()).map(item => ({
+    Program: item.program,
+    Part: item.part,
+    Term: item.term,
+    ParentGroupName: item.parentGroupName,
+    ImmediateParentGroupName: item.immediateParentGroupName,
+    CourseCode: item.courseCode,
+    CourseName: item.courseName,
+    'Count of Takers': item.takerSet.size
+  }));
+
   list.sort((a, b) => {
     const pCmp = a.Program.localeCompare(b.Program);
     if (pCmp !== 0) return pCmp;
@@ -1110,7 +1129,8 @@ export default function AdmissionRowWisePage() {
         'ParentGroupName',
         'ImmediateParentGroupName',
         'CourseCode',
-        'CourseName'
+        'CourseName',
+        'Count of Takers'
       ];
 
       const ws = XLSX.utils.json_to_sheet(uniqueCoursesList, { header: headers });
@@ -1153,7 +1173,8 @@ export default function AdmissionRowWisePage() {
         'ParentGroupName',
         'ImmediateParentGroupName',
         'CourseCode',
-        'CourseName'
+        'CourseName',
+        'Count of Takers'
       ];
 
       const ws = XLSX.utils.json_to_sheet(uniqueCoursesList, { header: headers });
@@ -2660,7 +2681,7 @@ export default function AdmissionRowWisePage() {
                 {/* Sub-header Banner */}
                 <div style={{ padding: '8px 20px', background: 'rgba(16,185,129,0.04)', borderBottom: '1px solid var(--line)', fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <GraduationCap size={15} />
-                  <span>Unique combinations of <strong>Program</strong>, <strong>Part</strong>, <strong>Term</strong>, <strong>ParentGroupName</strong>, <strong>ImmediateParentGroupName</strong>, <strong>CourseCode</strong>, and <strong>CourseName</strong>.</span>
+                  <span>Unique combinations of <strong>Program</strong>, <strong>Part</strong>, <strong>Term</strong>, <strong>ParentGroupName</strong>, <strong>ImmediateParentGroupName</strong>, <strong>CourseCode</strong>, and <strong>CourseName</strong> along with the <strong>Count of Takers</strong> (PRNs/students).</span>
                 </div>
 
                 {/* Unique Table Container */}
@@ -2676,6 +2697,7 @@ export default function AdmissionRowWisePage() {
                         <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>ImmediateParentGroupName</th>
                         <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap', color: 'var(--accent)' }}>CourseCode</th>
                         <th style={{ padding: '10px 14px', textAlign: 'left', whiteSpace: 'nowrap' }}>CourseName</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap', color: '#059669' }}>Count of Takers</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2728,12 +2750,29 @@ export default function AdmissionRowWisePage() {
                               <td style={{ padding: '10px 14px', fontWeight: 500 }}>
                                 {item.CourseName || <span style={{ color: 'var(--muted)' }}>—</span>}
                               </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontFamily: 'monospace',
+                                  fontWeight: 700,
+                                  padding: '3px 9px',
+                                  borderRadius: '12px',
+                                  background: 'rgba(16,185,129,0.1)',
+                                  color: '#059669',
+                                  fontSize: '12px'
+                                }}>
+                                  <Users size={12} />
+                                  {(item['Count of Takers'] || 0).toLocaleString()}
+                                </span>
+                              </td>
                             </tr>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                          <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
                             No unique courses match query "{uniqueSearchQuery}".
                           </td>
                         </tr>
@@ -3558,7 +3597,7 @@ export default function AdmissionRowWisePage() {
               <div>
                 <h4 style={{ margin: '0 0 6px 0', color: '#059669', fontSize: '14px' }}>5. Unique Program Course Master Report (Excel)</h4>
                 <p style={{ margin: 0, color: 'var(--muted)' }}>
-                  Generates an exportable curriculum report containing deduplicated records across 7 core columns: <code>Program</code>, <code>Part</code>, <code>Term</code>, <code>ParentGroupName</code>, <code>ImmediateParentGroupName</code>, <code>CourseCode</code>, and <code>CourseName</code>. Ideal for populating university syllabus master databases and verifying course codes.
+                  Generates an exportable curriculum report containing deduplicated records across 8 core columns: <code>Program</code>, <code>Part</code>, <code>Term</code>, <code>ParentGroupName</code>, <code>ImmediateParentGroupName</code>, <code>CourseCode</code>, <code>CourseName</code>, and <code>Count of Takers</code> (unique count of PRNs/students). Ideal for populating university syllabus master databases and verifying course codes.
                 </p>
               </div>
 
