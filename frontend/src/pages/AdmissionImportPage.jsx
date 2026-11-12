@@ -974,7 +974,7 @@ export default function AdmissionImportPage() {
     });
   };
 
-  const exportStandardXlsx = () => {
+  const exportStandardXlsx = async () => {
     if (!normalizedRows.length) return alert('No data available to export.');
     setIsProcessing(true);
     setStatus(`Generating standardized ${TARGET_COLUMNS.length}-column master Excel workbook...`, 'info');
@@ -1079,8 +1079,70 @@ export default function AdmissionImportPage() {
 
       XLSX.utils.book_append_sheet(wb, ws, 'Master_Admission');
 
-      const outBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true, cellDates: true });
-      const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const rawBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true, cellDates: true });
+
+      // Apply distinct RED styling to additional header columns in exported Excel
+      let finalBuffer = rawBuffer;
+      try {
+        const ADDITIONAL_SET = new Set(['Date of Birth (DD/MM/YY)', 'PGM Name', 'CLG NAME', '']);
+        const redHeaderRefs = [];
+        TARGET_COLUMNS.forEach((col, cIdx) => {
+          if (ADDITIONAL_SET.has(col)) {
+            redHeaderRefs.push(XLSX.utils.encode_cell({ r: 0, c: cIdx }));
+          }
+        });
+
+        const zip = await JSZip.loadAsync(rawBuffer);
+        let stylesXml = await zip.file('xl/styles.xml')?.async('text');
+        let sheetXml = await zip.file('xl/worksheets/sheet1.xml')?.async('text');
+
+        if (stylesXml && sheetXml) {
+          // 1. Add bold red font (FFDC2626)
+          let fontId = 0;
+          stylesXml = stylesXml.replace(/<fonts count="(\d+)">([\s\S]*?)<\/fonts>/, (match, count, inner) => {
+            fontId = parseInt(count, 10);
+            const redFont = `<font><b/><sz val="11"/><color rgb="FFDC2626"/><name val="Calibri"/><family val="2"/></font>`;
+            return `<fonts count="${fontId + 1}">${inner}${redFont}</fonts>`;
+          });
+
+          // 2. Add light red header fill (FFFEE2E2)
+          let fillId = 0;
+          stylesXml = stylesXml.replace(/<fills count="(\d+)">([\s\S]*?)<\/fills>/, (match, count, inner) => {
+            fillId = parseInt(count, 10);
+            const redFill = `<fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/><bgColor indexed="64"/></patternFill></fill>`;
+            return `<fills count="${fillId + 1}">${inner}${redFill}</fills>`;
+          });
+
+          // 3. Add cellXf referencing the red font & fill
+          let redXfId = 0;
+          stylesXml = stylesXml.replace(/<cellXfs count="(\d+)">([\s\S]*?)<\/cellXfs>/, (match, count, inner) => {
+            redXfId = parseInt(count, 10);
+            const redXf = `<xf numFmtId="0" fontId="${fontId}" fillId="${fillId}" borderId="0" xfId="0" applyFont="1" applyFill="1"/>`;
+            return `<cellXfs count="${redXfId + 1}">${inner}${redXf}</cellXfs>`;
+          });
+
+          // 4. Update the additional header cells in sheet1.xml
+          for (const cellRef of redHeaderRefs) {
+            const re = new RegExp(`(<c r="${cellRef}"[^>]*?)(\\/?>)`, 'g');
+            sheetXml = sheetXml.replace(re, (m, p1, p2) => {
+              if (p1.includes('s=')) {
+                p1 = p1.replace(/s="\d+"/, `s="${redXfId}"`);
+              } else {
+                p1 = `${p1} s="${redXfId}"`;
+              }
+              return `${p1}${p2}`;
+            });
+          }
+
+          zip.file('xl/styles.xml', stylesXml);
+          zip.file('xl/worksheets/sheet1.xml', sheetXml);
+          finalBuffer = await zip.generateAsync({ type: 'arraybuffer' });
+        }
+      } catch (styleErr) {
+        console.warn('Could not inject XLSX red header styles:', styleErr);
+      }
+
+      const blob = new Blob([finalBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1466,26 +1528,26 @@ export default function AdmissionImportPage() {
                             padding: '8px 10px', 
                             textAlign: 'left', 
                             borderBottom: '1.5px solid var(--line)', 
-                            color: isAdditional ? '#000000' : 'var(--ink)', 
+                            color: isAdditional ? '#991b1b' : 'var(--ink)', 
                             fontWeight: isAdditional ? 800 : 700,
-                            borderRight: '1px solid var(--line)',
-                            background: isAdditional ? 'rgba(0, 0, 0, 0.07)' : 'var(--bg)'
+                            borderRight: isAdditional ? '1px solid rgba(153, 27, 27, 0.25)' : '1px solid var(--line)',
+                            background: isAdditional ? 'rgba(153, 27, 27, 0.08)' : 'var(--bg)'
                           }}
                         >
                           <span style={{ 
                             fontSize: '9px', 
-                            color: isAdditional ? '#000000' : 'var(--muted)', 
+                            color: isAdditional ? '#991b1b' : 'var(--muted)', 
                             display: 'block', 
                             fontWeight: isAdditional ? 800 : 600 
                           }}>
                             Col {idx + 1} {isAdditional ? '• Additional' : ''}
                           </span>
                           {col ? (
-                            <span style={{ color: isAdditional ? '#000000' : 'inherit', fontWeight: isAdditional ? 800 : 700 }}>
+                            <span style={{ color: isAdditional ? '#991b1b' : 'inherit', fontWeight: isAdditional ? 800 : 700 }}>
                               {col}
                             </span>
                           ) : (
-                            <span style={{ color: '#000000', fontWeight: 800 }}>
+                            <span style={{ color: '#991b1b', fontWeight: 800 }}>
                               (Passing Year)
                             </span>
                           )}
@@ -1516,10 +1578,10 @@ export default function AdmissionImportPage() {
                               key={col || `col_${cIdx}`} 
                               style={{ 
                                 padding: '5px 8px', 
-                                borderRight: '1px solid var(--line)',
-                                color: isAdditional ? '#000000' : 'var(--ink)',
-                                background: isAdditional ? 'rgba(0, 0, 0, 0.02)' : 'transparent',
-                                fontWeight: isAdditional ? 600 : 400
+                                borderRight: isAdditional ? '1px solid rgba(153, 27, 27, 0.15)' : '1px solid var(--line)',
+                                color: isAdditional ? '#991b1b' : 'var(--ink)',
+                                background: isAdditional ? 'rgba(153, 27, 27, 0.03)' : 'transparent',
+                                fontWeight: isAdditional ? 700 : 400
                               }}
                             >
                               <input 
@@ -1531,8 +1593,8 @@ export default function AdmissionImportPage() {
                                   border: 'none', 
                                   background: 'transparent', 
                                   fontSize: '11.5px', 
-                                  color: 'inherit',
-                                  fontWeight: 'inherit',
+                                  color: isAdditional ? '#991b1b' : 'inherit',
+                                  fontWeight: isAdditional ? 700 : 'inherit',
                                   padding: 0,
                                   fontFamily: 'inherit'
                                 }} 
