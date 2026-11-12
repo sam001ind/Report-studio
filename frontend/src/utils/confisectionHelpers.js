@@ -28,29 +28,31 @@ export const resolveCollegeEmail = (code, name, emailDirectory = DEFAULT_COLLEGE
 
   if (!emailDirectory || !Array.isArray(emailDirectory)) return '';
 
-  // 1. Direct code match (e.g. '209', '201')
+  // 1. Direct code match (e.g. 'PP', 'GB', 'ST', 'SS')
   const byCode = emailDirectory.find(e => String(e.code || '').trim().toLowerCase() === cleanCode);
   if (byCode && byCode.email) return byCode.email;
 
-  // 2. Known Kannur Alpha Venue Code aliases
-  const aliasMap = {
-    pp: '209', // Payyannur College
-    st: '211', // Sir Syed College
-    sn: '212', // Sree Narayana College
-    bc: '201', // Brennen College
-    mc: '200', // Mananthavady College
-    kc: '205', // Kasaragod College
-    nc: '214', // Nirmalagiri College
-    mg: '215', // MG College Iritty
-    nam: '216', // NAM College Kallikandy
-    nas: '241', // Nehru Arts & Science
-    sp: '251', // St. Pius X
-    ses: '265', // SES College
-    mm: '266'  // Mary Matha College
+  // 2. Numeric center code to 2-letter alpha code aliases
+  const numericToAlpha = {
+    '209': 'pp',
+    '201': 'gb',
+    '205': 'gk',
+    '211': 'ss',
+    '212': 'sn',
+    '214': 'ng',
+    '215': 'mg',
+    '216': 'nm',
+    '241': 'na',
+    '251': 'sp',
+    '265': 'se',
+    '266': 'mm',
+    '200': 'gm',
+    '207': 'km'
   };
-  if (aliasMap[cleanCode]) {
-    const byAlias = emailDirectory.find(e => String(e.code || '').trim() === aliasMap[cleanCode]);
-    if (byAlias && byAlias.email) return byAlias.email;
+  if (numericToAlpha[cleanCode]) {
+    const targetAlpha = numericToAlpha[cleanCode];
+    const byNumericAlias = emailDirectory.find(e => String(e.code || '').trim().toLowerCase() === targetAlpha);
+    if (byNumericAlias && byNumericAlias.email) return byNumericAlias.email;
   }
 
   // 3. Exact clean name match
@@ -129,7 +131,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'PP',
     venueName: 'Payyannur College, Payyannur',
-    collegeEmail: 'payyannurcollege@gmail.com',
+    collegeEmail: 'principal_pc@kannuruniv.ac.in',
     programName: 'Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year II SEMESTER III',
     examDate: '25/11/2026',
     startTime: '01:30 PM',
@@ -145,7 +147,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'PP',
     venueName: 'Payyannur College, Payyannur',
-    collegeEmail: 'payyannurcollege@gmail.com',
+    collegeEmail: 'principal_pc@kannuruniv.ac.in',
     programName: 'Bachelor of Commerce(Finance)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year II SEMESTER III',
     examDate: '25/11/2026',
     startTime: '01:30 PM',
@@ -161,7 +163,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'PP',
     venueName: 'Payyannur College, Payyannur',
-    collegeEmail: 'payyannurcollege@gmail.com',
+    collegeEmail: 'principal_pc@kannuruniv.ac.in',
     programName: 'Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2025-Mathematics- SEMESTER III',
     examDate: '25/11/2026',
     startTime: '01:30 PM',
@@ -177,7 +179,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'PP',
     venueName: 'Payyannur College, Payyannur',
-    collegeEmail: 'payyannurcollege@gmail.com',
+    collegeEmail: 'principal_pc@kannuruniv.ac.in',
     programName: 'Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year II SEMESTER III',
     examDate: '23/11/2026',
     startTime: '01:30 PM',
@@ -193,7 +195,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'PP',
     venueName: 'Payyannur College, Payyannur',
-    collegeEmail: 'payyannurcollege@gmail.com',
+    collegeEmail: 'principal_pc@kannuruniv.ac.in',
     programName: 'Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year II SEMESTER III',
     examDate: '25/11/2026',
     startTime: '01:30 PM',
@@ -209,7 +211,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'PP',
     venueName: 'Payyannur College, Payyannur',
-    collegeEmail: 'payyannurcollege@gmail.com',
+    collegeEmail: 'principal_pc@kannuruniv.ac.in',
     programName: 'Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year II SEMESTER III',
     examDate: '25/11/2026',
     startTime: '01:30 PM',
@@ -225,7 +227,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'PP',
     venueName: 'Payyannur College, Payyannur',
-    collegeEmail: 'payyannurcollege@gmail.com',
+    collegeEmail: 'principal_pc@kannuruniv.ac.in',
     programName: 'Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year II SEMESTER III',
     examDate: '23/11/2026',
     startTime: '01:30 PM',
@@ -241,7 +243,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'ST',
     venueName: 'Sir Syed College, Taliparamba',
-    collegeEmail: 'sirsyedcollege@gmail.com',
+    collegeEmail: 'principal_ssitt@kannuruniv.ac.in',
     programName: 'Bachelor of Science in Chemistry(with Credits)-Regular-FYUGP-2025-Chemistry-BSc Year II SEMESTER III',
     examDate: '25/11/2026',
     startTime: '01:30 PM',
@@ -257,7 +259,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'ST',
     venueName: 'Sir Syed College, Taliparamba',
-    collegeEmail: 'sirsyedcollege@gmail.com',
+    collegeEmail: 'principal_ssitt@kannuruniv.ac.in',
     programName: 'Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year II SEMESTER III',
     examDate: '25/11/2026',
     startTime: '01:30 PM',
@@ -273,7 +275,7 @@ export const SAMPLE_CONFISECTION_ROWS = [
     centerName: 'Kannur',
     venueCode: 'SN',
     venueName: 'Sree Narayana College, Kannur',
-    collegeEmail: 'sncollegekannur@gmail.com',
+    collegeEmail: 'principal_snct@kannuruniv.ac.in',
     programName: 'Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year II SEMESTER III',
     examDate: '25/11/2026',
     startTime: '01:30 PM',

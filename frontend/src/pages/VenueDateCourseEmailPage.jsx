@@ -29,42 +29,9 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
+import { DEFAULT_COLLEGE_EMAILS } from '../utils/venueEmailHelpers';
 
-// Official Kannur University Default College Email Directory
-export const DEFAULT_COLLEGE_EMAILS = [
-  // Affiliated Colleges
-  { code: '200', name: 'Govt. College Mananthavady', email: 'gcmananthavady@gmail.com' },
-  { code: '201', name: 'Govt. Brennen College, Thalassery', email: 'brennencollege@gmail.com' },
-  { code: '205', name: 'Govt. College Kasaragod', email: 'gckasaragod@gmail.com' },
-  { code: '207', name: "K.M.M. Govt. Women's College, Kannur", email: 'kmmgwc@gmail.com' },
-  { code: '209', name: 'Payyannur College, Payyannur', email: 'payyannurcollege@gmail.com' },
-  { code: '211', name: 'Sir Syed College, Taliparamba', email: 'sirsyedcollege@gmail.com' },
-  { code: '212', name: 'Sree Narayana College, Kannur', email: 'sncollegekannur@gmail.com' },
-  { code: '214', name: 'Nirmalagiri College, Kuthuparamba', email: 'nirmalagiricollege@gmail.com' },
-  { code: '215', name: 'Mahatma Gandhi College, Iritty', email: 'mgciritty@gmail.com' },
-  { code: '216', name: 'N.A.M. College, Kallikandy', email: 'namcollege@gmail.com' },
-  { code: '241', name: 'Nehru Arts and Science College, Kanhangad', email: 'nascollege@gmail.com' },
-  { code: '251', name: 'St. Pius X College, Rajapuram', email: 'stpiusxcollege@gmail.com' },
-  { code: '265', name: 'SES College, Sreekandapuram', email: 'sescollege@gmail.com' },
-  { code: '266', name: 'Wadihuda Institute of Research and Advanced Studies', email: 'wiras@gmail.com' },
-
-  // University Teaching Departments & Campuses
-  { code: '435', name: 'Department of Anthropology', email: 'anthropology@kannuruniv.ac.in' },
-  { code: '432', name: 'School of Behavioural Sciences, Mangattuparamba', email: 'behaviouralsciences@kannuruniv.ac.in' },
-  { code: '434', name: 'Department of Commerce and Business Studies', email: 'commerce@kannuruniv.ac.in' },
-  { code: '430', name: 'Department of Information Technology, Mangattuparamba', email: 'it@kannuruniv.ac.in' },
-  { code: '433', name: 'Department of Physics, Swami Anandatheertha Campus', email: 'physics@kannuruniv.ac.in' },
-  { code: '431', name: 'School of Physical Education and Sport Sciences', email: 'sports@kannuruniv.ac.in' },
-  { code: '131', name: 'Department of Economics', email: 'economics@kannuruniv.ac.in' },
-  { code: '125', name: 'Department of Geography', email: 'geography@kannuruniv.ac.in' },
-  { code: '133', name: 'Department of Management Studies', email: 'dms@kannuruniv.ac.in' },
-  { code: '128', name: 'Department of Environmental Studies', email: 'environ@kannuruniv.ac.in' },
-  { code: '124', name: 'Department of History', email: 'history@kannuruniv.ac.in' },
-  { code: '130', name: 'Department of Studies in English', email: 'english@kannuruniv.ac.in' },
-  { code: '129', name: 'Department of Mathematical Sciences', email: 'maths@kannuruniv.ac.in' },
-  { code: '132', name: 'IT Education Centre', email: 'itec@kannuruniv.ac.in' },
-  { code: '127', name: 'Department of Music', email: 'music@kannuruniv.ac.in' }
-];
+export { DEFAULT_COLLEGE_EMAILS };
 
 // Sample Dataset for instant demonstration
 export const SAMPLE_EXAM_SCHEDULE_ROWS = [

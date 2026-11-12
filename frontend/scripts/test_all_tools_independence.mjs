@@ -2581,10 +2581,11 @@ test('Venue Date Course Email Report - deduplicates Date + Venue + Course Code a
   assert.equal(formatExamDate('2026-05-18'), '18/05/2026');
   assert.equal(formatExamDate('18-05-2026'), '18/05/2026');
   
-  // 2. Test email resolution for Kannur default colleges
-  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === '435' && c.email.includes('anthropology')));
-  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === '432' && c.email.includes('behavioural')));
-  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === '201' && c.email.includes('brennencollege')));
+  // 2. Test email resolution for Kannur official colleges
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === 'GB' && c.email === 'principal_gbc@kannuruniv.ac.in'));
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === 'PP' && c.email === 'principal_pc@kannuruniv.ac.in'));
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === 'SN' && c.email === 'principal_snct@kannuruniv.ac.in'));
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === 'NG' && c.email === 'principal_nck@kannuruniv.ac.in'));
 });
 
 console.log('\n[Test Suite 25: Master Lookup Definition Tool]');
