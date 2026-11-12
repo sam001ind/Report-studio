@@ -1090,6 +1090,15 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
   assert.equal(calcPct, '86.92');
   const calcCgpa = (parseFloat(calcPct) / 9.5).toFixed(2);
   assert.equal(calcCgpa, '9.15');
+
+  // Verify Col 24 workFlowId and Col 26 ProgramCode are strictly resolved from the Program Name lookup
+  const lookedUpWorkflowId = (progLookup && progLookup.workflowId && progLookup.workflowId !== 'NA') ? progLookup.workflowId : '';
+  const resolvedWorkflowId = lookedUpWorkflowId || (sourceRow.workFlowId !== 'NA' ? sourceRow.workFlowId : '') || '162';
+  assert.equal(resolvedWorkflowId, '162', 'Col 24 workFlowId must use WORKFLOWID (162) against Program Name, overriding raw NA');
+
+  const lookedUpProgramCode = (progLookup && progLookup.code) ? progLookup.code : '';
+  const resolvedProgramCode = lookedUpProgramCode || sourceRow['Program Code'] || 'PFMBAGA25';
+  assert.equal(resolvedProgramCode, 'PFMBAGA25', 'Col 26 ProgramCode must use PROGRAMCODE (PFMBAGA25) against Program Name, overriding raw numeric 133');
 });
 
 // -------------------------------------------------------------

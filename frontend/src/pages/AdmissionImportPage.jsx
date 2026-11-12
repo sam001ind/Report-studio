@@ -19,6 +19,7 @@ import {
   CASTE_LOOKUP, 
   RELIGION_LOOKUP, 
   PROGRAM_LOOKUP, 
+  KANNUR_PROGRAMMES,
   COLLEGE_LOOKUP,
   STREAM_LOOKUP,
   QUALIFICATION_LOOKUP,
@@ -579,8 +580,8 @@ export default function AdmissionImportPage() {
     const religion = rawReligion || (customReligion ? customReligion.name : '') || fallbackReligion.name;
 
     // 23, 24, 25, 26. Program Details
-    // Sourced from course, coursename, program, programname
-    const rawProgram = getVal('program', 'programname', 'programmname', 'coursename', 'course');
+    // Sourced from Program Name, Programme, Course, etc.
+    const rawProgram = getVal('programname', 'program_name', 'program', 'programme', 'programmename', 'programmname', 'coursename', 'course_name', 'course', 'pgmname', 'pgm_name', 'degree', 'subject');
     const normProg = normalizeKey(rawProgram);
     let programMatch = activeLookupMaps?.programByName?.[rawProgram.toLowerCase()] || 
                        activeLookupMaps?.programByName?.[normProg] || 
@@ -588,7 +589,8 @@ export default function AdmissionImportPage() {
                        PROGRAM_LOOKUP[normProg];
     if (!programMatch && activeLookupMaps?.programByName) {
       for (const [pk, pv] of Object.entries(activeLookupMaps.programByName)) {
-        if (normProg && (normProg.includes(normalizeKey(pk)) || normalizeKey(pk).includes(normProg))) {
+        const npk = normalizeKey(pk);
+        if (normProg && npk && (normProg.includes(npk) || npk.includes(normProg))) {
           programMatch = pv;
           break;
         }
@@ -596,16 +598,61 @@ export default function AdmissionImportPage() {
     }
     if (!programMatch) {
       for (const [pk, pv] of Object.entries(PROGRAM_LOOKUP)) {
-        if (normProg.includes(normalizeKey(pk)) || normalizeKey(pk).includes(normProg)) {
+        const npk = normalizeKey(pk);
+        if (normProg && npk && (normProg.includes(npk) || npk.includes(normProg))) {
           programMatch = pv;
           break;
         }
       }
     }
-    const pgmName = getVal('pgmname') || (programMatch ? programMatch.pgmName : rawProgram) || 'Five Year Integrated Masters Programme in  Business Administration';
-    const programName = programMatch ? programMatch.name : (rawProgram || 'FYUGP Program');
-    const programCode = getVal('programcode', 'coursecode') || (programMatch ? programMatch.code : 'PFMBAGA25');
-    const workFlowId = getVal('workflowid') || (programMatch ? programMatch.workflowId : '162');
+
+    // Keyword & discipline fallback matching for Kannur programmes
+    if (!programMatch && normProg) {
+      const disciplines = [
+        { terms: ['clinicalpsychology', 'psychology'], code: 'PFPSYGS25' },
+        { terms: ['computational', 'computationalscience'], code: 'PFCLSGS25' },
+        { terms: ['computerapplication', 'mca'], code: 'PFMCAGS25' },
+        { terms: ['businessadministration', 'management', 'bba', 'mba'], code: 'PFMBAGA25' },
+        { terms: ['geography'], code: 'PFGEOGS25' },
+        { terms: ['music'], code: 'PFMUSGA25' },
+        { terms: ['physicaleducation', 'sports', 'impes'], code: 'PFPESGS25' },
+        { terms: ['anthropolog'], code: 'PFANTGS25' },
+        { terms: ['english'], code: 'PFENGGA25' },
+        { terms: ['envirn', 'environ'], code: 'PFEVSGS25' },
+        { terms: ['historical', 'history'], code: 'PFHISGS25' },
+        { terms: ['mathemat'], code: 'PFMATGS25' },
+        { terms: ['physicalscience'], code: 'PFPLSGS25' },
+        { terms: ['socialscience', 'economics'], code: 'PFSSEGS25' },
+        { terms: ['commerce', 'bcom', 'mcom'], code: 'PFCOMGS25' }
+      ];
+      for (const d of disciplines) {
+        if (d.terms.some(t => normProg.includes(t))) {
+          programMatch = activeLookupMaps?.programByCode?.[d.code] || KANNUR_PROGRAMMES.find(p => p.code === d.code) || null;
+          if (programMatch) break;
+        }
+      }
+    }
+
+    // Fallback to code lookup if a valid program code is supplied in source file
+    const rawProgCodeCandidate = getVal('programcode', 'progcode', 'degreecode');
+    if (!programMatch && rawProgCodeCandidate) {
+      programMatch = activeLookupMaps?.programByCode?.[rawProgCodeCandidate] || 
+                     activeLookupMaps?.programByCode?.[rawProgCodeCandidate.toLowerCase()] ||
+                     KANNUR_PROGRAMMES.find(p => p.code === rawProgCodeCandidate) || null;
+    }
+
+    const pgmName = (programMatch ? programMatch.pgmName : '') || getVal('pgmname', 'pgm_name') || rawProgram || 'Five Year Integrated Masters Programme in  Business Administration';
+    const programName = (programMatch ? programMatch.name : '') || rawProgram || 'Five Year Integrated Masters Programme in Business Administration(with Credits)-Regular-FYIMP-2025-Business Administration-FYIMP Year I SEMESTER I';
+
+    // Col 24 workFlowId: strictly use the WORKFLOWID looked up against the Program Name
+    const lookedUpWorkflowId = (programMatch && programMatch.workflowId && programMatch.workflowId !== 'NA') ? String(programMatch.workflowId).trim() : '';
+    const rawWorkflowId = getVal('workflowid', 'workflow_id', 'wfid');
+    const workFlowId = lookedUpWorkflowId || (rawWorkflowId && rawWorkflowId !== 'NA' ? rawWorkflowId : '') || '162';
+
+    // Col 26 ProgramCode: strictly use the PROGRAMCODE looked up against the Program Name
+    const lookedUpProgramCode = (programMatch && programMatch.code) ? String(programMatch.code).trim() : '';
+    const rawProgramCode = getVal('programcode', 'progcode', 'degreecode');
+    const programCode = lookedUpProgramCode || (rawProgramCode && isNaN(Number(rawProgramCode)) ? rawProgramCode : '') || rawProgramCode || 'PFMBAGA25';
 
     // 27, 28, 29, 30. College Details
     const rawCollegeCode = getVal('collegecode', 'colcode', 'centre', 'center', 'centercode');
