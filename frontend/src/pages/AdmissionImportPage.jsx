@@ -1009,7 +1009,11 @@ export default function AdmissionImportPage() {
     setStatus(`Generating standardized ${TARGET_COLUMNS.length}-column master Excel workbook...`, 'info');
 
     try {
-      const NUMERIC_COLUMNS = new Set([
+      const NUMERIC_INT_COLUMNS = new Set([
+        'Mobile',
+        'username',
+        'AadhaarNumber',
+        'ABCId',
         'CountryId',
         'corrStateId',
         'corrPin',
@@ -1021,27 +1025,27 @@ export default function AdmissionImportPage() {
         'CollegeCode',
         'QualificationFacultyId',
         'QualificationSpecializationId',
+        'CertificateNumber',
         'NoOfAttempts',
         'MarksObtained',
-        'Percentage',
         'MarksOutOf',
-        'CGPA',
-        'SeatNumber',
-        'Mobile'
+        'SeatNumber'
+      ]);
+
+      const NUMERIC_DECIMAL_COLUMNS = new Set([
+        'Percentage',
+        'CGPA'
       ]);
 
       const exportAoa = [TARGET_COLUMNS];
       normalizedRows.forEach(row => {
         exportAoa.push(TARGET_COLUMNS.map(col => {
           let val = row[col] !== undefined && row[col] !== null ? row[col] : '';
-          if (NUMERIC_COLUMNS.has(col)) {
+          if (NUMERIC_INT_COLUMNS.has(col) || NUMERIC_DECIMAL_COLUMNS.has(col)) {
             if (val !== '' && !isNaN(Number(val))) {
               return Number(val);
             }
             return val;
-          }
-          if (col === 'AadhaarNumber' || col === 'ABCId' || col === 'CertificateNumber' || col === 'username') {
-            return String(val);
           }
           return val;
         }));
@@ -1050,9 +1054,25 @@ export default function AdmissionImportPage() {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(exportAoa);
 
-      // Format date cells as native Excel date serial numbers (type 'n') with pure date masks (ZERO TIME)
+      // Format all numeric and date cells with agreed Excel number (z: '0') and date (z: 'yyyy-mm-dd') formats
       TARGET_COLUMNS.forEach((col, cIdx) => {
-        if (col === 'dob' || col === 'Result Date ' || col === 'Result Date') {
+        if (NUMERIC_INT_COLUMNS.has(col)) {
+          for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
+            const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
+            const rawVal = normalizedRows[rIdx][col];
+            if (rawVal !== '' && rawVal !== null && rawVal !== undefined && !isNaN(Number(rawVal))) {
+              ws[cellAddr] = { t: 'n', v: Number(rawVal), z: '0' };
+            }
+          }
+        } else if (NUMERIC_DECIMAL_COLUMNS.has(col)) {
+          for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
+            const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
+            const rawVal = normalizedRows[rIdx][col];
+            if (rawVal !== '' && rawVal !== null && rawVal !== undefined && !isNaN(Number(rawVal))) {
+              ws[cellAddr] = { t: 'n', v: Number(rawVal), z: '0.00' };
+            }
+          }
+        } else if (col === 'dob' || col === 'Result Date ' || col === 'Result Date') {
           for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
             const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
             const rawVal = normalizedRows[rIdx][col];
