@@ -1410,23 +1410,41 @@ export default function AdmissionImportPage() {
                 <thead>
                   <tr style={{ background: 'var(--bg)', position: 'sticky', top: 0, zIndex: 10 }}>
                     <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1.5px solid var(--line)', color: 'var(--muted)', width: '40px' }}>#</th>
-                    {TARGET_COLUMNS.map((col, idx) => (
-                      <th 
-                        key={col || `col_${idx}`} 
-                        style={{ 
-                          padding: '8px 10px', 
-                          textAlign: 'left', 
-                          borderBottom: '1.5px solid var(--line)', 
-                          color: 'var(--ink)', 
-                          fontWeight: 700,
-                          borderRight: '1px solid var(--line)',
-                          background: 'var(--bg)'
-                        }}
-                      >
-                        <span style={{ fontSize: '9px', color: 'var(--muted)', display: 'block', fontWeight: 600 }}>Col {idx + 1}</span>
-                        {col || <span style={{ fontStyle: 'italic', color: 'var(--muted)' }}>(Passing Year)</span>}
-                      </th>
-                    ))}
+                    {TARGET_COLUMNS.map((col, idx) => {
+                      const isAdditional = col === 'Date of Birth (DD/MM/YY)' || col === 'PGM Name' || col === 'CLG NAME' || col === '';
+                      return (
+                        <th 
+                          key={col || `col_${idx}`} 
+                          style={{ 
+                            padding: '8px 10px', 
+                            textAlign: 'left', 
+                            borderBottom: '1.5px solid var(--line)', 
+                            color: isAdditional ? '#000000' : 'var(--ink)', 
+                            fontWeight: isAdditional ? 800 : 700,
+                            borderRight: '1px solid var(--line)',
+                            background: isAdditional ? 'rgba(0, 0, 0, 0.07)' : 'var(--bg)'
+                          }}
+                        >
+                          <span style={{ 
+                            fontSize: '9px', 
+                            color: isAdditional ? '#000000' : 'var(--muted)', 
+                            display: 'block', 
+                            fontWeight: isAdditional ? 800 : 600 
+                          }}>
+                            Col {idx + 1} {isAdditional ? '• Additional' : ''}
+                          </span>
+                          {col ? (
+                            <span style={{ color: isAdditional ? '#000000' : 'inherit', fontWeight: isAdditional ? 800 : 700 }}>
+                              {col}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#000000', fontWeight: 800 }}>
+                              (Passing Year)
+                            </span>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -1444,31 +1462,37 @@ export default function AdmissionImportPage() {
                         <td style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--muted)', borderRight: '1px solid var(--line)', fontWeight: 600 }}>
                           {actualIdx + 1}
                         </td>
-                        {TARGET_COLUMNS.map((col, cIdx) => (
-                          <td 
-                            key={col || `col_${cIdx}`} 
-                            style={{ 
-                              padding: '5px 8px', 
-                              borderRight: '1px solid var(--line)',
-                              color: 'var(--ink)'
-                            }}
-                          >
-                            <input 
-                              type="text" 
-                              value={row[col] !== undefined ? row[col] : ''} 
-                              onChange={(e) => updateCell(actualIdx, col, e.target.value)} 
+                        {TARGET_COLUMNS.map((col, cIdx) => {
+                          const isAdditional = col === 'Date of Birth (DD/MM/YY)' || col === 'PGM Name' || col === 'CLG NAME' || col === '';
+                          return (
+                            <td 
+                              key={col || `col_${cIdx}`} 
                               style={{ 
-                                width: '100%', 
-                                border: 'none', 
-                                background: 'transparent', 
-                                fontSize: '11.5px', 
-                                color: 'inherit',
-                                padding: 0,
-                                fontFamily: 'inherit'
-                              }} 
-                            />
-                          </td>
-                        ))}
+                                padding: '5px 8px', 
+                                borderRight: '1px solid var(--line)',
+                                color: isAdditional ? '#000000' : 'var(--ink)',
+                                background: isAdditional ? 'rgba(0, 0, 0, 0.02)' : 'transparent',
+                                fontWeight: isAdditional ? 600 : 400
+                              }}
+                            >
+                              <input 
+                                type="text" 
+                                value={row[col] !== undefined ? row[col] : ''} 
+                                onChange={(e) => updateCell(actualIdx, col, e.target.value)} 
+                                style={{ 
+                                  width: '100%', 
+                                  border: 'none', 
+                                  background: 'transparent', 
+                                  fontSize: '11.5px', 
+                                  color: 'inherit',
+                                  fontWeight: 'inherit',
+                                  padding: 0,
+                                  fontFamily: 'inherit'
+                                }} 
+                              />
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
