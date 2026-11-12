@@ -740,16 +740,22 @@ export default function AdmissionImportPage() {
     let passingYear = getVal('qcyear', 'passingyear', 'admyear');
     let resultDate = '';
 
-    // If Result Date is a 4-digit year like "2026", "2025", "2024"
+    // Result Date in format YYYY-MM-DD
     if (rawResultDate && /^\d{4}$/.test(rawResultDate.trim())) {
       passingYear = rawResultDate.trim();
-      resultDate = `31-05-${passingYear}`;
+      resultDate = `${passingYear}-05-31`;
     } else if (rawResultDate) {
-      resultDate = parseDobDMY(rawResultDate);
+      resultDate = parseDobYMD(rawResultDate);
     }
 
-    if (!passingYear) passingYear = '2026';
-    if (!resultDate) resultDate = `31-05-${passingYear}`;
+    if (!passingYear) {
+      if (resultDate && /^\d{4}/.test(resultDate)) {
+        passingYear = resultDate.substring(0, 4);
+      } else {
+        passingYear = '2026';
+      }
+    }
+    if (!resultDate) resultDate = `${passingYear}-05-31`;
 
     // 44. ResultStatus
     const resultStatus = getVal('resultstatus', 'status', 'result') || 'Passed';
@@ -806,6 +812,8 @@ export default function AdmissionImportPage() {
       SeatNumber: seatNumber,
       '': passingYear,
       'Result Date ': resultDate,
+      'Result Date': resultDate,
+      ResultDate: resultDate,
       ResultStatus: resultStatus,
       _warnings: warnings
     };

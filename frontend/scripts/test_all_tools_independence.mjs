@@ -1065,16 +1065,16 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
   assert.equal(qualLookup.facultyId, '2');
   assert.equal(streamLookup.id, '2');
 
-  // Verify passing year and result date logic
+  // Verify passing year and result date logic (strictly YYYY-MM-DD format)
   const rawResultDate = String(sourceRow['Result Date']);
   let passingYear = '2026';
   let resultDate = '';
   if (/^\d{4}$/.test(rawResultDate.trim())) {
     passingYear = rawResultDate.trim();
-    resultDate = `31-05-${passingYear}`;
+    resultDate = `${passingYear}-05-31`;
   }
   assert.equal(passingYear, '2026');
-  assert.equal(resultDate, '31-05-2026');
+  assert.equal(resultDate, '2026-05-31', 'Result Date must be in YYYY-MM-DD format');
 
   // Verify Percentage and CGPA are formatted strictly to 2 decimal places
   let pct = sourceRow.Percentage;
