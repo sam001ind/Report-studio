@@ -907,6 +907,9 @@ test('Transforms studentmaster_fyugp 43 database dump columns into the exact 44 
   assert.equal(TARGET_COLUMNS[5], 'dob');
   assert.equal(TARGET_COLUMNS[6], 'Date of Birth (DD/MM/YY)');
   assert.equal(TARGET_COLUMNS[22], 'PGM Name');
+  assert.equal(TARGET_COLUMNS[23], 'WORKFLOWID');
+  assert.equal(TARGET_COLUMNS[24], 'Program Name');
+  assert.equal(TARGET_COLUMNS[25], 'PROGRAMCODE');
   assert.equal(TARGET_COLUMNS[26], 'CLG NAME');
   assert.equal(TARGET_COLUMNS[41], '');
   assert.equal(TARGET_COLUMNS[42], 'Result Date ');
