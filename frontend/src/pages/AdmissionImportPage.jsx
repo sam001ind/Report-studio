@@ -540,7 +540,10 @@ export default function AdmissionImportPage() {
     const normCountry = normalizeLookupKey(rawCountry);
     const customCountry = activeLookupMaps?.countryByName?.[normCountry] || activeLookupMaps?.countryByName?.[rawCountry.toLowerCase()];
     const countryId = getVal('countryid') || (customCountry ? customCountry.id : '') || '107';
-    const countryName = rawCountry || (activeLookupMaps?.countryById?.[countryId]?.name) || (customCountry ? customCountry.name : '') || 'Indian';
+    let countryName = rawCountry || (activeLookupMaps?.countryById?.[countryId]?.name) || (customCountry ? customCountry.name : '') || 'India';
+    if (countryId === '107' || normCountry === 'indian' || normCountry === 'india') {
+      countryName = 'India';
+    }
 
     // 12 & 13. State (corrStateId & corrStateName)
     const rawState = getVal('corrstatename', 'statename', 'state', 'corrstate');
@@ -708,7 +711,7 @@ export default function AdmissionImportPage() {
     const rawAttempts = getVal('noofattempts', 'attempts');
     const noOfAttempts = rawAttempts ? parseInt(rawAttempts, 10) || 1 : 1;
 
-    // 37, 38, 39, 40. Marks, Percentage, CGPA (strictly 2 decimal places)
+    // 37, 38, 39, 40. Marks, Percentage, CGPA
     const rawMarks = getVal('marksobtained', 'totalmarks', 'securedmarks', 'marks');
     const marksObtained = rawMarks ? (parseFloat(rawMarks) || '') : '';
     const rawMax = getVal('marksoutof', 'maxmarks', 'maximummarks', 'total');
@@ -716,19 +719,20 @@ export default function AdmissionImportPage() {
 
     let percentage = getVal('percentage', 'percent');
     if (!percentage && marksOutOf > 0 && marksObtained > 0) {
-      percentage = ((parseFloat(marksObtained) / parseFloat(marksOutOf)) * 100).toFixed(2);
-    } else if (percentage && !isNaN(parseFloat(percentage))) {
-      percentage = parseFloat(percentage).toFixed(2);
+      const calcPct = (parseFloat(marksObtained) / parseFloat(marksOutOf)) * 100;
+      percentage = Number(calcPct.toFixed(4)).toString();
+    } else if (percentage) {
+      percentage = String(percentage).trim();
     } else {
       percentage = '';
     }
 
     const rawCgpa = getVal('cgpa', 'gpa');
     let cgpa = '';
-    if (rawCgpa && !isNaN(parseFloat(rawCgpa))) {
-      cgpa = parseFloat(rawCgpa).toFixed(2);
-    } else if (parseFloat(percentage) > 0) {
-      cgpa = (parseFloat(percentage) / 9.5).toFixed(2);
+    if (rawCgpa) {
+      cgpa = String(rawCgpa).trim();
+    } else if (percentage) {
+      cgpa = percentage;
     }
 
     // 41. SeatNumber
@@ -972,7 +976,13 @@ export default function AdmissionImportPage() {
       // Export array of arrays for dense mode memory efficiency
       const exportAoa = [TARGET_COLUMNS];
       normalizedRows.forEach(row => {
-        exportAoa.push(TARGET_COLUMNS.map(col => row[col] !== undefined ? row[col] : ''));
+        exportAoa.push(TARGET_COLUMNS.map(col => {
+          const val = row[col] !== undefined && row[col] !== null ? row[col] : '';
+          if (typeof val === 'number' && (col === 'AadhaarNumber' || col === 'ABCId' || col === 'Mobile' || col === 'corrPin' || col === 'CertificateNumber' || col === 'SeatNumber')) {
+            return String(val);
+          }
+          return val;
+        }));
       });
 
       const wb = XLSX.utils.book_new();
