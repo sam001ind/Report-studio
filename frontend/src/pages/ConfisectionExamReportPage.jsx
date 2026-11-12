@@ -746,49 +746,25 @@ export default function ConfisectionExamReportPage() {
     setTimeout(() => setCopiedNoticeToast(null), 4000);
   };
 
-  // Dedicated Export for QP Email Dispatch Report (.xlsx)
+  // Dedicated Export for QP Email Dispatch Report (.xlsx) - strictly the 6 requested headers
   const handleExportQpEmailReportOnly = () => {
     try {
       const wb = XLSX.utils.book_new();
-      const headers = [
-        ...QP_EMAIL_DISPATCH_COLUMNS,
-        'Session',
-        'Course  Start Time',
-        'Course  End Time',
-        'Student Count',
-        'Packets of 20',
-        'Packets of 10',
-        'Packets of 5',
-        'Singles',
-        'Buffer',
-        'Total QP Copies',
-        'Combined Programs'
-      ];
+      const headers = [...QP_EMAIL_DISPATCH_COLUMNS];
       const data = qpEmailDispatchRows.map(r => [
         r.examDate,
         r.courseCode,
         r.courseName,
         r.venueCode,
         r.venueName,
-        r.emailId,
-        r.session,
-        r.startTime,
-        r.endTime,
-        r.studentCount,
-        r.p20,
-        r.p10,
-        r.p5,
-        r.singles,
-        r.buffer,
-        r.totalQp,
-        r.programsFormatted
+        r.emailId
       ]);
       const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
       ws['!cols'] = headers.map(() => ({ wch: 22 }));
       XLSX.utils.book_append_sheet(wb, ws, 'QP_Email_Dispatch_Report');
       const outName = `QP_Email_Dispatch_Report_${fileMeta?.event ? fileMeta.event.replace(/[^a-zA-Z0-9]/g, '_') : 'Schedule'}.xlsx`;
       XLSX.writeFile(wb, outName);
-      setStatusAlert({ type: 'success', message: `Downloaded ${outName} with all QP Email Dispatch records!` });
+      setStatusAlert({ type: 'success', message: `Downloaded ${outName} with exact 6 QP Email Dispatch headers!` });
     } catch (err) {
       console.error('Export error:', err);
       setStatusAlert({ type: 'error', message: `Export failed: ${err.message}` });
@@ -800,39 +776,15 @@ export default function ConfisectionExamReportPage() {
     try {
       const wb = XLSX.utils.book_new();
 
-      // Sheet 1: QP Email Dispatch Report
-      const sheetQpHeaders = [
-        ...QP_EMAIL_DISPATCH_COLUMNS,
-        'Session',
-        'Course  Start Time',
-        'Course  End Time',
-        'Student Count',
-        'Packets of 20',
-        'Packets of 10',
-        'Packets of 5',
-        'Singles',
-        'Buffer',
-        'Total QP Copies',
-        'Combined Programs'
-      ];
+      // Sheet 1: QP Email Dispatch Report (strictly 6 headers)
+      const sheetQpHeaders = [...QP_EMAIL_DISPATCH_COLUMNS];
       const sheetQpData = qpEmailDispatchRows.map(r => [
         r.examDate,
         r.courseCode,
         r.courseName,
         r.venueCode,
         r.venueName,
-        r.emailId,
-        r.session,
-        r.startTime,
-        r.endTime,
-        r.studentCount,
-        r.p20,
-        r.p10,
-        r.p5,
-        r.singles,
-        r.buffer,
-        r.totalQp,
-        r.programsFormatted
+        r.emailId
       ]);
       const wsQp = XLSX.utils.aoa_to_sheet([sheetQpHeaders, ...sheetQpData]);
       wsQp['!cols'] = sheetQpHeaders.map(() => ({ wch: 22 }));
@@ -2109,12 +2061,6 @@ export default function ConfisectionExamReportPage() {
                       <th style={{ padding: '12px 16px' }}>Venue Code</th>
                       <th style={{ padding: '12px 16px' }}>Venue Name</th>
                       <th style={{ padding: '12px 16px' }}>Email ID</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Session</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Candidates</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Packets (20/10/5)</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Buffer</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total QP Copies</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Action</th>
                     </>
                   )}
 
@@ -2246,70 +2192,6 @@ export default function ConfisectionExamReportPage() {
                               >
                                 Unmapped
                               </span>
-                            )}
-                          </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                            <span style={{
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(217, 119, 6, 0.1)',
-                              color: row.session === 'FN' ? '#0284c7' : '#d97706'
-                            }}>
-                              {row.session}
-                            </span>
-                            {row.startTime && (
-                              <div style={{ fontSize: '10.5px', color: 'var(--muted)', marginTop: '2px' }}>
-                                {row.startTime}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700 }}>
-                            {row.studentCount}
-                          </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                              {row.p20 > 0 && (
-                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(23, 107, 135, 0.1)', color: 'var(--accent)', fontSize: '11px', fontWeight: 700 }}>
-                                  {row.p20}×20
-                                </span>
-                              )}
-                              {row.p10 > 0 && (
-                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', fontSize: '11px', fontWeight: 700 }}>
-                                  {row.p10}×10
-                                </span>
-                              )}
-                              {row.p5 > 0 && (
-                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', fontSize: '11px', fontWeight: 700 }}>
-                                  {row.p5}×5
-                                </span>
-                              )}
-                              {row.singles > 0 && (
-                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'var(--line)', color: 'var(--muted)', fontSize: '11px', fontWeight: 600 }}>
-                                  {row.singles} loose
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
-                            +{row.buffer}
-                          </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#e11d48' }}>
-                            {row.totalQp}
-                          </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                            {row.hasEmail ? (
-                              <a
-                                href={`mailto:${row.emailId}?subject=${encodeURIComponent(`Kannur University Question Paper Dispatch - ${row.courseCode} (${row.examDate} ${row.session})`)}`}
-                                className="secondary"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '11.5px', textDecoration: 'none' }}
-                                title="Open mail client"
-                              >
-                                <Send size={12} color="#059669" /> Mail
-                              </a>
-                            ) : (
-                              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>—</span>
                             )}
                           </td>
                         </>
