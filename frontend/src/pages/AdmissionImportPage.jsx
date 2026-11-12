@@ -511,9 +511,10 @@ export default function AdmissionImportPage() {
     else if (rawGender.toLowerCase().startsWith('m')) gender = 'Male';
     else if (rawGender) gender = rawGender;
 
-    // 3. Mobile (clean 10 digits)
+    // 3. Mobile (clean 10 digits as number format)
     const rawMobile = getVal('mobile', 'mobilenumber', 'contact', 'contactnumber', 'phone');
-    const mobile = rawMobile.replace(/\D/g, '').slice(-10);
+    const mobileDigits = rawMobile.replace(/\D/g, '').slice(-10);
+    const mobile = mobileDigits && !isNaN(Number(mobileDigits)) ? Number(mobileDigits) : (mobileDigits || '');
 
     // 4. Email (clean lowercase)
     const rawEmail = getVal('email', 'emailid', 'mail');
@@ -996,8 +997,31 @@ export default function AdmissionImportPage() {
         'Percentage',
         'MarksOutOf',
         'CGPA',
-        'SeatNumber'
+        'SeatNumber',
+        'Mobile'
       ]);
+
+      const parseToDate = (val) => {
+        if (!val) return null;
+        if (val instanceof Date) return val;
+        const s = String(val).trim();
+        const parts = s.split(/[-/.]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 4) { // YYYY-MM-DD
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            return new Date(Date.UTC(y, m, d));
+          } else if (parts[2].length === 4) { // DD-MM-YYYY
+            const d = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const y = parseInt(parts[2], 10);
+            return new Date(Date.UTC(y, m, d));
+          }
+        }
+        const d = new Date(s);
+        return !isNaN(d.getTime()) ? d : null;
+      };
 
       const exportAoa = [TARGET_COLUMNS];
       normalizedRows.forEach(row => {
@@ -1009,7 +1033,7 @@ export default function AdmissionImportPage() {
             }
             return val;
           }
-          if (col === 'AadhaarNumber' || col === 'ABCId' || col === 'Mobile' || col === 'CertificateNumber' || col === 'username') {
+          if (col === 'AadhaarNumber' || col === 'ABCId' || col === 'CertificateNumber' || col === 'username') {
             return String(val);
           }
           return val;
@@ -1018,6 +1042,29 @@ export default function AdmissionImportPage() {
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(exportAoa);
+
+      // Format date cells with native Excel date type (t: 'd') and format mask (yyyy-mm-dd)
+      TARGET_COLUMNS.forEach((col, cIdx) => {
+        if (col === 'dob' || col === 'Result Date ' || col === 'Result Date') {
+          for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
+            const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
+            const rawVal = normalizedRows[rIdx][col];
+            const dObj = parseToDate(rawVal);
+            if (dObj) {
+              ws[cellAddr] = { t: 'd', v: dObj, z: 'yyyy-mm-dd' };
+            }
+          }
+        } else if (col === 'Date of Birth (DD/MM/YY)') {
+          for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
+            const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
+            const rawVal = normalizedRows[rIdx][col];
+            const dObj = parseToDate(rawVal);
+            if (dObj) {
+              ws[cellAddr] = { t: 'd', v: dObj, z: 'dd/mm/yyyy' };
+            }
+          }
+        }
+      });
 
       // Auto-filter on all columns
       ws['!autofilter'] = {
@@ -1032,7 +1079,7 @@ export default function AdmissionImportPage() {
 
       XLSX.utils.book_append_sheet(wb, ws, 'Master_Admission');
 
-      const outBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
+      const outBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true, cellDates: true });
       const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
       const url = URL.createObjectURL(blob);

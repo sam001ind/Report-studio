@@ -1092,13 +1092,13 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
   const resolvedProgramCode = lookedUpProgramCode || sourceRow['Program Code'] || 'PFMBAGA25';
   assert.equal(resolvedProgramCode, 'PFMBAGA25', 'Col 26 ProgramCode must use PROGRAMCODE (PFMBAGA25) against Program Name, overriding raw numeric 133');
 
-  // Verify all 17 specified columns are formatted as native Excel numbers (t === 'n')
+  // Verify all 18 specified columns are formatted as native Excel numbers (t === 'n')
   const NUMERIC_COLUMNS = new Set([
     'CountryId', 'corrStateId', 'corrPin', 'categoryId', 'CasteId',
     'religionId', 'workFlowId', 'CollegeId', 'CollegeCode',
     'QualificationFacultyId', 'QualificationSpecializationId',
     'NoOfAttempts', 'MarksObtained', 'Percentage', 'MarksOutOf',
-    'CGPA', 'SeatNumber'
+    'CGPA', 'SeatNumber', 'Mobile'
   ]);
 
   const testTransformedRow = {
@@ -1119,10 +1119,28 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
     MarksOutOf: 1200,
     CGPA: 86.9167,
     SeatNumber: 25408061,
+    Mobile: 7902907688,
     Name: 'LAKSHMI S',
+    dob: '2008-08-19',
+    'Result Date ': '2026-05-31',
     AadhaarNumber: '499728191337',
-    ABCId: '611352377705',
-    Mobile: '7902907688'
+    ABCId: '611352377705'
+  };
+
+  const parseToDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return val;
+    const s = String(val).trim();
+    const parts = s.split(/[-/.]/);
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        return new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+      } else if (parts[2].length === 4) {
+        return new Date(Date.UTC(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10)));
+      }
+    }
+    const d = new Date(s);
+    return !isNaN(d.getTime()) ? d : null;
   };
 
   const exportAoa = [TARGET_COLUMNS];
@@ -1131,7 +1149,7 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
     if (NUMERIC_COLUMNS.has(col)) {
       return (val !== '' && !isNaN(Number(val))) ? Number(val) : val;
     }
-    if (col === 'AadhaarNumber' || col === 'ABCId' || col === 'Mobile') {
+    if (col === 'AadhaarNumber' || col === 'ABCId') {
       return String(val);
     }
     return val;
@@ -1139,9 +1157,21 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(exportAoa);
+
+  TARGET_COLUMNS.forEach((col, cIdx) => {
+    if (col === 'dob' || col === 'Result Date ') {
+      const cellAddr = XLSX.utils.encode_cell({ r: 1, c: cIdx });
+      const rawVal = testTransformedRow[col];
+      const dObj = parseToDate(rawVal);
+      if (dObj) {
+        ws[cellAddr] = { t: 'd', v: dObj, z: 'yyyy-mm-dd' };
+      }
+    }
+  });
+
   XLSX.utils.book_append_sheet(wb, ws, 'Test');
-  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
-  const readWb = XLSX.read(buffer, { type: 'buffer' });
+  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer', cellDates: true });
+  const readWb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
   const readWs = readWb.Sheets['Test'];
 
   TARGET_COLUMNS.forEach((col, idx) => {
@@ -1152,6 +1182,21 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
       assert.equal(typeof cell.v, 'number', `Column ${col} value must be a number`);
     }
   });
+
+  // Verify dob and Result Date are formatted as dates (t === 'd')
+  const dobIdx = TARGET_COLUMNS.indexOf('dob');
+  const dobCell = readWs[XLSX.utils.encode_cell({ r: 1, c: dobIdx })];
+  assert.equal(dobCell.t, 'd', 'dob must be formatted as Excel date (t: d)');
+
+  const resDateIdx = TARGET_COLUMNS.indexOf('Result Date ');
+  const resDateCell = readWs[XLSX.utils.encode_cell({ r: 1, c: resDateIdx })];
+  assert.equal(resDateCell.t, 'd', 'Result Date must be formatted as Excel date (t: d)');
+
+  // Mobile must be formatted as number (t === 'n')
+  const mobIdx = TARGET_COLUMNS.indexOf('Mobile');
+  const mobCell = readWs[XLSX.utils.encode_cell({ r: 1, c: mobIdx })];
+  assert.equal(mobCell.t, 'n', 'Mobile must be formatted as number (t: n)');
+  assert.equal(typeof mobCell.v, 'number');
 
   // Long identifiers must remain strings (t: 's')
   const aadhaarIdx = TARGET_COLUMNS.indexOf('AadhaarNumber');
