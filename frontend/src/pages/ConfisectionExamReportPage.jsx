@@ -44,6 +44,7 @@ import {
   CONFIDENTIAL_SECTION_COLUMNS, 
   QP_EMAIL_DISPATCH_COLUMNS,
   generateQpEmailDispatchRows,
+  detectColumns,
   calculateQpPackets, 
   getExamSession,
   SAMPLE_CONFISECTION_ROWS,
@@ -109,29 +110,7 @@ export default function ConfisectionExamReportPage() {
   };
 
   // Column auto-detection supporting both 13 Confi headers & 5-8 Venue-Date-Course-Email headers
-  const detectColumns = (headers) => {
-    const norm = headers.map(h => normalizeKeyText(h));
-    const findIndex = (patterns) => {
-      return norm.findIndex(h => patterns.some(p => h === p || h.includes(p)));
-    };
-
-    return {
-      eventName: findIndex(['eventname', 'event']),
-      centerCode: findIndex(['centercode', 'center']),
-      centerName: findIndex(['centername', 'centre']),
-      venueCode: findIndex(['venuecode', 'venue', 'collegecode']),
-      venueName: findIndex(['venuename', 'college', 'institution']),
-      programName: findIndex(['programname', 'programme', 'prog']),
-      examDate: findIndex(['examdate', 'date']),
-      startTime: findIndex(['coursestarttime', 'starttime', 'start', 'session', 'time']),
-      endTime: findIndex(['courseendtime', 'endtime', 'end']),
-      courseCode: findIndex(['coursecode', 'code']),
-      courseName: findIndex(['coursename', 'course']),
-      studentCount: findIndex(['studentcount', 'students', 'count', 'takers', 'candidates']),
-      venueId: findIndex(['venueid', 'vid']),
-      email: findIndex(['collegeemail', 'email', 'emailid', 'mail', 'venueemail', 'principalemail'])
-    };
-  };
+  // (Uses robust detectColumns from confisectionHelpers prioritizing Course Code, Course Name, Venue Code, Venue Name)
 
   // Upload parser supporting both async spreadsheet reading and automatic directory detection
   const handleFileUpload = async (e) => {

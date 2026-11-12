@@ -53,6 +53,140 @@ export const generateQpEmailDispatchRows = (consolidatedRows) => {
   }));
 };
 
+// Robust column auto-detector prioritizing exact matches for Course Code, Course Name, Venue Code, Venue Name
+export const detectColumns = (headers) => {
+  const norm = (headers || []).map(h => normalizeKey(h));
+
+  const findExact = (candidates) => {
+    for (const cand of candidates) {
+      const cNorm = normalizeKey(cand);
+      const idx = norm.indexOf(cNorm);
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+
+  // 1. Course Code: strictly prioritize 'Course Code', 'Course  Code', 'Subject Code'
+  let courseCodeIdx = findExact(['Course Code', 'Course  Code', 'CourseCode', 'Subject Code', 'Paper Code', 'Course No']);
+  if (courseCodeIdx === -1) {
+    courseCodeIdx = norm.findIndex(h => (h.includes('course') || h.includes('subject') || h.includes('paper')) && h.includes('code') && !h.includes('center') && !h.includes('venue'));
+  }
+  if (courseCodeIdx === -1) {
+    courseCodeIdx = norm.findIndex(h => h === 'code');
+  }
+
+  // 2. Course Name: strictly prioritize 'Course Name', 'Course  Name', 'Subject Name'
+  let courseNameIdx = findExact(['Course Name', 'Course  Name', 'CourseName', 'Subject Name', 'Paper Name', 'Course Title']);
+  if (courseNameIdx === -1) {
+    courseNameIdx = norm.findIndex(h => (h.includes('course') || h.includes('subject') || h.includes('paper')) && (h.includes('name') || h.includes('title')) && !h.includes('center') && !h.includes('venue') && !h.includes('time'));
+  }
+  if (courseNameIdx === -1) {
+    courseNameIdx = norm.findIndex(h => h === 'course' || h === 'subject');
+  }
+
+  // 3. Venue Code: strictly prioritize 'Venue Code', 'Venue  Code', 'College Code'
+  let venueCodeIdx = findExact(['Venue Code', 'Venue  Code', 'VenueCode', 'College Code']);
+  if (venueCodeIdx === -1) {
+    venueCodeIdx = norm.findIndex(h => h.includes('venue') && h.includes('code'));
+  }
+  if (venueCodeIdx === -1) {
+    venueCodeIdx = norm.findIndex(h => h.includes('venue') || h.includes('collegecode'));
+  }
+
+  // 4. Venue Name: strictly prioritize 'Venue Name', 'Venue  Name', 'College Name'
+  let venueNameIdx = findExact(['Venue Name', 'Venue  Name', 'VenueName', 'College Name', 'Institution']);
+  if (venueNameIdx === -1) {
+    venueNameIdx = norm.findIndex(h => (h.includes('venue') || h.includes('college')) && h.includes('name'));
+  }
+  if (venueNameIdx === -1) {
+    venueNameIdx = norm.findIndex(h => h.includes('venue') || h.includes('college') || h.includes('institution'));
+  }
+
+  // 5. Center Code & Center Name
+  let centerCodeIdx = findExact(['Center Code', 'CenterCode', 'Centre Code', 'CentreCode']);
+  if (centerCodeIdx === -1) {
+    centerCodeIdx = norm.findIndex(h => (h.includes('center') || h.includes('centre')) && h.includes('code'));
+  }
+
+  let centerNameIdx = findExact(['Center Name', 'CenterName', 'Centre Name', 'CentreName']);
+  if (centerNameIdx === -1) {
+    centerNameIdx = norm.findIndex(h => (h.includes('center') || h.includes('centre')) && h.includes('name'));
+  }
+
+  // 6. Exam Date
+  let examDateIdx = findExact(['Exam Date', 'ExamDate', 'Date of Exam', 'Date']);
+  if (examDateIdx === -1) {
+    examDateIdx = norm.findIndex(h => h.includes('date'));
+  }
+
+  // 7. Start Time & End Time
+  let startTimeIdx = findExact(['Course Start Time', 'Course  Start Time', 'CourseStartTime', 'Start Time', 'StartTime']);
+  if (startTimeIdx === -1) {
+    startTimeIdx = norm.findIndex(h => h.includes('start') && (h.includes('time') || h.includes('course')));
+  }
+  if (startTimeIdx === -1) {
+    startTimeIdx = norm.findIndex(h => h.includes('time') && !h.includes('end'));
+  }
+
+  let endTimeIdx = findExact(['Course End Time', 'Course  End Time', 'CourseEndTime', 'End Time', 'EndTime']);
+  if (endTimeIdx === -1) {
+    endTimeIdx = norm.findIndex(h => h.includes('end') && (h.includes('time') || h.includes('course')));
+  }
+
+  // 8. Event Name
+  let eventNameIdx = findExact(['Event Name', 'EventName', 'Event', 'Examination']);
+  if (eventNameIdx === -1) {
+    eventNameIdx = norm.findIndex(h => h.includes('event'));
+  }
+
+  // 9. Program Name
+  let programNameIdx = findExact(['Program Name', 'ProgramName', 'Programme Name', 'ProgrammeName', 'Program', 'Programme']);
+  if (programNameIdx === -1) {
+    programNameIdx = norm.findIndex(h => h.includes('prog') && h.includes('name'));
+  }
+  if (programNameIdx === -1) {
+    programNameIdx = norm.findIndex(h => h.includes('prog'));
+  }
+
+  // 10. Student Count
+  let studentCountIdx = findExact(['Student Count', 'StudentCount', 'Candidate Count', 'Count of Takers', 'Students', 'Takers', 'Count']);
+  if (studentCountIdx === -1) {
+    studentCountIdx = norm.findIndex(h => (h.includes('student') || h.includes('candidate') || h.includes('taker')) && h.includes('count'));
+  }
+  if (studentCountIdx === -1) {
+    studentCountIdx = norm.findIndex(h => h.includes('count') || h.includes('students') || h.includes('takers'));
+  }
+
+  // 11. venueId
+  let venueIdIdx = findExact(['venueId', 'venue_id', 'vid']);
+  if (venueIdIdx === -1) {
+    venueIdIdx = norm.findIndex(h => h === 'venueid' || h === 'vid');
+  }
+
+  // 12. Email
+  let emailIdx = findExact(['Email ID', 'Email', 'College Email', 'Venue Email', 'Mail']);
+  if (emailIdx === -1) {
+    emailIdx = norm.findIndex(h => h.includes('email') || h.includes('mail'));
+  }
+
+  return {
+    eventName: eventNameIdx,
+    centerCode: centerCodeIdx,
+    centerName: centerNameIdx,
+    venueCode: venueCodeIdx,
+    venueName: venueNameIdx,
+    programName: programNameIdx,
+    examDate: examDateIdx,
+    startTime: startTimeIdx,
+    endTime: endTimeIdx,
+    courseCode: courseCodeIdx,
+    courseName: courseNameIdx,
+    studentCount: studentCountIdx,
+    venueId: venueIdIdx,
+    email: emailIdx
+  };
+};
+
 // Resolves official college email address using directory lookups, code aliases, and fuzzy name matching
 export const resolveCollegeEmail = (code, name, emailDirectory = DEFAULT_COLLEGE_EMAILS, fallbackEmail = '') => {
   if (fallbackEmail && String(fallbackEmail).includes('@')) {

@@ -36,6 +36,7 @@ import {
   CONFIDENTIAL_SECTION_COLUMNS,
   QP_EMAIL_DISPATCH_COLUMNS,
   generateQpEmailDispatchRows,
+  detectColumns,
   calculateQpPackets,
   getExamSession
 } from '../src/utils/confisectionHelpers.js';
@@ -2686,6 +2687,19 @@ test('Confisection Exam Report - calculates QP packet bundles, buffer reserves, 
   assert.equal(qpRows[0].venueName, 'Payyannur College, Payyannur');
   assert.equal(qpRows[0].emailId, 'principal_pc@kannuruniv.ac.in');
   assert.equal(qpRows[0].totalQp, 17);
+
+  // 6. Test robust detectColumns mapping: strictly binds Course Code, Course Name, Venue Code, Venue Name
+  const mapping13 = detectColumns(CONFIDENTIAL_SECTION_COLUMNS);
+  assert.equal(mapping13.courseCode, 9, 'Must map Course  Code to index 9, NOT Center Code at index 1');
+  assert.equal(mapping13.courseName, 10, 'Must map Course  Name to index 10, NOT Course  Start Time at index 7');
+  assert.equal(mapping13.venueCode, 3, 'Must map Venue Code to index 3');
+  assert.equal(mapping13.venueName, 4, 'Must map Venue Name to index 4');
+
+  const mappingQp = detectColumns(QP_EMAIL_DISPATCH_COLUMNS);
+  assert.equal(mappingQp.courseCode, 1, 'Must map Course  Code to index 1');
+  assert.equal(mappingQp.courseName, 2, 'Must map Course  Name to index 2');
+  assert.equal(mappingQp.venueCode, 3, 'Must map Venue Code to index 3');
+  assert.equal(mappingQp.venueName, 4, 'Must map Venue Name to index 4');
 });
 
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);
