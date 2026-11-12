@@ -525,5 +525,28 @@ export const TOOL_GUIDES = {
         content: 'Provides one-click "Copy Venue Emails" formatted as comma-separated lists ready to paste directly into Outlook, Gmail, or BCC mail merges.'
       }
     ]
+  },
+  'confisection-exam-report': {
+    title: 'Confisection Exam Report - Logic & Guide',
+    icon: 'ShieldCheck',
+    description: 'Process 13-column examination schedules to calculate question paper print orders, cross-programme student aggregates, and sealed venue packing slips.',
+    sections: [
+      {
+        heading: '1. 13-Column Standard Schedule Input',
+        content: 'Accepts Event Name, Center Code, Center Name, Venue Code, Venue Name, Program Name, Exam Date, Course Start Time, Course End Time, Course Code, Course Name, Student Count, and venueId.'
+      },
+      {
+        heading: '2. Cross-Programme Candidate Aggregation',
+        content: 'When multiple academic programmes (e.g. BA, BCom, BSc) take the same course code at the same venue on the same date and session, student counts are automatically summed so confidential question papers are printed and packed accurately.'
+      },
+      {
+        heading: '3. Question Paper Packet Calculations',
+        content: 'Automatically calculates sealed bundles of 20, 10, 5, and loose single copies with configurable buffer reserves (+1 copy/venue, +2 copies/venue, or +5%).'
+      },
+      {
+        heading: '4. Multi-Report Export',
+        content: 'Exports a 4-sheet master workbook (Confi_Master_Schedule, Daily_Press_Print_Order, Venue_Packing_Slips, Course_Master_Summary) along with printable dispatch sheets.'
+      }
+    ]
   }
 };

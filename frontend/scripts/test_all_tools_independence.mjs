@@ -32,6 +32,11 @@ import {
   DEFAULT_COLLEGE_EMAILS,
   formatExamDate
 } from '../src/utils/venueEmailHelpers.js';
+import {
+  CONFIDENTIAL_SECTION_COLUMNS,
+  calculateQpPackets,
+  getExamSession
+} from '../src/utils/confisectionHelpers.js';
 
 console.log('=== STARTING AUTOMATED TEST SUITE FOR REPORT STUDIO ENGINES ===\n');
 
@@ -2608,6 +2613,39 @@ test('Master Lookup Definition Tool - includes official Kannur programmes, colle
   // Verify DEFAULT_LOOKUP_DATA contains program and college lists
   assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.program) && DEFAULT_LOOKUP_DATA.program.length >= 15);
   assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.college) && DEFAULT_LOOKUP_DATA.college.length >= 15);
+});
+
+console.log('\n[Test Suite 26: Confisection Exam Report Engine]');
+
+test('Confisection Exam Report - calculates QP packet bundles, buffer reserves, and verifies 13 source columns', () => {
+  // 1. Verify all 13 source columns
+  assert.equal(CONFIDENTIAL_SECTION_COLUMNS.length, 13);
+  assert.ok(CONFIDENTIAL_SECTION_COLUMNS.includes('Event Name'));
+  assert.ok(CONFIDENTIAL_SECTION_COLUMNS.includes('Center Code'));
+  assert.ok(CONFIDENTIAL_SECTION_COLUMNS.includes('Venue Code'));
+  assert.ok(CONFIDENTIAL_SECTION_COLUMNS.includes('Exam Date'));
+  assert.ok(CONFIDENTIAL_SECTION_COLUMNS.includes('Student Count'));
+  assert.ok(CONFIDENTIAL_SECTION_COLUMNS.includes('venueId'));
+
+  // 2. Test calculateQpPackets: 16 candidates with +1 buffer -> total 17 -> 0 of 20s, 1 of 10s, 1 of 5s, 2 singles
+  const p1 = calculateQpPackets(16, 'plus1');
+  assert.equal(p1.totalQp, 17);
+  assert.equal(p1.p20, 0);
+  assert.equal(p1.p10, 1);
+  assert.equal(p1.p5, 1);
+  assert.equal(p1.singles, 2);
+
+  // 3. Test calculateQpPackets: 45 candidates with exact count (no buffer) -> 2 of 20s, 0 of 10s, 1 of 5s, 0 singles
+  const p2 = calculateQpPackets(45, 'none');
+  assert.equal(p2.totalQp, 45);
+  assert.equal(p2.p20, 2);
+  assert.equal(p2.p10, 0);
+  assert.equal(p2.p5, 1);
+  assert.equal(p2.singles, 0);
+
+  // 4. Test session detector
+  assert.equal(getExamSession('09:30 AM', '12:30 PM'), 'FN');
+  assert.equal(getExamSession('01:30 PM', '03:30 PM'), 'AN');
 });
 
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);

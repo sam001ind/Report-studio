@@ -20,7 +20,8 @@ import {
   X,
   ArrowRight,
   Mail,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ShieldCheck
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import { TOOL_GUIDES } from '../data/toolGuides';
@@ -503,6 +504,25 @@ const LandingPage = () => {
                 type="button" 
                 style={styles.guideBtn} 
                 onClick={(e) => { e.stopPropagation(); setActiveGuideKey('venue-date-course-email'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
+          {/* 20. Confisection Exam Report */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid #e11d48', background: 'linear-gradient(135deg, rgba(225,29,72,0.06), transparent)'}} 
+            onClick={() => navigate('/confisection-exam-report')}
+          >
+            <div style={styles.featureIcon}><ShieldCheck size={24} color="#e11d48" /></div>
+            <h3 style={styles.featureTitle}>Confisection Exam Report</h3>
+            <p style={styles.featureText}>Process 13-column examination schedules to calculate question paper print orders, cross-programme student aggregates, and sealed venue packing slips.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('confisection-exam-report'); }}
               >
                 <HelpCircle size={13} /> Extraction Logic & Guide
               </button>

@@ -29,6 +29,7 @@ const PaymentReconciliationPage = lazy(() => import('./pages/PaymentReconciliati
 const CourseWiseVenueDatePage = lazy(() => import('./pages/CourseWiseVenueDatePage'));
 const VenueDateCourseEmailPage = lazy(() => import('./pages/VenueDateCourseEmailPage'));
 const MasterLookupDefinitionPage = lazy(() => import('./pages/MasterLookupDefinitionPage'));
+const ConfisectionExamReportPage = lazy(() => import('./pages/ConfisectionExamReportPage'));
 const DatabaseDumpExtractorPage = lazy(() => import('./pages/DatabaseDumpExtractorPage'));
 const UrlRedirectHandler = lazy(() => import('./pages/UrlRedirectHandler'));
 const AuthPage = lazy(() => import('./pages/AuthPage'));
@@ -310,6 +311,21 @@ function App() {
               <Route path="/lookup-manager" element={
                 <ProtectedRoute requiredPermission="can_access_studio">
                   <MasterLookupDefinitionPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/confisection-exam-report" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <ConfisectionExamReportPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/confisection-report" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <ConfisectionExamReportPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/confi-exam-report" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <ConfisectionExamReportPage />
                 </ProtectedRoute>
               } />
               <Route path="/s/:code" element={<UrlRedirectHandler />} />
