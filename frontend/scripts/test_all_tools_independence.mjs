@@ -1091,6 +1091,72 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
   const lookedUpProgramCode = (progLookup && progLookup.code) ? progLookup.code : '';
   const resolvedProgramCode = lookedUpProgramCode || sourceRow['Program Code'] || 'PFMBAGA25';
   assert.equal(resolvedProgramCode, 'PFMBAGA25', 'Col 26 ProgramCode must use PROGRAMCODE (PFMBAGA25) against Program Name, overriding raw numeric 133');
+
+  // Verify all 17 specified columns are formatted as native Excel numbers (t === 'n')
+  const NUMERIC_COLUMNS = new Set([
+    'CountryId', 'corrStateId', 'corrPin', 'categoryId', 'CasteId',
+    'religionId', 'workFlowId', 'CollegeId', 'CollegeCode',
+    'QualificationFacultyId', 'QualificationSpecializationId',
+    'NoOfAttempts', 'MarksObtained', 'Percentage', 'MarksOutOf',
+    'CGPA', 'SeatNumber'
+  ]);
+
+  const testTransformedRow = {
+    CountryId: 107,
+    corrStateId: 18,
+    corrPin: 671314,
+    categoryId: 10,
+    CasteId: 320,
+    religionId: 1,
+    workFlowId: 162,
+    CollegeId: 133,
+    CollegeCode: 133,
+    QualificationFacultyId: 2,
+    QualificationSpecializationId: 2,
+    NoOfAttempts: 1,
+    MarksObtained: 1043,
+    Percentage: 86.9167,
+    MarksOutOf: 1200,
+    CGPA: 86.9167,
+    SeatNumber: 25408061,
+    Name: 'LAKSHMI S',
+    AadhaarNumber: '499728191337',
+    ABCId: '611352377705',
+    Mobile: '7902907688'
+  };
+
+  const exportAoa = [TARGET_COLUMNS];
+  exportAoa.push(TARGET_COLUMNS.map(col => {
+    let val = testTransformedRow[col] !== undefined ? testTransformedRow[col] : '';
+    if (NUMERIC_COLUMNS.has(col)) {
+      return (val !== '' && !isNaN(Number(val))) ? Number(val) : val;
+    }
+    if (col === 'AadhaarNumber' || col === 'ABCId' || col === 'Mobile') {
+      return String(val);
+    }
+    return val;
+  }));
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(exportAoa);
+  XLSX.utils.book_append_sheet(wb, ws, 'Test');
+  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+  const readWb = XLSX.read(buffer, { type: 'buffer' });
+  const readWs = readWb.Sheets['Test'];
+
+  TARGET_COLUMNS.forEach((col, idx) => {
+    if (NUMERIC_COLUMNS.has(col)) {
+      const cell = readWs[XLSX.utils.encode_cell({ r: 1, c: idx })];
+      assert.ok(cell, `Cell for ${col} must exist`);
+      assert.equal(cell.t, 'n', `Column ${col} must be formatted as number (t: 'n')`);
+      assert.equal(typeof cell.v, 'number', `Column ${col} value must be a number`);
+    }
+  });
+
+  // Long identifiers must remain strings (t: 's')
+  const aadhaarIdx = TARGET_COLUMNS.indexOf('AadhaarNumber');
+  const aadhaarCell = readWs[XLSX.utils.encode_cell({ r: 1, c: aadhaarIdx })];
+  assert.equal(aadhaarCell.t, 's', 'AadhaarNumber must remain string to avoid scientific notation');
 });
 
 // -------------------------------------------------------------

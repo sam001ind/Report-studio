@@ -770,6 +770,12 @@ export default function AdmissionImportPage() {
     if (!mobile || mobile.length < 10) warnings.push('Invalid Mobile');
     if (!username && !certificateNumber) warnings.push('Missing Identifier/RegNo');
 
+    const toNumOrVal = (val) => {
+      if (val === null || val === undefined || val === '') return '';
+      const num = Number(val);
+      return !isNaN(num) ? num : val;
+    };
+
     return {
       Name: name,
       Gender: gender,
@@ -780,40 +786,40 @@ export default function AdmissionImportPage() {
       'Date of Birth (DD/MM/YY)': dobDMY,
       AadhaarNumber: aadhaarNumber,
       ABCId: abcId,
-      CountryId: countryId,
+      CountryId: toNumOrVal(countryId),
       CountryName: countryName,
-      corrStateId: corrStateId,
+      corrStateId: toNumOrVal(corrStateId),
       corrStateName: corrStateName,
       corrAddress: corrAddress,
       corrCity: corrCity,
-      corrPin: corrPin,
-      categoryId: categoryId,
+      corrPin: toNumOrVal(corrPin),
+      categoryId: toNumOrVal(categoryId),
       categoryName: categoryName,
-      CasteId: casteId,
+      CasteId: toNumOrVal(casteId),
       Caste: caste,
-      religionId: religionId,
+      religionId: toNumOrVal(religionId),
       religion: religion,
       'PGM Name': pgmName,
-      WORKFLOWID: workFlowId,
-      workFlowId: workFlowId,
+      WORKFLOWID: toNumOrVal(workFlowId),
+      workFlowId: toNumOrVal(workFlowId),
       'Program Name': programName,
       PROGRAMCODE: programCode,
       ProgramCode: programCode,
       'CLG NAME': clgName,
-      CollegeId: collegeId,
+      CollegeId: toNumOrVal(collegeId),
       'College Name': collegeName,
-      CollegeCode: collegeCode,
-      QualificationFacultyId: qualificationFacultyId,
+      CollegeCode: toNumOrVal(collegeCode),
+      QualificationFacultyId: toNumOrVal(qualificationFacultyId),
       QualificationName: qualificationName,
-      QualificationSpecializationId: qualificationSpecializationId,
+      QualificationSpecializationId: toNumOrVal(qualificationSpecializationId),
       Stream: stream,
       CertificateNumber: certificateNumber,
-      NoOfAttempts: noOfAttempts,
-      MarksObtained: marksObtained,
-      Percentage: percentage,
-      MarksOutOf: marksOutOf,
-      CGPA: cgpa,
-      SeatNumber: seatNumber,
+      NoOfAttempts: toNumOrVal(noOfAttempts),
+      MarksObtained: toNumOrVal(marksObtained),
+      Percentage: toNumOrVal(percentage),
+      MarksOutOf: toNumOrVal(marksOutOf),
+      CGPA: toNumOrVal(cgpa),
+      SeatNumber: toNumOrVal(seatNumber),
       '': passingYear,
       'Result Date ': resultDate,
       'Result Date': resultDate,
@@ -973,12 +979,37 @@ export default function AdmissionImportPage() {
     setStatus(`Generating standardized ${TARGET_COLUMNS.length}-column master Excel workbook...`, 'info');
 
     try {
-      // Export array of arrays for dense mode memory efficiency
+      const NUMERIC_COLUMNS = new Set([
+        'CountryId',
+        'corrStateId',
+        'corrPin',
+        'categoryId',
+        'CasteId',
+        'religionId',
+        'workFlowId',
+        'CollegeId',
+        'CollegeCode',
+        'QualificationFacultyId',
+        'QualificationSpecializationId',
+        'NoOfAttempts',
+        'MarksObtained',
+        'Percentage',
+        'MarksOutOf',
+        'CGPA',
+        'SeatNumber'
+      ]);
+
       const exportAoa = [TARGET_COLUMNS];
       normalizedRows.forEach(row => {
         exportAoa.push(TARGET_COLUMNS.map(col => {
-          const val = row[col] !== undefined && row[col] !== null ? row[col] : '';
-          if (typeof val === 'number' && (col === 'AadhaarNumber' || col === 'ABCId' || col === 'Mobile' || col === 'corrPin' || col === 'CertificateNumber' || col === 'SeatNumber')) {
+          let val = row[col] !== undefined && row[col] !== null ? row[col] : '';
+          if (NUMERIC_COLUMNS.has(col)) {
+            if (val !== '' && !isNaN(Number(val))) {
+              return Number(val);
+            }
+            return val;
+          }
+          if (col === 'AadhaarNumber' || col === 'ABCId' || col === 'Mobile' || col === 'CertificateNumber' || col === 'username') {
             return String(val);
           }
           return val;
@@ -986,7 +1017,7 @@ export default function AdmissionImportPage() {
       });
 
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(exportAoa, { dense: true });
+      const ws = XLSX.utils.aoa_to_sheet(exportAoa);
 
       // Auto-filter on all columns
       ws['!autofilter'] = {
