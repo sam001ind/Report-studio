@@ -6,6 +6,8 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   server: {
+    host: true,
+    allowedHosts: true,
     watch: {
       ignored: ['**/backend/**', '**/node_modules/**']
     }

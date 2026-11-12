@@ -41,14 +41,26 @@ const cleanEscapeArtifacts = (val) => {
   return str;
 };
 
-// Formats date to YYYY-MM-DD
+// Formats date strictly to YYYY-MM-DD (removes any timestamp)
 export const parseDobYMD = (val) => {
   const clean = cleanEscapeArtifacts(val);
   if (!clean) return '';
+
+  // 1. If it starts with YYYY-MM-DD (e.g. "2008-08-19", "2008-08-19 00:00:00", "2008-08-19T00:00:00.000Z")
+  const ymdPrefix = clean.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (ymdPrefix) {
+    const y = ymdPrefix[1];
+    const m = String(parseInt(ymdPrefix[2], 10)).padStart(2, '0');
+    const d = String(parseInt(ymdPrefix[3], 10)).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  // 2. Excel serial number (e.g. 39679)
   if (/^\d{4,5}$/.test(clean)) {
     const serial = parseInt(clean, 10);
     if (serial > 10000 && serial < 60000) {
-      const d = new Date((serial - 25569) * 86400 * 1000);
+      const epoch = Date.UTC(1899, 11, 30);
+      const d = new Date(epoch + serial * 86400 * 1000);
       if (!isNaN(d.getTime())) {
         const y = d.getUTCFullYear();
         const m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -57,8 +69,18 @@ export const parseDobYMD = (val) => {
       }
     }
   }
-  // Check YY-MM-DD (e.g. "08-12-22" from dump)
-  const yyMatch = clean.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+
+  // 3. DD-MM-YYYY or DD/MM/YYYY (e.g. "19/08/2008", "19-08-2008 12:00:00")
+  const dmyPrefix = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (dmyPrefix) {
+    const d = String(parseInt(dmyPrefix[1], 10)).padStart(2, '0');
+    const m = String(parseInt(dmyPrefix[2], 10)).padStart(2, '0');
+    const y = dmyPrefix[3];
+    return `${y}-${m}-${d}`;
+  }
+
+  // 4. YY-MM-DD (e.g. "08-12-22" from dump)
+  const yyMatch = clean.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
   if (yyMatch) {
     let year = parseInt(yyMatch[1], 10);
     year = year > 50 ? 1900 + year : 2000 + year;
@@ -66,23 +88,30 @@ export const parseDobYMD = (val) => {
     const d = String(parseInt(yyMatch[3], 10)).padStart(2, '0');
     return `${year}-${m}-${d}`;
   }
-  // Check DD-MM-YYYY or DD/MM/YYYY
-  const dmyMatch = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-  if (dmyMatch) {
-    const d = String(parseInt(dmyMatch[1], 10)).padStart(2, '0');
-    const m = String(parseInt(dmyMatch[2], 10)).padStart(2, '0');
-    const y = dmyMatch[3];
-    return `${y}-${m}-${d}`;
-  }
-  // Standard JS Date
+
+  // 5. Standard JS Date fallback (UTC to avoid timezone shifts)
   const d = new Date(clean);
   if (!isNaN(d.getTime())) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
-  return clean;
+  return clean.split('T')[0].split(' ')[0];
+};
+
+// Converts YYYY-MM-DD date strictly to Excel integer day serial (no time fraction)
+export const dateToExcelSerial = (dateStr) => {
+  if (!dateStr) return null;
+  const parts = String(dateStr).split('T')[0].split(' ')[0].split(/[-/.]/);
+  if (parts.length !== 3) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+  const utcDate = Date.UTC(year, month, day);
+  const epoch = Date.UTC(1899, 11, 30);
+  return Math.round((utcDate - epoch) / (24 * 60 * 60 * 1000));
 };
 
 // Formats date to DD/MM/YYYY
@@ -1001,28 +1030,6 @@ export default function AdmissionImportPage() {
         'Mobile'
       ]);
 
-      const parseToDate = (val) => {
-        if (!val) return null;
-        if (val instanceof Date) return val;
-        const s = String(val).trim();
-        const parts = s.split(/[-/.]/);
-        if (parts.length === 3) {
-          if (parts[0].length === 4) { // YYYY-MM-DD
-            const y = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10) - 1;
-            const d = parseInt(parts[2], 10);
-            return new Date(Date.UTC(y, m, d));
-          } else if (parts[2].length === 4) { // DD-MM-YYYY
-            const d = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10) - 1;
-            const y = parseInt(parts[2], 10);
-            return new Date(Date.UTC(y, m, d));
-          }
-        }
-        const d = new Date(s);
-        return !isNaN(d.getTime()) ? d : null;
-      };
-
       const exportAoa = [TARGET_COLUMNS];
       normalizedRows.forEach(row => {
         exportAoa.push(TARGET_COLUMNS.map(col => {
@@ -1043,24 +1050,24 @@ export default function AdmissionImportPage() {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(exportAoa);
 
-      // Format date cells with native Excel date type (t: 'd') and format mask (yyyy-mm-dd)
+      // Format date cells as native Excel date serial numbers (type 'n') with pure date masks (ZERO TIME)
       TARGET_COLUMNS.forEach((col, cIdx) => {
         if (col === 'dob' || col === 'Result Date ' || col === 'Result Date') {
           for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
             const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
             const rawVal = normalizedRows[rIdx][col];
-            const dObj = parseToDate(rawVal);
-            if (dObj) {
-              ws[cellAddr] = { t: 'd', v: dObj, z: 'yyyy-mm-dd' };
+            const serial = dateToExcelSerial(parseDobYMD(rawVal));
+            if (serial) {
+              ws[cellAddr] = { t: 'n', v: serial, z: 'yyyy-mm-dd' };
             }
           }
         } else if (col === 'Date of Birth (DD/MM/YY)') {
           for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
             const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
             const rawVal = normalizedRows[rIdx][col];
-            const dObj = parseToDate(rawVal);
-            if (dObj) {
-              ws[cellAddr] = { t: 'd', v: dObj, z: 'dd/mm/yyyy' };
+            const serial = dateToExcelSerial(parseDobYMD(rawVal));
+            if (serial) {
+              ws[cellAddr] = { t: 'n', v: serial, z: 'dd/mm/yyyy' };
             }
           }
         }
@@ -1079,7 +1086,7 @@ export default function AdmissionImportPage() {
 
       XLSX.utils.book_append_sheet(wb, ws, 'Master_Admission');
 
-      const rawBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true, cellDates: true });
+      const rawBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
 
       // Apply distinct RED styling to additional header columns in exported Excel
       let finalBuffer = rawBuffer;
