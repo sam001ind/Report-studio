@@ -27,6 +27,8 @@ const AdesResultCalculatorPage = lazy(() => import('./pages/AdesResultCalculator
 const AdesSupplementaryCalculatorPage = lazy(() => import('./pages/AdesSupplementaryCalculatorPage'));
 const PaymentReconciliationPage = lazy(() => import('./pages/PaymentReconciliationPage'));
 const CourseWiseVenueDatePage = lazy(() => import('./pages/CourseWiseVenueDatePage'));
+const VenueDateCourseEmailPage = lazy(() => import('./pages/VenueDateCourseEmailPage'));
+const MasterLookupDefinitionPage = lazy(() => import('./pages/MasterLookupDefinitionPage'));
 const DatabaseDumpExtractorPage = lazy(() => import('./pages/DatabaseDumpExtractorPage'));
 const UrlRedirectHandler = lazy(() => import('./pages/UrlRedirectHandler'));
 const AuthPage = lazy(() => import('./pages/AuthPage'));
@@ -278,6 +280,36 @@ function App() {
               <Route path="/ups-reconciler" element={
                 <ProtectedRoute requiredPermission="can_access_studio">
                   <PaymentReconciliationPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/venue-date-course-email" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <VenueDateCourseEmailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/venue-date-course-college-email" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <VenueDateCourseEmailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/master-definitions" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <MasterLookupDefinitionPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/programme-college-definition" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <MasterLookupDefinitionPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/master-lookups" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <MasterLookupDefinitionPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/lookup-manager" element={
+                <ProtectedRoute requiredPermission="can_access_studio">
+                  <MasterLookupDefinitionPage />
                 </ProtectedRoute>
               } />
               <Route path="/s/:code" element={<UrlRedirectHandler />} />

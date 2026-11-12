@@ -18,7 +18,9 @@ import {
   CreditCard,
   HelpCircle,
   X,
-  ArrowRight
+  ArrowRight,
+  Mail,
+  SlidersHorizontal
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import { TOOL_GUIDES } from '../data/toolGuides';
@@ -463,6 +465,44 @@ const LandingPage = () => {
                 type="button" 
                 style={styles.guideBtn} 
                 onClick={(e) => { e.stopPropagation(); setActiveGuideKey('payment-reconciler'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
+          {/* 18. Programme & College Master Definitions */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid #059669', background: 'linear-gradient(135deg, rgba(5,150,105,0.06), transparent)'}} 
+            onClick={() => navigate('/programme-college-definition')}
+          >
+            <div style={styles.featureIcon}><SlidersHorizontal size={24} color="#059669" /></div>
+            <h3 style={styles.featureTitle}>Programme &amp; College Master Definitions</h3>
+            <p style={styles.featureText}>Define, map, import &amp; manage official university reference codes for Programmes, Colleges, Castes, Categories, and Allotment IDs.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('master-definitions'); }}
+              >
+                <HelpCircle size={13} /> Extraction Logic & Guide
+              </button>
+            </div>
+          </div>
+
+          {/* 19. Venue Date Course College Email Report */}
+          <div 
+            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
+            onClick={() => navigate('/venue-date-course-email')}
+          >
+            <div style={styles.featureIcon}><Mail size={24} color="var(--accent)" /></div>
+            <h3 style={styles.featureTitle}>Venue Date Course College Email Report</h3>
+            <p style={styles.featureText}>Generate unique Date, Venue, Course combinations mapped to official college email IDs for circular dispatch &amp; student counts.</p>
+            <div style={styles.cardFooter}>
+              <button 
+                type="button" 
+                style={styles.guideBtn} 
+                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('venue-date-course-email'); }}
               >
                 <HelpCircle size={13} /> Extraction Logic & Guide
               </button>

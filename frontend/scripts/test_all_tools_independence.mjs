@@ -24,8 +24,14 @@ import {
   LOOKUP_TAB_CONFIG, 
   buildLookupMaps, 
   normalizeLookupKey, 
-  parseUploadedLookupSpreadsheet 
+  parseUploadedLookupSpreadsheet,
+  KANNUR_PROGRAMMES,
+  KANNUR_COLLEGES
 } from '../src/data/admissionLookups.js';
+import {
+  DEFAULT_COLLEGE_EMAILS,
+  formatExamDate
+} from '../src/utils/venueEmailHelpers.js';
 
 console.log('=== STARTING AUTOMATED TEST SUITE FOR REPORT STUDIO ENGINES ===\n');
 
@@ -2561,6 +2567,47 @@ test('parseUploadedLookupSpreadsheet extracts multi-table reference sheet includ
   assert.equal(parsedTwoCol.imported.caste.length, 2);
   assert.equal(parsedTwoCol.imported.caste[0].name, 'Vellalar');
   assert.equal(parsedTwoCol.imported.caste[0].id, '260');
+});
+
+console.log('\n[Test Suite 24: Venue Date Course College Email Report Engine]');
+
+test('Venue Date Course Email Report - deduplicates Date + Venue + Course Code and resolves college email IDs', () => {
+  // 1. Test Date normalizer
+  assert.equal(formatExamDate('2026-05-18'), '18/05/2026');
+  assert.equal(formatExamDate('18-05-2026'), '18/05/2026');
+  
+  // 2. Test email resolution for Kannur default colleges
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === '435' && c.email.includes('anthropology')));
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === '432' && c.email.includes('behavioural')));
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === '201' && c.email.includes('brennencollege')));
+});
+
+console.log('\n[Test Suite 25: Master Lookup Definition Tool]');
+
+test('Master Lookup Definition Tool - includes official Kannur programmes, colleges, and side-by-side template compatibility', () => {
+  // Verify Kannur programmes contain the user's specific records
+  const psychProg = KANNUR_PROGRAMMES.find(p => p.code === 'PFPSYGS25');
+  assert.ok(psychProg, 'PFPSYGS25 programme must be present');
+  assert.equal(psychProg.workflowId, '151');
+  assert.ok(psychProg.pgmName.includes('Clinical Psychology'));
+
+  const commProg = KANNUR_PROGRAMMES.find(p => p.code === 'PFCOMGS25');
+  assert.ok(commProg, 'PFCOMGS25 programme must be present');
+  assert.equal(commProg.workflowId, '148');
+
+  // Verify Kannur colleges contain the user's specific records
+  const anthroCol = KANNUR_COLLEGES.find(c => c.id === '435');
+  assert.ok(anthroCol, 'College 435 must be present');
+  assert.equal(anthroCol.name, 'Department of Anthropology');
+  assert.ok(anthroCol.clgRef.includes('Dr. Janaki Ammal Campus'));
+
+  const behCol = KANNUR_COLLEGES.find(c => c.id === '432');
+  assert.ok(behCol, 'College 432 must be present');
+  assert.equal(behCol.name, 'School of Behavioural Sciences, Mangattuparamba');
+
+  // Verify DEFAULT_LOOKUP_DATA contains program and college lists
+  assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.program) && DEFAULT_LOOKUP_DATA.program.length >= 15);
+  assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.college) && DEFAULT_LOOKUP_DATA.college.length >= 15);
 });
 
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);

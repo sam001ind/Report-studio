@@ -483,5 +483,47 @@ export const TOOL_GUIDES = {
         content: 'For large dump files (100MB+), run the bundled Python CLI tool: python3 extract_dump_to_xlsx.py "dumpfile.dump".'
       }
     ]
+  },
+  'master-definitions': {
+    title: 'Programme & College Master Definitions - Logic & Guide',
+    icon: 'Database',
+    description: 'Manage, map, import & export official Kannur University reference codes for Programmes, Colleges, Castes, Categories, and Allotment IDs.',
+    sections: [
+      {
+        heading: '1. 4-Column Programme & College Architecture',
+        content: 'Programmes are stored with 4 essential fields: Programme Name (Reference) ↔ ProgramCode ↔ workFlowId ↔ Full Program Name. Colleges are stored with CollegeId ↔ CollegeCode ↔ College Name ↔ CLG Name (Campus).'
+      },
+      {
+        heading: '2. Side-by-Side Excel Ingestion',
+        content: 'Supports single-sheet uploads with Programme columns on the left and College columns on the right (separated by an empty column). Both sets of master records are extracted and deduplicated simultaneously.'
+      },
+      {
+        heading: '3. Shared Persistent University Cache',
+        content: 'All updates are saved to localStorage and synchronized instantly across Admission Import and Admission Row-Wise tools so your enrichment mappings are always up to date.'
+      },
+      {
+        heading: '4. Excel Export & Reset Options',
+        content: 'Download the complete master directory into a clean multi-sheet Defined_Admission_Master_Lookups.xlsx at any time, or reset back to official university defaults with a single click.'
+      }
+    ]
+  },
+  'venue-date-course-email': {
+    title: 'Venue Date Course College Email Report - Logic & Guide',
+    icon: 'Mail',
+    description: 'Generate unique Date, Venue, Course combinations mapped to official college email IDs for circular dispatch & student counts.',
+    sections: [
+      {
+        heading: '1. Unique Triple Composite Key',
+        content: 'Extracts unique combinations of Exam Date (DD/MM/YYYY) + Venue Code/Name + Course Code/Name, summing up student counts per group.'
+      },
+      {
+        heading: '2. Multi-Tier College Email Resolution',
+        content: 'Resolves venue college email addresses first from in-file schedule columns, then from custom uploaded directories, and finally from official university defaults.'
+      },
+      {
+        heading: '3. Fast Circular Email Dispatch',
+        content: 'Provides one-click "Copy Venue Emails" formatted as comma-separated lists ready to paste directly into Outlook, Gmail, or BCC mail merges.'
+      }
+    ]
   }
 };
