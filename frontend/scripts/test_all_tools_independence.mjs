@@ -34,6 +34,8 @@ import {
 } from '../src/utils/venueEmailHelpers.js';
 import {
   CONFIDENTIAL_SECTION_COLUMNS,
+  QP_EMAIL_DISPATCH_COLUMNS,
+  generateQpEmailDispatchRows,
   calculateQpPackets,
   getExamSession
 } from '../src/utils/confisectionHelpers.js';
@@ -2647,6 +2649,43 @@ test('Confisection Exam Report - calculates QP packet bundles, buffer reserves, 
   // 4. Test session detector
   assert.equal(getExamSession('09:30 AM', '12:30 PM'), 'FN');
   assert.equal(getExamSession('01:30 PM', '03:30 PM'), 'AN');
+
+  // 5. Test QP Email Dispatch Report columns & rows generator
+  assert.equal(QP_EMAIL_DISPATCH_COLUMNS.length, 6);
+  assert.ok(QP_EMAIL_DISPATCH_COLUMNS.includes('Exam Date'));
+  assert.ok(QP_EMAIL_DISPATCH_COLUMNS.includes('Course  Code'));
+  assert.ok(QP_EMAIL_DISPATCH_COLUMNS.includes('Course  Name'));
+  assert.ok(QP_EMAIL_DISPATCH_COLUMNS.includes('Venue Code'));
+  assert.ok(QP_EMAIL_DISPATCH_COLUMNS.includes('Venue Name'));
+  assert.ok(QP_EMAIL_DISPATCH_COLUMNS.includes('Email ID'));
+
+  const sampleConsolidated = [
+    {
+      examDate: '25/11/2026',
+      courseCode: 'KU3DSCECO203',
+      courseName: 'Economics of Banking and Finance',
+      venueCode: 'PP',
+      venueName: 'Payyannur College, Payyannur',
+      collegeEmail: 'principal_pc@kannuruniv.ac.in',
+      session: 'AN',
+      studentCount: 16,
+      p20: 0,
+      p10: 1,
+      p5: 1,
+      singles: 2,
+      buffer: 1,
+      totalQp: 17
+    }
+  ];
+  const qpRows = generateQpEmailDispatchRows(sampleConsolidated);
+  assert.equal(qpRows.length, 1);
+  assert.equal(qpRows[0].examDate, '25/11/2026');
+  assert.equal(qpRows[0].courseCode, 'KU3DSCECO203');
+  assert.equal(qpRows[0].courseName, 'Economics of Banking and Finance');
+  assert.equal(qpRows[0].venueCode, 'PP');
+  assert.equal(qpRows[0].venueName, 'Payyannur College, Payyannur');
+  assert.equal(qpRows[0].emailId, 'principal_pc@kannuruniv.ac.in');
+  assert.equal(qpRows[0].totalQp, 17);
 });
 
 console.log(`\n=== ALL ${totalTests} TESTS PASSED CLEANLY (${passedTests}/${totalTests}) ===\n`);

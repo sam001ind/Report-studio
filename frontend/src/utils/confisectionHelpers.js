@@ -18,6 +18,41 @@ export const CONFIDENTIAL_SECTION_COLUMNS = [
   'venueId'
 ];
 
+export const QP_EMAIL_DISPATCH_COLUMNS = [
+  'Exam Date',
+  'Course  Code',
+  'Course  Name',
+  'Venue Code',
+  'Venue Name',
+  'Email ID'
+];
+
+// Helper to generate the exact QP Email Dispatch Report records
+export const generateQpEmailDispatchRows = (consolidatedRows) => {
+  if (!Array.isArray(consolidatedRows)) return [];
+  return consolidatedRows.map(r => ({
+    examDate: r.examDate,
+    courseCode: r.courseCode,
+    courseName: r.courseName,
+    venueCode: r.venueCode,
+    venueName: r.venueName,
+    emailId: r.collegeEmail || '',
+    hasEmail: Boolean(r.collegeEmail && r.collegeEmail.includes('@')),
+    // Details
+    session: r.session,
+    startTime: r.startTime,
+    endTime: r.endTime,
+    studentCount: r.studentCount,
+    p20: r.p20,
+    p10: r.p10,
+    p5: r.p5,
+    singles: r.singles,
+    buffer: r.buffer,
+    totalQp: r.totalQp,
+    programsFormatted: r.programsFormatted || ''
+  }));
+};
+
 // Resolves official college email address using directory lookups, code aliases, and fuzzy name matching
 export const resolveCollegeEmail = (code, name, emailDirectory = DEFAULT_COLLEGE_EMAILS, fallbackEmail = '') => {
   if (fallbackEmail && String(fallbackEmail).includes('@')) {

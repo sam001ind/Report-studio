@@ -42,6 +42,8 @@ import {
 import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
 import { 
   CONFIDENTIAL_SECTION_COLUMNS, 
+  QP_EMAIL_DISPATCH_COLUMNS,
+  generateQpEmailDispatchRows,
   calculateQpPackets, 
   getExamSession,
   SAMPLE_CONFISECTION_ROWS,
@@ -83,7 +85,7 @@ export default function ConfisectionExamReportPage() {
   const [editingCollegeIndex, setEditingCollegeIndex] = useState(null);
 
   // Configuration options
-  const [activeTab, setActiveTab] = useState('consolidated'); // 'consolidated' | 'venue_email' | 'press_print' | 'venue_packing' | 'course_summary' | 'raw'
+  const [activeTab, setActiveTab] = useState('qp_email_dispatch'); // 'qp_email_dispatch' | 'consolidated' | 'venue_email' | 'press_print' | 'venue_packing' | 'course_summary' | 'raw'
   const [bufferRule, setBufferRule] = useState('plus1'); // 'none' | 'plus1' | 'plus2' | 'five_percent'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState('ALL');
@@ -437,6 +439,11 @@ export default function ConfisectionExamReportPage() {
     return list;
   }, [rawRows, bufferRule, emailDirectory]);
 
+  // Dedicated QP Email Dispatch Report rows (Exam Date, Course Code, Course Name, Venue Code, Venue Name, Email ID + exam details)
+  const qpEmailDispatchRows = useMemo(() => {
+    return generateQpEmailDispatchRows(consolidatedRows);
+  }, [consolidatedRows]);
+
   // Venue College Email Dispatch Summary
   const venueEmailSummaryRows = useMemo(() => {
     if (consolidatedRows.length === 0) return [];
@@ -614,12 +621,15 @@ export default function ConfisectionExamReportPage() {
         const vName = String(item.venueName || '').toLowerCase();
         const date = String(item.examDate || '').toLowerCase();
         const prog = String(item.programsFormatted || item.programName || '').toLowerCase();
-        const email = String(item.collegeEmail || '').toLowerCase();
+        const email = String(item.emailId || item.collegeEmail || '').toLowerCase();
         return code.includes(q) || name.includes(q) || vCode.includes(q) || vName.includes(q) || date.includes(q) || prog.includes(q) || email.includes(q);
       }
       return true;
     };
 
+    if (activeTab === 'qp_email_dispatch') {
+      return qpEmailDispatchRows.filter(applyCommonFilter);
+    }
     if (activeTab === 'consolidated') {
       return consolidatedRows.filter(applyCommonFilter);
     }
@@ -678,7 +688,7 @@ export default function ConfisectionExamReportPage() {
     }
 
     return [];
-  }, [activeTab, consolidatedRows, venueEmailSummaryRows, pressPrintOrderRows, courseSummaryRows, rawRows, searchQuery, selectedDate, selectedSession, selectedVenue]);
+  }, [activeTab, qpEmailDispatchRows, consolidatedRows, venueEmailSummaryRows, pressPrintOrderRows, courseSummaryRows, rawRows, searchQuery, selectedDate, selectedSession, selectedVenue]);
 
   // Paginated view
   const paginatedRows = useMemo(() => {
@@ -736,12 +746,99 @@ export default function ConfisectionExamReportPage() {
     setTimeout(() => setCopiedNoticeToast(null), 4000);
   };
 
-  // Export to Excel with all 5 confidential & email dispatch sheets
+  // Dedicated Export for QP Email Dispatch Report (.xlsx)
+  const handleExportQpEmailReportOnly = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+      const headers = [
+        ...QP_EMAIL_DISPATCH_COLUMNS,
+        'Session',
+        'Course  Start Time',
+        'Course  End Time',
+        'Student Count',
+        'Packets of 20',
+        'Packets of 10',
+        'Packets of 5',
+        'Singles',
+        'Buffer',
+        'Total QP Copies',
+        'Combined Programs'
+      ];
+      const data = qpEmailDispatchRows.map(r => [
+        r.examDate,
+        r.courseCode,
+        r.courseName,
+        r.venueCode,
+        r.venueName,
+        r.emailId,
+        r.session,
+        r.startTime,
+        r.endTime,
+        r.studentCount,
+        r.p20,
+        r.p10,
+        r.p5,
+        r.singles,
+        r.buffer,
+        r.totalQp,
+        r.programsFormatted
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+      ws['!cols'] = headers.map(() => ({ wch: 22 }));
+      XLSX.utils.book_append_sheet(wb, ws, 'QP_Email_Dispatch_Report');
+      const outName = `QP_Email_Dispatch_Report_${fileMeta?.event ? fileMeta.event.replace(/[^a-zA-Z0-9]/g, '_') : 'Schedule'}.xlsx`;
+      XLSX.writeFile(wb, outName);
+      setStatusAlert({ type: 'success', message: `Downloaded ${outName} with all QP Email Dispatch records!` });
+    } catch (err) {
+      console.error('Export error:', err);
+      setStatusAlert({ type: 'error', message: `Export failed: ${err.message}` });
+    }
+  };
+
+  // Export to Excel with all 6 confidential & email dispatch sheets
   const handleExportExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
 
-      // Sheet 1: Master Schedule
+      // Sheet 1: QP Email Dispatch Report
+      const sheetQpHeaders = [
+        ...QP_EMAIL_DISPATCH_COLUMNS,
+        'Session',
+        'Course  Start Time',
+        'Course  End Time',
+        'Student Count',
+        'Packets of 20',
+        'Packets of 10',
+        'Packets of 5',
+        'Singles',
+        'Buffer',
+        'Total QP Copies',
+        'Combined Programs'
+      ];
+      const sheetQpData = qpEmailDispatchRows.map(r => [
+        r.examDate,
+        r.courseCode,
+        r.courseName,
+        r.venueCode,
+        r.venueName,
+        r.emailId,
+        r.session,
+        r.startTime,
+        r.endTime,
+        r.studentCount,
+        r.p20,
+        r.p10,
+        r.p5,
+        r.singles,
+        r.buffer,
+        r.totalQp,
+        r.programsFormatted
+      ]);
+      const wsQp = XLSX.utils.aoa_to_sheet([sheetQpHeaders, ...sheetQpData]);
+      wsQp['!cols'] = sheetQpHeaders.map(() => ({ wch: 22 }));
+      XLSX.utils.book_append_sheet(wb, wsQp, 'QP_Email_Dispatch_Report');
+
+      // Sheet 2: Master Schedule
       const sheet1Headers = [
         'Event Name', 'Center Code', 'Center Name', 'Venue Code', 'Venue Name', 'College Email', 'venueId',
         'Exam Date', 'Session', 'Start Time', 'End Time', 'Course Code', 'Course Name',
@@ -757,7 +854,7 @@ export default function ConfisectionExamReportPage() {
       ws1['!cols'] = sheet1Headers.map(() => ({ wch: 22 }));
       XLSX.utils.book_append_sheet(wb, ws1, 'Confi_Master_Schedule');
 
-      // Sheet 2: Venue College Email Dispatch Schedule
+      // Sheet 3: Venue College Email Dispatch Schedule
       const sheet2Headers = [
         'Venue Code', 'Venue Name', 'College Official Email', 'Email Status', 'Scheduled Exams',
         'Total Candidates', 'Total Question Papers'
@@ -770,7 +867,7 @@ export default function ConfisectionExamReportPage() {
       ws2['!cols'] = sheet2Headers.map(() => ({ wch: 24 }));
       XLSX.utils.book_append_sheet(wb, ws2, 'Venue_Email_Dispatch');
 
-      // Sheet 3: Daily Press Print Order
+      // Sheet 4: Daily Press Print Order
       const sheet3Headers = [
         'Exam Date', 'Session', 'Start Time', 'End Time', 'Course Code', 'Course Name',
         'Total Venues', 'Total Candidates', 'Total QP Print Order', 'Venues List'
@@ -783,7 +880,7 @@ export default function ConfisectionExamReportPage() {
       ws3['!cols'] = sheet3Headers.map(() => ({ wch: 22 }));
       XLSX.utils.book_append_sheet(wb, ws3, 'Daily_Press_Print_Order');
 
-      // Sheet 4: Venue Packing Slips
+      // Sheet 5: Venue Packing Slips
       const sheet4Headers = [
         'Venue Code', 'Venue Name', 'College Email', 'Center Code', 'Exam Date', 'Session',
         'Course Code', 'Course Name', 'Student Count', '20s', '10s', '5s', 'Singles', 'Total QP Packed'
@@ -801,7 +898,7 @@ export default function ConfisectionExamReportPage() {
       ws4['!cols'] = sheet4Headers.map(() => ({ wch: 20 }));
       XLSX.utils.book_append_sheet(wb, ws4, 'Venue_Packing_Slips');
 
-      // Sheet 5: Course Master Summary
+      // Sheet 6: Course Master Summary
       const sheet5Headers = [
         'Course Code', 'Course Name', 'Scheduled Dates', 'Session',
         'Total Venues', 'Total Candidates', 'Total QP Needed'
@@ -816,7 +913,7 @@ export default function ConfisectionExamReportPage() {
 
       const outName = `Confisection_Exam_Report_${fileMeta?.event ? fileMeta.event.replace(/[^a-zA-Z0-9]/g, '_') : 'Schedule'}.xlsx`;
       XLSX.writeFile(wb, outName);
-      setStatusAlert({ type: 'success', message: `Downloaded ${outName} with all 5 confidential section & email dispatch reports!` });
+      setStatusAlert({ type: 'success', message: `Downloaded ${outName} with all 6 confidential section & email dispatch reports!` });
     } catch (err) {
       console.error('Export error:', err);
       setStatusAlert({ type: 'error', message: `Export failed: ${err.message}` });
@@ -973,6 +1070,15 @@ export default function ConfisectionExamReportPage() {
             <>
               <button
                 type="button"
+                onClick={handleExportQpEmailReportOnly}
+                className="secondary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '13px', color: '#059669', borderColor: 'rgba(5, 150, 105, 0.3)' }}
+                title="Export QP Email Dispatch Report (.xlsx)"
+              >
+                <Download size={15} /> Export QP Dispatch (.xlsx)
+              </button>
+              <button
+                type="button"
                 onClick={() => window.print()}
                 className="secondary"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '13px' }}
@@ -985,7 +1091,7 @@ export default function ConfisectionExamReportPage() {
                 className="primary"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '13px', background: '#e11d48', borderColor: '#e11d48' }}
               >
-                <Download size={15} /> Export Report (.xlsx)
+                <Download size={15} /> Export All Sheets (.xlsx)
               </button>
             </>
           )}
@@ -1244,7 +1350,41 @@ export default function ConfisectionExamReportPage() {
           overflowX: 'auto',
           gap: '6px'
         }}>
-          {/* 1. Master Schedule */}
+          {/* 1. QP Email Dispatch Report */}
+          <button
+            type="button"
+            onClick={() => { setActiveTab('qp_email_dispatch'); setCurrentPage(0); }}
+            style={{
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: activeTab === 'qp_email_dispatch' ? 'var(--panel)' : 'transparent',
+              color: activeTab === 'qp_email_dispatch' ? '#059669' : 'var(--muted)',
+              border: 'none',
+              borderBottom: activeTab === 'qp_email_dispatch' ? '3px solid #059669' : '3px solid transparent',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Send size={16} color={activeTab === 'qp_email_dispatch' ? '#059669' : 'var(--muted)'} />
+            QP Email Dispatch Report
+            <span style={{ 
+              padding: '2px 7px', 
+              borderRadius: '10px', 
+              fontSize: '11px', 
+              fontWeight: 700,
+              background: activeTab === 'qp_email_dispatch' ? 'rgba(5, 150, 105, 0.15)' : 'var(--line)',
+              color: activeTab === 'qp_email_dispatch' ? '#059669' : 'var(--muted)'
+            }}>
+              {qpEmailDispatchRows.length}
+            </span>
+          </button>
+
+          {/* 2. Master Schedule */}
           <button
             type="button"
             onClick={() => { setActiveTab('consolidated'); setCurrentPage(0); }}
@@ -1466,7 +1606,7 @@ export default function ConfisectionExamReportPage() {
               <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
               <input
                 type="text"
-                placeholder={activeTab === 'venue_email' ? 'Search venue code, name, or college email...' : 'Search course code, subject, college, email...'}
+                placeholder={activeTab === 'venue_email' ? 'Search venue code, name, or college email...' : activeTab === 'qp_email_dispatch' ? 'Search date, course code, venue, or college email...' : 'Search course code, subject, college, email...'}
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
                 style={{
@@ -1493,6 +1633,42 @@ export default function ConfisectionExamReportPage() {
 
           {/* Filters & Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Batch Copy Emails in qp_email_dispatch tab */}
+            {activeTab === 'qp_email_dispatch' && (
+              <button
+                type="button"
+                onClick={() => {
+                  const emails = currentFilteredRows
+                    .map(r => r.emailId)
+                    .filter(e => e && e.includes('@'));
+                  const uniqueEmails = Array.from(new Set(emails));
+                  if (uniqueEmails.length === 0) {
+                    setStatusAlert({ type: 'error', message: 'No valid college email addresses found to copy in current filter.' });
+                    return;
+                  }
+                  navigator.clipboard.writeText(uniqueEmails.join('; '));
+                  setCopiedNoticeToast(`Copied ${uniqueEmails.length} unique dispatch email addresses!`);
+                  setTimeout(() => setCopiedNoticeToast(null), 3000);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  background: '#059669',
+                  color: 'white',
+                  border: 'none',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+                title="Copy all college emails in current dispatch report"
+              >
+                <Copy size={14} /> Copy Dispatch Emails
+              </button>
+            )}
+
             {/* Batch Copy All Emails in venue_email tab */}
             {activeTab === 'venue_email' && (
               <button
@@ -1924,6 +2100,24 @@ export default function ConfisectionExamReportPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {/* QP Email Dispatch Report Tab Headers */}
+                  {activeTab === 'qp_email_dispatch' && (
+                    <>
+                      <th style={{ padding: '12px 16px' }}>Exam Date</th>
+                      <th style={{ padding: '12px 16px' }}>Course  Code</th>
+                      <th style={{ padding: '12px 16px' }}>Course  Name</th>
+                      <th style={{ padding: '12px 16px' }}>Venue Code</th>
+                      <th style={{ padding: '12px 16px' }}>Venue Name</th>
+                      <th style={{ padding: '12px 16px' }}>Email ID</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Session</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Candidates</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Packets (20/10/5)</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Buffer</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total QP Copies</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Action</th>
+                    </>
+                  )}
+
                   {/* Master Schedule Tab Headers */}
                   {activeTab === 'consolidated' && (
                     <>
@@ -1985,7 +2179,7 @@ export default function ConfisectionExamReportPage() {
               <tbody>
                 {paginatedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
+                    <td colSpan={12} style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
                       No records found. Upload an examination schedule or click "Load Kannur Sample Data".
                     </td>
                   </tr>
@@ -1998,6 +2192,129 @@ export default function ConfisectionExamReportPage() {
                         background: idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)'
                       }}
                     >
+                      {/* QP Email Dispatch Cells */}
+                      {activeTab === 'qp_email_dispatch' && (
+                        <>
+                          <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--ink)' }}>
+                            {row.examDate}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent)' }}>
+                            {row.courseCode}
+                          </td>
+                          <td style={{ padding: '12px 16px', maxWidth: '240px' }}>
+                            <div style={{ color: 'var(--ink)', fontWeight: 600 }}>{row.courseName}</div>
+                            {row.programsFormatted && (
+                              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }} title={row.programsFormatted}>
+                                {row.programsFormatted.length > 40 ? `${row.programsFormatted.substring(0, 40)}...` : row.programsFormatted}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--ink)' }}>
+                            {row.venueCode}
+                          </td>
+                          <td style={{ padding: '12px 16px', maxWidth: '220px' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{row.venueName}</span>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            {row.hasEmail ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <a 
+                                  href={`mailto:${row.emailId}?subject=${encodeURIComponent(`Kannur University Question Paper Dispatch - ${row.courseCode} (${row.examDate} ${row.session})`)}`}
+                                  style={{ color: '#059669', textDecoration: 'none', fontSize: '12px', fontFamily: 'monospace', fontWeight: 600 }}
+                                  title="Dispatch QP Email"
+                                >
+                                  {row.emailId}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(row.emailId);
+                                    setCopiedNoticeToast(`Copied ${row.emailId}`);
+                                    setTimeout(() => setCopiedNoticeToast(null), 2500);
+                                  }}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--muted)' }}
+                                  title="Copy Email ID"
+                                >
+                                  <Copy size={12} />
+                                </button>
+                              </div>
+                            ) : (
+                              <span 
+                                onClick={() => setShowEmailDirectoryModal(true)}
+                                style={{ fontSize: '11px', color: '#dc2626', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.08)', padding: '2px 6px', borderRadius: '4px' }}
+                                title="Click to map college email"
+                              >
+                                Unmapped
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(217, 119, 6, 0.1)',
+                              color: row.session === 'FN' ? '#0284c7' : '#d97706'
+                            }}>
+                              {row.session}
+                            </span>
+                            {row.startTime && (
+                              <div style={{ fontSize: '10.5px', color: 'var(--muted)', marginTop: '2px' }}>
+                                {row.startTime}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700 }}>
+                            {row.studentCount}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              {row.p20 > 0 && (
+                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(23, 107, 135, 0.1)', color: 'var(--accent)', fontSize: '11px', fontWeight: 700 }}>
+                                  {row.p20}×20
+                                </span>
+                              )}
+                              {row.p10 > 0 && (
+                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', fontSize: '11px', fontWeight: 700 }}>
+                                  {row.p10}×10
+                                </span>
+                              )}
+                              {row.p5 > 0 && (
+                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', fontSize: '11px', fontWeight: 700 }}>
+                                  {row.p5}×5
+                                </span>
+                              )}
+                              {row.singles > 0 && (
+                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'var(--line)', color: 'var(--muted)', fontSize: '11px', fontWeight: 600 }}>
+                                  {row.singles} loose
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
+                            +{row.buffer}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#e11d48' }}>
+                            {row.totalQp}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            {row.hasEmail ? (
+                              <a
+                                href={`mailto:${row.emailId}?subject=${encodeURIComponent(`Kannur University Question Paper Dispatch - ${row.courseCode} (${row.examDate} ${row.session})`)}`}
+                                className="secondary"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '11.5px', textDecoration: 'none' }}
+                                title="Open mail client"
+                              >
+                                <Send size={12} color="#059669" /> Mail
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>—</span>
+                            )}
+                          </td>
+                        </>
+                      )}
+
                       {/* Master Schedule Cells */}
                       {activeTab === 'consolidated' && (
                         <>
