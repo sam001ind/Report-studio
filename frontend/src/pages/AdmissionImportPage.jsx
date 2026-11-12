@@ -576,11 +576,36 @@ export default function AdmissionImportPage() {
     }
 
     // 12 & 13. State (corrStateId & corrStateName)
-    const rawState = getVal('corrstatename', 'statename', 'state', 'corrstate');
+    let rawState = getVal('corrstatename', 'statename', 'state', 'corrstate');
+    const rawStateId = getVal('corrstateid', 'stateid');
+
+    // If state name is empty, inspect address and city text for state mentions
+    if (!rawState) {
+      const addrScan = `${getVal('corraddress', 'address')} ${getVal('corrcity', 'city')}`.toLowerCase();
+      if (addrScan.includes('karnataka') || addrScan.includes('bangalore') || addrScan.includes('bengaluru') || addrScan.includes('mangalore') || addrScan.includes('mangaluru')) {
+        rawState = 'Karnataka';
+      } else if (addrScan.includes('tamil nadu') || addrScan.includes('tamilnadu') || addrScan.includes('chennai')) {
+        rawState = 'Tamil Nadu';
+      }
+    }
+
     const normState = normalizeLookupKey(rawState);
-    const customState = activeLookupMaps?.stateByName?.[normState] || activeLookupMaps?.stateByName?.[rawState.toLowerCase()];
-    const corrStateId = getVal('corrstateid', 'stateid') || (customState ? customState.id : '') || (normState === 'kerala' ? '18' : '');
-    const corrStateName = rawState || (activeLookupMaps?.stateById?.[corrStateId]?.name) || (customState ? customState.name : '') || 'Kerala';
+    const customState = activeLookupMaps?.stateByName?.[normState] || activeLookupMaps?.stateByName?.[String(rawState).toLowerCase().trim()];
+
+    let corrStateId = '';
+    let corrStateName = '';
+
+    // Prioritize looked up ID from state name (e.g. Karnataka -> 17, Tamil Nadu -> 31)
+    if (customState && customState.id) {
+      corrStateId = customState.id;
+      corrStateName = customState.name || rawState;
+    } else if (rawStateId && activeLookupMaps?.stateById?.[rawStateId]) {
+      corrStateId = rawStateId;
+      corrStateName = activeLookupMaps.stateById[rawStateId].name;
+    } else {
+      corrStateId = rawStateId || '18';
+      corrStateName = rawState || 'Kerala';
+    }
 
     // 14, 15, 16. Address, City, Pin
     const corrAddress = getVal('corraddress', 'address', 'communicationaddress', 'permaddress');
@@ -998,7 +1023,23 @@ export default function AdmissionImportPage() {
   const updateCell = (rowIndex, colKey, newValue) => {
     setNormalizedRows(prev => {
       const copy = [...prev];
-      copy[rowIndex] = { ...copy[rowIndex], [colKey]: newValue };
+      const updated = { ...copy[rowIndex], [colKey]: newValue };
+
+      // Two-way synchronization between corrStateName and corrStateId
+      if (colKey === 'corrStateName') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.stateByName?.[norm] || lookupMaps?.stateByName?.[String(newValue).toLowerCase().trim()];
+        if (matched && matched.id) {
+          updated.corrStateId = Number(matched.id);
+        }
+      } else if (colKey === 'corrStateId') {
+        const matched = lookupMaps?.stateById?.[String(newValue).trim()];
+        if (matched && matched.name) {
+          updated.corrStateName = matched.name;
+        }
+      }
+
+      copy[rowIndex] = updated;
       return copy;
     });
   };
