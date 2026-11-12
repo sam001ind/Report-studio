@@ -569,7 +569,7 @@ export default function AdmissionImportPage() {
     const rawCountry = getVal('countryname', 'country', 'nationality');
     const normCountry = normalizeLookupKey(rawCountry);
     const customCountry = activeLookupMaps?.countryByName?.[normCountry] || activeLookupMaps?.countryByName?.[rawCountry.toLowerCase()];
-    const countryId = getVal('countryid') || (customCountry ? customCountry.id : '') || '107';
+    const countryId = (customCountry ? customCountry.id : '') || getVal('countryid') || '107';
     let countryName = rawCountry || (activeLookupMaps?.countryById?.[countryId]?.name) || (customCountry ? customCountry.name : '') || 'India';
     if (countryId === '107' || normCountry === 'indian' || normCountry === 'india') {
       countryName = 'India';
@@ -618,24 +618,24 @@ export default function AdmissionImportPage() {
     const normCategory = normalizeLookupKey(rawCategory);
     const customCategory = activeLookupMaps?.categoryByName?.[normCategory] || activeLookupMaps?.categoryByName?.[rawCategory.toLowerCase()];
     const fallbackCategory = CATEGORY_LOOKUP[normCategory] || { id: '10', name: rawCategory || 'General' };
-    const categoryId = getVal('categoryid') || (customCategory ? customCategory.id : '') || fallbackCategory.id;
-    const categoryName = rawCategory || (customCategory ? customCategory.name : '') || fallbackCategory.name;
+    const categoryId = (customCategory ? customCategory.id : '') || getVal('categoryid') || fallbackCategory.id;
+    const categoryName = (customCategory ? customCategory.name : '') || rawCategory || fallbackCategory.name;
 
     // 19 & 20. Caste (CasteId & Caste)
     const rawCaste = getVal('caste', 'subcaste');
     const normCaste = normalizeLookupKey(rawCaste);
     const customCaste = activeLookupMaps?.casteByName?.[normCaste] || activeLookupMaps?.casteByName?.[rawCaste.toLowerCase()];
     const fallbackCasteId = CASTE_LOOKUP[normCaste] || CASTE_LOOKUP[rawCaste] || '1';
-    const casteId = getVal('casteid') || (customCaste ? customCaste.id : '') || fallbackCasteId;
-    const caste = rawCaste || (customCaste ? customCaste.name : '') || (activeLookupMaps?.casteById?.[casteId]?.name) || 'General';
+    const casteId = (customCaste ? customCaste.id : '') || getVal('casteid') || fallbackCasteId;
+    const caste = (customCaste ? customCaste.name : '') || rawCaste || (activeLookupMaps?.casteById?.[casteId]?.name) || 'General';
 
     // 21 & 22. Religion (religionId & religion)
     const rawReligion = getVal('religion', 'religionname');
     const normReligion = normalizeLookupKey(rawReligion);
     const customReligion = activeLookupMaps?.religionByName?.[normReligion] || activeLookupMaps?.religionByName?.[rawReligion.toLowerCase()];
     const fallbackReligion = RELIGION_LOOKUP[normReligion] || { id: '1', name: rawReligion || 'Hindu' };
-    const religionId = getVal('religionid') || (customReligion ? customReligion.id : '') || fallbackReligion.id;
-    const religion = rawReligion || (customReligion ? customReligion.name : '') || fallbackReligion.name;
+    const religionId = (customReligion ? customReligion.id : '') || getVal('religionid') || fallbackReligion.id;
+    const religion = (customReligion ? customReligion.name : '') || rawReligion || fallbackReligion.name;
 
     // 23, 24, 25, 26. Program Details
     // Sourced from Program Name, Programme, Course, etc.
@@ -735,7 +735,7 @@ export default function AdmissionImportPage() {
     const normQual = normalizeLookupKey(rawQual);
     const customQual = activeLookupMaps?.qualificationByName?.[normQual] || activeLookupMaps?.qualificationByName?.[rawQual.toLowerCase()];
     const fallbackQual = QUALIFICATION_LOOKUP[rawQual.toLowerCase()] || QUALIFICATION_LOOKUP[normQual] || null;
-    let qualificationFacultyId = getVal('qualificationfacultyid') || (customQual ? customQual.id : '') || (fallbackQual ? fallbackQual.facultyId : '2');
+    let qualificationFacultyId = (customQual ? customQual.id : '') || getVal('qualificationfacultyid') || (fallbackQual ? fallbackQual.facultyId : '2');
     if (!customQual && !fallbackQual && normQual && !normQual.includes('hse') && !normQual.includes('cbse') && !normQual.includes('vhse') && !normQual.includes('isc')) {
       qualificationFacultyId = '7';
     }
@@ -1025,17 +1025,184 @@ export default function AdmissionImportPage() {
       const copy = [...prev];
       const updated = { ...copy[rowIndex], [colKey]: newValue };
 
-      // Two-way synchronization between corrStateName and corrStateId
+      // Convert numeric fields if applicable
+      const numericCols = new Set([
+        'CountryId', 'corrStateId', 'corrPin', 'categoryId', 'CasteId', 'religionId',
+        'workFlowId', 'WORKFLOWID', 'CollegeId', 'CollegeCode', 'QualificationFacultyId',
+        'QualificationSpecializationId', 'NoOfAttempts', 'MarksObtained', 'Percentage',
+        'MarksOutOf', 'CGPA', 'SeatNumber'
+      ]);
+      if (numericCols.has(colKey) && newValue !== '' && !isNaN(Number(newValue))) {
+        updated[colKey] = Number(newValue);
+      }
+
+      // 1. Two-way synchronization: State (corrStateName <-> corrStateId)
       if (colKey === 'corrStateName') {
         const norm = normalizeLookupKey(newValue);
         const matched = lookupMaps?.stateByName?.[norm] || lookupMaps?.stateByName?.[String(newValue).toLowerCase().trim()];
         if (matched && matched.id) {
-          updated.corrStateId = Number(matched.id);
+          updated.corrStateId = Number(matched.id) || matched.id;
         }
       } else if (colKey === 'corrStateId') {
         const matched = lookupMaps?.stateById?.[String(newValue).trim()];
         if (matched && matched.name) {
           updated.corrStateName = matched.name;
+        }
+      }
+
+      // 2. Two-way synchronization: Category (categoryName <-> categoryId)
+      if (colKey === 'categoryName') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.categoryByName?.[norm] || lookupMaps?.categoryByName?.[String(newValue).toLowerCase().trim()];
+        if (matched && matched.id) {
+          updated.categoryId = Number(matched.id) || matched.id;
+        }
+      } else if (colKey === 'categoryId') {
+        const matched = lookupMaps?.categoryById?.[String(newValue).trim()];
+        if (matched && matched.name) {
+          updated.categoryName = matched.name;
+        }
+      }
+
+      // 3. Two-way synchronization: Caste (Caste <-> CasteId)
+      if (colKey === 'Caste') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.casteByName?.[norm] || lookupMaps?.casteByName?.[String(newValue).toLowerCase().trim()];
+        if (matched && matched.id) {
+          updated.CasteId = Number(matched.id) || matched.id;
+        }
+      } else if (colKey === 'CasteId') {
+        const matched = lookupMaps?.casteById?.[String(newValue).trim()];
+        if (matched && matched.name) {
+          updated.Caste = matched.name;
+        }
+      }
+
+      // 4. Two-way synchronization: Religion (religion <-> religionId)
+      if (colKey === 'religion') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.religionByName?.[norm] || lookupMaps?.religionByName?.[String(newValue).toLowerCase().trim()];
+        if (matched && matched.id) {
+          updated.religionId = Number(matched.id) || matched.id;
+        }
+      } else if (colKey === 'religionId') {
+        const matched = lookupMaps?.religionById?.[String(newValue).trim()];
+        if (matched && matched.name) {
+          updated.religion = matched.name;
+        }
+      }
+
+      // 5. Two-way synchronization: Country (CountryName <-> CountryId)
+      if (colKey === 'CountryName') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.countryByName?.[norm] || lookupMaps?.countryByName?.[String(newValue).toLowerCase().trim()];
+        if (matched && matched.id) {
+          updated.CountryId = Number(matched.id) || matched.id;
+        }
+      } else if (colKey === 'CountryId') {
+        const matched = lookupMaps?.countryById?.[String(newValue).trim()];
+        if (matched && matched.name) {
+          updated.CountryName = matched.name;
+        }
+      }
+
+      // 6. Two-way synchronization: College (College Name / Code <-> CollegeId)
+      if (colKey === 'College Name' || colKey === 'CLG NAME') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.collegeByName?.[norm] || lookupMaps?.collegeByName?.[String(newValue).toLowerCase().trim()];
+        if (matched) {
+          if (matched.id) updated.CollegeId = Number(matched.id) || matched.id;
+          if (matched.code) {
+            updated.CollegeCode = Number(matched.code) || matched.code;
+            updated['College Code'] = Number(matched.code) || matched.code;
+          }
+          if (matched.name) updated['College Name'] = matched.name;
+          if (matched.clgRef) updated['CLG NAME'] = matched.clgRef;
+        }
+      } else if (colKey === 'CollegeCode' || colKey === 'College Code') {
+        const matched = lookupMaps?.collegeByCode?.[String(newValue).trim()] || lookupMaps?.collegeByCode?.[String(newValue).trim().toLowerCase()];
+        if (matched) {
+          if (matched.id) updated.CollegeId = Number(matched.id) || matched.id;
+          if (matched.name) updated['College Name'] = matched.name;
+          if (matched.clgRef) updated['CLG NAME'] = matched.clgRef;
+        }
+      } else if (colKey === 'CollegeId') {
+        const matched = lookupMaps?.collegeById?.[String(newValue).trim()];
+        if (matched) {
+          if (matched.name) updated['College Name'] = matched.name;
+          if (matched.code) {
+            updated.CollegeCode = Number(matched.code) || matched.code;
+            updated['College Code'] = Number(matched.code) || matched.code;
+          }
+          if (matched.clgRef) updated['CLG NAME'] = matched.clgRef;
+        }
+      }
+
+      // 7. Two-way synchronization: Programme (Program Name / Code <-> workFlowId)
+      if (colKey === 'Program Name' || colKey === 'PGM Name') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.programByName?.[norm] || lookupMaps?.programByName?.[String(newValue).toLowerCase().trim()];
+        if (matched) {
+          if (matched.workflowId) {
+            const wfNum = Number(matched.workflowId) || matched.workflowId;
+            updated.workFlowId = wfNum;
+            updated.WORKFLOWID = wfNum;
+          }
+          if (matched.code) {
+            updated.ProgramCode = matched.code;
+            updated.PROGRAMCODE = matched.code;
+          }
+          if (matched.pgmName) updated['PGM Name'] = matched.pgmName;
+          if (matched.name) updated['Program Name'] = matched.name;
+        }
+      } else if (colKey === 'ProgramCode' || colKey === 'PROGRAMCODE') {
+        const matched = lookupMaps?.programByCode?.[String(newValue).trim()] || lookupMaps?.programByCode?.[String(newValue).trim().toLowerCase()];
+        if (matched) {
+          if (matched.workflowId) {
+            const wfNum = Number(matched.workflowId) || matched.workflowId;
+            updated.workFlowId = wfNum;
+            updated.WORKFLOWID = wfNum;
+          }
+          if (matched.pgmName) updated['PGM Name'] = matched.pgmName;
+          if (matched.name) updated['Program Name'] = matched.name;
+        }
+      } else if (colKey === 'workFlowId' || colKey === 'WORKFLOWID') {
+        const matched = lookupMaps?.programById?.[String(newValue).trim()];
+        if (matched) {
+          if (matched.code) {
+            updated.ProgramCode = matched.code;
+            updated.PROGRAMCODE = matched.code;
+          }
+          if (matched.pgmName) updated['PGM Name'] = matched.pgmName;
+          if (matched.name) updated['Program Name'] = matched.name;
+        }
+      }
+
+      // 8. Two-way synchronization: Qualification (QualificationName <-> QualificationFacultyId)
+      if (colKey === 'QualificationName') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.qualificationByName?.[norm] || lookupMaps?.qualificationByName?.[String(newValue).toLowerCase().trim()];
+        if (matched && matched.id) {
+          updated.QualificationFacultyId = Number(matched.id) || matched.id;
+        }
+      } else if (colKey === 'QualificationFacultyId') {
+        const matched = lookupMaps?.qualificationById?.[String(newValue).trim()];
+        if (matched && matched.name) {
+          updated.QualificationName = matched.name;
+        }
+      }
+
+      // 9. Two-way synchronization: Stream (Stream <-> QualificationSpecializationId)
+      if (colKey === 'Stream') {
+        const norm = normalizeLookupKey(newValue);
+        const matched = lookupMaps?.streamByName?.[norm] || lookupMaps?.streamByName?.[String(newValue).toLowerCase().trim()];
+        if (matched && matched.id) {
+          updated.QualificationSpecializationId = Number(matched.id) || matched.id;
+        }
+      } else if (colKey === 'QualificationSpecializationId') {
+        const matched = lookupMaps?.streamById?.[String(newValue).trim()];
+        if (matched && matched.name) {
+          updated.Stream = matched.name;
         }
       }
 

@@ -2715,6 +2715,7 @@ export function buildLookupMaps(lookupData) {
   const maps = {
     programByName: {},
     programByCode: {},
+    programById: {},
     collegeByName: {},
     collegeByCode: {},
     collegeById: {},
@@ -2772,6 +2773,9 @@ export function buildLookupMaps(lookupData) {
       if (code) {
         maps.programByCode[code.toLowerCase()] = entry;
         maps.programByCode[code] = entry;
+      }
+      if (workflowId) {
+        maps.programById[workflowId] = entry;
       }
     }
   }

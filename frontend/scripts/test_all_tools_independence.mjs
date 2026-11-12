@@ -2653,8 +2653,80 @@ test('buildLookupMaps indexes both Name -> ID and ID -> Name and supports dynami
 
   // Verify state resolution
   assert.equal(maps.stateByName['kerala'].id, '18');
+  assert.equal(maps.stateByName['karnataka'].id, '17');
   assert.equal(maps.stateByName['tamilnadu'].id, '31');
   assert.equal(maps.stateById['31'].name, 'Tamil Nadu');
+  assert.equal(maps.stateById['17'].name, 'Karnataka');
+
+  // Verify programById
+  assert.equal(maps.programById['999'].code, 'PFDS2026');
+  assert.equal(maps.programById['153'].code, 'PFMUSGA25');
+});
+
+test('Admission ID lookups accurately resolve all 9 entities and verify data fetch against university masters', () => {
+  const maps = buildLookupMaps(DEFAULT_LOOKUP_DATA);
+
+  // 1. Program
+  const prog = maps.programByName['five year integrated masters programme in music'];
+  assert.ok(prog);
+  assert.equal(prog.workflowId, '153');
+  assert.equal(prog.code, 'PFMUSGA25');
+  assert.equal(maps.programById['153'].code, 'PFMUSGA25');
+
+  // 2. College
+  const clg = maps.collegeByName['department of music'];
+  assert.ok(clg);
+  assert.equal(clg.id, '127');
+  assert.equal(clg.code, '127');
+  assert.equal(maps.collegeById['127'].name, 'Department of Music');
+
+  // 3. Category
+  const cat = maps.categoryByName['sebcezhavathiyyabillava'];
+  assert.ok(cat);
+  assert.equal(cat.id, '10');
+  assert.equal(maps.categoryById['10'].id, '10');
+
+  // 4. Caste
+  const caste = maps.casteByName['thiyyas'];
+  assert.ok(caste);
+  assert.equal(caste.id, '327');
+  assert.ok(maps.casteById['327'].name.includes('Thiyyas'));
+
+  // 5. Religion
+  const rel = maps.religionByName['hindu'];
+  assert.ok(rel);
+  assert.equal(rel.id, '1');
+  assert.equal(maps.religionById['1'].name, 'Hindu');
+
+  // 6. Country
+  const country = maps.countryByName['india'];
+  assert.ok(country);
+  assert.equal(country.id, '107');
+  assert.equal(maps.countryById['107'].name, 'India');
+
+  // 7. State
+  const karnataka = maps.stateByName['karnataka'];
+  assert.ok(karnataka);
+  assert.equal(karnataka.id, '17');
+  assert.equal(maps.stateById['17'].name, 'Karnataka');
+
+  const kerala = maps.stateByName['kerala'];
+  assert.ok(kerala);
+  assert.equal(kerala.id, '18');
+  assert.equal(maps.stateById['18'].name, 'Kerala');
+
+  // 8. Qualification
+  const qual = maps.qualificationByName['hsekerala'];
+  assert.ok(qual);
+  assert.equal(qual.id, '2');
+  assert.equal(qual.name, 'HSE - Kerala');
+  assert.equal(maps.qualificationById['2'].id, '2');
+
+  // 9. Stream
+  const stream = maps.streamByName['humanities'];
+  assert.ok(stream);
+  assert.equal(stream.id, '3');
+  assert.equal(maps.streamById['3'].name, 'Humanities');
 });
 
 test('parseUploadedLookupSpreadsheet extracts multi-table reference sheet including programmes and colleges', () => {
