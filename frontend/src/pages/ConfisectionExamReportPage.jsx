@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
   ArrowLeft,
@@ -7,7 +7,6 @@ import {
   FileSpreadsheet,
   Download,
   Search,
-  Sliders,
   CheckCircle2,
   AlertCircle,
   HelpCircle,
@@ -26,11 +25,12 @@ import {
   FileText,
   CalendarDays,
   Clock,
-  Send,
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  Check,
+  ClipboardList
 } from 'lucide-react';
 import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
 import { formatExamDate } from '../utils/venueEmailHelpers';
@@ -196,8 +196,11 @@ export const SAMPLE_CONFISECTION_ROWS = [
 ];
 
 export default function ConfisectionExamReportPage() {
+  const navigate = useNavigate();
+
+  // State
   const [rawRows, setRawRows] = useState([]);
-  const [fileName, setFileName] = useState('');
+  const [fileMeta, setFileMeta] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusAlert, setStatusAlert] = useState(null);
 
@@ -211,10 +214,11 @@ export default function ConfisectionExamReportPage() {
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(0);
   const [showGuideModal, setShowGuideModal] = useState(false);
+  const [packedChecklist, setPackedChecklist] = useState({});
 
   const fileInputRef = useRef(null);
 
-  // Column header auto-detector
+  // Column auto-detection
   const detectColumns = (headers) => {
     const norm = headers.map(h => normalizeKeyText(h));
     const findIndex = (patterns) => {
@@ -238,14 +242,13 @@ export default function ConfisectionExamReportPage() {
     };
   };
 
-  // Parse uploaded file
+  // Upload parser
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsProcessing(true);
-    setFileName(file.name);
-    setStatusAlert({ type: 'info', message: `Processing "${file.name}"...` });
+    setStatusAlert({ type: 'info', message: `Reading "${file.name}"...` });
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -257,7 +260,6 @@ export default function ConfisectionExamReportPage() {
           throw new Error('Spreadsheet appears to be empty or has no data rows.');
         }
 
-        // Find header row in first 5 rows
         let headerRowIdx = 0;
         for (let i = 0; i < Math.min(5, aoa.length); i++) {
           const rowText = (aoa[i] || []).map(c => normalizeKeyText(c)).join(' ');
@@ -271,10 +273,12 @@ export default function ConfisectionExamReportPage() {
         const mapping = detectColumns(headers);
 
         if (mapping.courseCode === -1 && mapping.examDate === -1) {
-          throw new Error('Could not identify Course Code or Exam Date columns. Please ensure headers match standard schedule files.');
+          throw new Error('Could not identify Course Code or Exam Date columns. Expected 13 standard Confi Section headers.');
         }
 
         const parsedRecords = [];
+        let eventDetected = '';
+
         for (let r = headerRowIdx + 1; r < aoa.length; r++) {
           const row = aoa[r];
           if (!row || !Array.isArray(row)) continue;
@@ -284,6 +288,8 @@ export default function ConfisectionExamReportPage() {
           if (!rawCourseCode && !rawExamDate) continue;
 
           const eventName = mapping.eventName !== -1 ? cleanDisplayField(row[mapping.eventName]) : '';
+          if (!eventDetected && eventName) eventDetected = eventName;
+
           const centerCode = mapping.centerCode !== -1 ? cleanDisplayField(row[mapping.centerCode]) : '';
           const centerName = mapping.centerName !== -1 ? cleanDisplayField(row[mapping.centerName]) : '';
           const venueCode = mapping.venueCode !== -1 ? cleanDisplayField(row[mapping.venueCode]) : '';
@@ -322,10 +328,16 @@ export default function ConfisectionExamReportPage() {
         }
 
         setRawRows(parsedRecords);
+        setFileMeta({
+          name: file.name,
+          size: `${(file.size / 1024).toFixed(1)} KB`,
+          rowsCount: parsedRecords.length,
+          event: eventDetected || 'Examination Schedule'
+        });
         setCurrentPage(0);
         setStatusAlert({
           type: 'success',
-          message: `Successfully loaded ${parsedRecords.length} schedule rows from "${file.name}". Ready for Confisection reporting.`
+          message: `Loaded ${parsedRecords.length.toLocaleString()} schedule entries from "${file.name}". Ready for Confisection analysis.`
         });
       } catch (err) {
         console.error('File parsing error:', err);
@@ -347,24 +359,24 @@ export default function ConfisectionExamReportPage() {
   // Load sample dataset
   const handleLoadSample = () => {
     setRawRows(SAMPLE_CONFISECTION_ROWS);
-    setFileName('Sample_Confisection_Data.xlsx');
+    setFileMeta({
+      name: 'Center Venue Date Wise Report (Sample).xlsx',
+      size: '24.5 KB',
+      rowsCount: SAMPLE_CONFISECTION_ROWS.length,
+      event: 'III Sem(R) November 2026'
+    });
     setCurrentPage(0);
     setStatusAlert({
       type: 'success',
-      message: `Loaded ${SAMPLE_CONFISECTION_ROWS.length} sample Confisection schedule records with Payyannur College and Sir Syed College data.`
+      message: `Loaded ${SAMPLE_CONFISECTION_ROWS.length} sample records from Kannur University III Sem (Regular) schedule.`
     });
   };
 
-  // Helper for Session detection
-  const getSession = (startTime, endTime) => {
-    const s = `${startTime || ''} ${endTime || ''}`.toUpperCase();
-    if (s.includes('AM')) return 'FN';
-    if (s.includes('PM')) {
-      // 12:00 PM - 01:00 PM is typically Forenoon/Noon, after 1:00 PM is AN
-      if (s.includes('09:') || s.includes('10:') || s.includes('11:')) return 'FN';
-      return 'AN';
-    }
-    return 'FN';
+  const handleClearData = () => {
+    setRawRows([]);
+    setFileMeta(null);
+    setCurrentPage(0);
+    setStatusAlert(null);
   };
 
   // Consolidated Master Report (Unique Date + Venue + Course Code with summed student counts)
@@ -377,12 +389,9 @@ export default function ConfisectionExamReportPage() {
       const vCode = row.venueCode || 'UNKNOWN';
       const cCode = row.courseCode || 'UNKNOWN';
       const date = row.examDate || 'UNKNOWN';
-      const time = `${row.startTime}-${row.endTime}`;
 
-      // Composite Key: Date + Venue Code + Course Code
       const key = `${date}|||${vCode}|||${cCode}`;
-
-      const session = getSession(row.startTime, row.endTime);
+      const session = getExamSession(row.startTime, row.endTime);
 
       if (groupMap.has(key)) {
         const item = groupMap.get(key);
@@ -423,7 +432,6 @@ export default function ConfisectionExamReportPage() {
       };
     });
 
-    // Sort chronologically by date, then venue, then course
     list.sort((a, b) => {
       if (a.examDate !== b.examDate) return a.examDate.localeCompare(b.examDate);
       if (a.venueCode !== b.venueCode) return a.venueCode.localeCompare(b.venueCode);
@@ -433,14 +441,13 @@ export default function ConfisectionExamReportPage() {
     return list;
   }, [rawRows, bufferRule]);
 
-  // Date-wise & Session-wise Print Order for Confidential Press
+  // Daily Press Print Order
   const pressPrintOrderRows = useMemo(() => {
     if (consolidatedRows.length === 0) return [];
 
     const map = new Map();
 
     consolidatedRows.forEach(row => {
-      // Group by Exam Date + Session + Course Code
       const key = `${row.examDate}|||${row.session}|||${row.courseCode}`;
 
       if (map.has(key)) {
@@ -543,7 +550,7 @@ export default function ConfisectionExamReportPage() {
     return list;
   }, [consolidatedRows]);
 
-  // Distinct filter options
+  // Filter options
   const filterOptions = useMemo(() => {
     const dates = new Set();
     const venues = new Map();
@@ -559,7 +566,7 @@ export default function ConfisectionExamReportPage() {
     };
   }, [consolidatedRows]);
 
-  // Active list according to selected Tab and Filters
+  // Active filtered records
   const currentFilteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
@@ -651,1050 +658,1282 @@ export default function ConfisectionExamReportPage() {
     };
   }, [consolidatedRows]);
 
-  // Export to Excel with 4 dedicated sheets
+  // Toggle packing checklist item
+  const handleToggleChecklist = (itemKey) => {
+    setPackedChecklist(prev => ({
+      ...prev,
+      [itemKey]: !prev[itemKey]
+    }));
+  };
+
+  // Export to Excel with 4 sheets
   const handleExportExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
 
-      // Sheet 1: Consolidated Confisection Master Schedule
+      // Sheet 1: Master Schedule
       const sheet1Headers = [
-        'Event Name',
-        'Center Code',
-        'Center Name',
-        'Venue Code',
-        'Venue Name',
-        'venueId',
-        'Exam Date',
-        'Session',
-        'Start Time',
-        'End Time',
-        'Course Code',
-        'Course Name',
-        'Combined Programs',
-        'Student Count',
-        'Packets of 20',
-        'Packets of 10',
-        'Packets of 5',
-        'Loose / Singles',
-        'Buffer Copies',
-        'Total QP Required'
+        'Event Name', 'Center Code', 'Center Name', 'Venue Code', 'Venue Name', 'venueId',
+        'Exam Date', 'Session', 'Start Time', 'End Time', 'Course Code', 'Course Name',
+        'Combined Programs', 'Student Count', 'Packets of 20', 'Packets of 10', 'Packets of 5',
+        'Loose / Singles', 'Buffer Copies', 'Total QP Required'
       ];
-
       const sheet1Data = consolidatedRows.map(r => [
-        r.eventName,
-        r.centerCode,
-        r.centerName,
-        r.venueCode,
-        r.venueName,
-        r.venueId,
-        r.examDate,
-        r.session,
-        r.startTime,
-        r.endTime,
-        r.courseCode,
-        r.courseName,
-        r.programsFormatted,
-        r.studentCount,
-        r.p20,
-        r.p10,
-        r.p5,
-        r.singles,
-        r.buffer,
-        r.totalQp
+        r.eventName, r.centerCode, r.centerName, r.venueCode, r.venueName, r.venueId,
+        r.examDate, r.session, r.startTime, r.endTime, r.courseCode, r.courseName,
+        r.programsFormatted, r.studentCount, r.p20, r.p10, r.p5, r.singles, r.buffer, r.totalQp
       ]);
-
       const ws1 = XLSX.utils.aoa_to_sheet([sheet1Headers, ...sheet1Data]);
-      ws1['!cols'] = [
-        { wch: 25 }, { wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 35 },
-        { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-        { wch: 16 }, { wch: 38 }, { wch: 45 }, { wch: 14 }, { wch: 14 },
-        { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }
-      ];
+      ws1['!cols'] = sheet1Headers.map(() => ({ wch: 20 }));
       XLSX.utils.book_append_sheet(wb, ws1, 'Confi_Master_Schedule');
 
       // Sheet 2: Daily Press Print Order
       const sheet2Headers = [
-        'Exam Date',
-        'Session',
-        'Start Time',
-        'End Time',
-        'Course Code',
-        'Course Name',
-        'Total Venues',
-        'Total Candidates',
-        'Total QP Print Order',
-        'Venues List'
+        'Exam Date', 'Session', 'Start Time', 'End Time', 'Course Code', 'Course Name',
+        'Total Venues', 'Total Candidates', 'Total QP Print Order', 'Venues List'
       ];
       const sheet2Data = pressPrintOrderRows.map(r => [
-        r.examDate,
-        r.session,
-        r.startTime,
-        r.endTime,
-        r.courseCode,
-        r.courseName,
-        r.venuesCount,
-        r.totalStudents,
-        r.totalQp,
-        r.venueCodes.join(', ')
+        r.examDate, r.session, r.startTime, r.endTime, r.courseCode, r.courseName,
+        r.venuesCount, r.totalStudents, r.totalQp, r.venueCodes.join(', ')
       ]);
       const ws2 = XLSX.utils.aoa_to_sheet([sheet2Headers, ...sheet2Data]);
-      ws2['!cols'] = [
-        { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 },
-        { wch: 38 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 30 }
-      ];
+      ws2['!cols'] = sheet2Headers.map(() => ({ wch: 22 }));
       XLSX.utils.book_append_sheet(wb, ws2, 'Daily_Press_Print_Order');
 
-      // Sheet 3: Venue Packing Slip Summary
+      // Sheet 3: Venue Packing Slips
       const sheet3Headers = [
-        'Venue Code',
-        'Venue Name',
-        'Center Code',
-        'Exam Date',
-        'Session',
-        'Course Code',
-        'Course Name',
-        'Student Count',
-        '20s',
-        '10s',
-        '5s',
-        'Singles',
-        'Total QP Packed'
+        'Venue Code', 'Venue Name', 'Center Code', 'Exam Date', 'Session',
+        'Course Code', 'Course Name', 'Student Count', '20s', '10s', '5s', 'Singles', 'Total QP Packed'
       ];
       const sheet3Data = [];
       Object.values(venuePackingSlips).forEach(v => {
         v.items.forEach(item => {
           sheet3Data.push([
-            v.venueCode,
-            v.venueName,
-            v.centerCode,
-            item.examDate,
-            item.session,
-            item.courseCode,
-            item.courseName,
-            item.studentCount,
-            item.p20,
-            item.p10,
-            item.p5,
-            item.singles,
-            item.totalQp
+            v.venueCode, v.venueName, v.centerCode, item.examDate, item.session,
+            item.courseCode, item.courseName, item.studentCount, item.p20, item.p10, item.p5, item.singles, item.totalQp
           ]);
         });
       });
       const ws3 = XLSX.utils.aoa_to_sheet([sheet3Headers, ...sheet3Data]);
-      ws3['!cols'] = [
-        { wch: 12 }, { wch: 35 }, { wch: 12 }, { wch: 14 }, { wch: 10 },
-        { wch: 16 }, { wch: 38 }, { wch: 14 }, { wch: 8 }, { wch: 8 },
-        { wch: 8 }, { wch: 10 }, { wch: 16 }
-      ];
+      ws3['!cols'] = sheet3Headers.map(() => ({ wch: 18 }));
       XLSX.utils.book_append_sheet(wb, ws3, 'Venue_Packing_Slips');
 
       // Sheet 4: Course Master Summary
       const sheet4Headers = [
-        'Course Code',
-        'Course Name',
-        'Scheduled Dates',
-        'Session',
-        'Total Venues',
-        'Total Candidates',
-        'Total QP Needed'
+        'Course Code', 'Course Name', 'Scheduled Dates', 'Session',
+        'Total Venues', 'Total Candidates', 'Total QP Needed'
       ];
       const sheet4Data = courseSummaryRows.map(r => [
-        r.courseCode,
-        r.courseName,
-        r.datesFormatted,
-        r.session,
-        r.venueCount,
-        r.totalStudents,
-        r.totalQp
+        r.courseCode, r.courseName, r.datesFormatted, r.session,
+        r.venueCount, r.totalStudents, r.totalQp
       ]);
       const ws4 = XLSX.utils.aoa_to_sheet([sheet4Headers, ...sheet4Data]);
-      ws4['!cols'] = [
-        { wch: 16 }, { wch: 40 }, { wch: 25 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
-      ];
+      ws4['!cols'] = sheet4Headers.map(() => ({ wch: 22 }));
       XLSX.utils.book_append_sheet(wb, ws4, 'Course_Master_Summary');
 
-      XLSX.writeFile(wb, 'Confisection_Exam_Report.xlsx');
-      setStatusAlert({
-        type: 'success',
-        message: 'Downloaded Confisection_Exam_Report.xlsx with 4 structured confidential reports.'
-      });
+      const outName = `Confisection_Exam_Report_${fileMeta?.event ? fileMeta.event.replace(/[^a-zA-Z0-9]/g, '_') : 'Schedule'}.xlsx`;
+      XLSX.writeFile(wb, outName);
+      setStatusAlert({ type: 'success', message: `Downloaded ${outName} with all 4 confidential reports!` });
     } catch (err) {
-      console.error('Excel export error:', err);
+      console.error('Export error:', err);
       setStatusAlert({ type: 'error', message: `Export failed: ${err.message}` });
     }
   };
 
-  // Download template
+  // Download 13-Column Template
   const handleDownloadTemplate = () => {
-    const headers = [
-      'Event Name',
-      'Center Code',
-      'Center Name',
-      'Venue Code',
-      'Venue Name',
-      'Program Name',
-      'Exam Date',
-      'Course  Start Time',
-      'Course  End Time',
-      'Course  Code',
-      'Course  Name',
-      'Student Count',
-      'venueId'
-    ];
-    const sampleRows = SAMPLE_CONFISECTION_ROWS.map(r => [
-      r.eventName,
-      r.centerCode,
-      r.centerName,
-      r.venueCode,
-      r.venueName,
-      r.programName,
-      r.examDate,
-      r.startTime,
-      r.endTime,
-      r.courseCode,
-      r.courseName,
-      r.studentCount,
-      r.venueId
+    const ws = XLSX.utils.aoa_to_sheet([
+      CONFIDENTIAL_SECTION_COLUMNS,
+      [
+        'III Sem(R) November 2026', '1', 'Kannur', 'PP', 'Payyannur College, Payyannur',
+        'Bachelor of Arts in English(with Credits)', '25/11/2026', '01:30 PM', '03:30 PM',
+        'KU3DSCENG205', 'Migration and Border Studies', 25, '68'
+      ]
     ]);
-
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
-    ws['!cols'] = headers.map(() => ({ wch: 22 }));
+    ws['!cols'] = CONFIDENTIAL_SECTION_COLUMNS.map(() => ({ wch: 22 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Confisection_Source_Template');
+    XLSX.utils.book_append_sheet(wb, ws, 'Confisection_Template');
     XLSX.writeFile(wb, 'Confisection_Exam_Source_Template.xlsx');
-
-    setStatusAlert({
-      type: 'success',
-      message: 'Downloaded Confisection_Exam_Source_Template.xlsx with all 13 standard headers.'
-    });
-  };
-
-  // Print Dispatch / Packing Slips
-  const handlePrintSlips = () => {
-    window.print();
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-150">
-      {/* Top Header */}
-      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 text-xs font-medium transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
-            </Link>
-            <div className="h-4 w-px bg-slate-300 dark:bg-slate-600 hidden sm:block" />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-md bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400">
-                  <ShieldCheck className="w-4 h-4" />
-                </span>
-                <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                  Confisection Exam Report
-                </h1>
-                <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
-                  Confidential Section
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 hidden md:block">
-                Aggregate schedules, calculate question paper printing requirements, and generate venue packing slips.
-              </p>
-            </div>
-          </div>
+    <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 32px 80px', color: 'var(--ink)' }}>
+      {/* Top Navigation Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+        <button
+          onClick={() => navigate('/')}
+          className="secondary"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', fontSize: '13px' }}
+        >
+          <ArrowLeft size={16} /> Back to Dashboard
+        </button>
 
-          <div className="flex items-center flex-wrap gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-            />
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isProcessing}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
-              title="Upload Center Venue Date Wise Schedule spreadsheet"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Upload Schedule (.xlsx)
-            </button>
-
-            <button
-              onClick={handleLoadSample}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-medium transition-colors"
-              title="Load sample dataset for III Sem(R) November 2026"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              Load Sample
-            </button>
-
-            <button
-              onClick={handleDownloadTemplate}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-medium transition-colors"
-              title="Download 13-Column Template"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              Template
-            </button>
-
-            <button
-              onClick={handleExportExcel}
-              disabled={consolidatedRows.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-40"
-              title="Export all 4 confidential reports to Excel"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Export Report (.xlsx)
-            </button>
-
-            <button
-              onClick={handlePrintSlips}
-              disabled={consolidatedRows.length === 0}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-medium transition-colors disabled:opacity-40"
-              title="Print Packing Slips"
-            >
-              <Printer className="w-3.5 h-3.5 text-slate-500" />
-              Print
-            </button>
-
-            <button
-              onClick={() => setShowGuideModal(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-medium transition-colors"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-sky-500" />
-              Guide
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 flex flex-col gap-6">
-        {/* Status Alert */}
-        {statusAlert && (
-          <div
-            className={`p-3.5 rounded-xl border flex items-start justify-between gap-3 text-sm shadow-xs ${
-              statusAlert.type === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
-                : statusAlert.type === 'warning'
-                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
-                : statusAlert.type === 'error'
-                ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200'
-                : 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800 text-sky-900 dark:text-sky-200'
-            }`}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={handleLoadSample}
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              fontSize: '13px', 
+              background: 'var(--accent-soft)', 
+              color: 'var(--accent)', 
+              borderColor: 'var(--accent)' 
+            }}
           >
-            <div className="flex items-center gap-2">
-              {statusAlert.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
-              {statusAlert.type === 'warning' && <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />}
-              {statusAlert.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />}
-              {statusAlert.type === 'info' && <Sparkles className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />}
-              <span>{statusAlert.message}</span>
-            </div>
-            <button
-              onClick={() => setStatusAlert(null)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+            <Sparkles size={14} /> Load Kannur Sample Data
+          </button>
 
-        {/* Hero Statistics */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-          <div className="p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
-              <Users className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Candidates</p>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{summaryStats.totalCandidates.toLocaleString()}</h3>
-            </div>
-          </div>
+          <button
+            type="button"
+            className="secondary"
+            onClick={handleDownloadTemplate}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+          >
+            <FileSpreadsheet size={14} /> 13-Col Template
+          </button>
 
-          <div className="p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-              <PackageCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Total QP Print</p>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{summaryStats.totalQp.toLocaleString()}</h3>
-            </div>
-          </div>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => window.print()}
+            disabled={consolidatedRows.length === 0}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+          >
+            <Printer size={14} /> Print Slips
+          </button>
 
-          <div className="p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800">
-              <Layers className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Unique Exams</p>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{summaryStats.uniqueExams.toLocaleString()}</h3>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={consolidatedRows.length === 0}
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              fontSize: '13px',
+              background: '#059669',
+              color: 'white'
+            }}
+          >
+            <Download size={14} /> Export Report (.xlsx)
+          </button>
 
-          <div className="p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-              <Building2 className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Venues</p>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{summaryStats.uniqueVenues}</h3>
-            </div>
-          </div>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setShowGuideModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+          >
+            <HelpCircle size={14} /> Logic &amp; Guide
+          </button>
+        </div>
+      </div>
 
-          <div className="p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800">
-              <BookOpen className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Courses</p>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{summaryStats.uniqueCourses}</h3>
-            </div>
+      {/* Page Header */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+          <div style={{ 
+            background: 'rgba(225, 29, 72, 0.12)', 
+            padding: '10px', 
+            borderRadius: '10px', 
+            color: '#e11d48',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <ShieldCheck size={28} />
           </div>
-
-          <div className="p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-              <CalendarDays className="w-4 h-4" />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ fontSize: '26px', fontWeight: 800, margin: 0, color: 'var(--ink)' }}>
+                Confisection Exam Report
+              </h1>
+              <span style={{ 
+                fontSize: '11px', 
+                fontWeight: 700, 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.5px',
+                padding: '3px 8px', 
+                borderRadius: '6px', 
+                background: 'rgba(225, 29, 72, 0.1)', 
+                color: '#e11d48',
+                border: '1px solid rgba(225, 29, 72, 0.25)'
+              }}>
+                Confidential Section
+              </span>
             </div>
-            <div>
-              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Exam Dates</p>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{summaryStats.uniqueDates}</h3>
-            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13.5px', color: 'var(--muted)' }}>
+              Ingest 13-column examination schedules to aggregate cross-programme enrollment, calculate confidential QP printing press quotas, and prepare sealed venue dispatch checklists.
+            </p>
           </div>
         </div>
+      </div>
 
-        {/* View Mode Tabs & Controls Container */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-hidden flex flex-col">
-          {/* Main Navigation Tabs */}
-          <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 px-4 pt-3 flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
-            <button
-              onClick={() => { setActiveTab('consolidated'); setCurrentPage(0); }}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap shrink-0 ${
-                activeTab === 'consolidated'
-                  ? 'border-rose-600 text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 shadow-2xs'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/60'
-              }`}
-            >
-              <PackageCheck className="w-3.5 h-3.5" />
-              <span>Consolidated Master Schedule</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {consolidatedRows.length}
+      {/* File Upload Zone */}
+      <div className="card" style={{ padding: '22px', border: '1.5px dashed var(--line)', background: 'var(--panel)', marginBottom: '22px', borderRadius: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ background: 'var(--accent-soft)', padding: '8px', borderRadius: '8px', color: 'var(--accent)' }}>
+              <FileSpreadsheet size={20} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>
+                Upload Center Venue Date Wise Schedule
+              </h3>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                Expects standard 13 headers: Event Name, Center Code/Name, Venue Code/Name, Program Name, Exam Date, Times, Course Code/Name, Student Count, venueId
               </span>
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('press_print'); setCurrentPage(0); }}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap shrink-0 ${
-                activeTab === 'press_print'
-                  ? 'border-rose-600 text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 shadow-2xs'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/60'
-              }`}
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Daily Press Print Order</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {pressPrintOrderRows.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('venue_packing'); setCurrentPage(0); }}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap shrink-0 ${
-                activeTab === 'venue_packing'
-                  ? 'border-rose-600 text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 shadow-2xs'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/60'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Venue Packing Slips</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {Object.keys(venuePackingSlips).length} Venues
-              </span>
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('course_summary'); setCurrentPage(0); }}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap shrink-0 ${
-                activeTab === 'course_summary'
-                  ? 'border-rose-600 text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 shadow-2xs'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/60'
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Course Master Summary</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {courseSummaryRows.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('raw'); setCurrentPage(0); }}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 whitespace-nowrap shrink-0 ${
-                activeTab === 'raw'
-                  ? 'border-rose-600 text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 shadow-2xs'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/60'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Raw Source Rows</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {rawRows.length}
-              </span>
-            </button>
+            </div>
           </div>
 
-          {/* Filtering and Configuration Toolbar */}
-          <div className="p-4 bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center flex-wrap gap-2.5 flex-1 min-w-[280px]">
-              {/* Live Search */}
-              <div className="relative w-full sm:w-64">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
-                  placeholder="Search code, course, venue, date..."
-                  className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Date Filter */}
-              <select
-                value={selectedDate}
-                onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(0); }}
-                className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium focus:outline-none"
+          {fileMeta && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ 
+                padding: '4px 10px', 
+                borderRadius: '6px', 
+                fontSize: '12px', 
+                fontWeight: 600, 
+                background: 'rgba(5, 150, 105, 0.1)', 
+                color: '#059669',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <CheckCircle2 size={13} /> {fileMeta.name} ({fileMeta.rowsCount.toLocaleString()} rows)
+              </span>
+              <button
+                type="button"
+                onClick={handleClearData}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px' }}
+                title="Clear current file"
               >
-                <option value="ALL">All Exam Dates ({filterOptions.dates.length})</option>
-                {filterOptions.dates.map(d => (
-                  <option key={d} value={d}>{d}</option>
+                <X size={15} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          accept=".xlsx,.xls,.csv"
+          style={{ display: 'none' }}
+        />
+
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            border: '2px dashed var(--accent)',
+            borderRadius: '10px',
+            padding: '28px 20px',
+            textAlign: 'center',
+            cursor: 'pointer',
+            background: 'var(--bg)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Upload size={28} color="var(--accent)" style={{ margin: '0 auto 8px' }} />
+          <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
+            {fileMeta ? 'Click to replace or upload another schedule file' : 'Click to Upload Examination Schedule (.xlsx, .xls, .csv)'}
+          </p>
+          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+            Drop in your "Center Venue Date Wise Report" export directly from the university examination portal
+          </span>
+        </div>
+      </div>
+
+      {/* Status Feedback Banner */}
+      {statusAlert && (
+        <div style={{
+          padding: '12px 18px',
+          borderRadius: '8px',
+          fontSize: '13px',
+          marginBottom: '22px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+          background: statusAlert.type === 'error' ? 'rgba(239, 68, 68, 0.08)' : statusAlert.type === 'success' ? 'rgba(16, 185, 129, 0.08)' : 'var(--accent-soft)',
+          color: statusAlert.type === 'error' ? '#ef4444' : statusAlert.type === 'success' ? '#059669' : 'var(--accent)',
+          border: `1px solid ${statusAlert.type === 'error' ? '#ef444433' : statusAlert.type === 'success' ? '#10b98133' : 'var(--accent)'}`
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {statusAlert.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
+            <span>{statusAlert.message}</span>
+          </div>
+          <button
+            onClick={() => setStatusAlert(null)}
+            style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
+      {/* KPI Metric Cards */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+        gap: '16px', 
+        marginBottom: '24px' 
+      }}>
+        {/* Total Candidates */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #e11d48' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Total Candidates
+            </span>
+            <Users size={18} color="#e11d48" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
+            {summaryStats.totalCandidates.toLocaleString()}
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Sum of registered students</span>
+        </div>
+
+        {/* Total QP Print Order */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #059669' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Total QP Required
+            </span>
+            <PackageCheck size={18} color="#059669" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
+            {summaryStats.totalQp.toLocaleString()}
+          </div>
+          <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>
+            Includes buffer reserve ({bufferRule === 'none' ? 'Exact' : bufferRule})
+          </span>
+        </div>
+
+        {/* Unique Exams */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid var(--accent)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Unique Exams
+            </span>
+            <Layers size={18} color="var(--accent)" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
+            {summaryStats.uniqueExams.toLocaleString()}
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Distinct Date-Venue-Course slots</span>
+        </div>
+
+        {/* Venues */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #6366f1' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Colleges / Venues
+            </span>
+            <Building2 size={18} color="#6366f1" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
+            {summaryStats.uniqueVenues}
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Examination dispatch points</span>
+        </div>
+
+        {/* Courses */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #d97706' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Question Papers
+            </span>
+            <BookOpen size={18} color="#d97706" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
+            {summaryStats.uniqueCourses}
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Unique course subjects</span>
+        </div>
+
+        {/* Scheduled Dates */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #0284c7' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Exam Days
+            </span>
+            <CalendarDays size={18} color="#0284c7" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
+            {summaryStats.uniqueDates}
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Scheduled dates</span>
+        </div>
+      </div>
+
+      {/* Main Container with Tabs & Data View */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: '12px' }}>
+        {/* Tab Navigation */}
+        <div style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid var(--line)', 
+          background: 'var(--bg)', 
+          padding: '4px 16px 0', 
+          overflowX: 'auto',
+          gap: '6px'
+        }}>
+          <button
+            type="button"
+            onClick={() => { setActiveTab('consolidated'); setCurrentPage(0); }}
+            style={{
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: activeTab === 'consolidated' ? 'var(--panel)' : 'transparent',
+              color: activeTab === 'consolidated' ? 'var(--accent)' : 'var(--muted)',
+              border: 'none',
+              borderBottom: activeTab === 'consolidated' ? '3px solid var(--accent)' : '3px solid transparent',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <PackageCheck size={16} />
+            Consolidated Master Schedule
+            <span style={{ 
+              padding: '2px 7px', 
+              borderRadius: '10px', 
+              fontSize: '11px', 
+              fontWeight: 700,
+              background: activeTab === 'consolidated' ? 'var(--accent-soft)' : 'var(--line)',
+              color: activeTab === 'consolidated' ? 'var(--accent)' : 'var(--muted)'
+            }}>
+              {consolidatedRows.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('press_print'); setCurrentPage(0); }}
+            style={{
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: activeTab === 'press_print' ? 'var(--panel)' : 'transparent',
+              color: activeTab === 'press_print' ? 'var(--accent)' : 'var(--muted)',
+              border: 'none',
+              borderBottom: activeTab === 'press_print' ? '3px solid var(--accent)' : '3px solid transparent',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Printer size={16} />
+            Daily Press Print Order
+            <span style={{ 
+              padding: '2px 7px', 
+              borderRadius: '10px', 
+              fontSize: '11px', 
+              fontWeight: 700,
+              background: activeTab === 'press_print' ? 'var(--accent-soft)' : 'var(--line)',
+              color: activeTab === 'press_print' ? 'var(--accent)' : 'var(--muted)'
+            }}>
+              {pressPrintOrderRows.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('venue_packing'); setCurrentPage(0); }}
+            style={{
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: activeTab === 'venue_packing' ? 'var(--panel)' : 'transparent',
+              color: activeTab === 'venue_packing' ? 'var(--accent)' : 'var(--muted)',
+              border: 'none',
+              borderBottom: activeTab === 'venue_packing' ? '3px solid var(--accent)' : '3px solid transparent',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Building2 size={16} />
+            Venue Packing Slips
+            <span style={{ 
+              padding: '2px 7px', 
+              borderRadius: '10px', 
+              fontSize: '11px', 
+              fontWeight: 700,
+              background: activeTab === 'venue_packing' ? 'var(--accent-soft)' : 'var(--line)',
+              color: activeTab === 'venue_packing' ? 'var(--accent)' : 'var(--muted)'
+            }}>
+              {Object.keys(venuePackingSlips).length} Venues
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('course_summary'); setCurrentPage(0); }}
+            style={{
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: activeTab === 'course_summary' ? 'var(--panel)' : 'transparent',
+              color: activeTab === 'course_summary' ? 'var(--accent)' : 'var(--muted)',
+              border: 'none',
+              borderBottom: activeTab === 'course_summary' ? '3px solid var(--accent)' : '3px solid transparent',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <BookOpen size={16} />
+            Course Master Summary
+            <span style={{ 
+              padding: '2px 7px', 
+              borderRadius: '10px', 
+              fontSize: '11px', 
+              fontWeight: 700,
+              background: activeTab === 'course_summary' ? 'var(--accent-soft)' : 'var(--line)',
+              color: activeTab === 'course_summary' ? 'var(--accent)' : 'var(--muted)'
+            }}>
+              {courseSummaryRows.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('raw'); setCurrentPage(0); }}
+            style={{
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: activeTab === 'raw' ? 'var(--panel)' : 'transparent',
+              color: activeTab === 'raw' ? 'var(--accent)' : 'var(--muted)',
+              border: 'none',
+              borderBottom: activeTab === 'raw' ? '3px solid var(--accent)' : '3px solid transparent',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <FileText size={16} />
+            Raw Rows
+            <span style={{ 
+              padding: '2px 7px', 
+              borderRadius: '10px', 
+              fontSize: '11px', 
+              fontWeight: 700,
+              background: activeTab === 'raw' ? 'var(--accent-soft)' : 'var(--line)',
+              color: activeTab === 'raw' ? 'var(--accent)' : 'var(--muted)'
+            }}>
+              {rawRows.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Filter Controls Toolbar */}
+        <div style={{ 
+          padding: '14px 20px', 
+          background: 'var(--panel)', 
+          borderBottom: '1px solid var(--line)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          flexWrap: 'wrap', 
+          gap: '12px' 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1 }}>
+            {/* Live Search */}
+            <div style={{ position: 'relative', width: '280px' }}>
+              <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
+                placeholder="Search code, course, venue, date..."
+                style={{
+                  width: '100%',
+                  padding: '7px 28px 7px 32px',
+                  fontSize: '13px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--muted)',
+                    cursor: 'pointer',
+                    padding: '2px'
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Date Filter */}
+            <select
+              value={selectedDate}
+              onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(0); }}
+              style={{ fontSize: '13px', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
+            >
+              <option value="ALL">All Exam Dates ({filterOptions.dates.length})</option>
+              {filterOptions.dates.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+
+            {/* Session Filter */}
+            <select
+              value={selectedSession}
+              onChange={(e) => { setSelectedSession(e.target.value); setCurrentPage(0); }}
+              style={{ fontSize: '13px', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
+            >
+              <option value="ALL">All Sessions</option>
+              <option value="FN">Forenoon (FN)</option>
+              <option value="AN">Afternoon (AN)</option>
+            </select>
+
+            {/* Venue Filter */}
+            {activeTab !== 'press_print' && activeTab !== 'course_summary' && (
+              <select
+                value={selectedVenue}
+                onChange={(e) => { setSelectedVenue(e.target.value); setCurrentPage(0); }}
+                style={{ fontSize: '13px', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)', maxWidth: '240px' }}
+              >
+                <option value="ALL">All Venues ({filterOptions.venues.length})</option>
+                {filterOptions.venues.map(v => (
+                  <option key={v.code} value={v.code}>{v.code} - {v.name}</option>
                 ))}
               </select>
-
-              {/* Session Filter */}
-              <select
-                value={selectedSession}
-                onChange={(e) => { setSelectedSession(e.target.value); setCurrentPage(0); }}
-                className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium focus:outline-none"
-              >
-                <option value="ALL">All Sessions</option>
-                <option value="FN">Forenoon (FN)</option>
-                <option value="AN">Afternoon (AN)</option>
-              </select>
-
-              {/* Venue Filter */}
-              {activeTab !== 'press_print' && activeTab !== 'course_summary' && (
-                <select
-                  value={selectedVenue}
-                  onChange={(e) => { setSelectedVenue(e.target.value); setCurrentPage(0); }}
-                  className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium focus:outline-none max-w-[220px] truncate"
-                >
-                  <option value="ALL">All Venues ({filterOptions.venues.length})</option>
-                  {filterOptions.venues.map(v => (
-                    <option key={v.code} value={v.code}>{v.code} - {v.name}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* Buffer policy and Page Size Controls */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900/60 text-xs">
-                <span className="font-semibold text-rose-800 dark:text-rose-300 text-[11px] shrink-0">Buffer Rule:</span>
-                <select
-                  value={bufferRule}
-                  onChange={(e) => setBufferRule(e.target.value)}
-                  className="bg-transparent text-rose-900 dark:text-rose-200 font-semibold focus:outline-none text-[11px] cursor-pointer"
-                >
-                  <option value="plus1">+1 Copy / Venue (Standard)</option>
-                  <option value="plus2">+2 Copies / Venue (High Reserve)</option>
-                  <option value="five_percent">+5% Round Up</option>
-                  <option value="none">Exact Takers (No Buffer)</option>
-                </select>
-              </div>
-
-              {activeTab !== 'venue_packing' && (
-                <select
-                  value={pageSize}
-                  onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
-                  className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium focus:outline-none"
-                >
-                  <option value={20}>20 rows</option>
-                  <option value={50}>50 rows</option>
-                  <option value={100}>100 rows</option>
-                  <option value={0}>Show All</option>
-                </select>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Table / Content View */}
-          {activeTab === 'venue_packing' ? (
-            /* Venue-Wise Packing Slips View */
-            <div className="p-4 sm:p-6 space-y-6 overflow-y-auto max-h-[70vh]">
-              {Object.keys(venuePackingSlips).length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                  <PackageCheck className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm font-medium">No venue packing data available. Upload an Excel file or load sample data.</p>
-                </div>
-              ) : (
-                Object.values(venuePackingSlips)
+          {/* Buffer Policy Selector & Page Size */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              padding: '5px 10px', 
+              borderRadius: '6px', 
+              background: 'rgba(225, 29, 72, 0.08)', 
+              border: '1px solid rgba(225, 29, 72, 0.25)',
+              fontSize: '12px'
+            }}>
+              <span style={{ fontWeight: 700, color: '#e11d48' }}>Buffer Policy:</span>
+              <select
+                value={bufferRule}
+                onChange={(e) => setBufferRule(e.target.value)}
+                style={{ 
+                  background: 'transparent', 
+                  border: 'none', 
+                  fontSize: '12px', 
+                  fontWeight: 600, 
+                  color: 'var(--ink)', 
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                <option value="plus1">+1 Copy / Venue (Standard Confi)</option>
+                <option value="plus2">+2 Copies / Venue (High Reserve)</option>
+                <option value="five_percent">+5% Reserve</option>
+                <option value="none">Exact Count (0 Buffer)</option>
+              </select>
+            </div>
+
+            {activeTab !== 'venue_packing' && (
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
+                style={{ fontSize: '13px', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
+              >
+                <option value={25}>25 rows</option>
+                <option value={50}>50 rows</option>
+                <option value={100}>100 rows</option>
+                <option value={0}>Show All</option>
+              </select>
+            )}
+          </div>
+        </div>
+
+        {/* Content Body */}
+        {activeTab === 'venue_packing' ? (
+          /* Card-based Venue Packing Slips */
+          <div style={{ padding: '24px', maxHeight: '70vh', overflowY: 'auto' }}>
+            {Object.keys(venuePackingSlips).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
+                <PackageCheck size={36} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
+                <p style={{ margin: 0, fontWeight: 600, fontSize: '14px' }}>No venue records found. Upload a schedule or load sample data.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {Object.values(venuePackingSlips)
                   .filter(v => selectedVenue === 'ALL' || v.venueCode === selectedVenue)
                   .map((venueGroup, vIdx) => (
-                    <div
-                      key={vIdx}
-                      className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-xs bg-white dark:bg-slate-800"
+                    <div 
+                      key={vIdx} 
+                      className="card" 
+                      style={{ 
+                        margin: 0, 
+                        padding: 0, 
+                        overflow: 'hidden', 
+                        border: '1px solid var(--line)',
+                        background: 'var(--panel)',
+                        borderRadius: '10px'
+                      }}
                     >
-                      <div className="p-3.5 bg-slate-100/80 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
-                          <span className="px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-mono font-bold text-xs">
+                      {/* Venue Header Card */}
+                      <div style={{ 
+                        padding: '14px 20px', 
+                        background: 'var(--bg)', 
+                        borderBottom: '1px solid var(--line)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ 
+                            padding: '4px 10px', 
+                            borderRadius: '6px', 
+                            background: 'var(--accent)', 
+                            color: 'white', 
+                            fontWeight: 800, 
+                            fontFamily: 'monospace',
+                            fontSize: '13px'
+                          }}>
                             {venueGroup.venueCode}
                           </span>
                           <div>
-                            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>
                               {venueGroup.venueName}
                             </h3>
-                            <p className="text-[11px] text-slate-500">
-                              Center: {venueGroup.centerCode} ({venueGroup.centerName || 'Main'}) • Venue ID: {venueGroup.venueId || 'N/A'}
-                            </p>
+                            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                              Center Code: {venueGroup.centerCode} ({venueGroup.centerName || 'Main'}) • Venue ID: {venueGroup.venueId || '—'}
+                            </span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 text-xs">
-                          <span className="font-medium text-slate-600 dark:text-slate-300">
-                            Exams: <strong>{venueGroup.items.length}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '13px' }}>
+                          <span style={{ color: 'var(--muted)' }}>
+                            Exams: <strong style={{ color: 'var(--ink)' }}>{venueGroup.items.length}</strong>
                           </span>
-                          <span className="font-medium text-slate-600 dark:text-slate-300">
-                            Takers: <strong>{venueGroup.totalStudents}</strong>
+                          <span style={{ color: 'var(--muted)' }}>
+                            Candidates: <strong style={{ color: 'var(--ink)' }}>{venueGroup.totalStudents.toLocaleString()}</strong>
                           </span>
-                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold">
-                            Total QP Packed: {venueGroup.totalQp}
+                          <span style={{ 
+                            padding: '4px 12px', 
+                            borderRadius: '6px', 
+                            background: 'rgba(5, 150, 105, 0.1)', 
+                            color: '#059669', 
+                            fontWeight: 800,
+                            border: '1px solid rgba(5, 150, 105, 0.2)'
+                          }}>
+                            Total QP Packed: {venueGroup.totalQp.toLocaleString()}
                           </span>
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
+                      {/* Checklist Table */}
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                           <thead>
-                            <tr className="bg-slate-50/70 dark:bg-slate-800/50 text-slate-500 font-semibold uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-700">
-                              <th className="py-2 px-3">Date</th>
-                              <th className="py-2 px-3">Session</th>
-                              <th className="py-2 px-3">Course Code</th>
-                              <th className="py-2 px-3">Course Name</th>
-                              <th className="py-2 px-3 text-center">Takers</th>
-                              <th className="py-2 px-3 text-center">20s</th>
-                              <th className="py-2 px-3 text-center">10s</th>
-                              <th className="py-2 px-3 text-center">5s</th>
-                              <th className="py-2 px-3 text-center">Loose</th>
-                              <th className="py-2 px-3 text-right">Total QP</th>
+                            <tr style={{ background: 'var(--panel)', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: '11px', textTransform: 'uppercase' }}>
+                              <th style={{ padding: '10px 14px', width: '40px', textAlign: 'center' }}>Packed</th>
+                              <th style={{ padding: '10px 14px' }}>Date</th>
+                              <th style={{ padding: '10px 14px' }}>Session / Time</th>
+                              <th style={{ padding: '10px 14px' }}>Course Code</th>
+                              <th style={{ padding: '10px 14px' }}>Course Name</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'center' }}>Takers</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'center' }}>Packets of 20</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'center' }}>Packets of 10</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'center' }}>Packets of 5</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'center' }}>Loose / Buffer</th>
+                              <th style={{ padding: '10px 14px', textAlign: 'right' }}>Total QP</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                            {venueGroup.items.map((item, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
-                                <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                                  {item.examDate}
-                                </td>
-                                <td className="py-2 px-3 whitespace-nowrap">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                    item.session === 'FN'
-                                      ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                                      : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                                  }`}>
-                                    {item.session} ({item.startTime})
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                                  {item.courseCode}
-                                </td>
-                                <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">
-                                  {item.courseName}
-                                </td>
-                                <td className="py-2 px-3 text-center font-bold text-slate-900 dark:text-white">
-                                  {item.studentCount}
-                                </td>
-                                <td className="py-2 px-3 text-center font-mono text-slate-600 dark:text-slate-300">
-                                  {item.p20 > 0 ? <span className="font-bold text-emerald-600">{item.p20}</span> : '-'}
-                                </td>
-                                <td className="py-2 px-3 text-center font-mono text-slate-600 dark:text-slate-300">
-                                  {item.p10 > 0 ? <span className="font-bold text-teal-600">{item.p10}</span> : '-'}
-                                </td>
-                                <td className="py-2 px-3 text-center font-mono text-slate-600 dark:text-slate-300">
-                                  {item.p5 > 0 ? <span className="font-bold text-sky-600">{item.p5}</span> : '-'}
-                                </td>
-                                <td className="py-2 px-3 text-center font-mono text-slate-600 dark:text-slate-300">
-                                  {item.singles > 0 ? <span className="font-bold text-amber-600">{item.singles}</span> : '-'}
-                                </td>
-                                <td className="py-2 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                                  {item.totalQp}
-                                </td>
-                              </tr>
-                            ))}
+                          <tbody>
+                            {venueGroup.items.map((item, idx) => {
+                              const itemKey = `${venueGroup.venueCode}_${item.examDate}_${item.courseCode}`;
+                              const isPacked = packedChecklist[itemKey];
+
+                              return (
+                                <tr 
+                                  key={idx} 
+                                  style={{ 
+                                    borderBottom: '1px solid var(--line)', 
+                                    background: isPacked ? 'rgba(5, 150, 105, 0.04)' : idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)',
+                                    transition: 'background 0.15s ease'
+                                  }}
+                                >
+                                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={!!isPacked}
+                                      onChange={() => handleToggleChecklist(itemKey)}
+                                      style={{ cursor: 'pointer', transform: 'scale(1.15)' }}
+                                      title="Mark as sealed and packed in venue parcel"
+                                    />
+                                  </td>
+                                  <td style={{ padding: '10px 14px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                    {item.examDate}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                                    <span style={{ 
+                                      padding: '3px 8px', 
+                                      borderRadius: '4px', 
+                                      fontSize: '11px', 
+                                      fontWeight: 700,
+                                      background: item.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                      color: item.session === 'FN' ? '#0284c7' : '#6366f1'
+                                    }}>
+                                      {item.session} ({item.startTime})
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)' }}>
+                                    {item.courseCode}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', fontWeight: 500, color: 'var(--ink)' }}>
+                                    {item.courseName}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800 }}>
+                                    {item.studentCount}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                    {item.p20 > 0 ? <strong style={{ color: '#059669' }}>{item.p20}</strong> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                    {item.p10 > 0 ? <strong style={{ color: '#0d9488' }}>{item.p10}</strong> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                    {item.p5 > 0 ? <strong style={{ color: '#0284c7' }}>{item.p5}</strong> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                    {item.singles > 0 ? <strong style={{ color: '#d97706' }}>{item.singles}</strong> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#059669', fontSize: '13px' }}>
+                                    {item.totalQp}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
                     </div>
-                  ))
-              )}
-            </div>
-          ) : (
-            /* Tabular Views: Consolidated, Press Print, Course Summary, Raw */
-            <div className="overflow-x-auto flex-1">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 font-semibold uppercase tracking-wider text-[10px]">
-                    <th className="py-2.5 px-3 text-center w-12">#</th>
-                    
-                    {activeTab === 'consolidated' && (
-                      <>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Exam Date</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Session</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Venue</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Course Code</th>
-                        <th className="py-2.5 px-3 min-w-[200px]">Course Name</th>
-                        <th className="py-2.5 px-3 min-w-[220px]">Program(s)</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Takers</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Packets (20/10/5/1)</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Total QP</th>
-                      </>
-                    )}
+                  ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Standard High-Performance Data Tables */
+          <div style={{ overflowX: 'auto', maxHeight: '68vh' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ 
+                  background: 'var(--bg)', 
+                  borderBottom: '1.5px solid var(--line)', 
+                  color: 'var(--muted)', 
+                  fontSize: '11px', 
+                  textTransform: 'uppercase',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10
+                }}>
+                  <th style={{ padding: '12px 14px', width: '45px', textAlign: 'center' }}>#</th>
 
-                    {activeTab === 'press_print' && (
-                      <>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Exam Date</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Session</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Timing</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Course Code</th>
-                        <th className="py-2.5 px-3 min-w-[260px]">Course Name</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Venues</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Total Candidates</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap">QP Print Requirement</th>
-                      </>
-                    )}
+                  {activeTab === 'consolidated' && (
+                    <>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Exam Date</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Session</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Venue</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Course Code</th>
+                      <th style={{ padding: '12px 14px', minWidth: '220px' }}>Course Name</th>
+                      <th style={{ padding: '12px 14px', minWidth: '240px' }}>Programme(s) Included</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Takers</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Sealed Packets (20/10/5/L)</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>Total QP</th>
+                    </>
+                  )}
 
-                    {activeTab === 'course_summary' && (
-                      <>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Course Code</th>
-                        <th className="py-2.5 px-3 min-w-[280px]">Course Name</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Scheduled Dates</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Session</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Venues Count</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Total Students</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Total QP</th>
-                      </>
-                    )}
+                  {activeTab === 'press_print' && (
+                    <>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Exam Date</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Session</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Scheduled Timing</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Course Code</th>
+                      <th style={{ padding: '12px 14px', minWidth: '260px' }}>Course Name</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Venues</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Total Candidates</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>QP Print Order</th>
+                    </>
+                  )}
 
-                    {activeTab === 'raw' && (
-                      <>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Event Name</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Venue</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Program Name</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Date</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Course Code</th>
-                        <th className="py-2.5 px-3 min-w-[200px]">Course Name</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Count</th>
-                      </>
-                    )}
+                  {activeTab === 'course_summary' && (
+                    <>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Course Code</th>
+                      <th style={{ padding: '12px 14px', minWidth: '280px' }}>Course Name</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Scheduled Dates</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Session</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Venue Coverage</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Total Students</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>Total QP</th>
+                    </>
+                  )}
+
+                  {activeTab === 'raw' && (
+                    <>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Event Name</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Venue Code &amp; Name</th>
+                      <th style={{ padding: '12px 14px', minWidth: '220px' }}>Programme</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Exam Date</th>
+                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Course Code</th>
+                      <th style={{ padding: '12px 14px', minWidth: '220px' }}>Course Name</th>
+                      <th style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>Count</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--muted)' }}>
+                      <PackageCheck size={36} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
+                      <p style={{ margin: 0, fontWeight: 600, fontSize: '14px' }}>
+                        {searchQuery ? `No matching records found for "${searchQuery}"` : 'No examination schedule loaded.'}
+                      </p>
+                      <span style={{ fontSize: '12px' }}>
+                        Upload your Schedule (.xlsx) or click "Load Kannur Sample Data" above to preview.
+                      </span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                  {paginatedRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <PackageCheck className="w-8 h-8 opacity-40 text-slate-400" />
-                          <p className="text-sm font-medium">
-                            {searchQuery ? `No records matching "${searchQuery}"` : 'No examination schedule loaded yet.'}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            Upload your Center Venue Date Wise Schedule file (.xlsx) or click "Load Sample" above.
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedRows.map((row, idx) => {
-                      const rowNum = (pageSize === 0 ? 0 : currentPage * pageSize) + idx + 1;
+                ) : (
+                  paginatedRows.map((row, idx) => {
+                    const rowNumber = (pageSize === 0 ? 0 : currentPage * pageSize) + idx + 1;
 
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40 transition-colors">
-                          <td className="py-2 px-3 text-center font-mono text-[11px] text-slate-400">
-                            {rowNum}
-                          </td>
+                    return (
+                      <tr
+                        key={idx}
+                        style={{
+                          borderBottom: '1px solid var(--line)',
+                          background: idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)',
+                          transition: 'background 0.15s ease'
+                        }}
+                      >
+                        <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace', color: 'var(--muted)' }}>
+                          {rowNumber}
+                        </td>
 
-                          {activeTab === 'consolidated' && (
-                            <>
-                              <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
-                                {row.examDate}
-                              </td>
-                              <td className="py-2 px-3 whitespace-nowrap">
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  row.session === 'FN'
-                                    ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                                    : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                                }`}>
-                                  {row.session} ({row.startTime})
-                                </span>
-                              </td>
-                              <td className="py-2 px-3 whitespace-nowrap">
-                                <span className="font-semibold text-slate-800 dark:text-slate-100">
-                                  {row.venueCode}
-                                </span>
-                                <span className="text-[11px] text-slate-500 block max-w-[180px] truncate" title={row.venueName}>
+                        {activeTab === 'consolidated' && (
+                          <>
+                            <td style={{ padding: '10px 14px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {row.examDate}
+                            </td>
+                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                              <span style={{ 
+                                padding: '3px 8px', 
+                                borderRadius: '4px', 
+                                fontSize: '11px', 
+                                fontWeight: 700,
+                                background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                color: row.session === 'FN' ? '#0284c7' : '#6366f1'
+                              }}>
+                                {row.session} ({row.startTime})
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 800, color: 'var(--ink)' }}>{row.venueCode}</span>
+                                <span style={{ fontSize: '11px', color: 'var(--muted)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={row.venueName}>
                                   {row.venueName}
                                 </span>
-                              </td>
-                              <td className="py-2 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                {row.courseCode}
-                              </td>
-                              <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">
-                                {row.courseName}
-                              </td>
-                              <td className="py-2 px-3 text-[11px] text-slate-500 leading-relaxed">
-                                {row.programsFormatted || 'General'}
-                              </td>
-                              <td className="py-2 px-3 text-center font-bold text-slate-900 dark:text-white">
-                                {row.studentCount}
-                              </td>
-                              <td className="py-2 px-3 text-center whitespace-nowrap">
-                                <div className="inline-flex items-center gap-1 font-mono text-[10px]">
-                                  <span className="px-1 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 text-emerald-700 dark:text-emerald-300" title="Packets of 20">
-                                    20s: <strong>{row.p20}</strong>
-                                  </span>
-                                  <span className="px-1 py-0.5 rounded bg-teal-50 dark:bg-teal-950/60 border border-teal-200 text-teal-700 dark:text-teal-300" title="Packets of 10">
-                                    10s: <strong>{row.p10}</strong>
-                                  </span>
-                                  <span className="px-1 py-0.5 rounded bg-sky-50 dark:bg-sky-950/60 border border-sky-200 text-sky-700 dark:text-sky-300" title="Packets of 5">
-                                    5s: <strong>{row.p5}</strong>
-                                  </span>
-                                  {row.singles > 0 && (
-                                    <span className="px-1 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 border border-amber-200 text-amber-700 dark:text-amber-300" title="Loose singles">
-                                      L: <strong>{row.singles}</strong>
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                {row.totalQp}
-                              </td>
-                            </>
-                          )}
-
-                          {activeTab === 'press_print' && (
-                            <>
-                              <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
-                                {row.examDate}
-                              </td>
-                              <td className="py-2 px-3 whitespace-nowrap">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  row.session === 'FN'
-                                    ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                                    : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                                }`}>
-                                  {row.session}
+                              </div>
+                            </td>
+                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                              {row.courseCode}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
+                              {row.courseName}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontSize: '11.5px', color: 'var(--muted)', maxWidth: '280px' }} title={row.programsFormatted}>
+                              <span style={{ 
+                                display: '-webkit-box', 
+                                WebkitLineClamp: 2, 
+                                WebkitBoxOrient: 'vertical', 
+                                overflow: 'hidden' 
+                              }}>
+                                {row.programsFormatted || 'General Examination'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800, fontSize: '13px' }}>
+                              {row.studentCount}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'inline-flex', gap: '4px', fontFamily: 'monospace', fontSize: '11px' }}>
+                                <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontWeight: 700 }} title="Packets of 20">
+                                  20s: {row.p20}
                                 </span>
-                              </td>
-                              <td className="py-2 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                                {row.startTime} - {row.endTime}
-                              </td>
-                              <td className="py-2 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                {row.courseCode}
-                              </td>
-                              <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">
-                                {row.courseName}
-                              </td>
-                              <td className="py-2 px-3 text-center font-bold text-slate-700 dark:text-slate-300">
-                                {row.venuesCount}
-                              </td>
-                              <td className="py-2 px-3 text-center font-bold text-slate-900 dark:text-white">
-                                {row.totalStudents}
-                              </td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                {row.totalQp}
-                              </td>
-                            </>
-                          )}
-
-                          {activeTab === 'course_summary' && (
-                            <>
-                              <td className="py-2 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                {row.courseCode}
-                              </td>
-                              <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">
-                                {row.courseName}
-                              </td>
-                              <td className="py-2 px-3 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                                {row.datesFormatted}
-                              </td>
-                              <td className="py-2 px-3 whitespace-nowrap">
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-700">
-                                  {row.session}
+                                <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(13, 148, 136, 0.1)', color: '#0d9488', fontWeight: 700 }} title="Packets of 10">
+                                  10s: {row.p10}
                                 </span>
-                              </td>
-                              <td className="py-2 px-3 text-center font-bold text-slate-700 dark:text-slate-300">
-                                {row.venueCount}
-                              </td>
-                              <td className="py-2 px-3 text-center font-bold text-slate-900 dark:text-white">
-                                {row.totalStudents}
-                              </td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                {row.totalQp}
-                              </td>
-                            </>
-                          )}
+                                <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(2, 132, 199, 0.1)', color: '#0284c7', fontWeight: 700 }} title="Packets of 5">
+                                  5s: {row.p5}
+                                </span>
+                                {row.singles > 0 && (
+                                  <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', fontWeight: 700 }} title="Loose single copies">
+                                    L: {row.singles}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#059669', fontSize: '13px' }}>
+                              {row.totalQp}
+                            </td>
+                          </>
+                        )}
 
-                          {activeTab === 'raw' && (
-                            <>
-                              <td className="py-2 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                                {row.eventName}
-                              </td>
-                              <td className="py-2 px-3 whitespace-nowrap">
-                                <strong>{row.venueCode}</strong> - {row.venueName}
-                              </td>
-                              <td className="py-2 px-3 text-[11px] text-slate-500 max-w-xs truncate" title={row.programName}>
-                                {row.programName}
-                              </td>
-                              <td className="py-2 px-3 whitespace-nowrap">
-                                {row.examDate}
-                              </td>
-                              <td className="py-2 px-3 font-mono font-bold text-emerald-600 whitespace-nowrap">
-                                {row.courseCode}
-                              </td>
-                              <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">
-                                {row.courseName}
-                              </td>
-                              <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-white">
-                                {row.studentCount}
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                        {activeTab === 'press_print' && (
+                          <>
+                            <td style={{ padding: '10px 14px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {row.examDate}
+                            </td>
+                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                              <span style={{ 
+                                padding: '3px 8px', 
+                                borderRadius: '4px', 
+                                fontSize: '11px', 
+                                fontWeight: 700,
+                                background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                color: row.session === 'FN' ? '#0284c7' : '#6366f1'
+                              }}>
+                                {row.session}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 14px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                              {row.startTime} – {row.endTime}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                              {row.courseCode}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
+                              {row.courseName}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700 }}>
+                              {row.venuesCount}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800 }}>
+                              {row.totalStudents.toLocaleString()}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#059669', fontSize: '13.5px' }}>
+                              {row.totalQp.toLocaleString()}
+                            </td>
+                          </>
+                        )}
 
-          {/* Pagination Footer */}
-          {activeTab !== 'venue_packing' && pageSize > 0 && totalPages > 1 && (
-            <div className="p-3 bg-slate-50/70 dark:bg-slate-800/70 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500">
-              <span>
-                Showing <strong>{paginatedRows.length}</strong> of <strong>{currentFilteredRows.length}</strong> records (Page {currentPage + 1} of {totalPages})
-              </span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
-                  disabled={currentPage === 0}
-                  className="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-600 disabled:opacity-40 hover:bg-white dark:hover:bg-slate-700 flex items-center gap-1"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" /> Prev
-                </button>
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
-                  disabled={currentPage >= totalPages - 1}
-                  className="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-600 disabled:opacity-40 hover:bg-white dark:hover:bg-slate-700 flex items-center gap-1"
-                >
-                  Next <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                        {activeTab === 'course_summary' && (
+                          <>
+                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                              {row.courseCode}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
+                              {row.courseName}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+                              {row.datesFormatted}
+                            </td>
+                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                              <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, background: 'var(--bg)', color: 'var(--ink)' }}>
+                                {row.session}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700 }}>
+                              {row.venueCount}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800 }}>
+                              {row.totalStudents.toLocaleString()}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#059669' }}>
+                              {row.totalQp.toLocaleString()}
+                            </td>
+                          </>
+                        )}
+
+                        {activeTab === 'raw' && (
+                          <>
+                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: 'var(--muted)' }}>
+                              {row.eventName}
+                            </td>
+                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                              <strong>{row.venueCode}</strong> – {row.venueName}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontSize: '11.5px', color: 'var(--muted)', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={row.programName}>
+                              {row.programName}
+                            </td>
+                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                              {row.examDate}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                              {row.courseCode}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontWeight: 500 }}>
+                              {row.courseName}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800 }}>
+                              {row.studentCount}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination Footer */}
+        {activeTab !== 'venue_packing' && pageSize > 0 && totalPages > 1 && (
+          <div style={{ 
+            padding: '12px 20px', 
+            background: 'var(--bg)', 
+            borderTop: '1px solid var(--line)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            fontSize: '12px', 
+            color: 'var(--muted)' 
+          }}>
+            <span>
+              Showing <strong>{paginatedRows.length}</strong> of <strong>{currentFilteredRows.length}</strong> records (Page {currentPage + 1} of {totalPages})
+            </span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                disabled={currentPage === 0}
+                style={{ padding: '4px 10px', fontSize: '12px' }}
+              >
+                <ChevronLeft size={14} /> Prev
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={currentPage >= totalPages - 1}
+                style={{ padding: '4px 10px', fontSize: '12px' }}
+              >
+                Next <ChevronRight size={14} />
+              </button>
             </div>
-          )}
-        </div>
-      </main>
+          </div>
+        )}
+      </div>
 
       {/* Guide Modal */}
       {showGuideModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-3xl w-full border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
-                  <HelpCircle className="w-5 h-5" />
-                </span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Confisection Exam Report - Extraction Logic &amp; Guide
-                </h3>
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.55)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div className="card" style={{
+            maxWidth: '680px',
+            width: '100%',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            background: 'var(--panel)',
+            padding: '24px',
+            margin: 0,
+            borderRadius: '12px',
+            boxShadow: 'var(--shadow)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ShieldCheck size={22} color="#e11d48" />
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>Confisection Exam Report Guide</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowGuideModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 0 }}
               >
-                <X className="w-5 h-5" />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            <div style={{ fontSize: '13px', lineHeight: '1.6', color: 'var(--ink)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">
-                  1. The 13 Source File Headers
-                </h4>
-                <p>The tool ingests examination schedule files containing the exact 13 university standard headers:</p>
-                <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900 font-mono text-[11px] overflow-x-auto mt-2 text-slate-700 dark:text-slate-300">
-                  Event Name | Center Code | Center Name | Venue Code | Venue Name | Program Name | Exam Date | Course Start Time | Course End Time | Course Code | Course Name | Student Count | venueId
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">
-                  2. Cross-Programme Candidate Aggregation
-                </h4>
-                <p>
-                  In raw pre-exam exports, multiple academic programmes (e.g., BA Functional Hindi, BCom Finance, BSc Mathematics) taking the same examination paper at the same venue appear on separate rows. 
-                  The Confisection engine consolidates them by composite key <code>Exam Date + Venue Code + Course Code</code> and sums candidate counts into a single consolidated QP packing record.
+                <strong style={{ color: 'var(--accent)' }}>1. 13 Source File Headers:</strong>
+                <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
+                  Accepts standard university schedule files containing: <code>Event Name</code>, <code>Center Code</code>, <code>Center Name</code>, <code>Venue Code</code>, <code>Venue Name</code>, <code>Program Name</code>, <code>Exam Date</code>, <code>Course Start Time</code>, <code>Course End Time</code>, <code>Course Code</code>, <code>Course Name</code>, <code>Student Count</code>, and <code>venueId</code>.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">
-                  3. Question Paper Packing Formula
-                </h4>
-                <p>
-                  Standard confidential section packet bundle rules are calculated automatically:
+                <strong style={{ color: 'var(--accent)' }}>2. Cross-Programme Candidate Aggregation:</strong>
+                <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
+                  Multiple academic programmes taking the same subject at the same venue on the same day are consolidated by <code>Date + Venue + Course Code</code>, summing student counts into a single Question Paper dispatch record.
                 </p>
-                <ul className="list-disc pl-5 mt-1.5 space-y-1">
-                  <li><strong>Packets of 20</strong>: <code>Math.floor(Total QP / 20)</code></li>
-                  <li><strong>Packets of 10</strong>: <code>Math.floor((Total QP % 20) / 10)</code></li>
-                  <li><strong>Packets of 5</strong>: <code>Math.floor(((Total QP % 20) % 10) / 5)</code></li>
-                  <li><strong>Loose / Singles</strong>: Remainder single copies</li>
-                  <li><strong>Buffer Reserve</strong>: Selectable between +1 copy per venue, +2 copies per venue, +5% reserve, or exact count</li>
-                </ul>
               </div>
 
               <div>
-                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">
-                  4. Four-Sheet Master Excel Export
-                </h4>
-                <p>
-                  Clicking <strong>Export Report (.xlsx)</strong> generates a comprehensive workbook containing:
+                <strong style={{ color: 'var(--accent)' }}>3. Question Paper Bundle Calculations:</strong>
+                <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
+                  Calculates sealed confidential bundles: <strong>Packets of 20</strong>, <strong>Packets of 10</strong>, <strong>Packets of 5</strong>, and <strong>Loose singles</strong>, with selectable buffer reserve (+1 per venue, +2 per venue, or +5%).
                 </p>
-                <ol className="list-decimal pl-5 mt-1.5 space-y-1">
-                  <li><code>Confi_Master_Schedule</code>: Full master schedule with combined programs, counts, and packet allocations.</li>
-                  <li><code>Daily_Press_Print_Order</code>: Daily date &amp; session printing totals for the confidential press.</li>
-                  <li><code>Venue_Packing_Slips</code>: Center &amp; venue checklists ready for sealing into dispatch envelopes.</li>
-                  <li><code>Course_Master_Summary</code>: Subject-level enrollment and venue coverage.</li>
-                </ol>
+              </div>
+
+              <div>
+                <strong style={{ color: 'var(--accent)' }}>4. Multi-Sheet Excel Export:</strong>
+                <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
+                  Clicking <strong>Export Report (.xlsx)</strong> generates 4 distinct sheets:
+                  (1) <code>Confi_Master_Schedule</code>, (2) <code>Daily_Press_Print_Order</code>, (3) <code>Venue_Packing_Slips</code>, and (4) <code>Course_Master_Summary</code>.
+                </p>
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 flex justify-end">
+            <div style={{ marginTop: '20px', paddingTop: '12px', borderTop: '1px solid var(--line)', textAlign: 'right' }}>
               <button
+                type="button"
                 onClick={() => setShowGuideModal(false)}
-                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold"
+                style={{ padding: '8px 20px', fontSize: '13px' }}
               >
-                Got It
+                Close Guide
               </button>
             </div>
           </div>
