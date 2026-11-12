@@ -491,40 +491,29 @@ const LandingPage = () => {
             </div>
           </div>
 
-          {/* 19. Venue Date Course College Email Report */}
+          {/* Confisection Exam & Venue College Dispatch Report (Combined) */}
           <div 
-            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid var(--accent)', background: 'linear-gradient(135deg, rgba(23,107,135,0.06), transparent)'}} 
-            onClick={() => navigate('/venue-date-course-email')}
-          >
-            <div style={styles.featureIcon}><Mail size={24} color="var(--accent)" /></div>
-            <h3 style={styles.featureTitle}>Venue Date Course College Email Report</h3>
-            <p style={styles.featureText}>Generate unique Date, Venue, Course combinations mapped to official college email IDs for circular dispatch &amp; student counts.</p>
-            <div style={styles.cardFooter}>
-              <button 
-                type="button" 
-                style={styles.guideBtn} 
-                onClick={(e) => { e.stopPropagation(); setActiveGuideKey('venue-date-course-email'); }}
-              >
-                <HelpCircle size={13} /> Extraction Logic & Guide
-              </button>
-            </div>
-          </div>
-
-          {/* 20. Confisection Exam Report */}
-          <div 
-            style={{...styles.featureCard, cursor: 'pointer', border: '1.5px solid #e11d48', background: 'linear-gradient(135deg, rgba(225,29,72,0.06), transparent)'}} 
+            style={{
+              ...styles.featureCard, 
+              cursor: 'pointer', 
+              border: '1.5px solid #e11d48', 
+              background: 'linear-gradient(135deg, rgba(225,29,72,0.06), rgba(23,107,135,0.06))'
+            }} 
             onClick={() => navigate('/confisection-exam-report')}
           >
-            <div style={styles.featureIcon}><ShieldCheck size={24} color="#e11d48" /></div>
-            <h3 style={styles.featureTitle}>Confisection Exam Report</h3>
-            <p style={styles.featureText}>Process 13-column examination schedules to calculate question paper print orders, cross-programme student aggregates, and sealed venue packing slips.</p>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={styles.featureIcon}><ShieldCheck size={24} color="#e11d48" /></div>
+              <div style={{ ...styles.featureIcon, background: 'rgba(23,107,135,0.1)' }}><Mail size={22} color="var(--accent)" /></div>
+            </div>
+            <h3 style={styles.featureTitle}>Confisection Exam &amp; Venue College Dispatch Report</h3>
+            <p style={styles.featureText}>Unified confidential examination studio: cross-programme student aggregates, question paper packet calculations (20s/10s/5s), daily press print orders, venue packing slips, and automated college email circular dispatch.</p>
             <div style={styles.cardFooter}>
               <button 
                 type="button" 
                 style={styles.guideBtn} 
                 onClick={(e) => { e.stopPropagation(); setActiveGuideKey('confisection-exam-report'); }}
               >
-                <HelpCircle size={13} /> Extraction Logic & Guide
+                <HelpCircle size={13} /> Extraction Logic &amp; Guide
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
@@ -30,15 +30,24 @@ import {
   ChevronRight,
   Filter,
   Check,
-  ClipboardList
+  ClipboardList,
+  Mail,
+  Send,
+  Copy,
+  ExternalLink,
+  Plus,
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
-import { formatExamDate } from '../utils/venueEmailHelpers';
 import { 
   CONFIDENTIAL_SECTION_COLUMNS, 
   calculateQpPackets, 
   getExamSession,
-  SAMPLE_CONFISECTION_ROWS
+  SAMPLE_CONFISECTION_ROWS,
+  DEFAULT_COLLEGE_EMAILS,
+  formatExamDate,
+  resolveCollegeEmail
 } from '../utils/confisectionHelpers';
 
 export default function ConfisectionExamReportPage() {
@@ -49,9 +58,32 @@ export default function ConfisectionExamReportPage() {
   const [fileMeta, setFileMeta] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusAlert, setStatusAlert] = useState(null);
+  const [copiedNoticeToast, setCopiedNoticeToast] = useState(null);
+
+  // College Email Directory (persisted to localStorage)
+  const [emailDirectory, setEmailDirectory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kannur_college_email_directory');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed reading college email directory from storage:', e);
+    }
+    return DEFAULT_COLLEGE_EMAILS;
+  });
+
+  // Modals state
+  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [showEmailDirectoryModal, setShowEmailDirectoryModal] = useState(false);
+  const [selectedVenueForEmailDraft, setSelectedVenueForEmailDraft] = useState(null);
+  const [directorySearchQuery, setDirectorySearchQuery] = useState('');
+  const [newCollegeForm, setNewCollegeForm] = useState({ code: '', name: '', email: '' });
+  const [editingCollegeIndex, setEditingCollegeIndex] = useState(null);
 
   // Configuration options
-  const [activeTab, setActiveTab] = useState('consolidated'); // 'consolidated' | 'press_print' | 'venue_packing' | 'course_summary' | 'raw'
+  const [activeTab, setActiveTab] = useState('consolidated'); // 'consolidated' | 'venue_email' | 'press_print' | 'venue_packing' | 'course_summary' | 'raw'
   const [bufferRule, setBufferRule] = useState('plus1'); // 'none' | 'plus1' | 'plus2' | 'five_percent'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState('ALL');
@@ -59,12 +91,22 @@ export default function ConfisectionExamReportPage() {
   const [selectedSession, setSelectedSession] = useState('ALL'); // 'ALL' | 'FN' | 'AN'
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(0);
-  const [showGuideModal, setShowGuideModal] = useState(false);
   const [packedChecklist, setPackedChecklist] = useState({});
 
   const fileInputRef = useRef(null);
+  const directoryFileInputRef = useRef(null);
 
-  // Column auto-detection
+  // Save email directory changes to localStorage
+  const saveEmailDirectory = (updatedList) => {
+    setEmailDirectory(updatedList);
+    try {
+      localStorage.setItem('kannur_college_email_directory', JSON.stringify(updatedList));
+    } catch (e) {
+      console.error('Failed to save email directory to localStorage', e);
+    }
+  };
+
+  // Column auto-detection supporting both 13 Confi headers & 5-8 Venue-Date-Course-Email headers
   const detectColumns = (headers) => {
     const norm = headers.map(h => normalizeKeyText(h));
     const findIndex = (patterns) => {
@@ -75,16 +117,17 @@ export default function ConfisectionExamReportPage() {
       eventName: findIndex(['eventname', 'event']),
       centerCode: findIndex(['centercode', 'center']),
       centerName: findIndex(['centername', 'centre']),
-      venueCode: findIndex(['venuecode', 'venue']),
-      venueName: findIndex(['venuename', 'college']),
+      venueCode: findIndex(['venuecode', 'venue', 'collegecode']),
+      venueName: findIndex(['venuename', 'college', 'institution']),
       programName: findIndex(['programname', 'programme', 'prog']),
       examDate: findIndex(['examdate', 'date']),
-      startTime: findIndex(['coursestarttime', 'starttime', 'start']),
+      startTime: findIndex(['coursestarttime', 'starttime', 'start', 'session', 'time']),
       endTime: findIndex(['courseendtime', 'endtime', 'end']),
       courseCode: findIndex(['coursecode', 'code']),
       courseName: findIndex(['coursename', 'course']),
       studentCount: findIndex(['studentcount', 'students', 'count', 'takers', 'candidates']),
-      venueId: findIndex(['venueid', 'vid'])
+      venueId: findIndex(['venueid', 'vid']),
+      email: findIndex(['collegeemail', 'email', 'emailid', 'mail', 'venueemail', 'principalemail'])
     };
   };
 
@@ -119,7 +162,7 @@ export default function ConfisectionExamReportPage() {
         const mapping = detectColumns(headers);
 
         if (mapping.courseCode === -1 && mapping.examDate === -1) {
-          throw new Error('Could not identify Course Code or Exam Date columns. Expected 13 standard Confi Section headers.');
+          throw new Error('Could not identify Course Code or Exam Date columns. Expected standard Examination Schedule headers.');
         }
 
         const parsedRecords = [];
@@ -155,6 +198,7 @@ export default function ConfisectionExamReportPage() {
           }
 
           const venueId = mapping.venueId !== -1 ? cleanDisplayField(row[mapping.venueId]) : '';
+          const collegeEmail = mapping.email !== -1 ? cleanDisplayField(row[mapping.email]) : '';
 
           parsedRecords.push({
             eventName,
@@ -169,7 +213,8 @@ export default function ConfisectionExamReportPage() {
             courseCode,
             courseName,
             studentCount,
-            venueId
+            venueId,
+            collegeEmail
           });
         }
 
@@ -183,7 +228,7 @@ export default function ConfisectionExamReportPage() {
         setCurrentPage(0);
         setStatusAlert({
           type: 'success',
-          message: `Loaded ${parsedRecords.length.toLocaleString()} schedule entries from "${file.name}". Ready for Confisection analysis.`
+          message: `Loaded ${parsedRecords.length.toLocaleString()} schedule entries from "${file.name}". Ready for Confisection & Email analysis.`
         });
       } catch (err) {
         console.error('File parsing error:', err);
@@ -206,15 +251,15 @@ export default function ConfisectionExamReportPage() {
   const handleLoadSample = () => {
     setRawRows(SAMPLE_CONFISECTION_ROWS);
     setFileMeta({
-      name: 'Center Venue Date Wise Report (Sample).xlsx',
-      size: '24.5 KB',
+      name: 'Kannur_UG_III_Sem_Exam_Schedule_Sample.xlsx',
+      size: '26.8 KB',
       rowsCount: SAMPLE_CONFISECTION_ROWS.length,
       event: 'III Sem(R) November 2026'
     });
     setCurrentPage(0);
     setStatusAlert({
       type: 'success',
-      message: `Loaded ${SAMPLE_CONFISECTION_ROWS.length} sample records from Kannur University III Sem (Regular) schedule.`
+      message: `Loaded ${SAMPLE_CONFISECTION_ROWS.length} sample records from Kannur University III Sem (Regular) schedule with official college emails.`
     });
   };
 
@@ -225,7 +270,7 @@ export default function ConfisectionExamReportPage() {
     setStatusAlert(null);
   };
 
-  // Consolidated Master Report (Unique Date + Venue + Course Code with summed student counts)
+  // Consolidated Master Report (Unique Date + Venue + Course Code with summed student counts & resolved email)
   const consolidatedRows = useMemo(() => {
     if (rawRows.length === 0) return [];
 
@@ -247,6 +292,7 @@ export default function ConfisectionExamReportPage() {
         }
         if (!item.startTime && row.startTime) item.startTime = row.startTime;
         if (!item.endTime && row.endTime) item.endTime = row.endTime;
+        if (!item.collegeEmail && row.collegeEmail) item.collegeEmail = row.collegeEmail;
       } else {
         groupMap.set(key, {
           id: idx + 1,
@@ -263,6 +309,7 @@ export default function ConfisectionExamReportPage() {
           courseCode: row.courseCode,
           courseName: row.courseName,
           studentCount: row.studentCount,
+          collegeEmail: row.collegeEmail,
           programs: row.programName ? [row.programName] : []
         });
       }
@@ -270,8 +317,11 @@ export default function ConfisectionExamReportPage() {
 
     const list = Array.from(groupMap.values()).map(item => {
       const packets = calculateQpPackets(item.studentCount, bufferRule);
+      const email = resolveCollegeEmail(item.venueCode, item.venueName, emailDirectory, item.collegeEmail);
       return {
         ...item,
+        collegeEmail: email,
+        hasEmail: Boolean(email && email.includes('@')),
         programsFormatted: item.programs.join('; '),
         programsCount: item.programs.length,
         ...packets
@@ -285,7 +335,42 @@ export default function ConfisectionExamReportPage() {
     });
 
     return list;
-  }, [rawRows, bufferRule]);
+  }, [rawRows, bufferRule, emailDirectory]);
+
+  // Venue College Email Dispatch Summary
+  const venueEmailSummaryRows = useMemo(() => {
+    if (consolidatedRows.length === 0) return [];
+    const map = new Map();
+
+    consolidatedRows.forEach(row => {
+      const vKey = row.venueCode || 'UNKNOWN';
+      if (!map.has(vKey)) {
+        map.set(vKey, {
+          venueCode: row.venueCode,
+          venueName: row.venueName,
+          centerCode: row.centerCode,
+          centerName: row.centerName,
+          collegeEmail: row.collegeEmail,
+          hasEmail: row.hasEmail,
+          totalStudents: 0,
+          totalQp: 0,
+          exams: []
+        });
+      }
+      const entry = map.get(vKey);
+      entry.totalStudents += row.studentCount;
+      entry.totalQp += row.totalQp;
+      entry.exams.push(row);
+    });
+
+    const list = Array.from(map.values()).map(v => ({
+      ...v,
+      examsCount: v.exams.length
+    }));
+
+    list.sort((a, b) => a.venueName.localeCompare(b.venueName));
+    return list;
+  }, [consolidatedRows]);
 
   // Daily Press Print Order
   const pressPrintOrderRows = useMemo(() => {
@@ -342,6 +427,7 @@ export default function ConfisectionExamReportPage() {
         groups[vKey] = {
           venueCode: row.venueCode,
           venueName: row.venueName,
+          collegeEmail: row.collegeEmail,
           centerCode: row.centerCode,
           centerName: row.centerName,
           venueId: row.venueId,
@@ -428,13 +514,26 @@ export default function ConfisectionExamReportPage() {
         const vName = String(item.venueName || '').toLowerCase();
         const date = String(item.examDate || '').toLowerCase();
         const prog = String(item.programsFormatted || item.programName || '').toLowerCase();
-        return code.includes(q) || name.includes(q) || vCode.includes(q) || vName.includes(q) || date.includes(q) || prog.includes(q);
+        const email = String(item.collegeEmail || '').toLowerCase();
+        return code.includes(q) || name.includes(q) || vCode.includes(q) || vName.includes(q) || date.includes(q) || prog.includes(q) || email.includes(q);
       }
       return true;
     };
 
     if (activeTab === 'consolidated') {
       return consolidatedRows.filter(applyCommonFilter);
+    }
+    if (activeTab === 'venue_email') {
+      return venueEmailSummaryRows.filter(item => {
+        if (selectedVenue !== 'ALL' && item.venueCode !== selectedVenue) return false;
+        if (q) {
+          const vCode = String(item.venueCode || '').toLowerCase();
+          const vName = String(item.venueName || '').toLowerCase();
+          const email = String(item.collegeEmail || '').toLowerCase();
+          return vCode.includes(q) || vName.includes(q) || email.includes(q);
+        }
+        return true;
+      });
     }
     if (activeTab === 'press_print') {
       return pressPrintOrderRows.filter(item => {
@@ -451,6 +550,7 @@ export default function ConfisectionExamReportPage() {
     }
     if (activeTab === 'course_summary') {
       return courseSummaryRows.filter(item => {
+        if (selectedDate !== 'ALL' && !item.dates.includes(selectedDate)) return false;
         if (selectedSession !== 'ALL' && item.session !== selectedSession) return false;
         if (q) {
           const code = String(item.courseCode || '').toLowerCase();
@@ -469,14 +569,18 @@ export default function ConfisectionExamReportPage() {
           const name = String(item.courseName || '').toLowerCase();
           const vCode = String(item.venueCode || '').toLowerCase();
           const vName = String(item.venueName || '').toLowerCase();
-          return code.includes(q) || name.includes(q) || vCode.includes(q) || vName.includes(q);
+          const prog = String(item.programName || '').toLowerCase();
+          const email = String(item.collegeEmail || '').toLowerCase();
+          return code.includes(q) || name.includes(q) || vCode.includes(q) || vName.includes(q) || prog.includes(q) || email.includes(q);
         }
         return true;
       });
     }
-    return [];
-  }, [activeTab, consolidatedRows, pressPrintOrderRows, courseSummaryRows, rawRows, searchQuery, selectedDate, selectedSession, selectedVenue]);
 
+    return [];
+  }, [activeTab, consolidatedRows, venueEmailSummaryRows, pressPrintOrderRows, courseSummaryRows, rawRows, searchQuery, selectedDate, selectedSession, selectedVenue]);
+
+  // Paginated view
   const paginatedRows = useMemo(() => {
     if (pageSize === 0) return currentFilteredRows;
     const start = currentPage * pageSize;
@@ -490,7 +594,8 @@ export default function ConfisectionExamReportPage() {
     const totalCandidates = consolidatedRows.reduce((sum, r) => sum + r.studentCount, 0);
     const totalQp = consolidatedRows.reduce((sum, r) => sum + r.totalQp, 0);
     const uniqueExams = consolidatedRows.length;
-    const uniqueVenues = new Set(consolidatedRows.map(r => r.venueCode)).size;
+    const uniqueVenues = venueEmailSummaryRows.length;
+    const mappedVenues = venueEmailSummaryRows.filter(v => v.hasEmail).length;
     const uniqueCourses = new Set(consolidatedRows.map(r => r.courseCode)).size;
     const uniqueDates = new Set(consolidatedRows.map(r => r.examDate)).size;
 
@@ -499,10 +604,11 @@ export default function ConfisectionExamReportPage() {
       totalQp,
       uniqueExams,
       uniqueVenues,
+      mappedVenues,
       uniqueCourses,
       uniqueDates
     };
-  }, [consolidatedRows]);
+  }, [consolidatedRows, venueEmailSummaryRows]);
 
   // Toggle packing checklist item
   const handleToggleChecklist = (itemKey) => {
@@ -512,74 +618,105 @@ export default function ConfisectionExamReportPage() {
     }));
   };
 
-  // Export to Excel with 4 sheets
+  // Copy all unique college emails to clipboard
+  const handleCopyAllEmails = () => {
+    const emails = venueEmailSummaryRows
+      .map(v => v.collegeEmail)
+      .filter(e => e && e.includes('@'));
+    const uniqueEmails = Array.from(new Set(emails));
+
+    if (uniqueEmails.length === 0) {
+      setStatusAlert({ type: 'error', message: 'No valid college email addresses found to copy.' });
+      return;
+    }
+
+    const textToCopy = uniqueEmails.join('; ');
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedNoticeToast(`Copied ${uniqueEmails.length} unique college email addresses! Ready to paste into Gmail / Outlook BCC.`);
+    setTimeout(() => setCopiedNoticeToast(null), 4000);
+  };
+
+  // Export to Excel with all 5 confidential & email dispatch sheets
   const handleExportExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
 
       // Sheet 1: Master Schedule
       const sheet1Headers = [
-        'Event Name', 'Center Code', 'Center Name', 'Venue Code', 'Venue Name', 'venueId',
+        'Event Name', 'Center Code', 'Center Name', 'Venue Code', 'Venue Name', 'College Email', 'venueId',
         'Exam Date', 'Session', 'Start Time', 'End Time', 'Course Code', 'Course Name',
         'Combined Programs', 'Student Count', 'Packets of 20', 'Packets of 10', 'Packets of 5',
         'Loose / Singles', 'Buffer Copies', 'Total QP Required'
       ];
       const sheet1Data = consolidatedRows.map(r => [
-        r.eventName, r.centerCode, r.centerName, r.venueCode, r.venueName, r.venueId,
+        r.eventName, r.centerCode, r.centerName, r.venueCode, r.venueName, r.collegeEmail, r.venueId,
         r.examDate, r.session, r.startTime, r.endTime, r.courseCode, r.courseName,
         r.programsFormatted, r.studentCount, r.p20, r.p10, r.p5, r.singles, r.buffer, r.totalQp
       ]);
       const ws1 = XLSX.utils.aoa_to_sheet([sheet1Headers, ...sheet1Data]);
-      ws1['!cols'] = sheet1Headers.map(() => ({ wch: 20 }));
+      ws1['!cols'] = sheet1Headers.map(() => ({ wch: 22 }));
       XLSX.utils.book_append_sheet(wb, ws1, 'Confi_Master_Schedule');
 
-      // Sheet 2: Daily Press Print Order
+      // Sheet 2: Venue College Email Dispatch Schedule
       const sheet2Headers = [
+        'Venue Code', 'Venue Name', 'College Official Email', 'Email Status', 'Scheduled Exams',
+        'Total Candidates', 'Total Question Papers'
+      ];
+      const sheet2Data = venueEmailSummaryRows.map(v => [
+        v.venueCode, v.venueName, v.collegeEmail, v.hasEmail ? 'Configured' : 'Missing',
+        v.examsCount, v.totalStudents, v.totalQp
+      ]);
+      const ws2 = XLSX.utils.aoa_to_sheet([sheet2Headers, ...sheet2Data]);
+      ws2['!cols'] = sheet2Headers.map(() => ({ wch: 24 }));
+      XLSX.utils.book_append_sheet(wb, ws2, 'Venue_Email_Dispatch');
+
+      // Sheet 3: Daily Press Print Order
+      const sheet3Headers = [
         'Exam Date', 'Session', 'Start Time', 'End Time', 'Course Code', 'Course Name',
         'Total Venues', 'Total Candidates', 'Total QP Print Order', 'Venues List'
       ];
-      const sheet2Data = pressPrintOrderRows.map(r => [
+      const sheet3Data = pressPrintOrderRows.map(r => [
         r.examDate, r.session, r.startTime, r.endTime, r.courseCode, r.courseName,
         r.venuesCount, r.totalStudents, r.totalQp, r.venueCodes.join(', ')
       ]);
-      const ws2 = XLSX.utils.aoa_to_sheet([sheet2Headers, ...sheet2Data]);
-      ws2['!cols'] = sheet2Headers.map(() => ({ wch: 22 }));
-      XLSX.utils.book_append_sheet(wb, ws2, 'Daily_Press_Print_Order');
+      const ws3 = XLSX.utils.aoa_to_sheet([sheet3Headers, ...sheet3Data]);
+      ws3['!cols'] = sheet3Headers.map(() => ({ wch: 22 }));
+      XLSX.utils.book_append_sheet(wb, ws3, 'Daily_Press_Print_Order');
 
-      // Sheet 3: Venue Packing Slips
-      const sheet3Headers = [
-        'Venue Code', 'Venue Name', 'Center Code', 'Exam Date', 'Session',
+      // Sheet 4: Venue Packing Slips
+      const sheet4Headers = [
+        'Venue Code', 'Venue Name', 'College Email', 'Center Code', 'Exam Date', 'Session',
         'Course Code', 'Course Name', 'Student Count', '20s', '10s', '5s', 'Singles', 'Total QP Packed'
       ];
-      const sheet3Data = [];
+      const sheet4Data = [];
       Object.values(venuePackingSlips).forEach(v => {
         v.items.forEach(item => {
-          sheet3Data.push([
-            v.venueCode, v.venueName, v.centerCode, item.examDate, item.session,
+          sheet4Data.push([
+            v.venueCode, v.venueName, v.collegeEmail, v.centerCode, item.examDate, item.session,
             item.courseCode, item.courseName, item.studentCount, item.p20, item.p10, item.p5, item.singles, item.totalQp
           ]);
         });
       });
-      const ws3 = XLSX.utils.aoa_to_sheet([sheet3Headers, ...sheet3Data]);
-      ws3['!cols'] = sheet3Headers.map(() => ({ wch: 18 }));
-      XLSX.utils.book_append_sheet(wb, ws3, 'Venue_Packing_Slips');
+      const ws4 = XLSX.utils.aoa_to_sheet([sheet4Headers, ...sheet4Data]);
+      ws4['!cols'] = sheet4Headers.map(() => ({ wch: 20 }));
+      XLSX.utils.book_append_sheet(wb, ws4, 'Venue_Packing_Slips');
 
-      // Sheet 4: Course Master Summary
-      const sheet4Headers = [
+      // Sheet 5: Course Master Summary
+      const sheet5Headers = [
         'Course Code', 'Course Name', 'Scheduled Dates', 'Session',
         'Total Venues', 'Total Candidates', 'Total QP Needed'
       ];
-      const sheet4Data = courseSummaryRows.map(r => [
+      const sheet5Data = courseSummaryRows.map(r => [
         r.courseCode, r.courseName, r.datesFormatted, r.session,
         r.venueCount, r.totalStudents, r.totalQp
       ]);
-      const ws4 = XLSX.utils.aoa_to_sheet([sheet4Headers, ...sheet4Data]);
-      ws4['!cols'] = sheet4Headers.map(() => ({ wch: 22 }));
-      XLSX.utils.book_append_sheet(wb, ws4, 'Course_Master_Summary');
+      const ws5 = XLSX.utils.aoa_to_sheet([sheet5Headers, ...sheet5Data]);
+      ws5['!cols'] = sheet5Headers.map(() => ({ wch: 22 }));
+      XLSX.utils.book_append_sheet(wb, ws5, 'Course_Master_Summary');
 
       const outName = `Confisection_Exam_Report_${fileMeta?.event ? fileMeta.event.replace(/[^a-zA-Z0-9]/g, '_') : 'Schedule'}.xlsx`;
       XLSX.writeFile(wb, outName);
-      setStatusAlert({ type: 'success', message: `Downloaded ${outName} with all 4 confidential reports!` });
+      setStatusAlert({ type: 'success', message: `Downloaded ${outName} with all 5 confidential section & email dispatch reports!` });
     } catch (err) {
       console.error('Export error:', err);
       setStatusAlert({ type: 'error', message: `Export failed: ${err.message}` });
@@ -598,294 +735,376 @@ export default function ConfisectionExamReportPage() {
     ]);
     ws['!cols'] = CONFIDENTIAL_SECTION_COLUMNS.map(() => ({ wch: 22 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Confisection_Template');
+    XLSX.utils.book_append_sheet(wb, ws, 'Confi_Template');
     XLSX.writeFile(wb, 'Confisection_Exam_Source_Template.xlsx');
   };
 
+  // College Directory Management Handlers
+  const handleAddCollegeToDirectory = (e) => {
+    e.preventDefault();
+    if (!newCollegeForm.code || !newCollegeForm.email) {
+      setStatusAlert({ type: 'error', message: 'College Code and Email are required.' });
+      return;
+    }
+
+    if (editingCollegeIndex !== null) {
+      const updated = [...emailDirectory];
+      updated[editingCollegeIndex] = { ...newCollegeForm };
+      saveEmailDirectory(updated);
+      setEditingCollegeIndex(null);
+      setStatusAlert({ type: 'success', message: `Updated email for ${newCollegeForm.name || newCollegeForm.code}` });
+    } else {
+      const updated = [...emailDirectory, { ...newCollegeForm }];
+      saveEmailDirectory(updated);
+      setStatusAlert({ type: 'success', message: `Added ${newCollegeForm.name || newCollegeForm.code} to directory` });
+    }
+
+    setNewCollegeForm({ code: '', name: '', email: '' });
+  };
+
+  const handleEditCollege = (idx) => {
+    setEditingCollegeIndex(idx);
+    setNewCollegeForm({ ...emailDirectory[idx] });
+  };
+
+  const handleDeleteCollege = (idx) => {
+    const item = emailDirectory[idx];
+    if (window.confirm(`Remove ${item.name || item.code} from directory?`)) {
+      const updated = emailDirectory.filter((_, i) => i !== idx);
+      saveEmailDirectory(updated);
+      setStatusAlert({ type: 'info', message: `Removed college from directory.` });
+    }
+  };
+
+  const handleResetDirectoryToDefault = () => {
+    if (window.confirm('Reset College Email Directory to official Kannur University defaults?')) {
+      saveEmailDirectory(DEFAULT_COLLEGE_EMAILS);
+      setStatusAlert({ type: 'success', message: 'Reset email directory to official Kannur University defaults.' });
+    }
+  };
+
   return (
-    <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 32px 80px', color: 'var(--ink)' }}>
-      {/* Top Navigation Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-        <button
-          onClick={() => navigate('/')}
-          className="secondary"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', fontSize: '13px' }}
-        >
-          <ArrowLeft size={16} /> Back to Dashboard
-        </button>
-
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="secondary"
-            onClick={handleLoadSample}
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              fontSize: '13px', 
-              background: 'var(--accent-soft)', 
-              color: 'var(--accent)', 
-              borderColor: 'var(--accent)' 
-            }}
-          >
-            <Sparkles size={14} /> Load Kannur Sample Data
-          </button>
-
-          <button
-            type="button"
-            className="secondary"
-            onClick={handleDownloadTemplate}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
-          >
-            <FileSpreadsheet size={14} /> 13-Col Template
-          </button>
-
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => window.print()}
-            disabled={consolidatedRows.length === 0}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
-          >
-            <Printer size={14} /> Print Slips
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={consolidatedRows.length === 0}
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              fontSize: '13px',
-              background: '#059669',
-              color: 'white'
-            }}
-          >
-            <Download size={14} /> Export Report (.xlsx)
-          </button>
-
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => setShowGuideModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
-          >
-            <HelpCircle size={14} /> Logic &amp; Guide
-          </button>
+    <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px 20px', minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)' }}>
+      {/* Toast Alert for Copied text */}
+      {copiedNoticeToast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '24px',
+          zIndex: 9999,
+          background: 'var(--ink)',
+          color: 'var(--bg)',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+          fontSize: '13px',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <CheckCircle2 size={18} color="#10b981" />
+          <span>{copiedNoticeToast}</span>
         </div>
-      </div>
+      )}
 
-      {/* Page Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-          <div style={{ 
-            background: 'rgba(225, 29, 72, 0.12)', 
-            padding: '10px', 
-            borderRadius: '10px', 
-            color: '#e11d48',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <ShieldCheck size={28} />
-          </div>
+      {/* Top Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', fontSize: '13px' }}
+          >
+            <ArrowLeft size={16} /> Home
+          </button>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '26px', fontWeight: 800, margin: 0, color: 'var(--ink)' }}>
-                Confisection Exam Report
-              </h1>
-              <span style={{ 
-                fontSize: '11px', 
-                fontWeight: 700, 
-                textTransform: 'uppercase', 
-                letterSpacing: '0.5px',
-                padding: '3px 8px', 
-                borderRadius: '6px', 
-                background: 'rgba(225, 29, 72, 0.1)', 
-                color: '#e11d48',
-                border: '1px solid rgba(225, 29, 72, 0.25)'
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #e11d48, #be123c)',
+                color: 'white',
+                padding: '6px',
+                borderRadius: '8px',
+                display: 'inline-flex'
               }}>
-                Confidential Section
-              </span>
+                <ShieldCheck size={20} />
+              </div>
+              <h1 style={{ fontSize: '22px', fontWeight: 800, margin: 0, letterSpacing: '-0.3px', color: 'var(--ink)' }}>
+                Confisection Exam &amp; Venue College Dispatch Report
+              </h1>
             </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '13.5px', color: 'var(--muted)' }}>
-              Ingest 13-column examination schedules to aggregate cross-programme enrollment, calculate confidential QP printing press quotas, and prepare sealed venue dispatch checklists.
+            <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: 'var(--muted)' }}>
+              All-in-one Confidential Section Studio: Question paper packet math (20s/10s/5s), daily press orders, cross-programme student aggregates, and college email dispatch schedules.
             </p>
           </div>
         </div>
-      </div>
 
-      {/* File Upload Zone */}
-      <div className="card" style={{ padding: '22px', border: '1.5px dashed var(--line)', background: 'var(--panel)', marginBottom: '22px', borderRadius: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'var(--accent-soft)', padding: '8px', borderRadius: '8px', color: 'var(--accent)' }}>
-              <FileSpreadsheet size={20} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>
-                Upload Center Venue Date Wise Schedule
-              </h3>
-              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                Expects standard 13 headers: Event Name, Center Code/Name, Venue Code/Name, Program Name, Exam Date, Times, Course Code/Name, Student Count, venueId
-              </span>
-            </div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setShowEmailDirectoryModal(true)}
+            className="secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '13px' }}
+            title="Manage official college emails"
+          >
+            <Mail size={15} color="var(--accent)" /> College Email Directory ({emailDirectory.length})
+          </button>
 
-          {fileMeta && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ 
-                padding: '4px 10px', 
-                borderRadius: '6px', 
-                fontSize: '12px', 
-                fontWeight: 600, 
-                background: 'rgba(5, 150, 105, 0.1)', 
-                color: '#059669',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <CheckCircle2 size={13} /> {fileMeta.name} ({fileMeta.rowsCount.toLocaleString()} rows)
-              </span>
+          <button
+            type="button"
+            onClick={() => setShowGuideModal(true)}
+            className="secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '13px' }}
+          >
+            <HelpCircle size={15} /> Logic &amp; Guide
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadTemplate}
+            className="secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '13px' }}
+          >
+            <FileSpreadsheet size={15} /> Template (.xlsx)
+          </button>
+
+          {consolidatedRows.length > 0 && (
+            <>
               <button
                 type="button"
-                onClick={handleClearData}
-                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px' }}
-                title="Clear current file"
+                onClick={() => window.print()}
+                className="secondary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '13px' }}
               >
-                <X size={15} />
+                <Printer size={15} /> Print View
               </button>
-            </div>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '13px', background: '#e11d48', borderColor: '#e11d48' }}
+              >
+                <Download size={15} /> Export Report (.xlsx)
+              </button>
+            </>
           )}
-        </div>
-
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-          accept=".xlsx,.xls,.csv"
-          style={{ display: 'none' }}
-        />
-
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          style={{
-            border: '2px dashed var(--accent)',
-            borderRadius: '10px',
-            padding: '28px 20px',
-            textAlign: 'center',
-            cursor: 'pointer',
-            background: 'var(--bg)',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <Upload size={28} color="var(--accent)" style={{ margin: '0 auto 8px' }} />
-          <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
-            {fileMeta ? 'Click to replace or upload another schedule file' : 'Click to Upload Examination Schedule (.xlsx, .xls, .csv)'}
-          </p>
-          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-            Drop in your "Center Venue Date Wise Report" export directly from the university examination portal
-          </span>
         </div>
       </div>
 
-      {/* Status Feedback Banner */}
+      {/* Status Notifications */}
       {statusAlert && (
         <div style={{
-          padding: '12px 18px',
+          padding: '12px 16px',
           borderRadius: '8px',
+          marginBottom: '20px',
           fontSize: '13px',
-          marginBottom: '22px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '10px',
-          background: statusAlert.type === 'error' ? 'rgba(239, 68, 68, 0.08)' : statusAlert.type === 'success' ? 'rgba(16, 185, 129, 0.08)' : 'var(--accent-soft)',
-          color: statusAlert.type === 'error' ? '#ef4444' : statusAlert.type === 'success' ? '#059669' : 'var(--accent)',
-          border: `1px solid ${statusAlert.type === 'error' ? '#ef444433' : statusAlert.type === 'success' ? '#10b98133' : 'var(--accent)'}`
+          background: statusAlert.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : statusAlert.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'var(--panel)',
+          border: `1px solid ${statusAlert.type === 'error' ? 'rgba(239, 68, 68, 0.3)' : statusAlert.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'var(--line)'}`,
+          color: statusAlert.type === 'error' ? '#dc2626' : statusAlert.type === 'success' ? '#059669' : 'var(--ink)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {statusAlert.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
             <span>{statusAlert.message}</span>
           </div>
           <button
+            type="button"
             onClick={() => setStatusAlert(null)}
-            style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit' }}
           >
-            <X size={15} />
+            <X size={14} />
           </button>
         </div>
       )}
 
-      {/* KPI Metric Cards */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-        gap: '16px', 
-        marginBottom: '24px' 
+      {/* Ingestion & Config Card */}
+      <div className="card" style={{ padding: '20px', marginBottom: '20px', border: '1px solid var(--line)', background: 'var(--panel)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          {/* File Upload Zone */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".xlsx,.xls,.csv"
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isProcessing}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                fontSize: '13px',
+                fontWeight: 700,
+                borderRadius: '8px',
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <Upload size={16} />
+              {isProcessing ? 'Processing File...' : 'Upload Examination Schedule'}
+            </button>
+
+            <span style={{ fontSize: '13px', color: 'var(--muted)' }}>or</span>
+
+            <button
+              type="button"
+              onClick={handleLoadSample}
+              className="secondary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 14px', fontSize: '13px' }}
+            >
+              <Sparkles size={15} color="#e11d48" /> Load Kannur Sample Data
+            </button>
+
+            {rawRows.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearData}
+                className="secondary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 14px', fontSize: '13px', color: 'var(--muted)' }}
+              >
+                <RefreshCw size={14} /> Clear
+              </button>
+            )}
+          </div>
+
+          {/* Buffer Rule Policy Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <SlidersHorizontal size={14} /> Buffer Reserve Policy:
+            </span>
+            <select
+              value={bufferRule}
+              onChange={(e) => setBufferRule(e.target.value)}
+              style={{
+                fontSize: '13px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <option value="plus1">+1 Copy / Venue (+1 Buffer)</option>
+              <option value="plus2">+2 Copies / Venue (+2 Buffer)</option>
+              <option value="five_percent">+5% Reserve (Min 1)</option>
+              <option value="none">Exact Count (No Buffer)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* File Metadata Chip */}
+        {fileMeta && (
+          <div style={{
+            marginTop: '16px',
+            paddingTop: '14px',
+            borderTop: '1px solid var(--line)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            fontSize: '12.5px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileSpreadsheet size={16} color="var(--accent)" />
+              <strong style={{ color: 'var(--ink)' }}>{fileMeta.name}</strong>
+              <span style={{ color: 'var(--muted)' }}>({fileMeta.size})</span>
+              <span style={{
+                background: 'var(--accent-soft)',
+                color: 'var(--accent)',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontWeight: 700,
+                fontSize: '11px'
+              }}>
+                {fileMeta.event}
+              </span>
+            </div>
+            <div style={{ color: 'var(--muted)' }}>
+              Source records: <strong style={{ color: 'var(--ink)' }}>{fileMeta.rowsCount.toLocaleString()}</strong> rows
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* KPI Stat Cards */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '14px',
+        marginBottom: '20px'
       }}>
-        {/* Total Candidates */}
-        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #e11d48' }}>
+        {/* Candidates */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid var(--accent)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Total Candidates
             </span>
-            <Users size={18} color="#e11d48" />
+            <Users size={18} color="var(--accent)" />
           </div>
           <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
             {summaryStats.totalCandidates.toLocaleString()}
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Sum of registered students</span>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Sum of all registrations</span>
         </div>
 
-        {/* Total QP Print Order */}
-        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #059669' }}>
+        {/* Question Papers */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #e11d48' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Total QP Required
             </span>
-            <PackageCheck size={18} color="#059669" />
+            <ShieldCheck size={18} color="#e11d48" />
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: '#e11d48' }}>
             {summaryStats.totalQp.toLocaleString()}
           </div>
-          <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>
-            Includes buffer reserve ({bufferRule === 'none' ? 'Exact' : bufferRule})
-          </span>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Includes {bufferRule} buffer</span>
         </div>
 
         {/* Unique Exams */}
-        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid var(--accent)' }}>
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #7c3aed' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Unique Exams
             </span>
-            <Layers size={18} color="var(--accent)" />
+            <Calendar size={18} color="#7c3aed" />
           </div>
           <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
             {summaryStats.uniqueExams.toLocaleString()}
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Distinct Date-Venue-Course slots</span>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Date + Venue + Course</span>
         </div>
 
-        {/* Venues */}
-        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #6366f1' }}>
+        {/* Colleges / Venues & Emails */}
+        <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #059669' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Colleges / Venues
+              Colleges &amp; Emails
             </span>
-            <Building2 size={18} color="#6366f1" />
+            <Mail size={18} color="#059669" />
           </div>
           <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
             {summaryStats.uniqueVenues}
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Examination dispatch points</span>
+          <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>
+            {summaryStats.mappedVenues} of {summaryStats.uniqueVenues} mapped with email ({summaryStats.uniqueVenues > 0 ? Math.round((summaryStats.mappedVenues / summaryStats.uniqueVenues) * 100) : 0}%)
+          </span>
         </div>
 
-        {/* Courses */}
+        {/* Distinct Courses */}
         <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #d97706' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -896,7 +1115,7 @@ export default function ConfisectionExamReportPage() {
           <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)' }}>
             {summaryStats.uniqueCourses}
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Unique course subjects</span>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Distinct subject papers</span>
         </div>
 
         {/* Scheduled Dates */}
@@ -925,6 +1144,7 @@ export default function ConfisectionExamReportPage() {
           overflowX: 'auto',
           gap: '6px'
         }}>
+          {/* 1. Master Schedule */}
           <button
             type="button"
             onClick={() => { setActiveTab('consolidated'); setCurrentPage(0); }}
@@ -958,6 +1178,41 @@ export default function ConfisectionExamReportPage() {
             </span>
           </button>
 
+          {/* 2. Venue College Email Dispatch */}
+          <button
+            type="button"
+            onClick={() => { setActiveTab('venue_email'); setCurrentPage(0); }}
+            style={{
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: activeTab === 'venue_email' ? 'var(--panel)' : 'transparent',
+              color: activeTab === 'venue_email' ? '#059669' : 'var(--muted)',
+              border: 'none',
+              borderBottom: activeTab === 'venue_email' ? '3px solid #059669' : '3px solid transparent',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Mail size={16} color={activeTab === 'venue_email' ? '#059669' : 'var(--muted)'} />
+            College Email Dispatch
+            <span style={{ 
+              padding: '2px 7px', 
+              borderRadius: '10px', 
+              fontSize: '11px', 
+              fontWeight: 700,
+              background: activeTab === 'venue_email' ? 'rgba(5, 150, 105, 0.15)' : 'var(--line)',
+              color: activeTab === 'venue_email' ? '#059669' : 'var(--muted)'
+            }}>
+              {venueEmailSummaryRows.length}
+            </span>
+          </button>
+
+          {/* 3. Daily Press Print Order */}
           <button
             type="button"
             onClick={() => { setActiveTab('press_print'); setCurrentPage(0); }}
@@ -966,9 +1221,9 @@ export default function ConfisectionExamReportPage() {
               fontSize: '13px',
               fontWeight: 700,
               background: activeTab === 'press_print' ? 'var(--panel)' : 'transparent',
-              color: activeTab === 'press_print' ? 'var(--accent)' : 'var(--muted)',
+              color: activeTab === 'press_print' ? '#e11d48' : 'var(--muted)',
               border: 'none',
-              borderBottom: activeTab === 'press_print' ? '3px solid var(--accent)' : '3px solid transparent',
+              borderBottom: activeTab === 'press_print' ? '3px solid #e11d48' : '3px solid transparent',
               borderRadius: '6px 6px 0 0',
               cursor: 'pointer',
               display: 'inline-flex',
@@ -977,20 +1232,21 @@ export default function ConfisectionExamReportPage() {
               whiteSpace: 'nowrap'
             }}
           >
-            <Printer size={16} />
+            <Printer size={16} color={activeTab === 'press_print' ? '#e11d48' : 'var(--muted)'} />
             Daily Press Print Order
             <span style={{ 
               padding: '2px 7px', 
               borderRadius: '10px', 
               fontSize: '11px', 
               fontWeight: 700,
-              background: activeTab === 'press_print' ? 'var(--accent-soft)' : 'var(--line)',
-              color: activeTab === 'press_print' ? 'var(--accent)' : 'var(--muted)'
+              background: activeTab === 'press_print' ? 'rgba(225, 29, 72, 0.15)' : 'var(--line)',
+              color: activeTab === 'press_print' ? '#e11d48' : 'var(--muted)'
             }}>
               {pressPrintOrderRows.length}
             </span>
           </button>
 
+          {/* 4. Venue Packing Slips */}
           <button
             type="button"
             onClick={() => { setActiveTab('venue_packing'); setCurrentPage(0); }}
@@ -999,9 +1255,9 @@ export default function ConfisectionExamReportPage() {
               fontSize: '13px',
               fontWeight: 700,
               background: activeTab === 'venue_packing' ? 'var(--panel)' : 'transparent',
-              color: activeTab === 'venue_packing' ? 'var(--accent)' : 'var(--muted)',
+              color: activeTab === 'venue_packing' ? '#7c3aed' : 'var(--muted)',
               border: 'none',
-              borderBottom: activeTab === 'venue_packing' ? '3px solid var(--accent)' : '3px solid transparent',
+              borderBottom: activeTab === 'venue_packing' ? '3px solid #7c3aed' : '3px solid transparent',
               borderRadius: '6px 6px 0 0',
               cursor: 'pointer',
               display: 'inline-flex',
@@ -1010,20 +1266,21 @@ export default function ConfisectionExamReportPage() {
               whiteSpace: 'nowrap'
             }}
           >
-            <Building2 size={16} />
-            Venue Packing Slips
+            <ClipboardList size={16} color={activeTab === 'venue_packing' ? '#7c3aed' : 'var(--muted)'} />
+            Venue Packing Slips &amp; Checklist
             <span style={{ 
               padding: '2px 7px', 
               borderRadius: '10px', 
               fontSize: '11px', 
               fontWeight: 700,
-              background: activeTab === 'venue_packing' ? 'var(--accent-soft)' : 'var(--line)',
-              color: activeTab === 'venue_packing' ? 'var(--accent)' : 'var(--muted)'
+              background: activeTab === 'venue_packing' ? 'rgba(124, 58, 237, 0.15)' : 'var(--line)',
+              color: activeTab === 'venue_packing' ? '#7c3aed' : 'var(--muted)'
             }}>
-              {Object.keys(venuePackingSlips).length} Venues
+              {Object.keys(venuePackingSlips).length}
             </span>
           </button>
 
+          {/* 5. Course Master Summary */}
           <button
             type="button"
             onClick={() => { setActiveTab('course_summary'); setCurrentPage(0); }}
@@ -1032,9 +1289,9 @@ export default function ConfisectionExamReportPage() {
               fontSize: '13px',
               fontWeight: 700,
               background: activeTab === 'course_summary' ? 'var(--panel)' : 'transparent',
-              color: activeTab === 'course_summary' ? 'var(--accent)' : 'var(--muted)',
+              color: activeTab === 'course_summary' ? '#d97706' : 'var(--muted)',
               border: 'none',
-              borderBottom: activeTab === 'course_summary' ? '3px solid var(--accent)' : '3px solid transparent',
+              borderBottom: activeTab === 'course_summary' ? '3px solid #d97706' : '3px solid transparent',
               borderRadius: '6px 6px 0 0',
               cursor: 'pointer',
               display: 'inline-flex',
@@ -1043,20 +1300,21 @@ export default function ConfisectionExamReportPage() {
               whiteSpace: 'nowrap'
             }}
           >
-            <BookOpen size={16} />
+            <BookOpen size={16} color={activeTab === 'course_summary' ? '#d97706' : 'var(--muted)'} />
             Course Master Summary
             <span style={{ 
               padding: '2px 7px', 
               borderRadius: '10px', 
               fontSize: '11px', 
               fontWeight: 700,
-              background: activeTab === 'course_summary' ? 'var(--accent-soft)' : 'var(--line)',
-              color: activeTab === 'course_summary' ? 'var(--accent)' : 'var(--muted)'
+              background: activeTab === 'course_summary' ? 'rgba(217, 119, 6, 0.15)' : 'var(--line)',
+              color: activeTab === 'course_summary' ? '#d97706' : 'var(--muted)'
             }}>
               {courseSummaryRows.length}
             </span>
           </button>
 
+          {/* 6. Raw Source Rows */}
           <button
             type="button"
             onClick={() => { setActiveTab('raw'); setCurrentPage(0); }}
@@ -1076,8 +1334,8 @@ export default function ConfisectionExamReportPage() {
               whiteSpace: 'nowrap'
             }}
           >
-            <FileText size={16} />
-            Raw Rows
+            <FileSpreadsheet size={16} />
+            Raw Source Rows
             <span style={{ 
               padding: '2px 7px', 
               borderRadius: '10px', 
@@ -1091,133 +1349,130 @@ export default function ConfisectionExamReportPage() {
           </button>
         </div>
 
-        {/* Filter Controls Toolbar */}
-        <div style={{ 
-          padding: '14px 20px', 
-          background: 'var(--panel)', 
-          borderBottom: '1px solid var(--line)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          flexWrap: 'wrap', 
-          gap: '12px' 
+        {/* Filter & Search Bar */}
+        <div style={{
+          padding: '14px 20px',
+          background: 'var(--panel)',
+          borderBottom: '1px solid var(--line)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1 }}>
-            {/* Live Search */}
-            <div style={{ position: 'relative', width: '280px' }}>
+          {/* Search Box */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 280px', maxWidth: '420px' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
               <input
                 type="text"
+                placeholder={activeTab === 'venue_email' ? 'Search venue code, name, or college email...' : 'Search course code, subject, college, email...'}
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
-                placeholder="Search code, course, venue, date..."
                 style={{
                   width: '100%',
-                  padding: '7px 28px 7px 32px',
-                  fontSize: '13px',
+                  padding: '7px 12px 7px 32px',
                   borderRadius: '6px',
                   border: '1px solid var(--line)',
                   background: 'var(--bg)',
-                  color: 'var(--ink)'
+                  color: 'var(--ink)',
+                  fontSize: '13px'
                 }}
               />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  style={{
-                    position: 'absolute',
-                    right: '8px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--muted)',
-                    cursor: 'pointer',
-                    padding: '2px'
-                  }}
-                >
-                  <X size={14} />
-                </button>
-              )}
             </div>
-
-            {/* Date Filter */}
-            <select
-              value={selectedDate}
-              onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(0); }}
-              style={{ fontSize: '13px', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
-            >
-              <option value="ALL">All Exam Dates ({filterOptions.dates.length})</option>
-              {filterOptions.dates.map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-
-            {/* Session Filter */}
-            <select
-              value={selectedSession}
-              onChange={(e) => { setSelectedSession(e.target.value); setCurrentPage(0); }}
-              style={{ fontSize: '13px', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
-            >
-              <option value="ALL">All Sessions</option>
-              <option value="FN">Forenoon (FN)</option>
-              <option value="AN">Afternoon (AN)</option>
-            </select>
-
-            {/* Venue Filter */}
-            {activeTab !== 'press_print' && activeTab !== 'course_summary' && (
-              <select
-                value={selectedVenue}
-                onChange={(e) => { setSelectedVenue(e.target.value); setCurrentPage(0); }}
-                style={{ fontSize: '13px', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)', maxWidth: '240px' }}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--muted)' }}
               >
-                <option value="ALL">All Venues ({filterOptions.venues.length})</option>
-                {filterOptions.venues.map(v => (
-                  <option key={v.code} value={v.code}>{v.code} - {v.name}</option>
-                ))}
-              </select>
+                <X size={14} />
+              </button>
             )}
           </div>
 
-          {/* Buffer Policy Selector & Page Size */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              padding: '5px 10px', 
-              borderRadius: '6px', 
-              background: 'rgba(225, 29, 72, 0.08)', 
-              border: '1px solid rgba(225, 29, 72, 0.25)',
-              fontSize: '12px'
-            }}>
-              <span style={{ fontWeight: 700, color: '#e11d48' }}>Buffer Policy:</span>
-              <select
-                value={bufferRule}
-                onChange={(e) => setBufferRule(e.target.value)}
-                style={{ 
-                  background: 'transparent', 
-                  border: 'none', 
-                  fontSize: '12px', 
-                  fontWeight: 600, 
-                  color: 'var(--ink)', 
-                  cursor: 'pointer',
-                  padding: 0
+          {/* Filters & Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Batch Copy All Emails in venue_email tab */}
+            {activeTab === 'venue_email' && (
+              <button
+                type="button"
+                onClick={handleCopyAllEmails}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  background: '#059669',
+                  color: 'white',
+                  border: 'none',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
                 }}
+                title="Copy all college emails separated by semicolons"
               >
-                <option value="plus1">+1 Copy / Venue (Standard Confi)</option>
-                <option value="plus2">+2 Copies / Venue (High Reserve)</option>
-                <option value="five_percent">+5% Reserve</option>
-                <option value="none">Exact Count (0 Buffer)</option>
-              </select>
-            </div>
+                <Copy size={14} /> Copy All College Emails ({summaryStats.mappedVenues})
+              </button>
+            )}
 
+            {/* Date Filter */}
+            {activeTab !== 'course_summary' && filterOptions.dates.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Date:</span>
+                <select
+                  value={selectedDate}
+                  onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(0); }}
+                  style={{ fontSize: '12.5px', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
+                >
+                  <option value="ALL">All Dates ({filterOptions.dates.length})</option>
+                  {filterOptions.dates.map((d, idx) => (
+                    <option key={idx} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Session Filter */}
+            {activeTab !== 'venue_email' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Session:</span>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => { setSelectedSession(e.target.value); setCurrentPage(0); }}
+                  style={{ fontSize: '12.5px', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
+                >
+                  <option value="ALL">All Sessions</option>
+                  <option value="FN">FN (Forenoon / Morning)</option>
+                  <option value="AN">AN (Afternoon / Evening)</option>
+                </select>
+              </div>
+            )}
+
+            {/* Venue Filter */}
+            {activeTab !== 'press_print' && activeTab !== 'course_summary' && filterOptions.venues.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>College:</span>
+                <select
+                  value={selectedVenue}
+                  onChange={(e) => { setSelectedVenue(e.target.value); setCurrentPage(0); }}
+                  style={{ fontSize: '12.5px', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)', maxWidth: '180px' }}
+                >
+                  <option value="ALL">All Colleges ({filterOptions.venues.length})</option>
+                  {filterOptions.venues.map((v, idx) => (
+                    <option key={idx} value={v.code}>{v.name} ({v.code})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Page Size */}
             {activeTab !== 'venue_packing' && (
               <select
                 value={pageSize}
                 onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
-                style={{ fontSize: '13px', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
+                style={{ fontSize: '12.5px', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)' }}
               >
                 <option value={25}>25 rows</option>
                 <option value={50}>50 rows</option>
@@ -1228,9 +1483,10 @@ export default function ConfisectionExamReportPage() {
           </div>
         </div>
 
-        {/* Content Body */}
-        {activeTab === 'venue_packing' ? (
-          /* Card-based Venue Packing Slips */
+        {/* Content Body: Depending on Active Tab */}
+
+        {/* Tab 1: Venue Packing Slips View */}
+        {activeTab === 'venue_packing' && (
           <div style={{ padding: '24px', maxHeight: '70vh', overflowY: 'auto' }}>
             {Object.keys(venuePackingSlips).length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
@@ -1281,9 +1537,20 @@ export default function ConfisectionExamReportPage() {
                             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>
                               {venueGroup.venueName}
                             </h3>
-                            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                              Center Code: {venueGroup.centerCode} ({venueGroup.centerName || 'Main'}) • Venue ID: {venueGroup.venueId || '—'}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px', fontSize: '12px', color: 'var(--muted)' }}>
+                              <span>Center: {venueGroup.centerCode} ({venueGroup.centerName || 'Main'})</span>
+                              <span>•</span>
+                              {venueGroup.collegeEmail ? (
+                                <a 
+                                  href={`mailto:${venueGroup.collegeEmail}`}
+                                  style={{ color: '#059669', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                  <Mail size={12} /> {venueGroup.collegeEmail}
+                                </a>
+                              ) : (
+                                <span style={{ color: '#dc2626' }}>No Email Configured</span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -1348,43 +1615,63 @@ export default function ConfisectionExamReportPage() {
                                       title="Mark as sealed and packed in venue parcel"
                                     />
                                   </td>
-                                  <td style={{ padding: '10px 14px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                  <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
                                     {item.examDate}
                                   </td>
-                                  <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                                    <span style={{ 
-                                      padding: '3px 8px', 
-                                      borderRadius: '4px', 
-                                      fontSize: '11px', 
+                                  <td style={{ padding: '10px 14px' }}>
+                                    <span style={{
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '11px',
                                       fontWeight: 700,
-                                      background: item.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                      color: item.session === 'FN' ? '#0284c7' : '#6366f1'
+                                      background: item.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(217, 119, 6, 0.1)',
+                                      color: item.session === 'FN' ? '#0284c7' : '#d97706',
+                                      marginRight: '6px'
                                     }}>
-                                      {item.session} ({item.startTime})
+                                      {item.session}
+                                    </span>
+                                    <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                                      {item.startTime || '—'} - {item.endTime || '—'}
                                     </span>
                                   </td>
-                                  <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)' }}>
+                                  <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--ink)' }}>
                                     {item.courseCode}
                                   </td>
-                                  <td style={{ padding: '10px 14px', fontWeight: 500, color: 'var(--ink)' }}>
+                                  <td style={{ padding: '10px 14px', maxWidth: '280px', color: 'var(--ink)' }}>
                                     {item.courseName}
                                   </td>
-                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800 }}>
+                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700 }}>
                                     {item.studentCount}
                                   </td>
-                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace' }}>
-                                    {item.p20 > 0 ? <strong style={{ color: '#059669' }}>{item.p20}</strong> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                                    {item.p20 > 0 ? (
+                                      <span style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(23, 107, 135, 0.1)', color: 'var(--accent)', fontWeight: 700 }}>
+                                        {item.p20} pkts
+                                      </span>
+                                    ) : '—'}
                                   </td>
-                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace' }}>
-                                    {item.p10 > 0 ? <strong style={{ color: '#0d9488' }}>{item.p10}</strong> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                                    {item.p10 > 0 ? (
+                                      <span style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', fontWeight: 700 }}>
+                                        {item.p10} pkts
+                                      </span>
+                                    ) : '—'}
                                   </td>
-                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace' }}>
-                                    {item.p5 > 0 ? <strong style={{ color: '#0284c7' }}>{item.p5}</strong> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                                    {item.p5 > 0 ? (
+                                      <span style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', fontWeight: 700 }}>
+                                        {item.p5} pkts
+                                      </span>
+                                    ) : '—'}
                                   </td>
-                                  <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace' }}>
-                                    {item.singles > 0 ? <strong style={{ color: '#d97706' }}>{item.singles}</strong> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                                    {item.singles > 0 || item.buffer > 0 ? (
+                                      <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                                        {item.singles} loose {item.buffer > 0 && `(+${item.buffer} buf)`}
+                                      </span>
+                                    ) : '—'}
                                   </td>
-                                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#059669', fontSize: '13px' }}>
+                                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: isPacked ? '#059669' : 'var(--ink)' }}>
                                     {item.totalQp}
                                   </td>
                                 </tr>
@@ -1398,71 +1685,199 @@ export default function ConfisectionExamReportPage() {
               </div>
             )}
           </div>
-        ) : (
-          /* Standard High-Performance Data Tables */
-          <div style={{ overflowX: 'auto', maxHeight: '68vh' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ 
-                  background: 'var(--bg)', 
-                  borderBottom: '1.5px solid var(--line)', 
-                  color: 'var(--muted)', 
-                  fontSize: '11px', 
-                  textTransform: 'uppercase',
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 10
-                }}>
-                  <th style={{ padding: '12px 14px', width: '45px', textAlign: 'center' }}>#</th>
+        )}
 
+        {/* Tab 2: College Email Dispatch View */}
+        {activeTab === 'venue_email' && (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <th style={{ padding: '12px 16px' }}>Venue Code</th>
+                  <th style={{ padding: '12px 16px' }}>College / Center Name</th>
+                  <th style={{ padding: '12px 16px' }}>Official College Email</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Scheduled Exams</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Total Candidates</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center' }}>Total QP Copies</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
+                      No college venues match your search criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedRows.map((venue, idx) => (
+                    <tr 
+                      key={idx} 
+                      style={{ 
+                        borderBottom: '1px solid var(--line)',
+                        background: idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)'
+                      }}
+                    >
+                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent)' }}>
+                        {venue.venueCode}
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{venue.venueName}</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Center Code: {venue.centerCode || 'Main'}</div>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        {venue.hasEmail ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <a 
+                              href={`mailto:${venue.collegeEmail}?subject=${encodeURIComponent(`Kannur University Examinations - ${fileMeta?.event || 'Question Paper Schedule'}`)}`}
+                              style={{ 
+                                color: '#059669', 
+                                textDecoration: 'none', 
+                                fontFamily: 'monospace', 
+                                fontSize: '12.5px',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <Mail size={13} /> {venue.collegeEmail}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(venue.collegeEmail);
+                                setCopiedNoticeToast(`Copied ${venue.collegeEmail}`);
+                                setTimeout(() => setCopiedNoticeToast(null), 2500);
+                              }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--muted)' }}
+                              title="Copy email address"
+                            >
+                              <Copy size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewCollegeForm({ code: venue.venueCode, name: venue.venueName, email: '' });
+                              setShowEmailDirectoryModal(true);
+                            }}
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              color: '#dc2626',
+                              border: '1px solid rgba(239, 68, 68, 0.2)',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            + Assign Email
+                          </button>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700 }}>
+                        {venue.examsCount} slots
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700 }}>
+                        {venue.totalStudents.toLocaleString()}
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 800, color: '#e11d48' }}>
+                        {venue.totalQp.toLocaleString()}
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVenueForEmailDraft(venue)}
+                            className="secondary"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px' }}
+                            title="Preview formal circular & email text"
+                          >
+                            <FileText size={13} color="var(--accent)" /> Circular Draft
+                          </button>
+                          {venue.hasEmail && (
+                            <a
+                              href={`mailto:${venue.collegeEmail}?subject=${encodeURIComponent(`Kannur University Examinations Schedule - ${fileMeta?.event || 'Intimation'}`)}`}
+                              className="secondary"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px', textDecoration: 'none' }}
+                              title="Open default email application"
+                            >
+                              <Send size={13} color="#059669" /> Mail
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Tab 3, 4, 5, 6: Master Schedule, Daily Press, Course Summary, Raw Data */}
+        {activeTab !== 'venue_packing' && activeTab !== 'venue_email' && (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {/* Master Schedule Tab Headers */}
                   {activeTab === 'consolidated' && (
                     <>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Exam Date</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Session</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Venue</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Course Code</th>
-                      <th style={{ padding: '12px 14px', minWidth: '220px' }}>Course Name</th>
-                      <th style={{ padding: '12px 14px', minWidth: '240px' }}>Programme(s) Included</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Takers</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Sealed Packets (20/10/5/L)</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>Total QP</th>
+                      <th style={{ padding: '12px 16px' }}>Date</th>
+                      <th style={{ padding: '12px 16px' }}>Session / Time</th>
+                      <th style={{ padding: '12px 16px' }}>Venue College</th>
+                      <th style={{ padding: '12px 16px' }}>College Email</th>
+                      <th style={{ padding: '12px 16px' }}>Course Code</th>
+                      <th style={{ padding: '12px 16px' }}>Course Name</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Candidates</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Sealed Packets</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Buffer</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total QP</th>
                     </>
                   )}
 
+                  {/* Daily Press Print Order Tab Headers */}
                   {activeTab === 'press_print' && (
                     <>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Exam Date</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Session</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Scheduled Timing</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Course Code</th>
-                      <th style={{ padding: '12px 14px', minWidth: '260px' }}>Course Name</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Venues</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Total Candidates</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>QP Print Order</th>
+                      <th style={{ padding: '12px 16px' }}>Exam Date</th>
+                      <th style={{ padding: '12px 16px' }}>Session / Timing</th>
+                      <th style={{ padding: '12px 16px' }}>Course Code</th>
+                      <th style={{ padding: '12px 16px' }}>Course Name</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Venues</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Total Takers</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Press Print Order</th>
                     </>
                   )}
 
+                  {/* Course Master Summary Tab Headers */}
                   {activeTab === 'course_summary' && (
                     <>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Course Code</th>
-                      <th style={{ padding: '12px 14px', minWidth: '280px' }}>Course Name</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Scheduled Dates</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Session</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Venue Coverage</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>Total Students</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>Total QP</th>
+                      <th style={{ padding: '12px 16px' }}>Course Code</th>
+                      <th style={{ padding: '12px 16px' }}>Course Name</th>
+                      <th style={{ padding: '12px 16px' }}>Exam Dates</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Session</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Venues</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Total Takers</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total QP Copies</th>
                     </>
                   )}
 
+                  {/* Raw Source Rows Tab Headers */}
                   {activeTab === 'raw' && (
                     <>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Event Name</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Venue Code &amp; Name</th>
-                      <th style={{ padding: '12px 14px', minWidth: '220px' }}>Programme</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Exam Date</th>
-                      <th style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>Course Code</th>
-                      <th style={{ padding: '12px 14px', minWidth: '220px' }}>Course Name</th>
-                      <th style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>Count</th>
+                      <th style={{ padding: '12px 16px' }}>#</th>
+                      <th style={{ padding: '12px 16px' }}>Event Name</th>
+                      <th style={{ padding: '12px 16px' }}>Venue</th>
+                      <th style={{ padding: '12px 16px' }}>College Email</th>
+                      <th style={{ padding: '12px 16px' }}>Date</th>
+                      <th style={{ padding: '12px 16px' }}>Time</th>
+                      <th style={{ padding: '12px 16px' }}>Course</th>
+                      <th style={{ padding: '12px 16px' }}>Academic Programme</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Count</th>
                     </>
                   )}
                 </tr>
@@ -1470,232 +1885,282 @@ export default function ConfisectionExamReportPage() {
               <tbody>
                 {paginatedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--muted)' }}>
-                      <PackageCheck size={36} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
-                      <p style={{ margin: 0, fontWeight: 600, fontSize: '14px' }}>
-                        {searchQuery ? `No matching records found for "${searchQuery}"` : 'No examination schedule loaded.'}
-                      </p>
-                      <span style={{ fontSize: '12px' }}>
-                        Upload your Schedule (.xlsx) or click "Load Kannur Sample Data" above to preview.
-                      </span>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
+                      No records found. Upload an examination schedule or click "Load Kannur Sample Data".
                     </td>
                   </tr>
                 ) : (
-                  paginatedRows.map((row, idx) => {
-                    const rowNumber = (pageSize === 0 ? 0 : currentPage * pageSize) + idx + 1;
-
-                    return (
-                      <tr
-                        key={idx}
-                        style={{
-                          borderBottom: '1px solid var(--line)',
-                          background: idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)',
-                          transition: 'background 0.15s ease'
-                        }}
-                      >
-                        <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace', color: 'var(--muted)' }}>
-                          {rowNumber}
-                        </td>
-
-                        {activeTab === 'consolidated' && (
-                          <>
-                            <td style={{ padding: '10px 14px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                              {row.examDate}
-                            </td>
-                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                              <span style={{ 
-                                padding: '3px 8px', 
-                                borderRadius: '4px', 
-                                fontSize: '11px', 
-                                fontWeight: 700,
-                                background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                color: row.session === 'FN' ? '#0284c7' : '#6366f1'
-                              }}>
-                                {row.session} ({row.startTime})
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 800, color: 'var(--ink)' }}>{row.venueCode}</span>
-                                <span style={{ fontSize: '11px', color: 'var(--muted)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={row.venueName}>
-                                  {row.venueName}
-                                </span>
+                  paginatedRows.map((row, idx) => (
+                    <tr 
+                      key={idx} 
+                      style={{ 
+                        borderBottom: '1px solid var(--line)',
+                        background: idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)'
+                      }}
+                    >
+                      {/* Master Schedule Cells */}
+                      {activeTab === 'consolidated' && (
+                        <>
+                          <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--ink)' }}>
+                            {row.examDate}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(217, 119, 6, 0.1)',
+                              color: row.session === 'FN' ? '#0284c7' : '#d97706',
+                              marginRight: '6px'
+                            }}>
+                              {row.session}
+                            </span>
+                            <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                              {row.startTime || '—'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{row.venueName}</span>
+                            <span style={{ marginLeft: '6px', fontSize: '11px', fontFamily: 'monospace', color: 'var(--muted)' }}>
+                              ({row.venueCode})
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            {row.hasEmail ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <a 
+                                  href={`mailto:${row.collegeEmail}`}
+                                  style={{ color: '#059669', textDecoration: 'none', fontSize: '12px', fontFamily: 'monospace' }}
+                                  title="Send email"
+                                >
+                                  {row.collegeEmail}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(row.collegeEmail);
+                                    setCopiedNoticeToast(`Copied ${row.collegeEmail}`);
+                                    setTimeout(() => setCopiedNoticeToast(null), 2500);
+                                  }}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--muted)' }}
+                                  title="Copy email"
+                                >
+                                  <Copy size={12} />
+                                </button>
                               </div>
-                            </td>
-                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-                              {row.courseCode}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
-                              {row.courseName}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontSize: '11.5px', color: 'var(--muted)', maxWidth: '280px' }} title={row.programsFormatted}>
-                              <span style={{ 
-                                display: '-webkit-box', 
-                                WebkitLineClamp: 2, 
-                                WebkitBoxOrient: 'vertical', 
-                                overflow: 'hidden' 
-                              }}>
-                                {row.programsFormatted || 'General Examination'}
+                            ) : (
+                              <span 
+                                onClick={() => setShowEmailDirectoryModal(true)}
+                                style={{ fontSize: '11px', color: '#dc2626', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.08)', padding: '2px 6px', borderRadius: '4px' }}
+                                title="Click to configure email in directory"
+                              >
+                                Unmapped
                               </span>
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800, fontSize: '13px' }}>
-                              {row.studentCount}
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                              <div style={{ display: 'inline-flex', gap: '4px', fontFamily: 'monospace', fontSize: '11px' }}>
-                                <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(5, 150, 105, 0.1)', color: '#059669', fontWeight: 700 }} title="Packets of 20">
-                                  20s: {row.p20}
-                                </span>
-                                <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(13, 148, 136, 0.1)', color: '#0d9488', fontWeight: 700 }} title="Packets of 10">
-                                  10s: {row.p10}
-                                </span>
-                                <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(2, 132, 199, 0.1)', color: '#0284c7', fontWeight: 700 }} title="Packets of 5">
-                                  5s: {row.p5}
-                                </span>
-                                {row.singles > 0 && (
-                                  <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', fontWeight: 700 }} title="Loose single copies">
-                                    L: {row.singles}
-                                  </span>
-                                )}
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--ink)' }}>
+                            {row.courseCode}
+                          </td>
+                          <td style={{ padding: '12px 16px', maxWidth: '240px' }}>
+                            <div style={{ color: 'var(--ink)', fontWeight: 500 }}>{row.courseName}</div>
+                            {row.programsCount > 1 && (
+                              <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '2px' }}>
+                                Sum of {row.programsCount} academic programmes
                               </div>
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#059669', fontSize: '13px' }}>
-                              {row.totalQp}
-                            </td>
-                          </>
-                        )}
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700 }}>
+                            {row.studentCount}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              {row.p20 > 0 && (
+                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(23, 107, 135, 0.1)', color: 'var(--accent)', fontSize: '11px', fontWeight: 700 }}>
+                                  {row.p20}×20
+                                </span>
+                              )}
+                              {row.p10 > 0 && (
+                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed', fontSize: '11px', fontWeight: 700 }}>
+                                  {row.p10}×10
+                                </span>
+                              )}
+                              {row.p5 > 0 && (
+                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', fontSize: '11px', fontWeight: 700 }}>
+                                  {row.p5}×5
+                                </span>
+                              )}
+                              {row.singles > 0 && (
+                                <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'var(--line)', color: 'var(--muted)', fontSize: '11px', fontWeight: 600 }}>
+                                  {row.singles} loose
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: '11.5px', color: 'var(--muted)' }}>
+                            +{row.buffer}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#e11d48' }}>
+                            {row.totalQp}
+                          </td>
+                        </>
+                      )}
 
-                        {activeTab === 'press_print' && (
-                          <>
-                            <td style={{ padding: '10px 14px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                              {row.examDate}
-                            </td>
-                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                              <span style={{ 
-                                padding: '3px 8px', 
-                                borderRadius: '4px', 
-                                fontSize: '11px', 
-                                fontWeight: 700,
-                                background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                color: row.session === 'FN' ? '#0284c7' : '#6366f1'
-                              }}>
-                                {row.session}
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px 14px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                              {row.startTime} – {row.endTime}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-                              {row.courseCode}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
-                              {row.courseName}
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700 }}>
-                              {row.venuesCount}
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800 }}>
-                              {row.totalStudents.toLocaleString()}
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#059669', fontSize: '13.5px' }}>
-                              {row.totalQp.toLocaleString()}
-                            </td>
-                          </>
-                        )}
+                      {/* Daily Press Print Order Cells */}
+                      {activeTab === 'press_print' && (
+                        <>
+                          <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--ink)' }}>
+                            {row.examDate}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(217, 119, 6, 0.1)',
+                              color: row.session === 'FN' ? '#0284c7' : '#d97706',
+                              marginRight: '6px'
+                            }}>
+                              {row.session}
+                            </span>
+                            <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                              {row.startTime || '—'} - {row.endTime || '—'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--ink)' }}>
+                            {row.courseCode}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'var(--ink)' }}>
+                            {row.courseName}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: '10px', background: 'var(--line)', fontSize: '11.5px', fontWeight: 600 }}>
+                              {row.venuesCount} venues
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700 }}>
+                            {row.totalStudents}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#e11d48', fontSize: '14px' }}>
+                            {row.totalQp} copies
+                          </td>
+                        </>
+                      )}
 
-                        {activeTab === 'course_summary' && (
-                          <>
-                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-                              {row.courseCode}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
-                              {row.courseName}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-                              {row.datesFormatted}
-                            </td>
-                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                              <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, background: 'var(--bg)', color: 'var(--ink)' }}>
-                                {row.session}
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700 }}>
-                              {row.venueCount}
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 800 }}>
-                              {row.totalStudents.toLocaleString()}
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#059669' }}>
-                              {row.totalQp.toLocaleString()}
-                            </td>
-                          </>
-                        )}
+                      {/* Course Master Summary Cells */}
+                      {activeTab === 'course_summary' && (
+                        <>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--ink)' }}>
+                            {row.courseCode}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'var(--ink)', fontWeight: 600 }}>
+                            {row.courseName}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: '12px' }}>
+                            {row.datesFormatted}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: row.session === 'FN' ? 'rgba(2, 132, 199, 0.1)' : 'rgba(217, 119, 6, 0.1)',
+                              color: row.session === 'FN' ? '#0284c7' : '#d97706'
+                            }}>
+                              {row.session}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            {row.venueCount}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700 }}>
+                            {row.totalStudents}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#e11d48' }}>
+                            {row.totalQp}
+                          </td>
+                        </>
+                      )}
 
-                        {activeTab === 'raw' && (
-                          <>
-                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', color: 'var(--muted)' }}>
-                              {row.eventName}
-                            </td>
-                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                              <strong>{row.venueCode}</strong> – {row.venueName}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontSize: '11.5px', color: 'var(--muted)', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={row.programName}>
-                              {row.programName}
-                            </td>
-                            <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                              {row.examDate}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-                              {row.courseCode}
-                            </td>
-                            <td style={{ padding: '10px 14px', fontWeight: 500 }}>
-                              {row.courseName}
-                            </td>
-                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800 }}>
-                              {row.studentCount}
-                            </td>
-                          </>
-                        )}
-                      </tr>
-                    );
-                  })
+                      {/* Raw Source Rows Cells */}
+                      {activeTab === 'raw' && (
+                        <>
+                          <td style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: '11.5px' }}>
+                            {idx + 1}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: '12px' }}>
+                            {row.eventName || '—'}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{ fontWeight: 600 }}>{row.venueName}</span>
+                            <span style={{ marginLeft: '6px', color: 'var(--muted)', fontSize: '11px' }}>({row.venueCode})</span>
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: '12px', fontFamily: 'monospace', color: '#059669' }}>
+                            {row.collegeEmail || '—'}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: '12px' }}>
+                            {row.examDate}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: '11.5px', color: 'var(--muted)' }}>
+                            {row.startTime}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ fontFamily: 'monospace', fontWeight: 700 }}>{row.courseCode}</div>
+                            <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>{row.courseName}</div>
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: '11.5px', maxWidth: '280px', color: 'var(--muted)' }}>
+                            {row.programName || '—'}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700 }}>
+                            {row.studentCount}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* Pagination Footer */}
+        {/* Pagination Bar */}
         {activeTab !== 'venue_packing' && pageSize > 0 && totalPages > 1 && (
-          <div style={{ 
-            padding: '12px 20px', 
-            background: 'var(--bg)', 
-            borderTop: '1px solid var(--line)', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between', 
-            fontSize: '12px', 
-            color: 'var(--muted)' 
+          <div style={{
+            padding: '12px 20px',
+            borderTop: '1px solid var(--line)',
+            background: 'var(--bg)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '12.5px',
+            color: 'var(--muted)',
+            flexWrap: 'wrap',
+            gap: '10px'
           }}>
-            <span>
-              Showing <strong>{paginatedRows.length}</strong> of <strong>{currentFilteredRows.length}</strong> records (Page {currentPage + 1} of {totalPages})
-            </span>
-            <div style={{ display: 'flex', gap: '6px' }}>
+            <div>
+              Showing {currentPage * pageSize + 1} to {Math.min((currentPage + 1) * pageSize, currentFilteredRows.length)} of {currentFilteredRows.length} entries
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
                 type="button"
-                className="secondary"
                 onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
                 disabled={currentPage === 0}
-                style={{ padding: '4px 10px', fontSize: '12px' }}
+                className="secondary"
+                style={{ padding: '4px 8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center' }}
               >
                 <ChevronLeft size={14} /> Prev
               </button>
+              <span>Page {currentPage + 1} of {totalPages}</span>
               <button
                 type="button"
-                className="secondary"
                 onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
                 disabled={currentPage >= totalPages - 1}
-                style={{ padding: '4px 10px', fontSize: '12px' }}
+                className="secondary"
+                style={{ padding: '4px 8px', fontSize: '12px', display: 'inline-flex', alignItems: 'center' }}
               >
                 Next <ChevronRight size={14} />
               </button>
@@ -1704,17 +2169,353 @@ export default function ConfisectionExamReportPage() {
         )}
       </div>
 
-      {/* Guide Modal */}
-      {showGuideModal && (
+      {/* MODAL 1: Official Email Circular Notification Draft */}
+      {selectedVenueForEmailDraft && (
         <div style={{
           position: 'fixed',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.55)',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
           backdropFilter: 'blur(3px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9999,
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div className="card" style={{
+            maxWidth: '750px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            background: 'var(--panel)',
+            padding: '24px',
+            borderRadius: '12px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+            border: '1px solid var(--line)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Mail size={22} color="#059669" />
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>
+                  Official Intimation Circular Draft
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedVenueForEmailDraft(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 0 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '8px', padding: '16px', fontSize: '13px', lineHeight: '1.6', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+{`KANNUR UNIVERSITY - EXAMINATION BRANCH (CONFIDENTIAL SECTION)
+======================================================================
+CONFIDENTIAL & MOST URGENT
+
+To,
+The Principal / Chief Superintendent,
+${selectedVenueForEmailDraft.venueName} (Venue Code: ${selectedVenueForEmailDraft.venueCode})
+Official Email: ${selectedVenueForEmailDraft.collegeEmail || '[EMAIL NOT CONFIGURED]'}
+
+Subject: Conduct of ${fileMeta?.event || 'University Examinations'} - Examination Schedule & Question Paper Allotment - Intimation - Reg.
+
+Sir / Madam,
+I am directed to inform you that the following examinations are scheduled to be conducted at your center. Sealed Question Paper parcels are dispatched as per the allotment schedule below:
+
+${selectedVenueForEmailDraft.exams.map(e => `• Date: ${e.examDate} | Session: ${e.session} (${e.startTime || '—'} to ${e.endTime || '—'})
+  Course: [${e.courseCode}] ${e.courseName}
+  Registered Candidates: ${e.studentCount}
+  QP Packets: ${e.p20 > 0 ? `${e.p20}x20 ` : ''}${e.p10 > 0 ? `${e.p10}x10 ` : ''}${e.p5 > 0 ? `${e.p5}x5 ` : ''}${e.singles > 0 ? `${e.singles} loose` : ''} (+${e.buffer} reserve)
+  Total QP Dispatched: ${e.totalQp} copies
+`).join('\n')}
+----------------------------------------------------------------------
+TOTAL CANDIDATES: ${selectedVenueForEmailDraft.totalStudents}
+TOTAL QUESTION PAPERS ALLOTTED: ${selectedVenueForEmailDraft.totalQp} (including buffer)
+----------------------------------------------------------------------
+
+You are requested to verify the sealed question paper packets upon arrival against this schedule and confirm safe receipt to the Confidential Section immediately.
+
+Yours faithfully,
+Controller of Examinations / Confidential Section
+Kannur University`}
+            </div>
+
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const draftText = `KANNUR UNIVERSITY - EXAMINATION BRANCH (CONFIDENTIAL SECTION)\nTo: The Principal, ${selectedVenueForEmailDraft.venueName}\n\nSchedule of Examinations:\n${selectedVenueForEmailDraft.exams.map(e => `${e.examDate} (${e.session}): [${e.courseCode}] ${e.courseName} - Takers: ${e.studentCount}, QP: ${e.totalQp}`).join('\n')}\n\nTotal QP: ${selectedVenueForEmailDraft.totalQp}`;
+                  navigator.clipboard.writeText(draftText);
+                  setCopiedNoticeToast(`Copied circular notification for ${selectedVenueForEmailDraft.venueName}`);
+                  setTimeout(() => setCopiedNoticeToast(null), 3000);
+                }}
+                className="secondary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '13px' }}
+              >
+                <Copy size={14} /> Copy Letter Text
+              </button>
+
+              {selectedVenueForEmailDraft.hasEmail && (
+                <a
+                  href={`mailto:${selectedVenueForEmailDraft.collegeEmail}?subject=${encodeURIComponent(`Kannur University Examinations Schedule - ${fileMeta?.event || 'Intimation'}`)}`}
+                  className="primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '13px', textDecoration: 'none', background: '#059669', borderColor: '#059669' }}
+                >
+                  <Send size={14} /> Open in Mail App
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setSelectedVenueForEmailDraft(null)}
+                style={{ padding: '8px 16px', fontSize: '13px' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: College Email Directory Manager */}
+      {showEmailDirectoryModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div className="card" style={{
+            maxWidth: '840px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            background: 'var(--panel)',
+            padding: '24px',
+            borderRadius: '12px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+            border: '1px solid var(--line)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Building2 size={22} color="var(--accent)" />
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>
+                  Kannur University College Email Directory ({emailDirectory.length})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowEmailDirectoryModal(false); setEditingCollegeIndex(null); }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 0 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Add / Edit College Form */}
+            <form onSubmit={handleAddCollegeToDirectory} style={{
+              background: 'var(--bg)',
+              padding: '14px',
+              borderRadius: '8px',
+              border: '1px solid var(--line)',
+              marginBottom: '16px',
+              display: 'flex',
+              gap: '10px',
+              flexWrap: 'wrap',
+              alignItems: 'flex-end'
+            }}>
+              <div style={{ flex: '1 1 90px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
+                  College / Venue Code *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 209 or PP"
+                  value={newCollegeForm.code}
+                  onChange={(e) => setNewCollegeForm(prev => ({ ...prev, code: e.target.value }))}
+                  required
+                  style={{ width: '100%', padding: '6px 10px', fontSize: '12.5px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--ink)' }}
+                />
+              </div>
+
+              <div style={{ flex: '2 1 200px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
+                  College Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Payyannur College, Payyannur"
+                  value={newCollegeForm.name}
+                  onChange={(e) => setNewCollegeForm(prev => ({ ...prev, name: e.target.value }))}
+                  style={{ width: '100%', padding: '6px 10px', fontSize: '12.5px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--ink)' }}
+                />
+              </div>
+
+              <div style={{ flex: '2 1 220px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
+                  Official Email Address *
+                </label>
+                <input
+                  type="email"
+                  placeholder="e.g. payyannurcollege@gmail.com"
+                  value={newCollegeForm.email}
+                  onChange={(e) => setNewCollegeForm(prev => ({ ...prev, email: e.target.value }))}
+                  required
+                  style={{ width: '100%', padding: '6px 10px', fontSize: '12.5px', borderRadius: '4px', border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--ink)' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '7px 16px',
+                    borderRadius: '4px',
+                    background: 'var(--accent)',
+                    color: 'white',
+                    border: 'none',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {editingCollegeIndex !== null ? 'Update College' : '+ Add to Directory'}
+                </button>
+                {editingCollegeIndex !== null && (
+                  <button
+                    type="button"
+                    onClick={() => { setEditingCollegeIndex(null); setNewCollegeForm({ code: '', name: '', email: '' }); }}
+                    className="secondary"
+                    style={{ padding: '7px 12px', fontSize: '12px' }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+
+            {/* Search within directory & Reset Options */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+              <input
+                type="text"
+                placeholder="Search college directory by code, name, or email..."
+                value={directorySearchQuery}
+                onChange={(e) => setDirectorySearchQuery(e.target.value)}
+                style={{
+                  flex: '1 1 280px',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--ink)',
+                  fontSize: '12.5px'
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleResetDirectoryToDefault}
+                className="secondary"
+                style={{ fontSize: '12px', padding: '6px 12px', color: 'var(--muted)' }}
+              >
+                Reset to Kannur Defaults
+              </button>
+            </div>
+
+            {/* Directory Table */}
+            <div style={{ border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden', maxHeight: '45vh', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: '11px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '8px 12px' }}>Code</th>
+                    <th style={{ padding: '8px 12px' }}>College / Department Name</th>
+                    <th style={{ padding: '8px 12px' }}>Official Email</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {emailDirectory
+                    .filter(c => {
+                      if (!directorySearchQuery) return true;
+                      const q = directorySearchQuery.toLowerCase();
+                      return String(c.code).toLowerCase().includes(q) ||
+                             String(c.name).toLowerCase().includes(q) ||
+                             String(c.email).toLowerCase().includes(q);
+                    })
+                    .map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--line)', background: idx % 2 === 0 ? 'var(--panel)' : 'var(--bg)' }}>
+                        <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent)' }}>
+                          {item.code}
+                        </td>
+                        <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--ink)' }}>
+                          {item.name || '—'}
+                        </td>
+                        <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#059669' }}>
+                          {item.email}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleEditCollege(idx)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', color: 'var(--accent)' }}
+                            title="Edit"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCollege(idx)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', color: '#dc2626' }}
+                            title="Remove"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: '16px', textAlign: 'right' }}>
+              <button
+                type="button"
+                onClick={() => { setShowEmailDirectoryModal(false); setEditingCollegeIndex(null); }}
+                style={{ padding: '8px 20px', fontSize: '13px' }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: Global Extraction Logic & Guide Modal */}
+      {showGuideModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
           padding: '20px'
         }}>
           <div className="card" style={{
@@ -1724,14 +2525,14 @@ export default function ConfisectionExamReportPage() {
             overflowY: 'auto',
             background: 'var(--panel)',
             padding: '24px',
-            margin: 0,
             borderRadius: '12px',
-            boxShadow: 'var(--shadow)'
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+            border: '1px solid var(--line)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <ShieldCheck size={22} color="#e11d48" />
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>Confisection Exam Report Guide</h3>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>Confisection &amp; College Dispatch Guide</h3>
               </div>
               <button
                 type="button"
@@ -1744,9 +2545,9 @@ export default function ConfisectionExamReportPage() {
 
             <div style={{ fontSize: '13px', lineHeight: '1.6', color: 'var(--ink)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <strong style={{ color: 'var(--accent)' }}>1. 13 Source File Headers:</strong>
+                <strong style={{ color: 'var(--accent)' }}>1. Universal Ingestion (13 Confi Headers or Exam Schedule):</strong>
                 <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
-                  Accepts standard university schedule files containing: <code>Event Name</code>, <code>Center Code</code>, <code>Center Name</code>, <code>Venue Code</code>, <code>Venue Name</code>, <code>Program Name</code>, <code>Exam Date</code>, <code>Course Start Time</code>, <code>Course End Time</code>, <code>Course Code</code>, <code>Course Name</code>, <code>Student Count</code>, and <code>venueId</code>.
+                  Accepts standard university schedule files containing: <code>Event Name</code>, <code>Center Code</code>, <code>Center Name</code>, <code>Venue Code</code>, <code>Venue Name</code>, <code>Program Name</code>, <code>Exam Date</code>, <code>Course Start Time</code>, <code>Course End Time</code>, <code>Course Code</code>, <code>Course Name</code>, <code>Student Count</code>, and <code>venueId</code>, as well as Venue Date Course files with in-file <code>College Email</code>.
                 </p>
               </div>
 
@@ -1758,17 +2559,24 @@ export default function ConfisectionExamReportPage() {
               </div>
 
               <div>
-                <strong style={{ color: 'var(--accent)' }}>3. Question Paper Bundle Calculations:</strong>
+                <strong style={{ color: 'var(--accent)' }}>3. Official College Email Directory &amp; Circulars:</strong>
+                <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
+                  Automatically maps college venue codes to verified university email addresses. Provides one-click <strong>"Copy All College Emails"</strong> (semicolon-separated for Gmail/Outlook BCC), single-click <strong>"Mail"</strong> links, and formal notification letters for Principals and Chief Superintendents.
+                </p>
+              </div>
+
+              <div>
+                <strong style={{ color: 'var(--accent)' }}>4. Question Paper Bundle Calculations:</strong>
                 <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
                   Calculates sealed confidential bundles: <strong>Packets of 20</strong>, <strong>Packets of 10</strong>, <strong>Packets of 5</strong>, and <strong>Loose singles</strong>, with selectable buffer reserve (+1 per venue, +2 per venue, or +5%).
                 </p>
               </div>
 
               <div>
-                <strong style={{ color: 'var(--accent)' }}>4. Multi-Sheet Excel Export:</strong>
+                <strong style={{ color: 'var(--accent)' }}>5. Comprehensive 5-Sheet Excel Export:</strong>
                 <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
-                  Clicking <strong>Export Report (.xlsx)</strong> generates 4 distinct sheets:
-                  (1) <code>Confi_Master_Schedule</code>, (2) <code>Daily_Press_Print_Order</code>, (3) <code>Venue_Packing_Slips</code>, and (4) <code>Course_Master_Summary</code>.
+                  Clicking <strong>Export Report (.xlsx)</strong> generates:
+                  (1) <code>Confi_Master_Schedule</code> (with College Emails), (2) <code>Venue_Email_Dispatch</code>, (3) <code>Daily_Press_Print_Order</code>, (4) <code>Venue_Packing_Slips</code>, and (5) <code>Course_Master_Summary</code>.
                 </p>
               </div>
             </div>

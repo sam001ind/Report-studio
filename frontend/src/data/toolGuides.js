@@ -508,44 +508,56 @@ export const TOOL_GUIDES = {
     ]
   },
   'venue-date-course-email': {
-    title: 'Venue Date Course College Email Report - Logic & Guide',
-    icon: 'Mail',
-    description: 'Generate unique Date, Venue, Course combinations mapped to official college email IDs for circular dispatch & student counts.',
+    title: 'Confisection Exam & Venue College Dispatch Report - Logic & Guide',
+    icon: 'ShieldCheck',
+    description: 'Unified confidential examination studio: cross-programme student aggregates, question paper packet calculations (20s/10s/5s), daily press print orders, venue packing slips, and automated college email circular dispatch.',
     sections: [
       {
-        heading: '1. Unique Triple Composite Key',
-        content: 'Extracts unique combinations of Exam Date (DD/MM/YYYY) + Venue Code/Name + Course Code/Name, summing up student counts per group.'
+        heading: '1. Universal Schedule Ingestion',
+        content: 'Accepts standard 13-column confidential section schedules (Event Name, Center Code, Center Name, Venue Code, Venue Name, Program Name, Exam Date, Course Start Time, Course End Time, Course Code, Course Name, Student Count, venueId) as well as examination schedules containing College Email.'
       },
       {
-        heading: '2. Multi-Tier College Email Resolution',
-        content: 'Resolves venue college email addresses first from in-file schedule columns, then from custom uploaded directories, and finally from official university defaults.'
+        heading: '2. Cross-Programme Candidate Aggregation',
+        content: 'When multiple academic programmes (e.g. BA, BCom, BSc) take the same course code at the same venue on the same date and session, student counts are automatically summed into a single Question Paper dispatch record.'
       },
       {
-        heading: '3. Fast Circular Email Dispatch',
-        content: 'Provides one-click "Copy Venue Emails" formatted as comma-separated lists ready to paste directly into Outlook, Gmail, or BCC mail merges.'
+        heading: '3. Official College Email Directory & Circulars',
+        content: 'Automatically maps college venue codes to verified university email addresses. Provides one-click "Copy All College Emails" (semicolon-separated for Gmail/Outlook BCC), single-click "Mail" links, and formal notification letters for Principals and Chief Superintendents.'
+      },
+      {
+        heading: '4. Question Paper Packet Calculations',
+        content: 'Automatically calculates sealed confidential bundles: Packets of 20, Packets of 10, Packets of 5, and Loose singles, with configurable buffer reserves (+1 per venue, +2 per venue, or +5%).'
+      },
+      {
+        heading: '5. Comprehensive 5-Sheet Excel Export',
+        content: 'Exports: (1) Confi_Master_Schedule (with College Emails), (2) Venue_Email_Dispatch, (3) Daily_Press_Print_Order, (4) Venue_Packing_Slips, and (5) Course_Master_Summary.'
       }
     ]
   },
   'confisection-exam-report': {
-    title: 'Confisection Exam Report - Logic & Guide',
+    title: 'Confisection Exam & Venue College Dispatch Report - Logic & Guide',
     icon: 'ShieldCheck',
-    description: 'Process 13-column examination schedules to calculate question paper print orders, cross-programme student aggregates, and sealed venue packing slips.',
+    description: 'Unified confidential examination studio: cross-programme student aggregates, question paper packet calculations (20s/10s/5s), daily press print orders, venue packing slips, and automated college email circular dispatch.',
     sections: [
       {
-        heading: '1. 13-Column Standard Schedule Input',
-        content: 'Accepts Event Name, Center Code, Center Name, Venue Code, Venue Name, Program Name, Exam Date, Course Start Time, Course End Time, Course Code, Course Name, Student Count, and venueId.'
+        heading: '1. Universal Schedule Ingestion',
+        content: 'Accepts standard 13-column confidential section schedules (Event Name, Center Code, Center Name, Venue Code, Venue Name, Program Name, Exam Date, Course Start Time, Course End Time, Course Code, Course Name, Student Count, venueId) as well as examination schedules containing College Email.'
       },
       {
         heading: '2. Cross-Programme Candidate Aggregation',
-        content: 'When multiple academic programmes (e.g. BA, BCom, BSc) take the same course code at the same venue on the same date and session, student counts are automatically summed so confidential question papers are printed and packed accurately.'
+        content: 'When multiple academic programmes (e.g. BA, BCom, BSc) take the same course code at the same venue on the same date and session, student counts are automatically summed into a single Question Paper dispatch record.'
       },
       {
-        heading: '3. Question Paper Packet Calculations',
-        content: 'Automatically calculates sealed bundles of 20, 10, 5, and loose single copies with configurable buffer reserves (+1 copy/venue, +2 copies/venue, or +5%).'
+        heading: '3. Official College Email Directory & Circulars',
+        content: 'Automatically maps college venue codes to verified university email addresses. Provides one-click "Copy All College Emails" (semicolon-separated for Gmail/Outlook BCC), single-click "Mail" links, and formal notification letters for Principals and Chief Superintendents.'
       },
       {
-        heading: '4. Multi-Report Export',
-        content: 'Exports a 4-sheet master workbook (Confi_Master_Schedule, Daily_Press_Print_Order, Venue_Packing_Slips, Course_Master_Summary) along with printable dispatch sheets.'
+        heading: '4. Question Paper Packet Calculations',
+        content: 'Automatically calculates sealed confidential bundles: Packets of 20, Packets of 10, Packets of 5, and Loose singles, with configurable buffer reserves (+1 per venue, +2 per venue, or +5%).'
+      },
+      {
+        heading: '5. Comprehensive 5-Sheet Excel Export',
+        content: 'Exports: (1) Confi_Master_Schedule (with College Emails), (2) Venue_Email_Dispatch, (3) Daily_Press_Print_Order, (4) Venue_Packing_Slips, and (5) Course_Master_Summary.'
       }
     ]
   }
