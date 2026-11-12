@@ -131,120 +131,220 @@ export default function ConfisectionExamReportPage() {
     };
   };
 
-  // Upload parser
-  const handleFileUpload = (e) => {
+  // Upload parser supporting both async spreadsheet reading and automatic directory detection
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsProcessing(true);
     setStatusAlert({ type: 'info', message: `Reading "${file.name}"...` });
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target.result);
-        const aoa = readSpreadsheetAsAoa(data);
+    try {
+      const aoa = await readSpreadsheetAsAoa(file);
 
-        if (!aoa || aoa.length < 2) {
-          throw new Error('Spreadsheet appears to be empty or has no data rows.');
-        }
+      if (!aoa || !Array.isArray(aoa) || aoa.length < 2) {
+        throw new Error('Spreadsheet appears to be empty or has no data rows.');
+      }
 
-        let headerRowIdx = 0;
-        for (let i = 0; i < Math.min(5, aoa.length); i++) {
-          const rowText = (aoa[i] || []).map(c => normalizeKeyText(c)).join(' ');
-          if (rowText.includes('course') && (rowText.includes('venue') || rowText.includes('date'))) {
-            headerRowIdx = i;
+      // Check if uploaded file is a College Email Directory (e.g. College Code, College Name, Email ID)
+      let isEmailDirectoryFile = false;
+      let emailHeaderIdx = -1;
+      for (let i = 0; i < Math.min(10, aoa.length); i++) {
+        if (!Array.isArray(aoa[i])) continue;
+        const rowText = aoa[i].map(c => normalizeKeyText(c)).join(' ');
+        if (rowText.includes('email') && (rowText.includes('college') || rowText.includes('code') || rowText.includes('venue'))) {
+          if (!rowText.includes('course') && !rowText.includes('examdate') && !rowText.includes('subject')) {
+            isEmailDirectoryFile = true;
+            emailHeaderIdx = i;
             break;
           }
         }
+      }
 
-        const headers = aoa[headerRowIdx].map(c => String(c || '').trim());
-        const mapping = detectColumns(headers);
+      if (isEmailDirectoryFile && emailHeaderIdx !== -1) {
+        const rawHeaders = aoa[emailHeaderIdx] || [];
+        const dHeaders = rawHeaders.map(c => normalizeKeyText(c));
+        const codeIdx = dHeaders.findIndex(h => h.includes('code') || h.includes('id'));
+        const nameIdx = dHeaders.findIndex(h => h.includes('name') || h.includes('college'));
+        const emailIdx = dHeaders.findIndex(h => h.includes('email') || h.includes('mail'));
 
-        if (mapping.courseCode === -1 && mapping.examDate === -1) {
-          throw new Error('Could not identify Course Code or Exam Date columns. Expected standard Examination Schedule headers.');
-        }
-
-        const parsedRecords = [];
-        let eventDetected = '';
-
-        for (let r = headerRowIdx + 1; r < aoa.length; r++) {
-          const row = aoa[r];
-          if (!row || !Array.isArray(row)) continue;
-
-          const rawCourseCode = mapping.courseCode !== -1 ? row[mapping.courseCode] : '';
-          const rawExamDate = mapping.examDate !== -1 ? row[mapping.examDate] : '';
-          if (!rawCourseCode && !rawExamDate) continue;
-
-          const eventName = mapping.eventName !== -1 ? cleanDisplayField(row[mapping.eventName]) : '';
-          if (!eventDetected && eventName) eventDetected = eventName;
-
-          const centerCode = mapping.centerCode !== -1 ? cleanDisplayField(row[mapping.centerCode]) : '';
-          const centerName = mapping.centerName !== -1 ? cleanDisplayField(row[mapping.centerName]) : '';
-          const venueCode = mapping.venueCode !== -1 ? cleanDisplayField(row[mapping.venueCode]) : '';
-          const venueName = mapping.venueName !== -1 ? cleanDisplayField(row[mapping.venueName]) : '';
-          const programName = mapping.programName !== -1 ? cleanDisplayField(row[mapping.programName]) : '';
-          const examDate = formatExamDate(rawExamDate);
-          const startTime = mapping.startTime !== -1 ? cleanTimeText(row[mapping.startTime]) : '';
-          const endTime = mapping.endTime !== -1 ? cleanTimeText(row[mapping.endTime]) : '';
-          const courseCode = cleanDisplayField(rawCourseCode);
-          const courseName = mapping.courseName !== -1 ? cleanDisplayField(row[mapping.courseName]) : '';
-
-          let studentCount = 0;
-          if (mapping.studentCount !== -1) {
-            const rawCount = String(row[mapping.studentCount] || '').replace(/,/g, '').trim();
-            const p = parseInt(rawCount, 10);
-            if (!isNaN(p)) studentCount = p;
+        if (emailIdx !== -1) {
+          const importedColleges = [];
+          for (let r = emailHeaderIdx + 1; r < aoa.length; r++) {
+            const row = aoa[r];
+            if (!Array.isArray(row)) continue;
+            const code = codeIdx !== -1 ? cleanDisplayField(row[codeIdx]) : '';
+            const name = nameIdx !== -1 && nameIdx !== codeIdx ? cleanDisplayField(row[nameIdx]) : '';
+            const email = cleanDisplayField(row[emailIdx]);
+            if (code && email && email.includes('@')) {
+              importedColleges.push({ code, name: name || code, email });
+            }
           }
 
-          const venueId = mapping.venueId !== -1 ? cleanDisplayField(row[mapping.venueId]) : '';
-          const collegeEmail = mapping.email !== -1 ? cleanDisplayField(row[mapping.email]) : '';
+          if (importedColleges.length > 0) {
+            saveEmailDirectory(importedColleges);
+            setStatusAlert({
+              type: 'success',
+              message: `College Email Directory Detected: Successfully imported ${importedColleges.length} official college email records from "${file.name}".`
+            });
+            setIsProcessing(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+          }
+        }
+      }
 
-          parsedRecords.push({
-            eventName,
-            centerCode,
-            centerName,
-            venueCode,
-            venueName,
-            programName,
-            examDate,
-            startTime,
-            endTime,
-            courseCode,
-            courseName,
-            studentCount,
-            venueId,
-            collegeEmail
-          });
+      // Otherwise, process as Examination Schedule
+      let headerRowIdx = 0;
+      for (let i = 0; i < Math.min(15, aoa.length); i++) {
+        if (!Array.isArray(aoa[i])) continue;
+        const rowText = aoa[i].map(c => normalizeKeyText(c)).join(' ');
+        if (rowText.includes('course') && (rowText.includes('venue') || rowText.includes('date') || rowText.includes('code'))) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+
+      const rawHeaderRow = aoa[headerRowIdx] || aoa[0] || [];
+      const headers = Array.isArray(rawHeaderRow) ? rawHeaderRow.map(c => String(c || '').trim()) : [];
+      const mapping = detectColumns(headers);
+
+      if (mapping.courseCode === -1 && mapping.examDate === -1) {
+        throw new Error('Could not identify Course Code or Exam Date columns. Expected standard Examination Schedule headers.');
+      }
+
+      const parsedRecords = [];
+      let eventDetected = '';
+
+      for (let r = headerRowIdx + 1; r < aoa.length; r++) {
+        const row = aoa[r];
+        if (!row || !Array.isArray(row)) continue;
+
+        const rawCourseCode = mapping.courseCode !== -1 ? row[mapping.courseCode] : '';
+        const rawExamDate = mapping.examDate !== -1 ? row[mapping.examDate] : '';
+        if (!rawCourseCode && !rawExamDate) continue;
+
+        const eventName = mapping.eventName !== -1 ? cleanDisplayField(row[mapping.eventName]) : '';
+        if (!eventDetected && eventName) eventDetected = eventName;
+
+        const centerCode = mapping.centerCode !== -1 ? cleanDisplayField(row[mapping.centerCode]) : '';
+        const centerName = mapping.centerName !== -1 ? cleanDisplayField(row[mapping.centerName]) : '';
+        const venueCode = mapping.venueCode !== -1 ? cleanDisplayField(row[mapping.venueCode]) : '';
+        const venueName = mapping.venueName !== -1 ? cleanDisplayField(row[mapping.venueName]) : '';
+        const programName = mapping.programName !== -1 ? cleanDisplayField(row[mapping.programName]) : '';
+        const examDate = formatExamDate(rawExamDate);
+        const startTime = mapping.startTime !== -1 ? cleanTimeText(row[mapping.startTime]) : '';
+        const endTime = mapping.endTime !== -1 ? cleanTimeText(row[mapping.endTime]) : '';
+        const courseCode = cleanDisplayField(rawCourseCode);
+        const courseName = mapping.courseName !== -1 ? cleanDisplayField(row[mapping.courseName]) : '';
+
+        let studentCount = 0;
+        if (mapping.studentCount !== -1) {
+          const rawCount = String(row[mapping.studentCount] || '').replace(/,/g, '').trim();
+          const p = parseInt(rawCount, 10);
+          if (!isNaN(p)) studentCount = p;
         }
 
-        setRawRows(parsedRecords);
-        setFileMeta({
-          name: file.name,
-          size: `${(file.size / 1024).toFixed(1)} KB`,
-          rowsCount: parsedRecords.length,
-          event: eventDetected || 'Examination Schedule'
+        const venueId = mapping.venueId !== -1 ? cleanDisplayField(row[mapping.venueId]) : '';
+        const collegeEmail = mapping.email !== -1 ? cleanDisplayField(row[mapping.email]) : '';
+
+        parsedRecords.push({
+          eventName,
+          centerCode,
+          centerName,
+          venueCode,
+          venueName,
+          programName,
+          examDate,
+          startTime,
+          endTime,
+          courseCode,
+          courseName,
+          studentCount,
+          venueId,
+          collegeEmail
         });
-        setCurrentPage(0);
-        setStatusAlert({
-          type: 'success',
-          message: `Loaded ${parsedRecords.length.toLocaleString()} schedule entries from "${file.name}". Ready for Confisection & Email analysis.`
-        });
-      } catch (err) {
-        console.error('File parsing error:', err);
-        setStatusAlert({ type: 'error', message: `Failed to load file: ${err.message}` });
-      } finally {
-        setIsProcessing(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
       }
-    };
 
-    reader.onerror = () => {
-      setStatusAlert({ type: 'error', message: 'Failed to read file from disk.' });
+      setRawRows(parsedRecords);
+      setFileMeta({
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        rowsCount: parsedRecords.length,
+        event: eventDetected || 'Examination Schedule'
+      });
+      setCurrentPage(0);
+      setStatusAlert({
+        type: 'success',
+        message: `Loaded ${parsedRecords.length.toLocaleString()} schedule entries from "${file.name}". Ready for Confisection & Email analysis.`
+      });
+    } catch (err) {
+      console.error('File parsing error:', err);
+      setStatusAlert({ type: 'error', message: `Failed to load file: ${err.message}` });
+    } finally {
       setIsProcessing(false);
-    };
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
-    reader.readAsArrayBuffer(file);
+  // Dedicated College Email Directory File Upload
+  const handleDirectoryFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const aoa = await readSpreadsheetAsAoa(file);
+      if (!aoa || !Array.isArray(aoa) || aoa.length < 2) {
+        throw new Error('Directory file appears to be empty or has no data rows.');
+      }
+
+      let headerRowIdx = 0;
+      for (let i = 0; i < Math.min(10, aoa.length); i++) {
+        if (!Array.isArray(aoa[i])) continue;
+        const rowText = aoa[i].map(c => normalizeKeyText(c)).join(' ');
+        if (rowText.includes('code') || rowText.includes('email') || rowText.includes('college')) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+
+      const rawHeaders = aoa[headerRowIdx] || aoa[0] || [];
+      const dHeaders = rawHeaders.map(c => normalizeKeyText(c));
+      const codeIdx = dHeaders.findIndex(h => h.includes('code') || h.includes('id') || h === 'college');
+      const nameIdx = dHeaders.findIndex(h => h.includes('name') || h.includes('college'));
+      const emailIdx = dHeaders.findIndex(h => h.includes('email') || h.includes('mail'));
+
+      if (emailIdx === -1) {
+        throw new Error('Could not identify an Email ID column in the directory file.');
+      }
+
+      const imported = [];
+      for (let r = headerRowIdx + 1; r < aoa.length; r++) {
+        const row = aoa[r];
+        if (!Array.isArray(row)) continue;
+        const code = codeIdx !== -1 ? cleanDisplayField(row[codeIdx]) : '';
+        const name = nameIdx !== -1 && nameIdx !== codeIdx ? cleanDisplayField(row[nameIdx]) : '';
+        const email = cleanDisplayField(row[emailIdx]);
+        if (code && email && email.includes('@')) {
+          imported.push({ code: code || name || 'COLLEGE', name: name || code, email });
+        }
+      }
+
+      if (imported.length === 0) {
+        throw new Error('No valid college email rows found in the file.');
+      }
+
+      saveEmailDirectory(imported);
+      setStatusAlert({
+        type: 'success',
+        message: `Imported ${imported.length} college email records from "${file.name}".`
+      });
+    } catch (err) {
+      console.error('Directory upload error:', err);
+      setStatusAlert({ type: 'error', message: `Directory import failed: ${err.message}` });
+    } finally {
+      if (directoryFileInputRef.current) directoryFileInputRef.current.value = '';
+    }
   };
 
   // Load sample dataset
@@ -2407,7 +2507,7 @@ Kannur University`}
               </div>
             </form>
 
-            {/* Search within directory & Reset Options */}
+            {/* Search within directory & Upload/Reset Options */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
               <input
                 type="text"
@@ -2424,14 +2524,31 @@ Kannur University`}
                   fontSize: '12.5px'
                 }}
               />
-              <button
-                type="button"
-                onClick={handleResetDirectoryToDefault}
-                className="secondary"
-                style={{ fontSize: '12px', padding: '6px 12px', color: 'var(--muted)' }}
-              >
-                Reset to Kannur Defaults
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="file"
+                  ref={directoryFileInputRef}
+                  onChange={handleDirectoryFileUpload}
+                  accept=".xlsx,.xls,.csv"
+                  style={{ display: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => directoryFileInputRef.current?.click()}
+                  className="secondary"
+                  style={{ fontSize: '12px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <Upload size={13} /> Import Directory (.xlsx / .csv)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetDirectoryToDefault}
+                  className="secondary"
+                  style={{ fontSize: '12px', padding: '6px 12px', color: 'var(--muted)' }}
+                >
+                  Reset Defaults
+                </button>
+              </div>
             </div>
 
             {/* Directory Table */}
