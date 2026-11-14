@@ -164,9 +164,20 @@ export const extractAdmissionRowsFromSheet = (sheet) => {
 
     const rowObj = {};
     headers.forEach(({ idx, name }) => {
+      const cellAddr = XLSX.utils.encode_cell({ r, c: idx });
+      const rawCell = sheet ? sheet[cellAddr] : null;
       const cellVal = rowArr[idx];
       let strVal = '';
-      if (cellVal instanceof Date) {
+
+      const normName = normalizeKey(name);
+      const isDateCol = /^(dob|dateofbirth|birthdate|resultdate|admissiondate|allotmentdate|date)/i.test(normName);
+      const isDateFormat = rawCell?.z && /(yy|mm|dd|d-m|m-d|d\/m|m\/d)/i.test(String(rawCell.z));
+
+      // If the cell in Excel is a numeric date serial (e.g. 39727 for 2008-10-06, 37273 for 2002-01-17),
+      // rawCell.v is the true underlying date without any localized formatting ambiguity!
+      if (rawCell && rawCell.t === 'n' && typeof rawCell.v === 'number' && rawCell.v > 10000 && rawCell.v < 60000 && (isDateCol || isDateFormat)) {
+        strVal = parseDobYMD(rawCell.v);
+      } else if (cellVal instanceof Date) {
         if (!isNaN(cellVal.getTime())) {
           strVal = parseDobYMD(cellVal);
         }

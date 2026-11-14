@@ -905,9 +905,19 @@ test('Admission Import & Transformation Engine: Preserves exact DOB dates withou
   assert.equal(formatDobYYMMDD('02-01-16'), '02-01-16');
   assert.equal(dateToExcelSerial('02-01-16'), 37272);
 
-  // 4. IST timestamp string representation (e.g. from String(new Date()))
+  // 4. Source date 06/10/2008 (October 6, 2008 - user reported 08-06-10 inverted month/day issue)
+  assert.equal(parseDobYMD('06/10/2008'), '2008-10-06');
+  assert.equal(parseDobDMY('06/10/2008'), '06/10/2008');
+  assert.equal(formatDobYYMMDD('06/10/2008'), '08-10-06');
+  assert.equal(parseDobYMD(39727), '2008-10-06'); // Excel serial for 2008-10-06 (Candidate 26311319)
+  assert.equal(formatDobYYMMDD(39727), '08-10-06');
+  assert.equal(dateToExcelSerial('08-10-06'), 39727);
+  assert.equal(dateToExcelSerial('2008-10-06'), 39727);
+
+  // 5. IST timestamp string representation (e.g. from String(new Date()))
   assert.equal(parseDobYMD('Thu Jan 17 2002 00:00:00 GMT+0530 (India Standard Time)'), '2002-01-17');
   assert.equal(parseDobYMD('Tue Mar 17 2009 00:00:00 GMT+0530 (India Standard Time)'), '2009-03-17');
+  assert.equal(parseDobYMD('Mon Oct 06 2008 00:00:00 GMT+0530 (India Standard Time)'), '2008-10-06');
 });
 
 test('Admission Import & Transformation Engine: End-to-end preservation of dates, leading zeros, PINs, and identifiers', async () => {
