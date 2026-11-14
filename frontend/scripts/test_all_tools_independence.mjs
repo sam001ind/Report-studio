@@ -38,7 +38,8 @@ import {
   generateQpEmailDispatchRows,
   detectColumns,
   calculateQpPackets,
-  getExamSession
+  getExamSession,
+  resolveCollegeEmail
 } from '../src/utils/confisectionHelpers.js';
 
 console.log('=== STARTING AUTOMATED TEST SUITE FOR REPORT STUDIO ENGINES ===\n');
@@ -2804,6 +2805,12 @@ test('Master Lookup Definition Tool - includes official Kannur programmes, colle
   // Verify DEFAULT_LOOKUP_DATA contains program and college lists
   assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.program) && DEFAULT_LOOKUP_DATA.program.length >= 15);
   assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.college) && DEFAULT_LOOKUP_DATA.college.length >= 15);
+
+  // Verify Kannur University College Email Directory integration
+  assert.ok(Array.isArray(DEFAULT_COLLEGE_EMAILS) && DEFAULT_COLLEGE_EMAILS.length >= 94);
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === 'GB' && c.email === 'principal_gbc@kannuruniv.ac.in'));
+  assert.ok(DEFAULT_COLLEGE_EMAILS.some(c => c.code === 'GK' && c.email === 'principal_gck@kannuruniv.ac.in'));
+  assert.equal(resolveCollegeEmail('GB', 'Government Brennen College'), 'principal_gbc@kannuruniv.ac.in');
 });
 
 console.log('\n[Test Suite 26: Confisection Exam Report Engine]');

@@ -39,7 +39,11 @@ import {
   CheckCheck,
   Zap,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  Mail,
+  Send,
+  AtSign,
+  Inbox
 } from 'lucide-react';
 import {
   LOOKUP_TAB_CONFIG,
@@ -50,6 +54,8 @@ import {
   buildLookupMaps,
   normalizeLookupKey
 } from '../data/admissionLookups';
+import { DEFAULT_COLLEGE_EMAILS } from '../utils/venueEmailHelpers';
+import { resolveCollegeEmail } from '../utils/confisectionHelpers';
 
 const TAB_ICONS = {
   program: BookOpen,
@@ -66,7 +72,7 @@ const TAB_ICONS = {
 export default function MasterLookupDefinitionPage() {
   const [lookups, setLookups] = useState(() => loadSavedLookups());
   const [activeTab, setActiveTab] = useState('program');
-  const [viewMode, setViewMode] = useState('split'); // 'split' (Programme + College side-by-side) | 'tabbed' (All 9 categories)
+  const [viewMode, setViewMode] = useState('split'); // 'split' (Programme + College) | 'email_directory' (Kannur College Emails) | 'tabbed' (All 9 categories)
   const [searchQuery, setSearchQuery] = useState('');
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(0);
@@ -75,6 +81,45 @@ export default function MasterLookupDefinitionPage() {
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
+
+  // College Email Directory (persisted to localStorage)
+  const [emailDirectory, setEmailDirectory] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_COLLEGE_EMAILS;
+    try {
+      const saved = localStorage.getItem('kannur_college_email_directory');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed reading college email directory from storage:', e);
+    }
+    return DEFAULT_COLLEGE_EMAILS;
+  });
+
+  const saveCollegeEmailDirectory = useCallback((updatedList) => {
+    setEmailDirectory(updatedList);
+    try {
+      localStorage.setItem('kannur_college_email_directory', JSON.stringify(updatedList));
+      const mapObj = {};
+      updatedList.forEach(item => {
+        if (item.code) mapObj[item.code.toLowerCase()] = item.email;
+        if (item.name) mapObj[item.name.toLowerCase()] = item.email;
+      });
+      localStorage.setItem('reportstudio_college_email_directory', JSON.stringify(mapObj));
+    } catch (e) {
+      console.error('Failed saving college email directory to storage:', e);
+    }
+  }, []);
+
+  // Email Directory UI State
+  const [emailSearch, setEmailSearch] = useState('');
+  const [emailFilter, setEmailFilter] = useState('all'); // 'all' | 'govt' | 'dept' | 'gmail'
+  const [emailPage, setEmailPage] = useState(0);
+  const [emailPageSize, setEmailPageSize] = useState(25);
+  const [showEmailModal, setShowEmailModal] = useState(false); // false | 'add' | 'edit'
+  const [emailForm, setEmailForm] = useState({ code: '', name: '', email: '' });
+  const [editingEmailIdx, setEditingEmailIdx] = useState(null);
 
   // Sorting state: { column: 'name' | 'id' | 'code' | 'workflowId' | ..., direction: 'asc' | 'desc' }
   const [sortConfig, setSortConfig] = useState({ column: null, direction: 'asc' });
@@ -174,6 +219,29 @@ export default function MasterLookupDefinitionPage() {
     const norm = normalizeLookupKey(q);
     const maps = buildLookupMaps(lookups);
 
+    // Check direct College Email Directory match
+    const emailEntry = emailDirectory.find(e => 
+      (e.code || '').toLowerCase() === q.toLowerCase() ||
+      (e.email || '').toLowerCase() === q.toLowerCase() ||
+      (e.name || '').toLowerCase() === q.toLowerCase() ||
+      norm === normalizeLookupKey(e.name)
+    );
+    if (emailEntry) {
+      return {
+        entity: 'College Email',
+        tabKey: 'email_directory',
+        matchType: 'Verified College Email Match',
+        title: emailEntry.name,
+        code: emailEntry.code,
+        id: emailEntry.email,
+        officialEmail: emailEntry.email,
+        detail: `Official Email: ${emailEntry.email}`,
+        confidence: 'Verified (Directory)',
+        color: '#0284c7',
+        bgColor: 'rgba(2, 132, 199, 0.1)'
+      };
+    }
+
     // 1. Program exact / normalized
     if (maps.programByName[norm] || maps.programByName[q.toLowerCase()]) {
       const p = maps.programByName[norm] || maps.programByName[q.toLowerCase()];
@@ -209,6 +277,7 @@ export default function MasterLookupDefinitionPage() {
     // 2. College exact / normalized
     if (maps.collegeByName[norm] || maps.collegeByName[q.toLowerCase()]) {
       const c = maps.collegeByName[norm] || maps.collegeByName[q.toLowerCase()];
+      const resolvedEmail = resolveCollegeEmail(c.code, c.name || c.clgRef, emailDirectory);
       return {
         entity: 'College',
         tabKey: 'college',
@@ -217,6 +286,7 @@ export default function MasterLookupDefinitionPage() {
         code: c.code,
         id: c.id,
         detail: c.clgRef,
+        officialEmail: resolvedEmail,
         confidence: 'High (Exact)',
         color: '#4f46e5',
         bgColor: 'rgba(79, 70, 229, 0.1)'
@@ -224,6 +294,7 @@ export default function MasterLookupDefinitionPage() {
     }
     if (maps.collegeByCode[q] || maps.collegeById[q]) {
       const c = maps.collegeByCode[q] || maps.collegeById[q];
+      const resolvedEmail = resolveCollegeEmail(c.code, c.name || c.clgRef, emailDirectory);
       return {
         entity: 'College',
         tabKey: 'college',
@@ -232,6 +303,7 @@ export default function MasterLookupDefinitionPage() {
         code: c.code,
         id: c.id,
         detail: c.clgRef,
+        officialEmail: resolvedEmail,
         confidence: 'High (ID)',
         color: '#4f46e5',
         bgColor: 'rgba(79, 70, 229, 0.1)'
@@ -516,6 +588,192 @@ export default function MasterLookupDefinitionPage() {
     return dualClgList.slice(clgPage * dualPageSize, (clgPage + 1) * dualPageSize);
   }, [dualClgList, clgPage]);
 
+  // Filtered and Paginated College Email Directory
+  const filteredEmailDirectory = useMemo(() => {
+    let list = emailDirectory;
+    const q = emailSearch.trim().toLowerCase();
+
+    // 1. Quick Filter Pills
+    if (emailFilter === 'govt') {
+      list = list.filter(e => {
+        const code = (e.code || '').toUpperCase();
+        const name = (e.name || '').toLowerCase();
+        return code.startsWith('G') || name.includes('govt') || name.includes('government');
+      });
+    } else if (emailFilter === 'dept') {
+      list = list.filter(e => (e.email || '').toLowerCase().includes('@kannuruniv.ac.in'));
+    } else if (emailFilter === 'gmail') {
+      list = list.filter(e => (e.email || '').toLowerCase().includes('@gmail.com'));
+    }
+
+    // 2. Search Query
+    if (q) {
+      list = list.filter(e =>
+        (e.code || '').toLowerCase().includes(q) ||
+        (e.name || '').toLowerCase().includes(q) ||
+        (e.email || '').toLowerCase().includes(q)
+      );
+    }
+
+    return list;
+  }, [emailDirectory, emailFilter, emailSearch]);
+
+  const paginatedEmailDirectory = useMemo(() => {
+    if (emailPageSize === 0) return filteredEmailDirectory;
+    const start = emailPage * emailPageSize;
+    return filteredEmailDirectory.slice(start, start + emailPageSize);
+  }, [filteredEmailDirectory, emailPage, emailPageSize]);
+
+  const totalEmailPages = emailPageSize === 0 ? 1 : Math.ceil(filteredEmailDirectory.length / emailPageSize) || 1;
+
+  // Copy All College Emails (semicolon-delimited for Gmail / Outlook BCC)
+  const handleCopyAllEmails = () => {
+    const validEmails = emailDirectory
+      .map(c => (c.email || '').trim())
+      .filter(e => e.includes('@'));
+
+    if (validEmails.length === 0) {
+      setStatusAlert({ type: 'warning', message: 'No college email addresses found to copy.' });
+      return;
+    }
+
+    const text = validEmails.join('; ');
+    navigator.clipboard?.writeText(text);
+    setStatusAlert({
+      type: 'success',
+      message: `Copied ${validEmails.length} official college email addresses to clipboard (semicolon-separated for Gmail / Outlook BCC).`
+    });
+  };
+
+  // Export College Email Directory (.xlsx)
+  const handleExportCollegeEmailsToExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+      const rows = [
+        ['Sl No', 'College Code', 'College / Examination Venue Name', 'Official Email ID', 'Domain', 'Verification Status'],
+        ...emailDirectory.map((e, idx) => [
+          idx + 1,
+          e.code || '',
+          e.name || '',
+          e.email || '',
+          (e.email || '').split('@')[1] || '',
+          'Official Kannur University Verified Center'
+        ])
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [
+        { wch: 8 }, { wch: 15 }, { wch: 60 }, { wch: 42 }, { wch: 22 }, { wch: 38 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Kannur_College_Emails');
+      XLSX.writeFile(wb, 'Kannur_University_College_Email_Directory.xlsx');
+      setStatusAlert({
+        type: 'success',
+        message: `Successfully exported ${emailDirectory.length} verified college email records to Kannur_University_College_Email_Directory.xlsx.`
+      });
+    } catch (err) {
+      console.error('Export college emails error:', err);
+      setStatusAlert({
+        type: 'error',
+        message: `Export failed: ${err.message}`
+      });
+    }
+  };
+
+  // Reset College Email Directory to official defaults
+  const handleResetEmailDirectory = () => {
+    if (window.confirm('Reset College Email Directory to the 94 official Kannur University defaults? Any custom added emails will be replaced.')) {
+      saveCollegeEmailDirectory(DEFAULT_COLLEGE_EMAILS);
+      setStatusAlert({
+        type: 'success',
+        message: 'Reset College Email Directory to the 94 official Kannur University verified defaults.'
+      });
+    }
+  };
+
+  // Add / Edit College Email Handlers
+  const handleOpenAddEmail = (prefill = {}) => {
+    setEmailForm({
+      code: prefill.code || '',
+      name: prefill.name || '',
+      email: prefill.email || ''
+    });
+    setEditingEmailIdx(null);
+    setShowEmailModal('add');
+  };
+
+  const handleOpenEditEmail = (item, idx) => {
+    setEmailForm({
+      code: item.code || '',
+      name: item.name || '',
+      email: item.email || ''
+    });
+    setEditingEmailIdx(idx);
+    setShowEmailModal('edit');
+  };
+
+  const handleSaveEmailForm = (e) => {
+    e?.preventDefault();
+    const code = emailForm.code.trim().toUpperCase();
+    const name = emailForm.name.trim();
+    const email = emailForm.email.trim().toLowerCase();
+
+    if (!code || !name || !email) {
+      setStatusAlert({
+        type: 'warning',
+        message: 'Please fill all 3 fields: College Code, College Name, and Official Email ID.'
+      });
+      return;
+    }
+
+    if (!email.includes('@')) {
+      setStatusAlert({
+        type: 'warning',
+        message: 'Please enter a valid email address containing "@".'
+      });
+      return;
+    }
+
+    if (showEmailModal === 'add') {
+      const exists = emailDirectory.some(item => (item.code || '').toUpperCase() === code);
+      if (exists) {
+        setStatusAlert({
+          type: 'warning',
+          message: `College with code "${code}" already exists in the email directory.`
+        });
+        return;
+      }
+      const updated = [{ code, name, email }, ...emailDirectory];
+      saveCollegeEmailDirectory(updated);
+      setStatusAlert({
+        type: 'success',
+        message: `Added "${name}" (${code}) to Kannur University College Email Directory.`
+      });
+    } else if (showEmailModal === 'edit' && editingEmailIdx !== null) {
+      const updated = [...emailDirectory];
+      updated[editingEmailIdx] = { code, name, email };
+      saveCollegeEmailDirectory(updated);
+      setStatusAlert({
+        type: 'success',
+        message: `Updated email record for "${name}" (${code}).`
+      });
+    }
+
+    setShowEmailModal(false);
+  };
+
+  const handleDeleteEmail = (idx) => {
+    const item = emailDirectory[idx];
+    if (!item) return;
+    if (window.confirm(`Delete "${item.name}" (${item.code}) from the College Email Directory?`)) {
+      const updated = emailDirectory.filter((_, i) => i !== idx);
+      saveCollegeEmailDirectory(updated);
+      setStatusAlert({
+        type: 'success',
+        message: `Deleted "${item.name}" from College Email Directory.`
+      });
+    }
+  };
+
   // Column Sort Handler
   const handleSort = (column) => {
     setSortConfig(prev => {
@@ -770,10 +1028,57 @@ export default function MasterLookupDefinitionPage() {
         const workbook = XLSX.read(data, { type: 'array' });
         const { imported, summary, total } = parseUploadedLookupSpreadsheet(workbook, activeTab);
 
-        if (total === 0) {
+        // Check for College Email Directory sheet or columns
+        let emailImportCount = 0;
+        const newEmails = [...emailDirectory];
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          if (!sheet) continue;
+          const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+          if (!aoa || aoa.length < 2) continue;
+
+          for (let rIdx = 0; rIdx < Math.min(5, aoa.length); rIdx++) {
+            const row = aoa[rIdx];
+            if (!Array.isArray(row)) continue;
+            let codeCol = -1, nameCol = -1, emailCol = -1;
+            row.forEach((cell, idx) => {
+              const val = String(cell || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (['email', 'collegeemail', 'mail', 'principalemail', 'officialemail', 'emailid'].includes(val)) emailCol = idx;
+              if (['collegecode', 'code', 'venuecode', 'colcode'].includes(val)) codeCol = idx;
+              if (['collegename', 'name', 'venuename', 'college', 'centername'].includes(val)) nameCol = idx;
+            });
+
+            if (emailCol !== -1 && (codeCol !== -1 || nameCol !== -1)) {
+              for (let r = rIdx + 1; r < aoa.length; r++) {
+                const dataRow = aoa[r];
+                if (!Array.isArray(dataRow)) continue;
+                const email = String(dataRow[emailCol] || '').trim().toLowerCase();
+                const code = String(codeCol !== -1 ? dataRow[codeCol] : '').trim().toUpperCase();
+                const name = String(nameCol !== -1 ? dataRow[nameCol] : code).trim();
+                if (email && email.includes('@')) {
+                  const existingIdx = newEmails.findIndex(e => (e.code && e.code === code) || (e.name && e.name.toLowerCase() === name.toLowerCase()));
+                  if (existingIdx !== -1) {
+                    newEmails[existingIdx] = { ...newEmails[existingIdx], email, name: name || newEmails[existingIdx].name, code: code || newEmails[existingIdx].code };
+                    emailImportCount++;
+                  } else if (code || name) {
+                    newEmails.push({ code: code || name.slice(0, 3).toUpperCase(), name, email });
+                    emailImportCount++;
+                  }
+                }
+              }
+              break;
+            }
+          }
+        }
+
+        if (emailImportCount > 0) {
+          saveCollegeEmailDirectory(newEmails);
+        }
+
+        if (total === 0 && emailImportCount === 0) {
           setStatusAlert({
             type: 'warning',
-            message: `No matching master columns found in "${file.name}". Expected headers like "Programme Name (Reference)", "ProgramCode", "CollegeId", "College Name", etc.`
+            message: `No matching master columns found in "${file.name}". Expected headers like "Programme Name (Reference)", "ProgramCode", "CollegeId", "College Name", or "Official Email ID".`
           });
           setIsProcessing(false);
           return;
@@ -809,15 +1114,20 @@ export default function MasterLookupDefinitionPage() {
           }
         }
 
-        updateLookups(merged);
+        if (total > 0) {
+          updateLookups(merged);
+        }
+
         const summaryText = Object.entries(summary)
           .filter(([_, count]) => count > 0)
           .map(([k, count]) => `${count} ${k}`)
           .join(', ');
 
+        const emailText = emailImportCount > 0 ? ` + ${emailImportCount} College Emails` : '';
+
         setStatusAlert({
           type: 'success',
-          message: `Successfully ingested ${total} rows (${newEntriesCount} new records added): ${summaryText}. Saved to active definitions.`
+          message: `Successfully ingested spreadsheet "${file.name}": ${summaryText ? summaryText : ''}${emailText}. Saved to active definitions.`
         });
       } catch (err) {
         console.error('Lookup upload error:', err);
@@ -900,11 +1210,23 @@ export default function MasterLookupDefinitionPage() {
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Programme_and_College_Master');
+
+    // Sheet 2: College Email Directory Template
+    const emailTemplateHeaders = ['Sl No', 'College Code', 'College / Venue Name', 'Official Email ID'];
+    const emailSampleRows = [
+      ['1', 'GB', 'Government Brennen College, Thalassery, Kannur', 'principal_gbc@kannuruniv.ac.in'],
+      ['2', 'GK', 'Govt College Kasargod, Kasargod, Kasargod', 'principal_gck@kannuruniv.ac.in'],
+      ['3', 'ST', 'Sir Syed Institute for Technical Studies, Taliparamba, Kannur', 'principal_ssitt@kannuruniv.ac.in']
+    ];
+    const wsEmail = XLSX.utils.aoa_to_sheet([emailTemplateHeaders, ...emailSampleRows]);
+    wsEmail['!cols'] = [{ wch: 8 }, { wch: 15 }, { wch: 60 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, wsEmail, 'College_Email_Directory');
+
     XLSX.writeFile(wb, 'Programme_and_College_Master_Template.xlsx');
 
     setStatusAlert({
       type: 'success',
-      message: 'Downloaded Programme_and_College_Master_Template.xlsx (Side-by-side format).'
+      message: 'Downloaded Programme_and_College_Master_Template.xlsx (Side-by-side format + College Email Directory).'
     });
   };
 
@@ -952,6 +1274,24 @@ export default function MasterLookupDefinitionPage() {
       ];
       XLSX.utils.book_append_sheet(wb, wsCombined, 'Master_Programme_College');
 
+      // Sheet 2: Kannur University College Email Directory
+      const emailRows = [
+        ['Sl No', 'College Code', 'College / Examination Venue Name', 'Official Email ID', 'Domain', 'Status'],
+        ...emailDirectory.map((e, idx) => [
+          idx + 1,
+          e.code || '',
+          e.name || '',
+          e.email || '',
+          (e.email || '').split('@')[1] || '',
+          'Official Kannur University Verified Center'
+        ])
+      ];
+      const wsEmail = XLSX.utils.aoa_to_sheet(emailRows);
+      wsEmail['!cols'] = [
+        { wch: 8 }, { wch: 15 }, { wch: 60 }, { wch: 42 }, { wch: 22 }, { wch: 38 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsEmail, 'College_Email_Directory');
+
       // Individual sheets for each lookup type
       for (const config of LOOKUP_TAB_CONFIG) {
         const list = lookups[config.key] || [];
@@ -981,7 +1321,7 @@ export default function MasterLookupDefinitionPage() {
       XLSX.writeFile(wb, 'Defined_Admission_Master_Lookups.xlsx');
       setStatusAlert({
         type: 'success',
-        message: 'Downloaded Defined_Admission_Master_Lookups.xlsx containing all 9 master tables.'
+        message: 'Downloaded Defined_Admission_Master_Lookups.xlsx containing all 9 master tables + College Email Directory.'
       });
     } catch (err) {
       console.error('Export error:', err);
@@ -1100,6 +1440,24 @@ export default function MasterLookupDefinitionPage() {
               }}
             >
               <Columns2 size={13} /> Side-by-Side View
+            </button>
+            <button
+              onClick={() => setViewMode('email_directory')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '5px 10px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                borderRadius: '4px',
+                background: viewMode === 'email_directory' ? '#0284c7' : 'transparent',
+                color: viewMode === 'email_directory' ? '#fff' : 'var(--muted)',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <Mail size={13} /> College Email Directory ({emailDirectory.length})
             </button>
             <button
               onClick={() => setViewMode('tabbed')}
@@ -1251,7 +1609,7 @@ export default function MasterLookupDefinitionPage() {
         {/* Hero Interactive Stat Overview Cards */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '14px'
         }}>
           {/* Card 1: Programmes */}
@@ -1259,7 +1617,7 @@ export default function MasterLookupDefinitionPage() {
             onClick={() => { setViewMode('split'); handleTabChange('program'); }}
             style={{
               background: 'var(--panel)',
-              border: (activeTab === 'program' || viewMode === 'split') ? '2px solid var(--accent)' : '1px solid var(--line)',
+              border: (activeTab === 'program' && viewMode === 'split') ? '2px solid var(--accent)' : '1px solid var(--line)',
               borderRadius: '10px',
               padding: '14px 18px',
               cursor: 'pointer',
@@ -1287,7 +1645,7 @@ export default function MasterLookupDefinitionPage() {
             onClick={() => { setViewMode('split'); handleTabChange('college'); }}
             style={{
               background: 'var(--panel)',
-              border: (activeTab === 'college' || viewMode === 'split') ? '2px solid #4f46e5' : '1px solid var(--line)',
+              border: (activeTab === 'college' && viewMode === 'split') ? '2px solid #4f46e5' : '1px solid var(--line)',
               borderRadius: '10px',
               padding: '14px 18px',
               cursor: 'pointer',
@@ -1310,7 +1668,35 @@ export default function MasterLookupDefinitionPage() {
             </div>
           </div>
 
-          {/* Card 3: Social Quota */}
+          {/* Card 3: College Email Directory */}
+          <div
+            onClick={() => setViewMode('email_directory')}
+            style={{
+              background: 'var(--panel)',
+              border: viewMode === 'email_directory' ? '2px solid #0284c7' : '1px solid var(--line)',
+              borderRadius: '10px',
+              padding: '14px 18px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: '8px', borderRadius: '8px', background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7', display: 'flex' }}>
+                <Mail size={18} />
+              </div>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', color: '#0284c7', background: 'rgba(2, 132, 199, 0.1)', padding: '2px 8px', borderRadius: '10px' }}>
+                Email Directory
+              </span>
+            </div>
+            <div style={{ marginTop: '10px' }}>
+              <p style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>College Email Directory</p>
+              <h3 style={{ margin: '4px 0 2px 0', fontSize: '22px', fontWeight: 800 }}>{emailDirectory.length}</h3>
+              <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--muted)' }}>Official Principals &amp; Exam Venues</p>
+            </div>
+          </div>
+
+          {/* Card 4: Social Quota */}
           <div
             onClick={() => { setViewMode('tabbed'); handleTabChange('caste'); }}
             style={{
@@ -1340,7 +1726,7 @@ export default function MasterLookupDefinitionPage() {
             </div>
           </div>
 
-          {/* Card 4: Geography & Boards */}
+          {/* Card 5: Geography & Boards */}
           <div
             onClick={() => { setViewMode('tabbed'); handleTabChange('state'); }}
             style={{
@@ -1438,7 +1824,7 @@ export default function MasterLookupDefinitionPage() {
 
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Quick:</span>
-                  {['Karnataka', 'Five Year Integrated Masters Programme in Music', 'Department of Music', 'Mukkuvan', 'SEBC-Muslim'].map(preset => (
+                  {['Karnataka', 'Five Year Integrated Masters Programme in Music', 'Department of Music', 'GB (Brennen)', 'Payyannur College'].map(preset => (
                     <button
                       key={preset}
                       onClick={() => setResolverInput(preset)}
@@ -1497,13 +1883,55 @@ export default function MasterLookupDefinitionPage() {
                         ID: {resolvedResult.id}
                       </span>
                     )}
+                    {resolvedResult.officialEmail && (
+                      <a
+                        href={`mailto:${resolvedResult.officialEmail}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'rgba(2, 132, 199, 0.1)',
+                          color: '#0284c7',
+                          border: '1px solid rgba(2, 132, 199, 0.3)',
+                          fontFamily: 'monospace',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          textDecoration: 'none'
+                        }}
+                        title="Official Verified College Email"
+                      >
+                        <Mail size={12} /> {resolvedResult.officialEmail}
+                      </a>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--muted)', fontSize: '11.5px' }}>
                     <span style={{ color: resolvedResult.color, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <CheckCircle2 size={13} /> {resolvedResult.matchType} ({resolvedResult.confidence})
                     </span>
-                    {resolvedResult.tabKey && (
+                    {resolvedResult.tabKey === 'email_directory' ? (
+                      <button
+                        onClick={() => {
+                          setViewMode('email_directory');
+                          setEmailSearch(resolvedResult.code || resolvedResult.title);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#0284c7',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        View in Email Directory <ExternalLink size={12} />
+                      </button>
+                    ) : resolvedResult.tabKey && (
                       <button
                         onClick={() => {
                           setViewMode('tabbed');
@@ -1752,24 +2180,45 @@ export default function MasterLookupDefinitionPage() {
                     </span>
                   </h2>
                 </div>
-                <button
-                  onClick={() => { handleTabChange('college'); setIsAddFormOpen(true); }}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '5px',
-                    background: '#4f46e5',
-                    color: '#fff',
-                    border: 'none',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <Plus size={13} /> Add
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    onClick={() => setViewMode('email_directory')}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '5px',
+                      background: 'rgba(2, 132, 199, 0.1)',
+                      color: '#0284c7',
+                      border: '1px solid rgba(2, 132, 199, 0.25)',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    title="View full Kannur University College Email Directory"
+                  >
+                    <Mail size={12} /> Email Directory ({emailDirectory.length})
+                  </button>
+                  <button
+                    onClick={() => { handleTabChange('college'); setIsAddFormOpen(true); }}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '5px',
+                      background: '#4f46e5',
+                      color: '#fff',
+                      border: 'none',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Plus size={13} /> Add
+                  </button>
+                </div>
               </div>
 
               {/* Search */}
@@ -1807,6 +2256,7 @@ export default function MasterLookupDefinitionPage() {
                   <tbody>
                     {dualPaginatedColleges.map((item, idx) => {
                       const isEditing = editingTargetTab === 'college' && editingIdx === (lookups.college || []).indexOf(item);
+                      const resolvedEmail = resolveCollegeEmail(item.code, item.name || item.clgRef, emailDirectory);
                       return (
                         <tr key={idx} style={{ borderBottom: '1px solid var(--line)', background: isEditing ? 'rgba(217, 119, 6, 0.08)' : 'transparent' }}>
                           <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--muted)', fontFamily: 'monospace', fontSize: '11px' }}>
@@ -1854,6 +2304,55 @@ export default function MasterLookupDefinitionPage() {
                                 {item.clgRef && item.clgRef !== item.name && (
                                   <div style={{ fontSize: '10.5px', color: 'var(--muted)', fontWeight: 400, marginTop: '2px' }}>{item.clgRef}</div>
                                 )}
+                                {resolvedEmail ? (
+                                  <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <a
+                                      href={`mailto:${resolvedEmail}`}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        fontSize: '10.5px',
+                                        fontFamily: 'monospace',
+                                        color: '#0284c7',
+                                        background: 'rgba(2, 132, 199, 0.08)',
+                                        padding: '1px 5px',
+                                        borderRadius: '3px',
+                                        border: '1px solid rgba(2, 132, 199, 0.2)',
+                                        textDecoration: 'none'
+                                      }}
+                                      title="Official Verified College Email"
+                                    >
+                                      <Mail size={10} /> {resolvedEmail}
+                                    </a>
+                                    <button
+                                      onClick={() => handleCopy(resolvedEmail, `clg_em_${idx}`)}
+                                      style={{ background: 'transparent', border: 'none', padding: '1px', cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}
+                                      title="Copy email"
+                                    >
+                                      {copiedKey === `clg_em_${idx}` ? <CheckCheck size={11} color="var(--accent)" /> : <Copy size={11} />}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => handleOpenAddEmail({ code: item.code, name: item.name })}
+                                    style={{
+                                      marginTop: '4px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      fontSize: '10px',
+                                      color: 'var(--muted)',
+                                      background: 'transparent',
+                                      border: '1px dashed var(--line)',
+                                      padding: '1px 5px',
+                                      borderRadius: '3px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Plus size={10} /> Link Email
+                                  </button>
+                                )}
                               </div>
                             )}
                           </td>
@@ -1893,7 +2392,406 @@ export default function MasterLookupDefinitionPage() {
           </div>
         )}
 
-        {/* View Mode 2: TABBED MASTER DIRECTORY (All 9 Categories) */}
+        {/* View Mode 2: KANNUR UNIVERSITY COLLEGE EMAIL DIRECTORY */}
+        {viewMode === 'email_directory' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Header Banner */}
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--line)',
+              borderRadius: '10px',
+              padding: '16px 20px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ padding: '6px', borderRadius: '6px', background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7', display: 'flex' }}>
+                    <Mail size={18} />
+                  </div>
+                  <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--ink)' }}>
+                    Kannur University College Email Directory
+                  </h2>
+                  <span style={{ fontSize: '11px', background: 'rgba(2, 132, 199, 0.1)', color: '#0284c7', border: '1px solid rgba(2, 132, 199, 0.25)', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                    {emailDirectory.length} Verified Institutions
+                  </span>
+                </div>
+                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                  Official verified directory of principal, administrative, and examination venue email addresses across all affiliated colleges and university departments.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleCopyAllEmails}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    background: '#0284c7',
+                    color: '#fff',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(2, 132, 199, 0.3)'
+                  }}
+                  title="Copy all college emails separated by semicolons for Gmail/Outlook BCC"
+                >
+                  <Copy size={13} /> Copy All College Emails ({emailDirectory.length})
+                </button>
+
+                <button
+                  onClick={() => handleOpenAddEmail()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    background: 'var(--accent)',
+                    color: '#fff',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={13} /> Add College Email
+                </button>
+
+                <button
+                  onClick={handleExportCollegeEmailsToExcel}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: '1px solid var(--line)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Download size={13} /> Export Directory (.xlsx)
+                </button>
+
+                <button
+                  onClick={handleResetEmailDirectory}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    background: 'var(--bg)',
+                    color: 'var(--muted)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: '1px solid var(--line)',
+                    cursor: 'pointer'
+                  }}
+                  title="Reset to 94 official Kannur University defaults"
+                >
+                  <RotateCcw size={13} /> Reset Defaults
+                </button>
+              </div>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--line)',
+              borderRadius: '10px',
+              padding: '12px 16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              {/* Search */}
+              <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                <input
+                  type="text"
+                  value={emailSearch}
+                  onChange={(e) => { setEmailSearch(e.target.value); setEmailPage(0); }}
+                  placeholder="Search by College Code (e.g. GB, GK, PP), College Name, or Email Address..."
+                  style={{
+                    width: '100%',
+                    padding: '7px 10px 7px 32px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--line)',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    fontSize: '12.5px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {emailSearch && (
+                  <button
+                    onClick={() => setEmailSearch('')}
+                    style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Pills */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Filter:</span>
+                {[
+                  { id: 'all', label: `All (${emailDirectory.length})` },
+                  { id: 'govt', label: 'Govt Colleges' },
+                  { id: 'dept', label: 'University Depts (@kannuruniv)' },
+                  { id: 'gmail', label: 'Gmail Domain (@gmail)' }
+                ].map(chip => (
+                  <button
+                    key={chip.id}
+                    onClick={() => { setEmailFilter(chip.id); setEmailPage(0); }}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      border: '1px solid',
+                      borderColor: emailFilter === chip.id ? '#0284c7' : 'var(--line)',
+                      background: emailFilter === chip.id ? 'rgba(2, 132, 199, 0.12)' : 'var(--bg)',
+                      color: emailFilter === chip.id ? '#0284c7' : 'var(--muted)',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Items Count */}
+              <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 500 }}>
+                Showing <strong>{filteredEmailDirectory.length}</strong> of {emailDirectory.length} colleges
+              </div>
+            </div>
+
+            {/* Email Directory Table */}
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--line)',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+            }}>
+              <div style={{ overflowX: 'auto', minHeight: '420px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: '11.5px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 14px', width: '40px', textAlign: 'center' }}>#</th>
+                      <th style={{ padding: '10px 14px', width: '110px' }}>College Code</th>
+                      <th style={{ padding: '10px 14px' }}>College / Examination Venue Name</th>
+                      <th style={{ padding: '10px 14px', width: '320px' }}>Official Email Address</th>
+                      <th style={{ padding: '10px 14px', width: '130px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedEmailDirectory.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>
+                          No colleges found matching "{emailSearch}".
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedEmailDirectory.map((item, idx) => {
+                        const actualIdx = emailDirectory.indexOf(item);
+                        const isKannurUniv = (item.email || '').toLowerCase().includes('@kannuruniv.ac.in');
+                        return (
+                          <tr
+                            key={idx}
+                            style={{
+                              borderBottom: '1px solid var(--line)',
+                              transition: 'background 0.1s ease'
+                            }}
+                          >
+                            <td style={{ padding: '10px 14px', textAlign: 'center', color: 'var(--muted)', fontFamily: 'monospace', fontSize: '11.5px' }}>
+                              {emailPage * emailPageSize + idx + 1}
+                            </td>
+                            <td style={{ padding: '10px 14px' }}>
+                              <button
+                                onClick={() => handleCopy(item.code, `code_${idx}`)}
+                                style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '5px',
+                                  background: 'rgba(2, 132, 199, 0.1)',
+                                  color: '#0284c7',
+                                  border: '1px solid rgba(2, 132, 199, 0.25)',
+                                  fontFamily: 'monospace',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                title="Click to copy College Code"
+                              >
+                                {copiedKey === `code_${idx}` ? <CheckCheck size={12} /> : <Copy size={11} opacity={0.6} />}
+                                {item.code}
+                              </button>
+                            </td>
+                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--ink)' }}>
+                              <div>{item.name}</div>
+                            </td>
+                            <td style={{ padding: '10px 14px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <a
+                                  href={`mailto:${item.email}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    fontFamily: 'monospace',
+                                    fontSize: '12px',
+                                    color: isKannurUniv ? '#059669' : '#0284c7',
+                                    textDecoration: 'none',
+                                    fontWeight: 600,
+                                    padding: '3px 8px',
+                                    borderRadius: '4px',
+                                    background: isKannurUniv ? 'rgba(5, 150, 105, 0.08)' : 'rgba(2, 132, 199, 0.08)',
+                                    border: `1px solid ${isKannurUniv ? 'rgba(5, 150, 105, 0.25)' : 'rgba(2, 132, 199, 0.25)'}`
+                                  }}
+                                  title="Click to compose email"
+                                >
+                                  <Mail size={12} />
+                                  {item.email}
+                                </a>
+                                <button
+                                  onClick={() => handleCopy(item.email, `email_${idx}`)}
+                                  style={{
+                                    padding: '4px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--muted)',
+                                    cursor: 'pointer',
+                                    borderRadius: '4px',
+                                    display: 'flex'
+                                  }}
+                                  title="Copy email address"
+                                >
+                                  {copiedKey === `email_${idx}` ? <CheckCheck size={13} color="var(--accent)" /> : <Copy size={13} />}
+                                </button>
+                              </div>
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                <button
+                                  onClick={() => handleOpenEditEmail(item, actualIdx)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    background: 'var(--bg)',
+                                    border: '1px solid var(--line)',
+                                    color: 'var(--ink)',
+                                    cursor: 'pointer',
+                                    fontSize: '11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px'
+                                  }}
+                                  title="Edit College Email"
+                                >
+                                  <Edit2 size={12} /> Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteEmail(actualIdx)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    background: 'var(--bg)',
+                                    border: '1px solid rgba(220, 38, 38, 0.3)',
+                                    color: '#dc2626',
+                                    cursor: 'pointer',
+                                    fontSize: '11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px'
+                                  }}
+                                  title="Delete Entry"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Bar */}
+              {filteredEmailDirectory.length > emailPageSize && (
+                <div style={{
+                  padding: '10px 16px',
+                  borderTop: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '12px',
+                  color: 'var(--muted)'
+                }}>
+                  <span>Page {emailPage + 1} of {totalEmailPages}</span>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <button
+                      onClick={() => setEmailPage(p => Math.max(0, p - 1))}
+                      disabled={emailPage === 0}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '11.5px',
+                        borderRadius: '4px',
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        border: '1px solid var(--line)',
+                        cursor: emailPage === 0 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setEmailPage(p => Math.min(totalEmailPages - 1, p + 1))}
+                      disabled={emailPage >= totalEmailPages - 1}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '11.5px',
+                        borderRadius: '4px',
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        border: '1px solid var(--line)',
+                        cursor: emailPage >= totalEmailPages - 1 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* View Mode 3: TABBED MASTER DIRECTORY (All 9 Categories) */}
         {viewMode === 'tabbed' && (
           <div style={{
             background: 'var(--panel)',
@@ -2483,6 +3381,13 @@ export default function MasterLookupDefinitionPage() {
                   Any updates, additions, or spreadsheet imports saved here are stored in persistent browser storage (<code>localStorage</code>). When you run <strong>Admission Import</strong> or <strong>Admission Report Maker - Row Wise</strong>, they instantly utilize your latest definitions!
                 </p>
               </div>
+
+              <div>
+                <strong style={{ fontSize: '13px', display: 'block', marginBottom: '4px' }}>5. Kannur University College Email Directory</strong>
+                <p style={{ margin: 0, color: 'var(--muted)' }}>
+                  Includes verified email contacts for 94 affiliated colleges, examination centers, and university departments. Features include one-click <strong>"Copy All College Emails"</strong> (semicolon-separated for instant pasting into Gmail / Outlook BCC for circulars), Excel export/import, and automatic linking to examination venue codes.
+                </p>
+              </div>
             </div>
 
             <div style={{ padding: '12px 20px', borderTop: '1px solid var(--line)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end' }}>
@@ -2493,6 +3398,163 @@ export default function MasterLookupDefinitionPage() {
                 Got It
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit College Email Modal */}
+      {showEmailModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--panel)',
+            border: '1px solid var(--line)',
+            borderRadius: '12px',
+            maxWidth: '520px',
+            width: '100%',
+            overflow: 'hidden',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)'
+          }}>
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid var(--line)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--bg)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#0284c7', display: 'flex' }}><Mail size={16} /></span>
+                <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700 }}>
+                  {showEmailModal === 'add' ? 'Add College Email Record' : 'Edit College Email Record'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowEmailModal(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '2px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEmailForm} style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', marginBottom: '4px' }}>
+                  College / Venue Code * (e.g. GB, GK, PP, ST)
+                </label>
+                <input
+                  type="text"
+                  value={emailForm.code}
+                  onChange={(e) => setEmailForm({ ...emailForm, code: e.target.value })}
+                  placeholder="e.g. GB"
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--line)',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    fontSize: '12.5px',
+                    fontFamily: 'monospace',
+                    textTransform: 'uppercase',
+                    boxSizing: 'border-box'
+                  }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', marginBottom: '4px' }}>
+                  College / Campus Full Name *
+                </label>
+                <input
+                  type="text"
+                  value={emailForm.name}
+                  onChange={(e) => setEmailForm({ ...emailForm, name: e.target.value })}
+                  placeholder="e.g. Government Brennen College, Thalassery, Kannur"
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--line)',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    fontSize: '12.5px',
+                    boxSizing: 'border-box'
+                  }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)', marginBottom: '4px' }}>
+                  Official Email Address * (Primary or Principal Email)
+                </label>
+                <input
+                  type="email"
+                  value={emailForm.email}
+                  onChange={(e) => setEmailForm({ ...emailForm, email: e.target.value })}
+                  placeholder="e.g. principal_gbc@kannuruniv.ac.in"
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--line)',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    fontSize: '12.5px',
+                    fontFamily: 'monospace',
+                    boxSizing: 'border-box'
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowEmailModal(false)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    border: '1px solid var(--line)',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: '6px',
+                    background: '#0284c7',
+                    color: '#fff',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showEmailModal === 'add' ? 'Save College Email' : 'Update Record'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
