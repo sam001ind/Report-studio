@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { 
   parseDobYMD, 
-  parseDobDMY 
+  parseDobDMY,
+  formatDobYYMMDD 
 } from '../utils/dateHelpers';
 import {
   ArrowLeft,
@@ -48,11 +49,7 @@ const DatabaseDumpExtractorPage = () => {
       return parseDobDMY(val);
     }
     if (targetFormat === 'yy-mm-dd') {
-      const ymd = parseDobYMD(val);
-      if (ymd) {
-        const parts = ymd.split('-');
-        return `${parts[0].slice(-2)}-${parts[1]}-${parts[2]}`;
-      }
+      return formatDobYYMMDD(val);
     }
     return String(val).trim();
   };

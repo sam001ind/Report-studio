@@ -113,7 +113,26 @@ export const parseDobYMD = (val) => {
     }
   }
 
-  // 5. DD-MM-YY or MM/DD/YY (2-digit year, handles both Indian dd/mm/yy and Excel m/d/yy like 1/17/02)
+  // 5. YY-MM-DD with hyphens (e.g. "02-01-17", "09-03-17", "08-12-22", or DD-MM-YY "17-01-02", "16-01-02")
+  const yyHyphen = clean.match(/^(\d{2})-(\d{1,2})-(\d{1,2})$/);
+  if (yyHyphen) {
+    const first = parseInt(yyHyphen[1], 10);
+    const second = parseInt(yyHyphen[2], 10);
+    const third = parseInt(yyHyphen[3], 10);
+    if (second <= 12) {
+      if (first > 12) {
+        // First is definitely Day (e.g. 17-01-02 -> Day 17, Month 01, Year 2002)
+        const year = third > 50 ? 1900 + third : 2000 + third;
+        return `${year}-${String(second).padStart(2, '0')}-${String(first).padStart(2, '0')}`;
+      } else {
+        // Default to YY-MM-DD (e.g. 02-01-17 -> Year 2002, Month 01, Day 17; 09-03-17 -> Year 2009, Month 03, Day 17; 08-12-22 -> Year 2008, Month 12, Day 22)
+        const year = first > 50 ? 1900 + first : 2000 + first;
+        return `${year}-${String(second).padStart(2, '0')}-${String(third).padStart(2, '0')}`;
+      }
+    }
+  }
+
+  // 6. DD/MM/YY or MM/DD/YY (2-digit year at end, handles both Indian dd/mm/yy and Excel m/d/yy like 1/17/02)
   const dmyShort = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/);
   if (dmyShort) {
     const first = parseInt(dmyShort[1], 10);
@@ -138,16 +157,6 @@ export const parseDobYMD = (val) => {
     }
   }
 
-  // 6. YY-MM-DD (e.g. "08-12-22" from SQL dump)
-  const yyMatch = clean.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
-  if (yyMatch) {
-    let year = parseInt(yyMatch[1], 10);
-    year = year > 50 ? 1900 + year : 2000 + year;
-    const m = String(parseInt(yyMatch[2], 10)).padStart(2, '0');
-    const d = String(parseInt(yyMatch[3], 10)).padStart(2, '0');
-    return `${year}-${m}-${d}`;
-  }
-
   // 7. Standard JS Date fallback (Use shifted mid-day UTC/local to avoid any timezone edge shift)
   const d = new Date(clean);
   if (!isNaN(d.getTime())) {
@@ -170,15 +179,16 @@ export const parseDobYMD = (val) => {
   return clean.split('T')[0].split(' ')[0];
 };
 
-// Converts YYYY-MM-DD date strictly to Excel integer day serial (no time fraction)
+// Converts YYYY-MM-DD or YY-MM-DD date strictly to Excel integer day serial (no time fraction)
 export const dateToExcelSerial = (dateStr) => {
   if (!dateStr) return null;
   const parts = String(dateStr).split('T')[0].split(' ')[0].split(/[-/.]/);
   if (parts.length !== 3) return null;
-  const year = parseInt(parts[0], 10);
+  let year = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10) - 1;
   const day = parseInt(parts[2], 10);
   if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+  if (year < 100) year = year > 50 ? 1900 + year : 2000 + year;
   const utcDate = Date.UTC(year, month, day);
   const epoch = Date.UTC(1899, 11, 30);
   return Math.round((utcDate - epoch) / (24 * 60 * 60 * 1000));
@@ -193,4 +203,19 @@ export const parseDobDMY = (val) => {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   }
   return ymd;
+};
+
+// Formats date to YY-MM-DD (e.g. 2002-01-17 -> 02-01-17)
+export const formatDobYYMMDD = (val) => {
+  if (!val && val !== 0) return '';
+  const clean = String(val).trim();
+  if (/^\d{2}-\d{2}-\d{2}$/.test(clean)) return clean;
+  const ymd = parseDobYMD(clean);
+  if (ymd) {
+    const parts = ymd.split('-');
+    if (parts.length === 3) {
+      return `${parts[0].slice(-2)}-${parts[1]}-${parts[2]}`;
+    }
+  }
+  return clean;
 };

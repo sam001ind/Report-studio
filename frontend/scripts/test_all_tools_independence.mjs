@@ -837,22 +837,31 @@ test('Header scanner detects candidate table header below university title banne
 });
 
 test('Admission Import & Transformation Engine: Preserves exact DOB dates without UTC timezone -1 day shift', async () => {
-  const { parseDobYMD, parseDobDMY } = await import('../src/utils/dateHelpers.js');
+  const { parseDobYMD, parseDobDMY, formatDobYYMMDD, dateToExcelSerial } = await import('../src/utils/dateHelpers.js');
 
   // 1. Source date 2002-01-17 (user reported issue across all formats)
   assert.equal(parseDobYMD('2002-01-17'), '2002-01-17');
   assert.equal(parseDobDMY('2002-01-17'), '17/01/2002');
+  assert.equal(formatDobYYMMDD('2002-01-17'), '02-01-17');
   assert.equal(parseDobYMD('17-01-2002'), '2002-01-17');
   assert.equal(parseDobYMD('17/01/2002'), '2002-01-17');
+  assert.equal(formatDobYYMMDD('17/01/2002'), '02-01-17');
   assert.equal(parseDobYMD('1/17/2002'), '2002-01-17'); // Excel formatted m/d/yyyy
   assert.equal(parseDobYMD('17/01/02'), '2002-01-17');
+  assert.equal(formatDobYYMMDD('17/01/02'), '02-01-17');
   assert.equal(parseDobYMD('1/17/02'), '2002-01-17'); // Excel formatted m/d/yy (Candidate 26332491)
+  assert.equal(formatDobYYMMDD('1/17/02'), '02-01-17');
   assert.equal(parseDobYMD('17-01-02'), '2002-01-17');
+  assert.equal(parseDobYMD('02-01-17'), '2002-01-17'); // YY-MM-DD input
+  assert.equal(formatDobYYMMDD('02-01-17'), '02-01-17');
   assert.equal(parseDobYMD('17-Jan-2002'), '2002-01-17');
   assert.equal(parseDobYMD('17 Jan 2002'), '2002-01-17');
   assert.equal(parseDobYMD('17 January 2002'), '2002-01-17');
   assert.equal(parseDobYMD('Jan 17, 2002'), '2002-01-17');
   assert.equal(parseDobYMD(37273), '2002-01-17'); // Excel serial for 2002-01-17
+  assert.equal(formatDobYYMMDD(37273), '02-01-17');
+  assert.equal(dateToExcelSerial('02-01-17'), 37273);
+  assert.equal(dateToExcelSerial('2002-01-17'), 37273);
   assert.equal(parseDobYMD('37273'), '2002-01-17');
   assert.equal(parseDobYMD(new Date(2002, 0, 17)), '2002-01-17');
   assert.equal(parseDobYMD(new Date('2002-01-16T18:29:50.000Z')), '2002-01-17'); // SheetJS V8 IST offset artifact
@@ -861,23 +870,42 @@ test('Admission Import & Transformation Engine: Preserves exact DOB dates withou
   // 2. Source date 2009-03-17 (user reported issue across all formats)
   assert.equal(parseDobYMD('2009-03-17'), '2009-03-17');
   assert.equal(parseDobDMY('2009-03-17'), '17/03/2009');
+  assert.equal(formatDobYYMMDD('2009-03-17'), '09-03-17');
   assert.equal(parseDobYMD('17-03-2009'), '2009-03-17');
   assert.equal(parseDobYMD('17/03/2009'), '2009-03-17');
   assert.equal(parseDobYMD('3/17/2009'), '2009-03-17'); // Excel formatted m/d/yyyy
   assert.equal(parseDobYMD('17/03/09'), '2009-03-17');
   assert.equal(parseDobYMD('3/17/09'), '2009-03-17'); // Excel formatted m/d/yy
+  assert.equal(formatDobYYMMDD('3/17/09'), '09-03-17');
   assert.equal(parseDobYMD('17-03-09'), '2009-03-17');
+  assert.equal(parseDobYMD('09-03-17'), '2009-03-17'); // YY-MM-DD input
+  assert.equal(formatDobYYMMDD('09-03-17'), '09-03-17');
   assert.equal(parseDobYMD('17-Mar-2009'), '2009-03-17');
   assert.equal(parseDobYMD('17 Mar 2009'), '2009-03-17');
   assert.equal(parseDobYMD('17 March 2009'), '2009-03-17');
   assert.equal(parseDobYMD('March 17, 2009'), '2009-03-17');
   assert.equal(parseDobYMD(39889), '2009-03-17'); // Excel serial for 2009-03-17
+  assert.equal(formatDobYYMMDD(39889), '09-03-17');
+  assert.equal(dateToExcelSerial('09-03-17'), 39889);
+  assert.equal(dateToExcelSerial('2009-03-17'), 39889);
   assert.equal(parseDobYMD('39889'), '2009-03-17');
   assert.equal(parseDobYMD(new Date(2009, 2, 17)), '2009-03-17');
   assert.equal(parseDobYMD(new Date('2009-03-16T18:29:50.000Z')), '2009-03-17'); // SheetJS V8 IST offset artifact
   assert.equal(parseDobYMD(new Date('2009-03-16T18:30:00.000Z')), '2009-03-17'); // Exact UTC midnight artifact
 
-  // 3. IST timestamp string representation (e.g. from String(new Date()))
+  // 3. Source date 2002-01-16
+  assert.equal(parseDobYMD('2002-01-16'), '2002-01-16');
+  assert.equal(parseDobDMY('2002-01-16'), '16/01/2002');
+  assert.equal(formatDobYYMMDD('2002-01-16'), '02-01-16');
+  assert.equal(parseDobYMD('16/01/02'), '2002-01-16');
+  assert.equal(formatDobYYMMDD('16/01/02'), '02-01-16');
+  assert.equal(parseDobYMD('1/16/02'), '2002-01-16');
+  assert.equal(formatDobYYMMDD('1/16/02'), '02-01-16');
+  assert.equal(parseDobYMD('02-01-16'), '2002-01-16');
+  assert.equal(formatDobYYMMDD('02-01-16'), '02-01-16');
+  assert.equal(dateToExcelSerial('02-01-16'), 37272);
+
+  // 4. IST timestamp string representation (e.g. from String(new Date()))
   assert.equal(parseDobYMD('Thu Jan 17 2002 00:00:00 GMT+0530 (India Standard Time)'), '2002-01-17');
   assert.equal(parseDobYMD('Tue Mar 17 2009 00:00:00 GMT+0530 (India Standard Time)'), '2009-03-17');
 });
@@ -1227,7 +1255,14 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
   const ws = XLSX.utils.aoa_to_sheet(exportAoa);
 
   TARGET_COLUMNS.forEach((col, cIdx) => {
-    if (col === 'dob' || col === 'Result Date ') {
+    if (col === 'dob') {
+      const cellAddr = XLSX.utils.encode_cell({ r: 1, c: cIdx });
+      const rawVal = testTransformedRow[col];
+      const dObj = parseToDate(rawVal);
+      if (dObj) {
+        ws[cellAddr] = { t: 'd', v: dObj, z: 'yy-mm-dd' };
+      }
+    } else if (col === 'Result Date ') {
       const cellAddr = XLSX.utils.encode_cell({ r: 1, c: cIdx });
       const rawVal = testTransformedRow[col];
       const dObj = parseToDate(rawVal);

@@ -33,10 +33,11 @@ import {
   cleanEscapeArtifacts, 
   parseDobYMD, 
   dateToExcelSerial, 
-  parseDobDMY 
+  parseDobDMY,
+  formatDobYYMMDD
 } from '../utils/dateHelpers';
 
-export { cleanEscapeArtifacts, parseDobYMD, dateToExcelSerial, parseDobDMY };
+export { cleanEscapeArtifacts, parseDobYMD, dateToExcelSerial, parseDobDMY, formatDobYYMMDD };
 
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -476,7 +477,7 @@ export default function AdmissionImportPage() {
     // 5. Username (Application Number / Reg No / Admn No)
     const username = getVal('username', 'applno', 'applicationnumber', 'appno', 'regno', 'registerno', 'registrationno', 'admnum', 'admissionno', 'prn', 'candidateid', 'rollno', 'seatno');
 
-    // 6 & 7. Date of Birth: YYYY-MM-DD for `dob` and DD/MM/YYYY for `Date of Birth (DD/MM/YY)`
+    // 6 & 7. Date of Birth: YY-MM-DD for `dob` and DD/MM/YYYY for `Date of Birth (DD/MM/YY)`
     const rawDob = getVal(
       'dob', 
       'dateofbirth', 
@@ -493,7 +494,7 @@ export default function AdmissionImportPage() {
       'applicantdateofbirth',
       'birth'
     );
-    const dob = parseDobYMD(rawDob);
+    const dob = formatDobYYMMDD(rawDob);
     const dobDMY = parseDobDMY(rawDob);
 
     // 8. AadhaarNumber (Preserve exact 12 digits as string)
@@ -975,13 +976,13 @@ export default function AdmissionImportPage() {
         if (colKey === 'dob') {
           const parsedYMD = parseDobYMD(newValue);
           if (parsedYMD) {
-            updated.dob = parsedYMD;
+            updated.dob = formatDobYYMMDD(newValue);
             updated['Date of Birth (DD/MM/YY)'] = parseDobDMY(newValue);
           }
         } else if (colKey === 'Date of Birth (DD/MM/YY)') {
           const parsedYMD = parseDobYMD(newValue);
           if (parsedYMD) {
-            updated.dob = parsedYMD;
+            updated.dob = formatDobYYMMDD(newValue);
             updated['Date of Birth (DD/MM/YY)'] = parseDobDMY(newValue);
           }
         }
@@ -1216,6 +1217,9 @@ export default function AdmissionImportPage() {
             }
             return val;
           }
+          if (col === 'dob') {
+            return formatDobYYMMDD(val) || val;
+          }
           return val;
         }));
       });
@@ -1223,7 +1227,7 @@ export default function AdmissionImportPage() {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(exportAoa);
 
-      // Format all numeric and date cells with agreed Excel number (z: '0') and date (z: 'yyyy-mm-dd') formats
+      // Format all numeric and date cells with agreed Excel number (z: '0') and date (z: 'yy-mm-dd' / 'yyyy-mm-dd') formats
       TARGET_COLUMNS.forEach((col, cIdx) => {
         if (NUMERIC_INT_COLUMNS.has(col)) {
           for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
@@ -1241,7 +1245,18 @@ export default function AdmissionImportPage() {
               ws[cellAddr] = { t: 'n', v: Number(rawVal), z: '0.00' };
             }
           }
-        } else if (col === 'dob' || col === 'Result Date ' || col === 'Result Date') {
+        } else if (col === 'dob') {
+          for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
+            const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
+            const rawVal = normalizedRows[rIdx][col];
+            const parsedYMD = parseDobYMD(rawVal);
+            const serial = dateToExcelSerial(parsedYMD);
+            const formattedYYMMDD = formatDobYYMMDD(rawVal);
+            if (serial) {
+              ws[cellAddr] = { t: 'n', v: serial, z: 'yy-mm-dd', w: formattedYYMMDD };
+            }
+          }
+        } else if (col === 'Result Date ' || col === 'Result Date') {
           for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
             const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
             const rawVal = normalizedRows[rIdx][col];
