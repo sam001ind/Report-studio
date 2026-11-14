@@ -844,7 +844,9 @@ test('Admission Import & Transformation Engine: Preserves exact DOB dates withou
   assert.equal(parseDobDMY('2002-01-17'), '17/01/2002');
   assert.equal(parseDobYMD('17-01-2002'), '2002-01-17');
   assert.equal(parseDobYMD('17/01/2002'), '2002-01-17');
+  assert.equal(parseDobYMD('1/17/2002'), '2002-01-17'); // Excel formatted m/d/yyyy
   assert.equal(parseDobYMD('17/01/02'), '2002-01-17');
+  assert.equal(parseDobYMD('1/17/02'), '2002-01-17'); // Excel formatted m/d/yy (Candidate 26332491)
   assert.equal(parseDobYMD('17-01-02'), '2002-01-17');
   assert.equal(parseDobYMD('17-Jan-2002'), '2002-01-17');
   assert.equal(parseDobYMD('17 Jan 2002'), '2002-01-17');
@@ -861,7 +863,9 @@ test('Admission Import & Transformation Engine: Preserves exact DOB dates withou
   assert.equal(parseDobDMY('2009-03-17'), '17/03/2009');
   assert.equal(parseDobYMD('17-03-2009'), '2009-03-17');
   assert.equal(parseDobYMD('17/03/2009'), '2009-03-17');
+  assert.equal(parseDobYMD('3/17/2009'), '2009-03-17'); // Excel formatted m/d/yyyy
   assert.equal(parseDobYMD('17/03/09'), '2009-03-17');
+  assert.equal(parseDobYMD('3/17/09'), '2009-03-17'); // Excel formatted m/d/yy
   assert.equal(parseDobYMD('17-03-09'), '2009-03-17');
   assert.equal(parseDobYMD('17-Mar-2009'), '2009-03-17');
   assert.equal(parseDobYMD('17 Mar 2009'), '2009-03-17');

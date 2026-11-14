@@ -94,29 +94,44 @@ export const parseDobYMD = (val) => {
     if (m) return `${y}-${m}-${d}`;
   }
 
-  // 4. DD-MM-YYYY or DD/MM/YYYY (e.g. "17-01-2002", "17/01/2002", "17-03-2009", "17/03/2009", "19/08/2008")
+  // 4. DD-MM-YYYY or MM/DD/YYYY (4-digit year, handles both Indian dd/mm/yyyy and m/d/yyyy)
   const dmyPrefix = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
   if (dmyPrefix) {
-    const d = String(parseInt(dmyPrefix[1], 10)).padStart(2, '0');
-    const m = String(parseInt(dmyPrefix[2], 10)).padStart(2, '0');
+    const first = parseInt(dmyPrefix[1], 10);
+    const second = parseInt(dmyPrefix[2], 10);
     const y = dmyPrefix[3];
-    return `${y}-${m}-${d}`;
+    if (second > 12) {
+      // Second number cannot be month (e.g. 1/17/2002 -> Month 1, Day 17, Year 2002)
+      const m = String(first).padStart(2, '0');
+      const d = String(second).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    } else {
+      // Default to standard Indian dd/mm/yyyy format
+      const d = String(first).padStart(2, '0');
+      const m = String(second).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
   }
 
-  // 5. DD-MM-YY or DD/MM/YY (e.g. "17-01-02", "17/01/02", "17-03-09")
+  // 5. DD-MM-YY or MM/DD/YY (2-digit year, handles both Indian dd/mm/yy and Excel m/d/yy like 1/17/02)
   const dmyShort = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/);
   if (dmyShort) {
     const first = parseInt(dmyShort[1], 10);
     const second = parseInt(dmyShort[2], 10);
     let third = parseInt(dmyShort[3], 10);
     third = third > 50 ? 1900 + third : 2000 + third;
-    if (first > 12) {
-      // First is definitely Day (e.g. 17/03/09 -> Day 17, Month 03, Year 2009)
+    if (second > 12) {
+      // Second number cannot be month (e.g. 1/17/02 -> Month 1, Day 17, Year 2002)
+      const m = String(first).padStart(2, '0');
+      const d = String(second).padStart(2, '0');
+      return `${third}-${m}-${d}`;
+    } else if (first > 12) {
+      // First number cannot be month (e.g. 17/01/02 -> Day 17, Month 1, Year 2002)
       const d = String(first).padStart(2, '0');
       const m = String(second).padStart(2, '0');
       return `${third}-${m}-${d}`;
     } else {
-      // Default to DD-MM-YY standard Indian format
+      // Default to DD-MM-YY standard Indian format (e.g. 05/01/02 -> Day 5, Month 1, Year 2002)
       const d = String(first).padStart(2, '0');
       const m = String(second).padStart(2, '0');
       return `${third}-${m}-${d}`;
