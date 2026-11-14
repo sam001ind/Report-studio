@@ -561,7 +561,7 @@ export default function PaymentReconciliationPage() {
 
   // Parse Excel / CSV into JSON array
   const parseFileBuffer = (buffer) => {
-    const wb = XLSX.read(buffer, { type: 'array', cellDates: true, defval: '' });
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: false, defval: '' });
     return wb;
   };
 

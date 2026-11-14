@@ -141,7 +141,7 @@ const SplitterPage = () => {
           const lotRows = dataRows.slice(firstRowIndex, firstRowIndex + rowsLimit);
           
           const outputWorkbook = XLSX.utils.book_new();
-          const outputSheet = XLSX.utils.aoa_to_sheet([header, ...lotRows], { cellDates: true });
+          const outputSheet = XLSX.utils.aoa_to_sheet([header, ...lotRows], { cellDates: false });
 
           if (copyColumnWidths && sourceSheet["!cols"]) {
             outputSheet["!cols"] = sourceSheet["!cols"].slice();
@@ -156,7 +156,7 @@ const SplitterPage = () => {
 
           XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, selectedSheet.slice(0, 31) || "Sheet1");
 
-          const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: true });
+          const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: false });
           const fileName = `${baseName}_lot_${String(index + 1).padStart(2, "0")}.xlsx`;
           
           zip.file(fileName, excelBuffer);
@@ -184,7 +184,7 @@ const SplitterPage = () => {
         Object.keys(groupedData).forEach((colValue) => {
           const groupRows = groupedData[colValue];
           const outputWorkbook = XLSX.utils.book_new();
-          const outputSheet = XLSX.utils.aoa_to_sheet([header, ...groupRows], { cellDates: true });
+          const outputSheet = XLSX.utils.aoa_to_sheet([header, ...groupRows], { cellDates: false });
 
           if (copyColumnWidths && sourceSheet["!cols"]) {
             outputSheet["!cols"] = sourceSheet["!cols"].slice();
@@ -199,7 +199,7 @@ const SplitterPage = () => {
 
           XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, selectedSheet.slice(0, 31) || "Sheet1");
 
-          const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: true });
+          const excelBuffer = XLSX.write(outputWorkbook, { bookType: "xlsx", type: "array", cellDates: false });
           const safeColVal = String(colValue).replace(/[/\\?%*:|"<>]/g, "_").trim() || "Unassigned";
           const fileName = `${safeColVal}.xlsx`;
 
