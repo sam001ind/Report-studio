@@ -839,27 +839,64 @@ test('Header scanner detects candidate table header below university title banne
 test('Admission Import & Transformation Engine: Preserves exact DOB dates without UTC timezone -1 day shift', async () => {
   const { parseDobYMD, parseDobDMY } = await import('../src/utils/dateHelpers.js');
 
-  // 1. Source date 2002-01-17 (user reported issue)
+  // 1. Source date 2002-01-17 (user reported issue across all formats)
   assert.equal(parseDobYMD('2002-01-17'), '2002-01-17');
   assert.equal(parseDobDMY('2002-01-17'), '17/01/2002');
   assert.equal(parseDobYMD('17-01-2002'), '2002-01-17');
   assert.equal(parseDobYMD('17/01/2002'), '2002-01-17');
+  assert.equal(parseDobYMD('17/01/02'), '2002-01-17');
+  assert.equal(parseDobYMD('17-01-02'), '2002-01-17');
+  assert.equal(parseDobYMD('17-Jan-2002'), '2002-01-17');
+  assert.equal(parseDobYMD('17 Jan 2002'), '2002-01-17');
+  assert.equal(parseDobYMD('17 January 2002'), '2002-01-17');
+  assert.equal(parseDobYMD('Jan 17, 2002'), '2002-01-17');
   assert.equal(parseDobYMD(37273), '2002-01-17'); // Excel serial for 2002-01-17
   assert.equal(parseDobYMD('37273'), '2002-01-17');
   assert.equal(parseDobYMD(new Date(2002, 0, 17)), '2002-01-17');
+  assert.equal(parseDobYMD(new Date('2002-01-16T18:29:50.000Z')), '2002-01-17'); // SheetJS V8 IST offset artifact
+  assert.equal(parseDobYMD(new Date('2002-01-16T18:30:00.000Z')), '2002-01-17'); // Exact UTC midnight artifact
 
-  // 2. Source date 2009-03-17
+  // 2. Source date 2009-03-17 (user reported issue across all formats)
   assert.equal(parseDobYMD('2009-03-17'), '2009-03-17');
   assert.equal(parseDobDMY('2009-03-17'), '17/03/2009');
   assert.equal(parseDobYMD('17-03-2009'), '2009-03-17');
   assert.equal(parseDobYMD('17/03/2009'), '2009-03-17');
+  assert.equal(parseDobYMD('17/03/09'), '2009-03-17');
+  assert.equal(parseDobYMD('17-03-09'), '2009-03-17');
+  assert.equal(parseDobYMD('17-Mar-2009'), '2009-03-17');
+  assert.equal(parseDobYMD('17 Mar 2009'), '2009-03-17');
+  assert.equal(parseDobYMD('17 March 2009'), '2009-03-17');
+  assert.equal(parseDobYMD('March 17, 2009'), '2009-03-17');
   assert.equal(parseDobYMD(39889), '2009-03-17'); // Excel serial for 2009-03-17
   assert.equal(parseDobYMD('39889'), '2009-03-17');
   assert.equal(parseDobYMD(new Date(2009, 2, 17)), '2009-03-17');
+  assert.equal(parseDobYMD(new Date('2009-03-16T18:29:50.000Z')), '2009-03-17'); // SheetJS V8 IST offset artifact
+  assert.equal(parseDobYMD(new Date('2009-03-16T18:30:00.000Z')), '2009-03-17'); // Exact UTC midnight artifact
 
   // 3. IST timestamp string representation (e.g. from String(new Date()))
   assert.equal(parseDobYMD('Thu Jan 17 2002 00:00:00 GMT+0530 (India Standard Time)'), '2002-01-17');
   assert.equal(parseDobYMD('Tue Mar 17 2009 00:00:00 GMT+0530 (India Standard Time)'), '2009-03-17');
+});
+
+test('Admission Import & Transformation Engine: End-to-end preservation of dates, leading zeros, PINs, and identifiers', async () => {
+  const { parseDobYMD, parseDobDMY, cleanEscapeArtifacts } = await import('../src/utils/dateHelpers.js');
+
+  // Verify identifier preservation without scientific notation or leading zero loss
+  const rawAadhaar = '012345678901';
+  assert.equal(rawAadhaar.replace(/\D/g, '').slice(0, 12), '012345678901');
+
+  const rawABC = '009876543210';
+  assert.equal(rawABC.replace(/\D/g, '').slice(0, 12), '009876543210');
+
+  const rawPin = '067001';
+  assert.equal(rawPin.replace(/\D/g, '').slice(0, 6), '067001');
+
+  // Verify escape artifacts
+  assert.equal(cleanEscapeArtifacts('\\N'), '');
+  assert.equal(cleanEscapeArtifacts('null'), '');
+  assert.equal(cleanEscapeArtifacts('undefined'), '');
+  assert.equal(cleanEscapeArtifacts('2002-01-17'), '2002-01-17');
+  assert.equal(cleanEscapeArtifacts('2009-03-17'), '2009-03-17');
 });
 
 test('Multi-sheet workbook: skips blank/instruction sheet 0 and selects candidate sheet 1', () => {

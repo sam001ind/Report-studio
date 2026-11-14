@@ -9,20 +9,34 @@ export const cleanEscapeArtifacts = (val) => {
   return str;
 };
 
-// Formats date strictly to YYYY-MM-DD (removes any timestamp, preserves exact local day)
+// Formats date strictly to YYYY-MM-DD (removes any timestamp, preserves exact calendar day across all timezones)
 export const parseDobYMD = (val) => {
+  if (val === null || val === undefined) return '';
+
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return '';
-    const y = val.getFullYear();
-    const m = String(val.getMonth() + 1).padStart(2, '0');
-    const d = String(val.getDate()).padStart(2, '0');
+    const t = val.getTime();
+    const utcHours = val.getUTCHours();
+    let mid;
+    if (utcHours >= 18) {
+      // In positive timezones like IST (+5:30), evening UTC (18:00 - 23:59) is midnight of target day
+      mid = new Date(t + 7 * 3600 * 1000);
+    } else if (val.getHours() === 23 && val.getMinutes() >= 50) {
+      // Historical V8 8m 50s offset artifact where midnight became 23:59:50 local
+      mid = new Date(t + 20 * 60 * 1000);
+    } else {
+      mid = val;
+    }
+    const y = mid.getFullYear();
+    const m = String(mid.getMonth() + 1).padStart(2, '0');
+    const d = String(mid.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
 
   const clean = cleanEscapeArtifacts(val);
   if (!clean) return '';
 
-  // 1. If it starts with YYYY-MM-DD (e.g. "2002-01-17", "2008-08-19", "2008-08-19 00:00:00", "2008-08-19T00:00:00.000Z")
+  // 1. If it starts with YYYY-MM-DD (e.g. "2002-01-17", "2009-03-17", "2008-08-19 00:00:00", "2008-08-19T00:00:00.000Z")
   const ymdPrefix = clean.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
   if (ymdPrefix) {
     const y = ymdPrefix[1];
@@ -31,9 +45,9 @@ export const parseDobYMD = (val) => {
     return `${y}-${m}-${d}`;
   }
 
-  // 2. Excel serial number (e.g. 37273, 39679)
-  if (/^\d{4,5}$/.test(clean)) {
-    const serial = parseInt(clean, 10);
+  // 2. Excel serial number (e.g. 37273 for 2002-01-17, 39889 for 2009-03-17)
+  if (/^\d{4,5}(\.\d+)?$/.test(clean)) {
+    const serial = Math.floor(parseFloat(clean));
     if (serial > 10000 && serial < 60000) {
       const epoch = Date.UTC(1899, 11, 30);
       const d = new Date(epoch + serial * 86400 * 1000);
@@ -46,7 +60,41 @@ export const parseDobYMD = (val) => {
     }
   }
 
-  // 3. DD-MM-YYYY or DD/MM/YYYY (e.g. "17-01-2002", "19/08/2008", "19-08-2008 12:00:00")
+  // 3. Named month formats (e.g. "17-Jan-2002", "17 Jan 2002", "17/January/2002", "Jan 17, 2002", "17-March-2009")
+  const MONTHS = {
+    jan: '01', january: '01',
+    feb: '02', february: '02',
+    mar: '03', march: '03',
+    apr: '04', april: '04',
+    may: '05',
+    jun: '06', june: '06',
+    jul: '07', july: '07',
+    aug: '08', august: '08',
+    sep: '09', sept: '09', september: '09',
+    oct: '10', october: '10',
+    nov: '11', november: '11',
+    dec: '12', december: '12'
+  };
+  const namedDmy = clean.match(/^(\d{1,2})[-/.\s]+([A-Za-z]+)[-/.\s]+(\d{2,4})/);
+  if (namedDmy) {
+    const d = String(parseInt(namedDmy[1], 10)).padStart(2, '0');
+    const monKey = namedDmy[2].toLowerCase();
+    const m = MONTHS[monKey] || MONTHS[monKey.slice(0, 3)];
+    let y = parseInt(namedDmy[3], 10);
+    if (y < 100) y = y > 50 ? 1900 + y : 2000 + y;
+    if (m) return `${y}-${m}-${d}`;
+  }
+  const namedMdy = clean.match(/^([A-Za-z]+)[-/.\s]+(\d{1,2})[,]?[-/.\s]+(\d{2,4})/);
+  if (namedMdy) {
+    const monKey = namedMdy[1].toLowerCase();
+    const m = MONTHS[monKey] || MONTHS[monKey.slice(0, 3)];
+    const d = String(parseInt(namedMdy[2], 10)).padStart(2, '0');
+    let y = parseInt(namedMdy[3], 10);
+    if (y < 100) y = y > 50 ? 1900 + y : 2000 + y;
+    if (m) return `${y}-${m}-${d}`;
+  }
+
+  // 4. DD-MM-YYYY or DD/MM/YYYY (e.g. "17-01-2002", "17/01/2002", "17-03-2009", "17/03/2009", "19/08/2008")
   const dmyPrefix = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
   if (dmyPrefix) {
     const d = String(parseInt(dmyPrefix[1], 10)).padStart(2, '0');
@@ -55,7 +103,27 @@ export const parseDobYMD = (val) => {
     return `${y}-${m}-${d}`;
   }
 
-  // 4. YY-MM-DD (e.g. "08-12-22" from dump)
+  // 5. DD-MM-YY or DD/MM/YY (e.g. "17-01-02", "17/01/02", "17-03-09")
+  const dmyShort = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/);
+  if (dmyShort) {
+    const first = parseInt(dmyShort[1], 10);
+    const second = parseInt(dmyShort[2], 10);
+    let third = parseInt(dmyShort[3], 10);
+    third = third > 50 ? 1900 + third : 2000 + third;
+    if (first > 12) {
+      // First is definitely Day (e.g. 17/03/09 -> Day 17, Month 03, Year 2009)
+      const d = String(first).padStart(2, '0');
+      const m = String(second).padStart(2, '0');
+      return `${third}-${m}-${d}`;
+    } else {
+      // Default to DD-MM-YY standard Indian format
+      const d = String(first).padStart(2, '0');
+      const m = String(second).padStart(2, '0');
+      return `${third}-${m}-${d}`;
+    }
+  }
+
+  // 6. YY-MM-DD (e.g. "08-12-22" from SQL dump)
   const yyMatch = clean.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
   if (yyMatch) {
     let year = parseInt(yyMatch[1], 10);
@@ -65,14 +133,25 @@ export const parseDobYMD = (val) => {
     return `${year}-${m}-${d}`;
   }
 
-  // 5. Standard JS Date fallback (Use local getters to avoid UTC timezone back-shifting)
+  // 7. Standard JS Date fallback (Use shifted mid-day UTC/local to avoid any timezone edge shift)
   const d = new Date(clean);
   if (!isNaN(d.getTime())) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+    const t = d.getTime();
+    const utcHours = d.getUTCHours();
+    let mid;
+    if (utcHours >= 18) {
+      mid = new Date(t + 7 * 3600 * 1000);
+    } else if (d.getHours() === 23 && d.getMinutes() >= 50) {
+      mid = new Date(t + 20 * 60 * 1000);
+    } else {
+      mid = d;
+    }
+    const y = mid.getFullYear();
+    const m = String(mid.getMonth() + 1).padStart(2, '0');
+    const day = String(mid.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
+
   return clean.split('T')[0].split(' ')[0];
 };
 

@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import { 
+  parseDobYMD, 
+  parseDobDMY 
+} from '../utils/dateHelpers';
 import {
   ArrowLeft,
   Upload,
@@ -37,26 +41,20 @@ const DatabaseDumpExtractorPage = () => {
   // Format DOB values into requested format (e.g. yy-mm-dd: 08-12-22)
   const formatDobVal = (val, targetFormat = 'yy-mm-dd') => {
     if (!val || targetFormat === 'raw') return val;
-    const str = String(val).trim();
-    if (targetFormat === 'yy-mm-dd') {
-      const m1 = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-      if (m1) return `${m1[1].slice(-2)}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
-      const m2 = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-      if (m2) return `${m2[3].slice(-2)}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
-      const m3 = str.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-      if (m3) return `${m3[1]}-${m3[2].padStart(2, '0')}-${m3[3].padStart(2, '0')}`;
-    } else if (targetFormat === 'yyyy-mm-dd') {
-      const m1 = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-      if (m1) return `${m1[1]}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
-      const m2 = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-      if (m2) return `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
-    } else if (targetFormat === 'dd/mm/yyyy') {
-      const m1 = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-      if (m1) return `${m1[3].padStart(2, '0')}/${m1[2].padStart(2, '0')}/${m1[1]}`;
-      const m2 = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-      if (m2) return `${m2[1].padStart(2, '0')}/${m2[2].padStart(2, '0')}/${m2[3]}`;
+    if (targetFormat === 'yyyy-mm-dd') {
+      return parseDobYMD(val);
     }
-    return str;
+    if (targetFormat === 'dd/mm/yyyy') {
+      return parseDobDMY(val);
+    }
+    if (targetFormat === 'yy-mm-dd') {
+      const ymd = parseDobYMD(val);
+      if (ymd) {
+        const parts = ymd.split('-');
+        return `${parts[0].slice(-2)}-${parts[1]}-${parts[2]}`;
+      }
+    }
+    return String(val).trim();
   };
 
   // Unescape PostgreSQL COPY string

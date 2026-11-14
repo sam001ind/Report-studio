@@ -167,10 +167,7 @@ export const extractAdmissionRowsFromSheet = (sheet) => {
       let strVal = '';
       if (cellVal instanceof Date) {
         if (!isNaN(cellVal.getTime())) {
-          const y = cellVal.getFullYear();
-          const m = String(cellVal.getMonth() + 1).padStart(2, '0');
-          const d = String(cellVal.getDate()).padStart(2, '0');
-          strVal = `${y}-${m}-${d}`;
+          strVal = parseDobYMD(cellVal);
         }
       } else if (cellVal !== undefined && cellVal !== null) {
         strVal = String(cellVal).trim();
@@ -477,19 +474,34 @@ export default function AdmissionImportPage() {
     const email = rawEmail.toLowerCase().trim();
 
     // 5. Username (Application Number / Reg No / Admn No)
-    const username = getVal('username', 'applno', 'applicationnumber', 'appno', 'regno', 'registerno', 'admnum', 'prn', 'candidateid');
+    const username = getVal('username', 'applno', 'applicationnumber', 'appno', 'regno', 'registerno', 'registrationno', 'admnum', 'admissionno', 'prn', 'candidateid', 'rollno', 'seatno');
 
     // 6 & 7. Date of Birth: YYYY-MM-DD for `dob` and DD/MM/YYYY for `Date of Birth (DD/MM/YY)`
-    const rawDob = getVal('dob', 'dateofbirth', 'birthdate');
+    const rawDob = getVal(
+      'dob', 
+      'dateofbirth', 
+      'birthdate', 
+      'dateofbirthddmmyy', 
+      'dateofbirthddmmyyyy', 
+      'dobddmmyy', 
+      'dobddmmyyyy', 
+      'candidatedob', 
+      'studentdob', 
+      'applicantdob', 
+      'bdate', 
+      'candidatedateofbirth', 
+      'applicantdateofbirth',
+      'birth'
+    );
     const dob = parseDobYMD(rawDob);
     const dobDMY = parseDobDMY(rawDob);
 
     // 8. AadhaarNumber (Preserve exact 12 digits as string)
-    const rawAadhaar = getVal('aadhaarnumber', 'aadhar', 'adharnumber', 'adhar');
+    const rawAadhaar = getVal('aadhaarnumber', 'aadhaar', 'aadhar', 'adharnumber', 'adhar', 'aadharno', 'adharno');
     const aadhaarNumber = rawAadhaar.replace(/\D/g, '').slice(0, 12);
 
     // 9. ABCId (Preserve exact 12 digits as string)
-    const rawABC = getVal('abcid', 'abc', 'academicbankofcredits');
+    const rawABC = getVal('abcid', 'abc', 'academicbankofcredits', 'abcaccountid', 'abcno');
     const abcId = rawABC.replace(/\D/g, '').slice(0, 12);
 
     // 10 & 11. CountryId & CountryName
@@ -774,7 +786,7 @@ export default function AdmissionImportPage() {
       corrStateName: corrStateName,
       corrAddress: corrAddress,
       corrCity: corrCity,
-      corrPin: toNumOrVal(corrPin),
+      corrPin: corrPin,
       categoryId: toNumOrVal(categoryId),
       categoryName: categoryName,
       CasteId: toNumOrVal(casteId),
@@ -824,7 +836,11 @@ export default function AdmissionImportPage() {
       headerMap[normalizeKey(h)] = h;
     });
 
-    const transformed = rows.map(row => transformRow(row, headerMap, customLookupMaps));
+    const transformed = rows.map((row, rIdx) => {
+      const tr = transformRow(row, headerMap, customLookupMaps);
+      tr._rowId = rIdx;
+      return tr;
+    });
     setNormalizedRows(transformed);
 
     const warningCount = transformed.filter(r => r._warnings && r._warnings.length > 0).length;
@@ -947,36 +963,39 @@ export default function AdmissionImportPage() {
     }
   };
 
-  const updateCell = (rowIndex, colKey, newValue) => {
+  const updateCell = (targetRowId, colKey, newValue) => {
     setNormalizedRows(prev => {
-      const copy = [...prev];
-      const updated = { ...copy[rowIndex], [colKey]: newValue };
+      return prev.map((row, idx) => {
+        const rowId = row._rowId !== undefined ? row._rowId : idx;
+        if (rowId !== targetRowId) return row;
 
-      // Two-way synchronization: Date of Birth (dob <-> Date of Birth (DD/MM/YY))
-      if (colKey === 'dob') {
-        const parsedYMD = parseDobYMD(newValue);
-        if (parsedYMD) {
-          updated.dob = parsedYMD;
-          updated['Date of Birth (DD/MM/YY)'] = parseDobDMY(newValue);
-        }
-      } else if (colKey === 'Date of Birth (DD/MM/YY)') {
-        const parsedYMD = parseDobYMD(newValue);
-        if (parsedYMD) {
-          updated.dob = parsedYMD;
-          updated['Date of Birth (DD/MM/YY)'] = parseDobDMY(newValue);
-        }
-      }
+        const updated = { ...row, [colKey]: newValue };
 
-      // Convert numeric fields if applicable
-      const numericCols = new Set([
-        'CountryId', 'corrStateId', 'corrPin', 'categoryId', 'CasteId', 'religionId',
-        'workFlowId', 'WORKFLOWID', 'CollegeId', 'CollegeCode', 'QualificationFacultyId',
-        'QualificationSpecializationId', 'NoOfAttempts', 'MarksObtained', 'Percentage',
-        'MarksOutOf', 'CGPA', 'SeatNumber'
-      ]);
-      if (numericCols.has(colKey) && newValue !== '' && !isNaN(Number(newValue))) {
-        updated[colKey] = Number(newValue);
-      }
+        // Two-way synchronization: Date of Birth (dob <-> Date of Birth (DD/MM/YY))
+        if (colKey === 'dob') {
+          const parsedYMD = parseDobYMD(newValue);
+          if (parsedYMD) {
+            updated.dob = parsedYMD;
+            updated['Date of Birth (DD/MM/YY)'] = parseDobDMY(newValue);
+          }
+        } else if (colKey === 'Date of Birth (DD/MM/YY)') {
+          const parsedYMD = parseDobYMD(newValue);
+          if (parsedYMD) {
+            updated.dob = parsedYMD;
+            updated['Date of Birth (DD/MM/YY)'] = parseDobDMY(newValue);
+          }
+        }
+
+        // Convert numeric fields if applicable (excluding text IDs and PINs)
+        const numericCols = new Set([
+          'CountryId', 'corrStateId', 'categoryId', 'CasteId', 'religionId',
+          'workFlowId', 'WORKFLOWID', 'CollegeId', 'CollegeCode', 'QualificationFacultyId',
+          'QualificationSpecializationId', 'NoOfAttempts', 'MarksObtained', 'Percentage',
+          'MarksOutOf', 'CGPA', 'SeatNumber'
+        ]);
+        if (numericCols.has(colKey) && newValue !== '' && !isNaN(Number(newValue))) {
+          updated[colKey] = Number(newValue);
+        }
 
       // 1. Two-way synchronization: State (corrStateName <-> corrStateId)
       if (colKey === 'corrStateName') {
@@ -1148,8 +1167,8 @@ export default function AdmissionImportPage() {
         }
       }
 
-      copy[rowIndex] = updated;
-      return copy;
+        return updated;
+      });
     });
   };
 
@@ -1226,18 +1245,21 @@ export default function AdmissionImportPage() {
           for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
             const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
             const rawVal = normalizedRows[rIdx][col];
-            const serial = dateToExcelSerial(parseDobYMD(rawVal));
+            const parsedYMD = parseDobYMD(rawVal);
+            const serial = dateToExcelSerial(parsedYMD);
             if (serial) {
-              ws[cellAddr] = { t: 'n', v: serial, z: 'yyyy-mm-dd' };
+              ws[cellAddr] = { t: 'n', v: serial, z: 'yyyy-mm-dd', w: parsedYMD };
             }
           }
         } else if (col === 'Date of Birth (DD/MM/YY)') {
           for (let rIdx = 0; rIdx < normalizedRows.length; rIdx++) {
             const cellAddr = XLSX.utils.encode_cell({ r: rIdx + 1, c: cIdx });
             const rawVal = normalizedRows[rIdx][col];
-            const serial = dateToExcelSerial(parseDobYMD(rawVal));
+            const parsedYMD = parseDobYMD(rawVal);
+            const parsedDMY = parseDobDMY(rawVal);
+            const serial = dateToExcelSerial(parsedYMD);
             if (serial) {
-              ws[cellAddr] = { t: 'n', v: serial, z: 'dd/mm/yyyy' };
+              ws[cellAddr] = { t: 'n', v: serial, z: 'dd/mm/yyyy', w: parsedDMY };
             }
           }
         }
@@ -1735,11 +1757,12 @@ export default function AdmissionImportPage() {
                 </thead>
                 <tbody>
                   {pagedRows.map((row, rowIdx) => {
+                    const rowId = row._rowId !== undefined ? row._rowId : ((page * pageSize) + rowIdx);
                     const actualIdx = (page * pageSize) + rowIdx;
                     const hasWarn = row._warnings && row._warnings.length > 0;
                     return (
                       <tr 
-                        key={actualIdx} 
+                        key={rowId} 
                         style={{ 
                           borderBottom: '1px solid var(--line)',
                           background: hasWarn ? 'rgba(234, 179, 8, 0.03)' : 'transparent'
@@ -1764,7 +1787,7 @@ export default function AdmissionImportPage() {
                               <input 
                                 type="text" 
                                 value={row[col] !== undefined ? row[col] : ''} 
-                                onChange={(e) => updateCell(actualIdx, col, e.target.value)} 
+                                onChange={(e) => updateCell(rowId, col, e.target.value)} 
                                 style={{ 
                                   width: '100%', 
                                   border: 'none', 

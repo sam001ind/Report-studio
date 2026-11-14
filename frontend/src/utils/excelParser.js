@@ -123,7 +123,7 @@ export const parseWorkbookFromBuffer = (buffer) => {
   const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   let wb = null;
   try {
-    wb = XLSX.read(uint8, { type: "array", cellDates: true, dense: true });
+    wb = XLSX.read(uint8, { type: "array", cellDates: false, dense: true });
   } catch {
     try {
       const text = new TextDecoder("utf-8").decode(uint8);
