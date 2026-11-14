@@ -29,101 +29,16 @@ import {
   normalizeLookupKey
 } from '../data/admissionLookups';
 import LookupIdManagerModal from '../components/LookupIdManagerModal';
+import { 
+  cleanEscapeArtifacts, 
+  parseDobYMD, 
+  dateToExcelSerial, 
+  parseDobDMY 
+} from '../utils/dateHelpers';
+
+export { cleanEscapeArtifacts, parseDobYMD, dateToExcelSerial, parseDobDMY };
 
 const normalizeKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-const cleanEscapeArtifacts = (val) => {
-  if (val === null || val === undefined) return '';
-  const str = String(val).trim();
-  if (str === '\\N' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined' || str.toLowerCase() === 'nan') {
-    return '';
-  }
-  return str;
-};
-
-// Formats date strictly to YYYY-MM-DD (removes any timestamp)
-export const parseDobYMD = (val) => {
-  const clean = cleanEscapeArtifacts(val);
-  if (!clean) return '';
-
-  // 1. If it starts with YYYY-MM-DD (e.g. "2008-08-19", "2008-08-19 00:00:00", "2008-08-19T00:00:00.000Z")
-  const ymdPrefix = clean.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
-  if (ymdPrefix) {
-    const y = ymdPrefix[1];
-    const m = String(parseInt(ymdPrefix[2], 10)).padStart(2, '0');
-    const d = String(parseInt(ymdPrefix[3], 10)).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-
-  // 2. Excel serial number (e.g. 39679)
-  if (/^\d{4,5}$/.test(clean)) {
-    const serial = parseInt(clean, 10);
-    if (serial > 10000 && serial < 60000) {
-      const epoch = Date.UTC(1899, 11, 30);
-      const d = new Date(epoch + serial * 86400 * 1000);
-      if (!isNaN(d.getTime())) {
-        const y = d.getUTCFullYear();
-        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(d.getUTCDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-      }
-    }
-  }
-
-  // 3. DD-MM-YYYY or DD/MM/YYYY (e.g. "19/08/2008", "19-08-2008 12:00:00")
-  const dmyPrefix = clean.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
-  if (dmyPrefix) {
-    const d = String(parseInt(dmyPrefix[1], 10)).padStart(2, '0');
-    const m = String(parseInt(dmyPrefix[2], 10)).padStart(2, '0');
-    const y = dmyPrefix[3];
-    return `${y}-${m}-${d}`;
-  }
-
-  // 4. YY-MM-DD (e.g. "08-12-22" from dump)
-  const yyMatch = clean.match(/^(\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
-  if (yyMatch) {
-    let year = parseInt(yyMatch[1], 10);
-    year = year > 50 ? 1900 + year : 2000 + year;
-    const m = String(parseInt(yyMatch[2], 10)).padStart(2, '0');
-    const d = String(parseInt(yyMatch[3], 10)).padStart(2, '0');
-    return `${year}-${m}-${d}`;
-  }
-
-  // 5. Standard JS Date fallback (UTC to avoid timezone shifts)
-  const d = new Date(clean);
-  if (!isNaN(d.getTime())) {
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-  return clean.split('T')[0].split(' ')[0];
-};
-
-// Converts YYYY-MM-DD date strictly to Excel integer day serial (no time fraction)
-export const dateToExcelSerial = (dateStr) => {
-  if (!dateStr) return null;
-  const parts = String(dateStr).split('T')[0].split(' ')[0].split(/[-/.]/);
-  if (parts.length !== 3) return null;
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const day = parseInt(parts[2], 10);
-  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
-  const utcDate = Date.UTC(year, month, day);
-  const epoch = Date.UTC(1899, 11, 30);
-  return Math.round((utcDate - epoch) / (24 * 60 * 60 * 1000));
-};
-
-// Formats date to DD/MM/YYYY
-export const parseDobDMY = (val) => {
-  const ymd = parseDobYMD(val);
-  if (!ymd) return '';
-  const parts = ymd.split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return ymd;
-};
 
 // Admission allotment header recognition weights
 export const ADMISSION_HEADER_WEIGHTS = [
@@ -181,7 +96,7 @@ export const scoreAdmissionHeaderRow = (rowArray) => {
 export const extractAdmissionRowsFromSheet = (sheet) => {
   if (!sheet) return { rows: [], headers: [], score: 0, headerRowIdx: 0, matchedHeaders: [] };
 
-  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false });
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false, raw: false });
   if (!aoa || aoa.length === 0) {
     return { rows: [], headers: [], score: 0, headerRowIdx: 0, matchedHeaders: [] };
   }
@@ -248,7 +163,19 @@ export const extractAdmissionRowsFromSheet = (sheet) => {
 
     const rowObj = {};
     headers.forEach(({ idx, name }) => {
-      rowObj[name] = rowArr[idx] !== undefined && rowArr[idx] !== null ? String(rowArr[idx]).trim() : '';
+      const cellVal = rowArr[idx];
+      let strVal = '';
+      if (cellVal instanceof Date) {
+        if (!isNaN(cellVal.getTime())) {
+          const y = cellVal.getFullYear();
+          const m = String(cellVal.getMonth() + 1).padStart(2, '0');
+          const d = String(cellVal.getDate()).padStart(2, '0');
+          strVal = `${y}-${m}-${d}`;
+        }
+      } else if (cellVal !== undefined && cellVal !== null) {
+        strVal = String(cellVal).trim();
+      }
+      rowObj[name] = strVal;
     });
     rows.push(rowObj);
   }
@@ -264,19 +191,19 @@ export const extractAdmissionRowsFromSheet = (sheet) => {
 
 export const parseWorkbookFromBytes = (buffer) => {
   const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-  // 1. Try binary Excel
+  // 1. Try binary Excel with cellDates: false to avoid SheetJS timezone day-skips
   try {
-    return XLSX.read(uint8, { type: 'array', cellDates: true, raw: false });
+    return XLSX.read(uint8, { type: 'array', cellDates: false, raw: false });
   } catch {
     // 2. Try UTF-8 string (HTML tables, CSV, TSV)
     try {
       const text = new TextDecoder('utf-8').decode(uint8);
-      return XLSX.read(text, { type: 'string', cellDates: true, raw: false });
+      return XLSX.read(text, { type: 'string', cellDates: false, raw: false });
     } catch {
       // 3. Try Windows-1252 string
       try {
         const text = new TextDecoder('windows-1252').decode(uint8);
-        return XLSX.read(text, { type: 'string', cellDates: true, raw: false });
+        return XLSX.read(text, { type: 'string', cellDates: false, raw: false });
       } catch (err) {
         throw new Error(`Failed to read spreadsheet buffer: ${err.message}`, { cause: err });
       }
@@ -1024,6 +951,21 @@ export default function AdmissionImportPage() {
     setNormalizedRows(prev => {
       const copy = [...prev];
       const updated = { ...copy[rowIndex], [colKey]: newValue };
+
+      // Two-way synchronization: Date of Birth (dob <-> Date of Birth (DD/MM/YY))
+      if (colKey === 'dob') {
+        const parsedYMD = parseDobYMD(newValue);
+        if (parsedYMD) {
+          updated.dob = parsedYMD;
+          updated['Date of Birth (DD/MM/YY)'] = parseDobDMY(newValue);
+        }
+      } else if (colKey === 'Date of Birth (DD/MM/YY)') {
+        const parsedYMD = parseDobYMD(newValue);
+        if (parsedYMD) {
+          updated.dob = parsedYMD;
+          updated['Date of Birth (DD/MM/YY)'] = parseDobDMY(newValue);
+        }
+      }
 
       // Convert numeric fields if applicable
       const numericCols = new Set([

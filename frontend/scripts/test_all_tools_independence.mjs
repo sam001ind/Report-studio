@@ -836,6 +836,32 @@ test('Header scanner detects candidate table header below university title banne
   assert.equal(extractedRows[2]['Index Mark'], '1090.00');
 });
 
+test('Admission Import & Transformation Engine: Preserves exact DOB dates without UTC timezone -1 day shift', async () => {
+  const { parseDobYMD, parseDobDMY } = await import('../src/utils/dateHelpers.js');
+
+  // 1. Source date 2002-01-17 (user reported issue)
+  assert.equal(parseDobYMD('2002-01-17'), '2002-01-17');
+  assert.equal(parseDobDMY('2002-01-17'), '17/01/2002');
+  assert.equal(parseDobYMD('17-01-2002'), '2002-01-17');
+  assert.equal(parseDobYMD('17/01/2002'), '2002-01-17');
+  assert.equal(parseDobYMD(37273), '2002-01-17'); // Excel serial for 2002-01-17
+  assert.equal(parseDobYMD('37273'), '2002-01-17');
+  assert.equal(parseDobYMD(new Date(2002, 0, 17)), '2002-01-17');
+
+  // 2. Source date 2009-03-17
+  assert.equal(parseDobYMD('2009-03-17'), '2009-03-17');
+  assert.equal(parseDobDMY('2009-03-17'), '17/03/2009');
+  assert.equal(parseDobYMD('17-03-2009'), '2009-03-17');
+  assert.equal(parseDobYMD('17/03/2009'), '2009-03-17');
+  assert.equal(parseDobYMD(39889), '2009-03-17'); // Excel serial for 2009-03-17
+  assert.equal(parseDobYMD('39889'), '2009-03-17');
+  assert.equal(parseDobYMD(new Date(2009, 2, 17)), '2009-03-17');
+
+  // 3. IST timestamp string representation (e.g. from String(new Date()))
+  assert.equal(parseDobYMD('Thu Jan 17 2002 00:00:00 GMT+0530 (India Standard Time)'), '2002-01-17');
+  assert.equal(parseDobYMD('Tue Mar 17 2009 00:00:00 GMT+0530 (India Standard Time)'), '2009-03-17');
+});
+
 test('Multi-sheet workbook: skips blank/instruction sheet 0 and selects candidate sheet 1', () => {
   const wb = XLSX.utils.book_new();
 
