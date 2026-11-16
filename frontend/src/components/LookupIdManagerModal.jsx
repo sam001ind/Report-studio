@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   X,
@@ -511,7 +511,7 @@ export default function LookupIdManagerModal({
 
       LOOKUP_TAB_CONFIG.forEach(cfg => {
         const list = lookups[cfg.key] || [];
-        let rows = [];
+        let rows;
 
         if (cfg.key === 'program') {
           rows = list.map(item => ({

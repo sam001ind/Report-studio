@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
@@ -10,14 +10,7 @@ import {
   Sliders,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
-  Building2,
-  Calendar,
-  BookOpen,
-  Users,
-  RefreshCw,
-  Printer,
-  ChevronDown
+  Calendar
 } from 'lucide-react';
 import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
 
@@ -806,12 +799,12 @@ const CourseWiseVenueDatePage = () => {
           >
             <Upload size={24} style={{ color: 'var(--accent)', marginBottom: '8px' }} />
             <span style={{ fontWeight: 600, fontSize: '13.5px' }}>
-              {preExamFile ? preExamFile.name : 'Click to Upload Pre-Exam File'}
+              {isProcessing ? 'Processing file...' : (preExamFile ? preExamFile.name : 'Click to Upload Pre-Exam File')}
             </span>
             <span style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
               {preExamRows.length > 0 ? `${preExamRows.length} rows loaded` : 'Supports standard ERP pre-exam export'}
             </span>
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={handlePreExamUpload} style={{ display: 'none' }} />
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handlePreExamUpload} disabled={isProcessing} style={{ display: 'none' }} />
           </label>
         </div>
 
@@ -837,18 +830,18 @@ const CourseWiseVenueDatePage = () => {
               borderRadius: '8px',
               background: 'var(--bg)',
               border: '1px dashed var(--accent)',
-              cursor: 'pointer',
+              cursor: isProcessing ? 'not-allowed' : 'pointer',
               textAlign: 'center'
             }}
           >
             <Upload size={24} style={{ color: 'var(--accent)', marginBottom: '8px' }} />
             <span style={{ fontWeight: 600, fontSize: '13.5px' }}>
-              {timetableFile ? timetableFile.name : 'Click to Upload Timetable File'}
+              {isProcessing ? 'Processing file...' : (timetableFile ? timetableFile.name : 'Click to Upload Timetable File')}
             </span>
             <span style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
               {timetableRows.length > 0 ? `${timetableRows.length} exam slots loaded` : 'Supports official timetable schedules'}
             </span>
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleTimetableUpload} style={{ display: 'none' }} />
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleTimetableUpload} disabled={isProcessing} style={{ display: 'none' }} />
           </label>
         </div>
       </div>

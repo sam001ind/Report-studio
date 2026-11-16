@@ -23,7 +23,6 @@ import {
   COLLEGE_LOOKUP,
   STREAM_LOOKUP,
   QUALIFICATION_LOOKUP,
-  DEFAULT_LOOKUP_DATA,
   loadSavedLookups,
   buildLookupMaps,
   normalizeLookupKey
@@ -543,8 +542,8 @@ export default function AdmissionImportPage() {
     const normState = normalizeLookupKey(rawState);
     const customState = activeLookupMaps?.stateByName?.[normState] || activeLookupMaps?.stateByName?.[String(rawState).toLowerCase().trim()];
 
-    let corrStateId = '';
-    let corrStateName = '';
+    let corrStateId;
+    let corrStateName;
 
     // Prioritize looked up ID from state name (e.g. Karnataka -> 17, Tamil Nadu -> 31)
     if (customState && customState.id) {

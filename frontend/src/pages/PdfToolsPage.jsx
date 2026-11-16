@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import * as XLSX from 'xlsx';
@@ -37,9 +37,7 @@ import {
   CheckSquare, 
   FileEdit,
   Search,
-  Presentation,
-  CheckCircle2,
-  Sparkles
+  Presentation
 } from 'lucide-react';
 
 const CATEGORIES = ['All', 'Organize', 'Convert to PDF', 'Convert from PDF', 'Edit & Security'];
@@ -97,42 +95,37 @@ export default function PdfToolsPage() {
 
   const [imgPageSize, setImgPageSize] = useState('a4');
   const [imgOrientation, setImgOrientation] = useState('portrait');
-  const [imgMargin, setImgMargin] = useState(20);
+  const [imgMargin] = useState(20);
 
   const [rotateAngle, setRotateAngle] = useState(90);
-  const [rotateScope, setRotateScope] = useState('all');
-  const [rotatePages, setRotatePages] = useState('1, 3');
+  const [rotateScope] = useState('all');
+  const [rotatePages] = useState('1, 3');
 
   const [wmText, setWmText] = useState('CONFIDENTIAL');
   const [wmSize, setWmSize] = useState(48);
-  const [wmOpacity, setWmOpacity] = useState(0.25);
-  const [wmPosition, setWmPosition] = useState('diagonal');
+  const [wmOpacity] = useState(0.25);
+  const [wmPosition] = useState('diagonal');
   const [wmColor, setWmColor] = useState('#ff0000');
 
   const [pnPosition, setPnPosition] = useState('bottom-center');
-  const [pnFormat, setPnFormat] = useState('Page {n} of {total}');
-  const [pnStartFrom, setPnStartFrom] = useState(1);
-  const [pnFontSize, setPnFontSize] = useState(10);
-
-  const [pagesToDelete, setPagesToDelete] = useState('2, 4');
-
-  const [protectPassword, setProtectPassword] = useState('');
-  const [unlockPassword, setUnlockPassword] = useState('');
+  const [pnFormat] = useState('Page {n} of {total}');
+  const [pnStartFrom] = useState(1);
+  const [pnFontSize] = useState(10);
 
   const [sigImageFile, setSigImageFile] = useState(null);
-  const [sigPage, setSigPage] = useState(1);
+  const [sigPage] = useState(1);
   const [sigX, setSigX] = useState(100);
   const [sigY, setSigY] = useState(100);
-  const [sigWidth, setSigWidth] = useState(150);
+  const [sigWidth] = useState(150);
 
   const [editText, setEditText] = useState('Approved by Controller of Examinations');
-  const [editPage, setEditPage] = useState(1);
+  const [editPage] = useState(1);
   const [editX, setEditX] = useState(50);
   const [editY, setEditY] = useState(50);
-  const [editSize, setEditSize] = useState(14);
-  const [editColor, setEditColor] = useState('#000000');
+  const [editSize] = useState(14);
+  const [editColor] = useState('#000000');
 
-  const [redactPage, setRedactPage] = useState(1);
+  const [redactPage] = useState(1);
   const [redactX, setRedactX] = useState(50);
   const [redactY, setRedactY] = useState(700);
   const [redactW, setRedactW] = useState(250);
@@ -140,17 +133,13 @@ export default function PdfToolsPage() {
 
   const [cropMarginTop, setCropMarginTop] = useState(30);
   const [cropMarginBottom, setCropMarginBottom] = useState(30);
-  const [cropMarginLeft, setCropMarginLeft] = useState(30);
-  const [cropMarginRight, setCropMarginRight] = useState(30);
+  const [cropMarginLeft] = useState(30);
+  const [cropMarginRight] = useState(30);
 
   const [htmlCode, setHtmlCode] = useState('<div style="font-family: Arial; padding: 24px;"><h1>Official Report</h1><p>Generated via Report Studio PDF Engine.</p></div>');
 
   const [formFieldName, setFormFieldName] = useState('candidate_name');
   const [formFieldValue, setFormFieldValue] = useState('John Doe');
-
-  const videoRef = useRef(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [capturedScans, setCapturedScans] = useState([]);
 
   const setStatus = (msg, type = 'info') => {
     setStatusMsg(msg);
@@ -773,7 +762,7 @@ export default function PdfToolsPage() {
       try {
         const field = form.getTextField(formFieldName);
         if (field) field.setText(formFieldValue);
-      } catch (e) {
+      } catch {
         // Field name might not exist, add as fallback text
         const firstPage = pdfDoc.getPages()[0];
         firstPage.drawText(`${formFieldName}: ${formFieldValue}`, { x: 50, y: 750, size: 12 });

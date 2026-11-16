@@ -15,6 +15,7 @@ export default defineConfig([
     ],
     rules: {
       'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
       'react-hooks/exhaustive-deps': 'warn',
       'react-refresh/only-export-components': 'off',
       'no-useless-escape': 'off',

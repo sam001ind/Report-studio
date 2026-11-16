@@ -324,6 +324,7 @@ export default function CourseMasterImportPage() {
       groupMarksMap: marksMap,
       groupCreditsMap: creditsMap
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawRows, headerMap]);
 
   // Synchronize dynamic group configurations whenever a new file is uploaded
@@ -560,6 +561,7 @@ export default function CourseMasterImportPage() {
       if (r.ImmidiateParentGroup) set.add(r.ImmidiateParentGroup);
     });
     return Array.from(set).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawRows, headerMap, groupConfigs, useDuplication]);
 
   const getImmediateParentGroupsForGroup = (groupName) => {
@@ -1516,6 +1518,7 @@ export default function CourseMasterImportPage() {
     }
 
     return generated;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawRows, headerMap, groupConfigs, useDuplication, activeView, selectedSubjectFilter, selectedGroupFilter, searchQuery, groupHierarchy, columnFilters, sortConfig]);
 
   const pagedRows = useMemo(() => {

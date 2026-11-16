@@ -23,6 +23,64 @@ import {
 } from 'lucide-react';
 import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
 
+// Robust Date Parser
+const parseDateObject = (dateVal) => {
+  if (!dateVal) return null;
+  if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+    return dateVal;
+  }
+  if (typeof dateVal === 'number') {
+    const d = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const strVal = String(dateVal).replace(/[\u00A0\u200B\uFEFF]/g, ' ').trim();
+  if (!strVal) return null;
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(strVal)) {
+    const parts = strVal.split(/[-/.T\s]/);
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+  // DD/MM/YYYY or DD-MM-YYYY
+  if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}/.test(strVal)) {
+    const parts = strVal.split(/[-/.T\s]/);
+    const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+  const parsed = new Date(strVal);
+  if (!isNaN(parsed.getTime())) return parsed;
+  return null;
+};
+
+// Helper to format date with Day of Week
+const formatDateWithDay = (dateVal) => {
+  if (!dateVal) return '';
+  const dateObj = parseDateObject(dateVal);
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    return String(dateVal).trim();
+  }
+
+  const yyyy = dateObj.getFullYear();
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayName = days[dateObj.getDay()];
+
+  return `${yyyy}-${mm}-${dd} ${dayName}`;
+};
+
+// Raw date key for sorting (YYYY-MM-DD)
+const getSortableDate = (dateVal) => {
+  if (!dateVal) return '9999-99-99';
+  const dateObj = parseDateObject(dateVal);
+  if (!dateObj || isNaN(dateObj.getTime())) return String(dateVal).trim().toLowerCase();
+  const yyyy = dateObj.getFullYear();
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 const QpStatementPage = () => {
 
   // Upload and File states
@@ -69,64 +127,6 @@ const QpStatementPage = () => {
   const setStatus = (msg, type = 'normal') => {
     setStatusMsg(msg);
     setStatusType(type);
-  };
-
-  // Robust Date Parser
-  const parseDateObject = (dateVal) => {
-    if (!dateVal) return null;
-    if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
-      return dateVal;
-    }
-    if (typeof dateVal === 'number') {
-      const d = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
-      return isNaN(d.getTime()) ? null : d;
-    }
-    const strVal = String(dateVal).replace(/[\u00A0\u200B\uFEFF]/g, ' ').trim();
-    if (!strVal) return null;
-
-    // YYYY-MM-DD or YYYY/MM/DD
-    if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(strVal)) {
-      const parts = strVal.split(/[-/.T\s]/);
-      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-      if (!isNaN(d.getTime())) return d;
-    }
-    // DD/MM/YYYY or DD-MM-YYYY
-    if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}/.test(strVal)) {
-      const parts = strVal.split(/[-/.T\s]/);
-      const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-      if (!isNaN(d.getTime())) return d;
-    }
-    const parsed = new Date(strVal);
-    if (!isNaN(parsed.getTime())) return parsed;
-    return null;
-  };
-
-  // Helper to format date with Day of Week
-  const formatDateWithDay = (dateVal) => {
-    if (!dateVal) return '';
-    const dateObj = parseDateObject(dateVal);
-    if (!dateObj || isNaN(dateObj.getTime())) {
-      return String(dateVal).trim();
-    }
-
-    const yyyy = dateObj.getFullYear();
-    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const dd = String(dateObj.getDate()).padStart(2, '0');
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayName = days[dateObj.getDay()];
-
-    return `${yyyy}-${mm}-${dd} ${dayName}`;
-  };
-
-  // Raw date key for sorting (YYYY-MM-DD)
-  const getSortableDate = (dateVal) => {
-    if (!dateVal) return '9999-99-99';
-    const dateObj = parseDateObject(dateVal);
-    if (!dateObj || isNaN(dateObj.getTime())) return String(dateVal).trim().toLowerCase();
-    const yyyy = dateObj.getFullYear();
-    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const dd = String(dateObj.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
   };
 
   // Auto-detect column headers based on fuzzy keywords

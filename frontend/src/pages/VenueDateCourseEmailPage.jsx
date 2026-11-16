@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
@@ -13,22 +13,15 @@ import {
   HelpCircle,
   Building2,
   Calendar,
-  BookOpen,
   Users,
   RefreshCw,
-  Printer,
   Mail,
   Copy,
   Check,
-  Plus,
-  Trash2,
   Edit2,
-  FileText,
-  Send,
-  ExternalLink,
-  ChevronDown
+  FileText
 } from 'lucide-react';
-import { readSpreadsheetAsAoa, cleanTimeText, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
+import { readSpreadsheetAsAoa, normalizeKeyText, cleanDisplayField } from '../utils/excelParser';
 import { DEFAULT_COLLEGE_EMAILS } from '../utils/venueEmailHelpers';
 
 export { DEFAULT_COLLEGE_EMAILS };
@@ -331,7 +324,6 @@ const VenueDateCourseEmailPage = () => {
 
   // Optional Email Directory File
   const [directoryFile, setDirectoryFile] = useState(null);
-  const [directoryHeaders, setDirectoryHeaders] = useState([]);
   const [directoryRows, setDirectoryRows] = useState([]);
 
   // In-Memory & LocalStorage College Email Directory Map
@@ -389,7 +381,7 @@ const VenueDateCourseEmailPage = () => {
   };
 
   // Helper to resolve email for a venue
-  const resolveCollegeEmail = (vCode, vName, inlineEmail) => {
+  const resolveCollegeEmail = useCallback((vCode, vName, inlineEmail) => {
     if (inlineEmail && String(inlineEmail).includes('@')) {
       return String(inlineEmail).trim();
     }
@@ -408,7 +400,7 @@ const VenueDateCourseEmailPage = () => {
       }
     }
     return '';
-  };
+  }, [collegeEmailMap]);
 
   // Handle Primary Schedule Upload
   const handleScheduleUpload = async (e) => {
@@ -460,7 +452,6 @@ const VenueDateCourseEmailPage = () => {
       if (aoa && aoa.length > 1) {
         const headers = aoa[0];
         const rows = aoa.slice(1);
-        setDirectoryHeaders(headers);
         setDirectoryRows(rows);
 
         const mapCols = detectEmailDirectoryColumns(headers);
@@ -639,7 +630,7 @@ const VenueDateCourseEmailPage = () => {
         emailCount
       }
     };
-  }, [scheduleRows, scheduleMapping, collegeEmailMap]);
+  }, [scheduleRows, scheduleMapping, resolveCollegeEmail]);
 
   // Filtered Items
   const filteredItems = useMemo(() => {
@@ -942,18 +933,20 @@ const VenueDateCourseEmailPage = () => {
               borderRadius: '8px',
               background: 'var(--bg)',
               border: '1px dashed var(--accent)',
-              cursor: 'pointer',
+              cursor: isProcessing ? 'wait' : 'pointer',
+              opacity: isProcessing ? 0.7 : 1,
+              pointerEvents: isProcessing ? 'none' : 'auto',
               textAlign: 'center'
             }}
           >
             <Upload size={22} style={{ color: 'var(--accent)', marginBottom: '6px' }} />
             <span style={{ fontWeight: 600, fontSize: '13px' }}>
-              {scheduleFile ? scheduleFile.name : 'Click to Upload Exam Schedule'}
+              {isProcessing ? 'Processing spreadsheet...' : (scheduleFile ? scheduleFile.name : 'Click to Upload Exam Schedule')}
             </span>
             <span style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '2px' }}>
               {scheduleRows.length > 0 ? `${scheduleRows.length.toLocaleString()} rows loaded` : 'Supports QP Statements & Allotment Spreadsheets'}
             </span>
-            <input type="file" accept=".xlsx,.xls,.csv,.zip" onChange={handleScheduleUpload} style={{ display: 'none' }} />
+            <input type="file" accept=".xlsx,.xls,.csv,.zip" onChange={handleScheduleUpload} style={{ display: 'none' }} disabled={isProcessing} />
           </label>
         </div>
 
@@ -979,18 +972,20 @@ const VenueDateCourseEmailPage = () => {
               borderRadius: '8px',
               background: 'var(--bg)',
               border: '1px dashed #059669',
-              cursor: 'pointer',
+              cursor: isProcessing ? 'wait' : 'pointer',
+              opacity: isProcessing ? 0.7 : 1,
+              pointerEvents: isProcessing ? 'none' : 'auto',
               textAlign: 'center'
             }}
           >
             <Upload size={22} style={{ color: '#059669', marginBottom: '6px' }} />
             <span style={{ fontWeight: 600, fontSize: '13px' }}>
-              {directoryFile ? directoryFile.name : 'Upload Custom Email Directory (Optional)'}
+              {isProcessing ? 'Processing directory...' : (directoryFile ? directoryFile.name : 'Upload Custom Email Directory (Optional)')}
             </span>
             <span style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '2px' }}>
               {directoryRows.length > 0 ? `${directoryRows.length} custom college emails active` : 'Preloaded with official Kannur University college emails'}
             </span>
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleDirectoryUpload} style={{ display: 'none' }} />
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleDirectoryUpload} style={{ display: 'none' }} disabled={isProcessing} />
           </label>
         </div>
 

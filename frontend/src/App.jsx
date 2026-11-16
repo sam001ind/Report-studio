@@ -285,12 +285,12 @@ function App() {
               } />
               <Route path="/venue-date-course-email" element={
                 <ProtectedRoute requiredPermission="can_access_studio">
-                  <ConfisectionExamReportPage />
+                  <VenueDateCourseEmailPage />
                 </ProtectedRoute>
               } />
               <Route path="/venue-date-course-college-email" element={
                 <ProtectedRoute requiredPermission="can_access_studio">
-                  <ConfisectionExamReportPage />
+                  <VenueDateCourseEmailPage />
                 </ProtectedRoute>
               } />
               <Route path="/master-definitions" element={

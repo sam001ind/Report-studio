@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
@@ -21,29 +21,18 @@ import {
   GraduationCap,
   BookOpen,
   Building2,
-  ChevronLeft,
-  ChevronRight,
   Database,
   FileSpreadsheet,
   HelpCircle,
   X,
-  SlidersHorizontal,
-  Sparkles,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   Columns2,
   Table,
-  Filter,
   Copy,
   CheckCheck,
   Zap,
   ExternalLink,
   ShieldAlert,
-  Mail,
-  Send,
-  AtSign,
-  Inbox
+  Mail
 } from 'lucide-react';
 import {
   LOOKUP_TAB_CONFIG,
@@ -116,7 +105,7 @@ export default function MasterLookupDefinitionPage() {
   const [emailSearch, setEmailSearch] = useState('');
   const [emailFilter, setEmailFilter] = useState('all'); // 'all' | 'govt' | 'dept' | 'gmail'
   const [emailPage, setEmailPage] = useState(0);
-  const [emailPageSize, setEmailPageSize] = useState(25);
+  const [emailPageSize] = useState(25);
   const [showEmailModal, setShowEmailModal] = useState(false); // false | 'add' | 'edit'
   const [emailForm, setEmailForm] = useState({ code: '', name: '', email: '' });
   const [editingEmailIdx, setEditingEmailIdx] = useState(null);
@@ -452,7 +441,7 @@ export default function MasterLookupDefinitionPage() {
       color: 'var(--muted)',
       bgColor: 'var(--bg)'
     };
-  }, [resolverInput, lookups]);
+  }, [resolverInput, lookups, emailDirectory]);
 
   // Handle Tab Switch
   const handleTabChange = (newTab) => {
@@ -1085,14 +1074,12 @@ export default function MasterLookupDefinitionPage() {
         }
 
         const merged = { ...lookups };
-        let newEntriesCount = 0;
 
         // Merge Programmes
         if (imported.program && imported.program.length > 0) {
           const existingRefs = new Set((merged.program || []).map(x => (x.pgmName || '').toLowerCase()));
           const toAdd = imported.program.filter(x => !existingRefs.has(x.pgmName.toLowerCase()));
           merged.program = [...toAdd, ...(merged.program || [])];
-          newEntriesCount += toAdd.length;
         }
 
         // Merge Colleges
@@ -1100,7 +1087,6 @@ export default function MasterLookupDefinitionPage() {
           const existingColls = new Set((merged.college || []).map(x => (x.name + '_' + x.id).toLowerCase()));
           const toAdd = imported.college.filter(x => !existingColls.has((x.name + '_' + x.id).toLowerCase()));
           merged.college = [...toAdd, ...(merged.college || [])];
-          newEntriesCount += toAdd.length;
         }
 
         // Merge standard 2-column lists
@@ -1110,7 +1096,6 @@ export default function MasterLookupDefinitionPage() {
             const existingNames = new Set((merged[key] || []).map(x => (x.name || '').toLowerCase()));
             const toAdd = imported[key].filter(x => !existingNames.has(x.name.toLowerCase()));
             merged[key] = [...toAdd, ...(merged[key] || [])];
-            newEntriesCount += toAdd.length;
           }
         }
 

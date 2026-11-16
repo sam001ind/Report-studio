@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { 
@@ -10,51 +10,39 @@ import {
   XCircle, 
   AlertTriangle, 
   Search, 
-  Filter, 
   RefreshCw, 
   Table, 
   Sparkles, 
   HelpCircle, 
   Layers, 
-  GraduationCap, 
   Calculator, 
   BookOpen, 
   ArrowUp, 
   ArrowDown, 
   ArrowUpDown, 
   X, 
-  Percent, 
-  Award,
-  UserCheck,
-  UserX,
-  Sliders,
-  FileUp,
-  FileDown,
-  Zap,
-  Check,
-  ToggleLeft,
-  ToggleRight,
-  TrendingUp,
-  BarChart3,
-  Users,
-  ChevronDown,
-  ChevronRight,
-  ShieldAlert,
-  AlertCircle,
-  Lock,
-  FileCheck,
-  Scale,
-  GitCompare,
-  ArrowRightLeft,
-  FileText,
-  Trash2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Columns,
-  Maximize2,
-  Minimize2,
-  Eye,
-  EyeOff
+  UserX, 
+  Sliders, 
+  FileUp, 
+  FileDown, 
+  Zap, 
+  TrendingUp, 
+  Users, 
+  ChevronDown, 
+  ChevronRight, 
+  ShieldAlert, 
+  AlertCircle, 
+  Lock, 
+  FileCheck, 
+  Scale, 
+  ArrowRightLeft, 
+  FileText, 
+  Trash2, 
+  PanelLeftClose, 
+  PanelLeftOpen, 
+  Columns, 
+  Maximize2, 
+  Minimize2 
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -420,7 +408,6 @@ export default function AdesSupplementaryCalculatorPage() {
   const [historicalRecordsMap, setHistoricalRecordsMap] = useState(new Map());
   const [historicalCourseProfilesMap, setHistoricalCourseProfilesMap] = useState(new Map()); // Map of confirmed course component structures & counts
   const [improvementScoringMode, setImprovementScoringMode] = useState("current"); // "current" | "best"
-  const [attemptTypeFilter, setAttemptTypeFilter] = useState("ALL"); // "ALL" | "IMPROVEMENT" | "SUPPLEMENTARY" | "NO_BASELINE"
   const prevReportsFileInputRef = useRef(null);
 
   // Previous Semester University Result Gazette Reports State (Optional Reappear Assurance)
@@ -429,7 +416,6 @@ export default function AdesSupplementaryCalculatorPage() {
   const gazetteFileInputRef = useRef(null);
 
   // Result & Ordinance Reconciliation Comparison Tool State
-  const [comparisonFile, setComparisonFile] = useState(null);
   const [comparisonFileName, setComparisonFileName] = useState("");
   const [comparisonSheetNames, setComparisonSheetNames] = useState([]);
   const [comparisonSelectedSheet, setComparisonSelectedSheet] = useState("");
@@ -806,7 +792,6 @@ export default function AdesSupplementaryCalculatorPage() {
         sheetStubs: false
       });
       setComparisonWorkbook(wb);
-      setComparisonFile(file);
       setComparisonFileName(file.name);
       setComparisonSheetNames(wb.SheetNames);
       const initialSheet = wb.SheetNames[0] || "";
@@ -903,7 +888,6 @@ export default function AdesSupplementaryCalculatorPage() {
   };
 
   const handleClearComparisonFile = () => {
-    setComparisonFile(null);
     setComparisonFileName("");
     setComparisonSheetNames([]);
     setComparisonSelectedSheet("");
@@ -924,20 +908,6 @@ export default function AdesSupplementaryCalculatorPage() {
     return (hasEseOverall || hasCourseOverall) && !hasRawAssessment;
   };
 
-  // Helper to detect if Teaching Learning Method (TLM) requires both Theory and Practical
-  const isLecLabTlm = (tlmStr) => {
-    if (!tlmStr) return false;
-    const s = String(tlmStr).toLowerCase();
-    if (s.includes("lec-lab") || s.includes("lec - lab") || s.includes("lecture-lab") || s.includes("lecture - lab")) return true;
-    if (s.includes("lec-prac") || s.includes("lecture-practical") || s.includes("theory-practical") || s.includes("th-pr")) return true;
-    if ((s.includes("lec") || s.includes("theory") || s.includes("th")) && (s.includes("lab") || s.includes("prac") || s.includes("pr"))) {
-      const hasTh = s.includes("lec") || s.includes("theory");
-      const hasPr = s.includes("lab") || s.includes("prac");
-      if (hasTh && hasPr) return true;
-    }
-    return false;
-  };
-
   // Helper to normalize Student ID / Seat / PRN immune to Excel .0 or whitespace or scientific notation
   const cleanIdKey = (val) => {
     if (val === null || val === undefined) return "";
@@ -945,7 +915,7 @@ export default function AdesSupplementaryCalculatorPage() {
     if (/^[0-9]+(\.[0-9]+)?e\+[0-9]+$/i.test(s)) {
       try {
         s = BigInt(Math.round(Number(s))).toString();
-      } catch (_e) {
+      } catch {
         // Ignore exponential BigInt conversion error
       }
     }
@@ -972,16 +942,6 @@ export default function AdesSupplementaryCalculatorPage() {
       if (histMap.has(key2)) return histMap.get(key2);
     }
     return null;
-  };
-
-  // Helper to detect if an uploaded sheet is a University Semester Tabulation Gazette / Result Summary Register
-  const isGazetteOrTabulationSheet = (hMap) => {
-    if (!hMap) return false;
-    const keys = Object.keys(hMap);
-    const hasReappear = keys.some(k => k.includes("reappear") || k.includes("failsubject") || k.includes("nooffail") || k.includes("arrear") || k.includes("backlog"));
-    const hasResultStatus = keys.some(k => k.includes("resultstatus") || k.includes("statementnumber") || k.includes("result") || k.includes("status"));
-    const hasPrnOrSeat = keys.some(k => k.includes("prn") || k.includes("seat") || k.includes("reg") || k.includes("roll"));
-    return hasPrnOrSeat && (hasReappear || hasResultStatus);
   };
 
   // Extract student-level result gazette and reappear records from a previous semester tabulation register
@@ -2160,8 +2120,8 @@ export default function AdesSupplementaryCalculatorPage() {
         const hasImp = rawCat.includes("IMP") || rawCat.includes("IMPROVE");
         const hasSupp = rawCat.includes("SUPP") || rawCat.includes("BACKLOG") || rawCat.includes("REPEATER") || rawCat.includes("RE-APPEAR") || rawCat.includes("REAPPEAR");
 
-        let is_improvement = false;
-        let attempt_type = "SUPPLEMENTARY";
+        let is_improvement;
+        let attempt_type;
         if (gazetteAssurance && gazetteAssurance.isVerifiedReappear) {
           is_improvement = false;
           attempt_type = "SUPPLEMENTARY";
@@ -2528,11 +2488,11 @@ export default function AdesSupplementaryCalculatorPage() {
           }
         }
 
-        let ese_deficit = 0;
-        let overall_deficit = 0;
-        let raw_ese_pass = false;
-        let raw_overall_pass = false;
-        let raw_course_pass = false;
+        let ese_deficit;
+        let overall_deficit;
+        let raw_ese_pass;
+        let raw_overall_pass;
+        let raw_course_pass;
 
         if (is_held) {
           raw_ese_pass = false;
@@ -2732,8 +2692,8 @@ export default function AdesSupplementaryCalculatorPage() {
       const hasImp = rawCat.includes("IMP") || rawCat.includes("IMPROVE");
       const hasSupp = rawCat.includes("SUPP") || rawCat.includes("BACKLOG") || rawCat.includes("REPEATER") || rawCat.includes("RE-APPEAR") || rawCat.includes("REAPPEAR");
 
-      let is_improvement = false;
-      let attempt_type = "SUPPLEMENTARY";
+      let is_improvement;
+      let attempt_type;
       if (gazetteAssurance && gazetteAssurance.isVerifiedReappear) {
         is_improvement = false;
         attempt_type = "SUPPLEMENTARY";
@@ -2960,12 +2920,10 @@ export default function AdesSupplementaryCalculatorPage() {
 
       const ce_pr = components["CE_PR"];
       const ce_pr_max = (ce_pr && ce_pr.max !== null && ce_pr.max > 0) ? ce_pr.max : (hist?.ce_pr_max ?? (prof?.requiresCePr ? (prof?.maxMarks?.CE_PR || prof?.cePrMax || "") : ""));
-      const ce_pr_min = hist?.ce_pr_min ?? (prof?.cePrMin ?? (ce_pr_max !== "" ? 0 : ""));
       const ce_pr_obtained = (ce_pr && ce_pr.marks !== null) ? ce_pr.marks : (missingComponents.includes("CE-PR") ? "Missing" : (prof?.requiresCePr ? 0 : ""));
 
       const ce_th = components["CE_TH"];
       const ce_th_max = (ce_th && ce_th.max !== null && ce_th.max > 0) ? ce_th.max : (hist?.ce_th_max ?? (prof?.requiresCeTh ? (prof?.maxMarks?.CE_TH || prof?.ceThMax || (!prof?.requiresCePr ? (prof?.ceMax || hist?.ce_max) : null) || "") : ""));
-      const ce_th_min = hist?.ce_th_min ?? (prof?.ceThMin ?? (ce_th_max !== "" ? 0 : ""));
       const ce_th_obtained = (ce_th && ce_th.marks !== null) ? ce_th.marks : (missingComponents.includes("CE-TH") ? "Missing" : (prof?.requiresCeTh ? 0 : ""));
 
       const ce_max = Math.max((parseNumber(ce_pr_max) || 0) + (parseNumber(ce_th_max) || 0), hist?.ce_max || 0, prof?.ceMax || 0);
@@ -2996,11 +2954,11 @@ export default function AdesSupplementaryCalculatorPage() {
         course_overall = (parseNumber(ese_obtained) || 0) + (parseNumber(ce_obtained) || 0);
       }
 
-      let ese_deficit = 0;
-      let overall_deficit = 0;
-      let raw_ese_pass = false;
-      let raw_overall_pass = false;
-      let raw_course_pass = false;
+      let ese_deficit;
+      let overall_deficit;
+      let raw_ese_pass;
+      let raw_overall_pass;
+      let raw_course_pass;
 
       if (is_held) {
         raw_ese_pass = false;
@@ -3143,6 +3101,7 @@ export default function AdesSupplementaryCalculatorPage() {
       historicalCourseProfilesMap,
       historicalGazetteMap
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     rawRows,
     headerMap,
@@ -3934,10 +3893,10 @@ export default function AdesSupplementaryCalculatorPage() {
     const list = Array.from(map.values()).map(st => {
       const hasHeldback = (st.heldbackCourses || 0) > 0;
       const hasMissingMarks = (st.heldCourses || 0) > 0;
-      let semesterResult = "";
-      let rawSemesterResult = "";
-      let finalSemesterPass = false;
-      let rawSemesterPass = false;
+      let semesterResult;
+      let rawSemesterResult;
+      let finalSemesterPass;
+      let rawSemesterPass;
       let pendingGazetteBacklogs = [];
       let hasGazetteAssurance = false;
 
@@ -4579,7 +4538,7 @@ export default function AdesSupplementaryCalculatorPage() {
       const isPubHeldback = /held\s*back|hold\s*back/i.test(pubResRaw) || /held\s*back|hold\s*back/i.test(pubOtherRaw);
 
       // Determine the published academic outcome (Pass / Fail / Held)
-      let pubAcademicResult = "Fail";
+      let pubAcademicResult;
       if (/pass/i.test(pubResRaw)) {
         pubAcademicResult = "Pass";
       } else if (/fail/i.test(pubResRaw)) {
@@ -4633,10 +4592,10 @@ export default function AdesSupplementaryCalculatorPage() {
       const pubEventModMarks = Math.max(0, pubModMarks - pubRegularModMarks);
 
       // Heldback students: result is not published → comparison is N/A, not a real mismatch
-      let isResultMatch = null; // null = N/A
-      let isModMatch = null;    // null = N/A
-      let isEventModMatch = null;
-      let isExactMatch = null;  // null = N/A
+      let isResultMatch; // null = N/A
+      let isModMatch;    // null = N/A
+      let isEventModMatch;
+      let isExactMatch;  // null = N/A
       let modDiff = 0;
       let eventModDiff = 0;
 
@@ -7469,6 +7428,7 @@ export default function AdesSupplementaryCalculatorPage() {
       window.removeEventListener("keydown", handleKeyDown);
       if (unsubscribeMenu) unsubscribeMenu();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [processedRows, filteredRows]);
 
   const coursePassKey = "Course Pass/Fail";
@@ -7581,6 +7541,7 @@ export default function AdesSupplementaryCalculatorPage() {
               <button 
                 type="button" 
                 onClick={() => handleExportExcel(filteredRows)}
+                disabled={isProcessing}
                 style={{ 
                   display: "flex", 
                   alignItems: "center", 
@@ -9304,7 +9265,7 @@ export default function AdesSupplementaryCalculatorPage() {
                       filteredStudents.map((st) => {
                         const isExpanded = expandedStudents[st.key];
                         return (
-                          <React.Fragment key={st.key}>
+                          <Fragment key={st.key}>
                             <tr 
                               onClick={() => toggleStudentExpand(st.key)}
                               style={{ 
@@ -9706,7 +9667,7 @@ export default function AdesSupplementaryCalculatorPage() {
                                 </td>
                               </tr>
                             )}
-                          </React.Fragment>
+                          </Fragment>
                         );
                       })
                     )}

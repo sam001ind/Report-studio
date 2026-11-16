@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import JSZip from 'jszip';
 import { 
   ArrowLeft, 
   Upload, 
@@ -23,7 +22,7 @@ import {
   BookOpen,
   Users
 } from 'lucide-react';
-import { parseWorkbookFromBuffer, parseAdmissionWideWorkbookBuffer } from '../utils/excelParser';
+import { parseAdmissionWideWorkbookBuffer } from '../utils/excelParser';
 
 export const SAMPLE_FYIMP_WIDE_DATA = [
   {
@@ -762,8 +761,8 @@ export default function AdmissionRowWisePage() {
   const [selectedPartCol, setSelectedPartCol] = useState('');
   const [selectedTermCol, setSelectedTermCol] = useState('');
   const [fallbackProgram, setFallbackProgram] = useState('FYIMP Undergraduate');
-  const [fallbackPart, setFallbackPart] = useState('1');
-  const [fallbackTerm, setFallbackTerm] = useState('1');
+  const [fallbackPart] = useState('1');
+  const [fallbackTerm] = useState('1');
 
   // Unique Institute Report Mapping & Settings
   const [selectedInstCodeCol, setSelectedInstCodeCol] = useState('');

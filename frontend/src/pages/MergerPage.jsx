@@ -5,8 +5,6 @@ import JSZip from 'jszip';
 import { 
   ArrowLeft, 
   HelpCircle, 
-  Sparkles, 
-  CheckCircle2, 
   FileSpreadsheet, 
   X, 
   Plus, 
@@ -130,10 +128,6 @@ const MergerPage = () => {
     setStatus('Files cleared');
   };
 
-  const isBlankRow = (row) => {
-    return !row || row.every((cell) => cell === null || cell === undefined || cell === "");
-  };
-
   const getActualRange = (sheet) => {
     if (!sheet) return null;
     let maxRow = -1, minCol = Infinity, maxCol = -1;
@@ -162,7 +156,7 @@ const MergerPage = () => {
         if (cell.r > maxRow) maxRow = cell.r;
         if (cell.c < minCol) minCol = cell.c;
         if (cell.c > maxCol) maxCol = cell.c;
-      } catch (_e) {
+      } catch {
         // Ignore non-cell property keys
       }
     }
@@ -175,7 +169,7 @@ const MergerPage = () => {
             s: { r: 0, c: Math.max(0, decoded.s.c) },
             e: { r: Math.min(decoded.e.r, 200000), c: Math.min(decoded.e.c, 1000) }
           };
-        } catch (_e) {
+        } catch {
           // Ignore invalid !ref decoding
         }
       }
@@ -199,7 +193,7 @@ const MergerPage = () => {
   };
 
   // Helper to format cell value into clean, exact text (expanding scientific notation and BigInt integers)
-  const formatCellValue = (cell, isTextColumn) => {
+  const formatCellValue = (cell) => {
     if (cell === null || cell === undefined) return '';
 
     let rawVal = cell;
@@ -219,7 +213,7 @@ const MergerPage = () => {
       if (Number.isInteger(rawVal)) {
         try {
           str = BigInt(Math.trunc(rawVal)).toString();
-        } catch (_) {
+        } catch {
           str = String(rawVal);
         }
       } else {
@@ -245,7 +239,7 @@ const MergerPage = () => {
             str = intPart + fracPart.slice(0, exp) + '.' + fracPart.slice(exp);
           }
         }
-      } catch (_) {
+      } catch {
         // Fallback to original string
       }
     }

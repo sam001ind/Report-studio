@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { 
@@ -15,12 +15,8 @@ import {
   Search,
   CheckCircle2,
   AlertCircle,
-  FileCode,
-  Layers,
   Table as TableIcon,
-  Copy,
   Terminal,
-  RefreshCw,
   Info
 } from 'lucide-react';
 
@@ -426,7 +422,7 @@ const DatabaseDumpExtractorPage = () => {
         >
           <Upload size={28} style={{ color: 'var(--accent)', marginBottom: '10px' }} />
           <span style={{ fontWeight: 600, fontSize: '14px' }}>
-            {dumpFile ? dumpFile.name : 'Click or Drag to Upload Database Dump File'}
+            {isProcessing ? 'Processing dump file...' : (dumpFile ? dumpFile.name : 'Click or Drag to Upload Database Dump File')}
           </span>
           <span style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '6px' }}>
             {dumpFile ? `${(dumpFile.size / (1024 * 1024)).toFixed(2)} MB • Ready` : 'Extracts full table schemas, column names, records, and text fields'}

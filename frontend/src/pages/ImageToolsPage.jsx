@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Sparkles, 
@@ -17,9 +17,7 @@ import {
   Palette,
   FileImage,
   Layers,
-  ArrowLeft,
-  CheckCircle2,
-  Trash2
+  ArrowLeft
 } from 'lucide-react';
 
 const TOOLS = [
@@ -68,7 +66,7 @@ export default function ImageToolsPage() {
 
   const [convertFormat, setConvertFormat] = useState('image/png');
   const [convertBg, setConvertBg] = useState('#ffffff');
-  const [convertQuality, setConvertQuality] = useState(0.92);
+  const [convertQuality] = useState(0.92);
 
   const [brightness, setBrightness] = useState(1.0);
   const [contrast, setContrast] = useState(1.0);

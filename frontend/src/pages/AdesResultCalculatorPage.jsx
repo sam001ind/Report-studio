@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { 
@@ -10,51 +10,37 @@ import {
   XCircle, 
   AlertTriangle, 
   Search, 
-  Filter, 
   RefreshCw, 
   Table, 
   Sparkles, 
   HelpCircle, 
-  Layers, 
-  GraduationCap, 
   Calculator, 
   BookOpen, 
   ArrowUp, 
   ArrowDown, 
   ArrowUpDown, 
   X, 
-  Percent, 
-  Award,
-  UserCheck,
-  UserX,
-  Sliders,
-  FileUp,
-  FileDown,
-  Zap,
-  Check,
-  ToggleLeft,
-  ToggleRight,
-  TrendingUp,
-  BarChart3,
-  Users,
-  ChevronDown,
-  ChevronRight,
-  ShieldAlert,
-  AlertCircle,
-  Lock,
-  FileCheck,
-  Scale,
-  GitCompare,
-  ArrowRightLeft,
-  FileText,
-  Trash2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Columns,
-  Maximize2,
-  Minimize2,
-  Eye,
-  EyeOff
+  UserX, 
+  Sliders, 
+  FileUp, 
+  FileDown, 
+  Zap, 
+  TrendingUp, 
+  Users, 
+  ChevronDown, 
+  ChevronRight, 
+  ShieldAlert, 
+  AlertCircle, 
+  Lock, 
+  Scale, 
+  ArrowRightLeft, 
+  FileText, 
+  Trash2, 
+  PanelLeftClose, 
+  PanelLeftOpen, 
+  Columns, 
+  Maximize2, 
+  Minimize2 
 } from "lucide-react";
 
 export const ADES_OUTPUT_HEADERS = [
@@ -357,7 +343,6 @@ export default function AdesResultCalculatorPage() {
   const heldbackFileInputRef = useRef(null);
 
   // Result & Ordinance Reconciliation Comparison Tool State
-  const [comparisonFile, setComparisonFile] = useState(null);
   const [comparisonFileName, setComparisonFileName] = useState("");
   const [comparisonSheetNames, setComparisonSheetNames] = useState([]);
   const [comparisonSelectedSheet, setComparisonSelectedSheet] = useState("");
@@ -731,7 +716,6 @@ export default function AdesResultCalculatorPage() {
         sheetStubs: false
       });
       setComparisonWorkbook(wb);
-      setComparisonFile(file);
       setComparisonFileName(file.name);
       setComparisonSheetNames(wb.SheetNames);
       const initialSheet = wb.SheetNames[0] || "";
@@ -828,7 +812,6 @@ export default function AdesResultCalculatorPage() {
   };
 
   const handleClearComparisonFile = () => {
-    setComparisonFile(null);
     setComparisonFileName("");
     setComparisonSheetNames([]);
     setComparisonSelectedSheet("");
@@ -847,20 +830,6 @@ export default function AdesResultCalculatorPage() {
     const hasCourseOverall = keys.some(k => k.includes("courseoverall") || k.includes("overallmax") || k.includes("overallmin"));
     const hasRawAssessment = keys.some(k => k === "assessmentmethod" || k === "am" || k.includes("assessmenttype") || k === "at");
     return (hasEseOverall || hasCourseOverall) && !hasRawAssessment;
-  };
-
-  // Helper to detect if Teaching Learning Method (TLM) requires both Theory and Practical
-  const isLecLabTlm = (tlmStr) => {
-    if (!tlmStr) return false;
-    const s = String(tlmStr).toLowerCase();
-    if (s.includes("lec-lab") || s.includes("lec - lab") || s.includes("lecture-lab") || s.includes("lecture - lab")) return true;
-    if (s.includes("lec-prac") || s.includes("lecture-practical") || s.includes("theory-practical") || s.includes("th-pr")) return true;
-    if ((s.includes("lec") || s.includes("theory") || s.includes("th")) && (s.includes("lab") || s.includes("prac") || s.includes("pr"))) {
-      const hasTh = s.includes("lec") || s.includes("theory");
-      const hasPr = s.includes("lab") || s.includes("prac");
-      if (hasTh && hasPr) return true;
-    }
-    return false;
   };
 
   // Group raw assessment rows OR parse pre-aggregated rows into Student-Course Base Aggregates
@@ -1299,11 +1268,11 @@ export default function AdesResultCalculatorPage() {
           }
         }
 
-        let ese_deficit = 0;
-        let overall_deficit = 0;
-        let raw_ese_pass = false;
-        let raw_overall_pass = false;
-        let raw_course_pass = false;
+        let ese_deficit;
+        let overall_deficit;
+        let raw_ese_pass;
+        let raw_overall_pass;
+        let raw_course_pass;
 
         if (is_held) {
           raw_ese_pass = false;
@@ -1585,11 +1554,11 @@ export default function AdesResultCalculatorPage() {
         course_overall = (parseNumber(ese_obtained) || 0) + (parseNumber(ce_obtained) || 0);
       }
 
-      let ese_deficit = 0;
-      let overall_deficit = 0;
-      let raw_ese_pass = false;
-      let raw_overall_pass = false;
-      let raw_course_pass = false;
+      let ese_deficit;
+      let overall_deficit;
+      let raw_ese_pass;
+      let raw_overall_pass;
+      let raw_course_pass;
 
       if (is_held) {
         raw_ese_pass = false;
@@ -2424,20 +2393,16 @@ export default function AdesResultCalculatorPage() {
     const list = Array.from(map.values()).map(st => {
       const hasHeldback = (st.heldbackCourses || 0) > 0;
       const hasMissingMarks = (st.heldCourses || 0) > 0;
-      let semesterResult = "Fail";
-      let rawSemesterResult = "Fail";
-      let finalSemesterPass = false;
-      let rawSemesterPass = false;
+      let semesterResult;
+      let rawSemesterResult;
+      let finalSemesterPass;
+      let rawSemesterPass;
 
       if (hasMissingMarks) {
         // Collect missing component details across all held courses (CE-TH, CE-PR, ESE-TH, ESE-PR)
         const heldCourses = st.courses.filter(c => c.isHeld);
         const allMissingComps = Array.from(new Set(heldCourses.flatMap(c => c.missingComponents || [])));
         const missingCompsSummary = allMissingComps.length > 0 ? allMissingComps.join(", ") : "Marks Incomplete";
-        const missingDetailStr = heldCourses.map(c => {
-          const comps = (c.missingComponents && c.missingComponents.length > 0) ? c.missingComponents.join(", ") : "Incomplete";
-          return `${cleanCourseCode(c.courseCode)} [Missing: ${comps}]`;
-        }).join("; ");
 
         // Missing marks: considered Failed because marks are incomplete, but held status, reason and heldback are shown
         rawSemesterPass = false;
@@ -2874,7 +2839,7 @@ export default function AdesResultCalculatorPage() {
       const isPubHeldback = /held\s*back|hold\s*back/i.test(pubResRaw) || /held\s*back|hold\s*back/i.test(pubOtherRaw);
 
       // Determine the published academic outcome (Pass / Fail / Held)
-      let pubAcademicResult = "Fail";
+      let pubAcademicResult;
       if (/pass/i.test(pubResRaw)) {
         pubAcademicResult = "Pass";
       } else if (/fail/i.test(pubResRaw)) {
@@ -2925,9 +2890,9 @@ export default function AdesResultCalculatorPage() {
       const pubHasOrd = pub.ord === "YES" || pubModMarks > 0;
 
       // Heldback students: result is not published → comparison is N/A, not a real mismatch
-      let isResultMatch = null; // null = N/A
-      let isModMatch = null;    // null = N/A
-      let isExactMatch = null;  // null = N/A
+      let isResultMatch; // null = N/A
+      let isModMatch;    // null = N/A
+      let isExactMatch;  // null = N/A
       let modDiff = 0;
 
       let category = "EXACT_MATCH";
@@ -5195,6 +5160,7 @@ export default function AdesResultCalculatorPage() {
       window.removeEventListener("keydown", handleKeyDown);
       if (unsubscribeMenu) unsubscribeMenu();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [processedRows, filteredRows]);
 
   const coursePassKey = "Course Pass/Fail";
@@ -5307,6 +5273,7 @@ export default function AdesResultCalculatorPage() {
               <button 
                 type="button" 
                 onClick={() => handleExportExcel(filteredRows)}
+                disabled={isProcessing}
                 style={{ 
                   display: "flex", 
                   alignItems: "center", 
@@ -6523,7 +6490,7 @@ export default function AdesResultCalculatorPage() {
                       filteredStudents.map((st) => {
                         const isExpanded = expandedStudents[st.key];
                         return (
-                          <React.Fragment key={st.key}>
+                          <Fragment key={st.key}>
                             <tr 
                               onClick={() => toggleStudentExpand(st.key)}
                               style={{ 
@@ -6741,7 +6708,7 @@ export default function AdesResultCalculatorPage() {
                                 </td>
                               </tr>
                             )}
-                          </React.Fragment>
+                          </Fragment>
                         );
                       })
                     )}
