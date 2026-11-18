@@ -5422,16 +5422,40 @@ export function buildLookupMaps(lookupData) {
   return maps;
 }
 
-const LOOKUP_STORAGE_KEY = 'report_studio_custom_lookups';
+const LOOKUP_STORAGE_KEY_V2 = 'report_studio_custom_lookups_v2';
+const LOOKUP_STORAGE_KEY_LEGACY = 'report_studio_custom_lookups';
 
 export function loadSavedLookups() {
   if (typeof window === 'undefined') return DEFAULT_LOOKUP_DATA;
   try {
-    const raw = localStorage.getItem(LOOKUP_STORAGE_KEY);
+    let raw = localStorage.getItem(LOOKUP_STORAGE_KEY_V2);
+    let isLegacy = false;
+    if (!raw) {
+      raw = localStorage.getItem(LOOKUP_STORAGE_KEY_LEGACY);
+      isLegacy = true;
+    }
     if (!raw) return DEFAULT_LOOKUP_DATA;
     const parsed = JSON.parse(raw);
-    return {
-      program: Array.isArray(parsed.program) && parsed.program.length > 0 ? parsed.program : DEFAULT_LOOKUP_DATA.program,
+
+    // Merge programmes: Always ensure all official programmes from DEFAULT_LOOKUP_DATA.program are present with their updated workflow IDs and codes
+    let mergedProgram = DEFAULT_LOOKUP_DATA.program;
+    if (Array.isArray(parsed.program) && parsed.program.length > 0) {
+      const defaultByCode = new Map(DEFAULT_LOOKUP_DATA.program.map(p => [String(p.code || '').toLowerCase().trim(), p]));
+      const defaultByName = new Map(DEFAULT_LOOKUP_DATA.program.map(p => [normalizeLookupKey(p.pgmName), p]));
+      
+      // Keep any custom user-added programmes that are not in default master
+      const customPrograms = parsed.program.filter(p => {
+        const c = String(p.code || '').toLowerCase().trim();
+        const n = normalizeLookupKey(p.pgmName || p.name);
+        return (!c || !defaultByCode.has(c)) && (!n || !defaultByName.has(n));
+      });
+
+      // Official 90 programmes always take precedence with their updated workflow IDs and codes
+      mergedProgram = [...DEFAULT_LOOKUP_DATA.program, ...customPrograms];
+    }
+
+    const result = {
+      program: mergedProgram,
       college: Array.isArray(parsed.college) && parsed.college.length > 0 ? parsed.college : DEFAULT_LOOKUP_DATA.college,
       category: Array.isArray(parsed.category) && parsed.category.length > 0 ? parsed.category : DEFAULT_LOOKUP_DATA.category,
       caste: Array.isArray(parsed.caste) && parsed.caste.length > 0 ? parsed.caste : DEFAULT_LOOKUP_DATA.caste,
@@ -5441,6 +5465,13 @@ export function loadSavedLookups() {
       qualification: Array.isArray(parsed.qualification) && parsed.qualification.length > 0 ? parsed.qualification : DEFAULT_LOOKUP_DATA.qualification,
       stream: Array.isArray(parsed.stream) && parsed.stream.length > 0 ? parsed.stream : DEFAULT_LOOKUP_DATA.stream
     };
+
+    // If legacy storage or outdated programme list (< 90), migrate in-place immediately
+    if (isLegacy || (Array.isArray(parsed.program) && parsed.program.length < DEFAULT_LOOKUP_DATA.program.length)) {
+      saveLookupsToStorage(result);
+    }
+
+    return result;
   } catch (err) {
     console.warn('Failed to parse saved lookups from localStorage:', err);
     return DEFAULT_LOOKUP_DATA;
@@ -5450,7 +5481,9 @@ export function loadSavedLookups() {
 export function saveLookupsToStorage(lookupData) {
   if (typeof window === 'undefined') return false;
   try {
-    localStorage.setItem(LOOKUP_STORAGE_KEY, JSON.stringify(lookupData));
+    const serialized = JSON.stringify(lookupData);
+    localStorage.setItem(LOOKUP_STORAGE_KEY_V2, serialized);
+    localStorage.setItem(LOOKUP_STORAGE_KEY_LEGACY, serialized);
     return true;
   } catch (err) {
     console.error('Failed to save lookups to localStorage:', err);
