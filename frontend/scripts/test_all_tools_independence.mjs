@@ -26,7 +26,8 @@ import {
   normalizeLookupKey, 
   parseUploadedLookupSpreadsheet,
   KANNUR_PROGRAMMES,
-  KANNUR_COLLEGES
+  KANNUR_COLLEGES,
+  COLLEGE_LOOKUP
 } from '../src/data/admissionLookups.js';
 import {
   DEFAULT_COLLEGE_EMAILS,
@@ -2927,8 +2928,20 @@ test('Master Lookup Definition Tool - includes official Kannur programmes, colle
   assert.equal(behCol.name, 'School of Behavioural Sciences, Mangattuparamba');
 
   // Verify DEFAULT_LOOKUP_DATA contains program and college lists
-  assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.program) && DEFAULT_LOOKUP_DATA.program.length >= 15);
-  assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.college) && DEFAULT_LOOKUP_DATA.college.length >= 15);
+  assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.program) && DEFAULT_LOOKUP_DATA.program.length >= 90);
+  assert.ok(Array.isArray(DEFAULT_LOOKUP_DATA.college) && DEFAULT_LOOKUP_DATA.college.length >= 101);
+
+  // Verify newly updated Kannur college master entries resolve via COLLEGE_LOOKUP
+  const brennen = COLLEGE_LOOKUP['330'];
+  assert.ok(brennen, 'College 330 (Government Brennen College) must resolve');
+  assert.equal(brennen.name, 'Government Brennen College, Thalassery');
+
+  const kasargod = COLLEGE_LOOKUP['358'];
+  assert.ok(kasargod, 'College 358 (Govt College Kasargod) must resolve');
+
+  const nirmalagiri = COLLEGE_LOOKUP['214'];
+  assert.ok(nirmalagiri, 'College 214 (Nirmalagiri College) must resolve');
+  assert.equal(nirmalagiri.name, 'Nirmalagiri College, Kuthuparamba');
 
   // Verify Kannur University College Email Directory integration
   assert.ok(Array.isArray(DEFAULT_COLLEGE_EMAILS) && DEFAULT_COLLEGE_EMAILS.length >= 94);

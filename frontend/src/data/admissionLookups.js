@@ -3773,303 +3773,543 @@ export const KANNUR_COLLEGES = [
     "code": "431",
     "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
     "clgRef": "School of Physical Education and  Sports Sciences"
+  },
+  {
+    "id": "348",
+    "code": "348",
+    "name": "Darul Irshad Arabic College, Paral",
+    "clgRef": "Darul Irshad Arabic College, Paral"
+  },
+  {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College Mananthavady, Wayanad"
+  },
+  {
+    "id": "393",
+    "code": "393",
+    "name": "Nusrathul Islam Arabic College, Kadavathur",
+    "clgRef": "NIA College, Kadavathur, Kannur"
+  },
+  {
+    "id": "333",
+    "code": "333",
+    "name": "Al-Maquar Arabic College, Nadukani",
+    "clgRef": "Al-Maquar Arabic College,Darul Aman, Nadukani,Taliparamba"
+  },
+  {
+    "id": "422",
+    "code": "422",
+    "name": "Thanbeehul Islam Women's College, Naimarmoola",
+    "clgRef": "Thanbeehul Islam Womens College, Kasargod"
+  },
+  {
+    "id": "401",
+    "code": "401",
+    "name": "Sa-Adiya Arabic College, Deli",
+    "clgRef": "Sa-Adiya Arabic College, Deli, P.O. Kalanad, Kasaragod"
+  },
+  {
+    "id": "361",
+    "code": "361",
+    "name": "Kodiyeri Balakrishnan Memorial Government College Thalassery",
+    "clgRef": "Kodiyeri Balakrishnan Memorial Govt College, Thalassery, Chokli"
+  },
+  {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  {
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  },
+  {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  {
+    "id": "369",
+    "code": "369",
+    "name": "Kuniya College of Arts & Science, Kuniya, Kasaragod",
+    "clgRef": "Kuniya College of Arts & Science, Kuniya, Periya, Kasaragod"
+  },
+  {
+    "id": "370",
+    "code": "370",
+    "name": "Lasya College of Fine Arts,Pilathara",
+    "clgRef": "Lasya College of Fine Arts"
+  },
+  {
+    "id": "418",
+    "code": "418",
+    "name": "St. Pius X College, Rajapuram",
+    "clgRef": "St. Pius X College, Rajapuram, Kanhangad"
+  },
+  {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
+  },
+  {
+    "id": "374",
+    "code": "374",
+    "name": "Malabar Islamic Complex Arts and Science College, Thekkil",
+    "clgRef": "Malabar Islamic Complex-Arts & Science College, Mahinabad, Thekkil"
+  },
+  {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women’s College,Pallikkunnu, Kannur"
+  },
+  {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women's College, Kannur"
+  },
+  {
+    "id": "395",
+    "code": "395",
+    "name": "Payyannur College, Payyannur",
+    "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
+  },
+  {
+    "id": "411",
+    "code": "411",
+    "name": "Sree Narayana College,Thottada",
+    "clgRef": "Sree Narayana College, Kannur"
+  },
+  {
+    "id": "386",
+    "code": "386",
+    "name": "Nalanda College of Arts and Science, Perla, Kasargod",
+    "clgRef": "Nalanda College of Arts & Science, Perla P.O, Kasaragod"
+  },
+  {
+    "id": "389",
+    "code": "389",
+    "name": "Nehru Arts and Science College, Kanhangad",
+    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  },
+  {
+    "id": "420",
+    "code": "420",
+    "name": "Taliparamba Arts and Science College, Kanhirangad",
+    "clgRef": "Taliparamba Arts & Science College, Kanhirangad P.O., Taliparamba"
+  },
+  {
+    "id": "385",
+    "code": "385",
+    "name": "Naher Arts and Science College, Kanhirode",
+    "clgRef": "NAHER Arts & Science College, Kanhirode, Kannur"
+  },
+  {
+    "id": "404",
+    "code": "404",
+    "name": "S.E.S College, Sreekandapuram",
+    "clgRef": "SES College, Sreekandapuram, Kannur"
+  },
+  {
+    "id": "410",
+    "code": "410",
+    "name": "Sree Narayana College of Management Studies, Periya",
+    "clgRef": "Sree Narayana College of Management Studies Periya,Haripuram"
+  },
+  {
+    "id": "214",
+    "code": "214",
+    "name": "Nirmalagiri College, Kuthuparamba",
+    "clgRef": "Nirmalagiri College, Kuthuparamba, Kannur"
+  },
+  {
+    "id": "337",
+    "code": "337",
+    "name": "BEJA Model College of Arts & Science",
+    "clgRef": "BEJA Model College of Arts & Science ,Sankanamoola,Beja,Nettanige P.O,Mulleria,Kasargod"
+  },
+  {
+    "id": "355",
+    "code": "355",
+    "name": "Government Arts and Science College, Kinanoor, Karinthalam",
+    "clgRef": "Govt Arts & Science College Kinanoor,Karindalam"
+  },
+  {
+    "id": "332",
+    "code": "332",
+    "name": "E.K. Nayanar Memorial Govt. College, Elerithattu",
+    "clgRef": "E. K. Nayanar Memorial Govt. College, Elerithattu, Nileshwar"
+  },
+  {
+    "id": "328",
+    "code": "328",
+    "name": "Mahatma Gandhi Arts and Science College, Chendayad",
+    "clgRef": "Mahatma Gandhi Arts & Science College, Chendayad P.O., Panur"
+  },
+  {
+    "id": "406",
+    "code": "406",
+    "name": "SIBGA Institute of Advanced Studies, Irikkur",
+    "clgRef": "Sibga Institute of Advanced Studies,Kalliad P.O.,Irikkur, Kannur"
+  },
+  {
+    "id": "387",
+    "code": "387",
+    "name": "N.A.M College, Kallikandy",
+    "clgRef": "N.A.M. College, Kallikandy, Thuvakunnu P.O., Kannur"
+  },
+  {
+    "id": "402",
+    "code": "402",
+    "name": "Sa-A-Diya Arts and Science College, Koliyadukkam",
+    "clgRef": "Sa-A-Diya Arts & Science College, Koliyadukkam, Kalanad"
+  },
+  {
+    "id": "341",
+    "code": "341",
+    "name": "C.K Nair Arts and Management College, Hosdurg",
+    "clgRef": "C.K. Nair Arts & Management College, Padnekat, Kanhangad, Kasaragod"
+  },
+  {
+    "id": "375",
+    "code": "375",
+    "name": "Malik Dinar College of Graduate Studies, Seethangoli",
+    "clgRef": "Malik Dinar College of Graduate Studies, Seethangoli"
+  },
+  {
+    "id": "346",
+    "code": "346",
+    "name": "Concord Arts and Science College, Muttannur",
+    "clgRef": "Concord Arts & Science College, Muttannur, Kannur"
+  },
+  {
+    "id": "351",
+    "code": "351",
+    "name": "Don Bosco Arts and Science College, Angadikadavu",
+    "clgRef": "Don Bosco Arts & Science College, Angadikkadavu, Kannur P.O."
+  },
+  {
+    "id": "418",
+    "code": "418",
+    "name": "St. Pius X College, Rajapuram",
+    "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
+  },
+  {
+    "id": "382",
+    "code": "382",
+    "name": "Morazha Co-op Arts and Science College, Morazha",
+    "clgRef": "Morazha Co-operative Arts & Science College, Morazha P.O., Kannur"
+  },
+  {
+    "id": "424",
+    "code": "424",
+    "name": "Wadihuda Institute of Research and Advanced Studies, Vilayancode",
+    "clgRef": "Wadihuda Institute of Research and Advanced Studies, Vilayancode"
+  },
+  {
+    "id": "360",
+    "code": "360",
+    "name": "Govt. College, Peringome",
+    "clgRef": "Govt. College Peringome, Peringome P.O., Payyannur, Kannur"
+  },
+  {
+    "id": "416",
+    "code": "416",
+    "name": "St. Mary's Arts & Science College, Cherupanathady",
+    "clgRef": "St.Mary's Arts & Science College,cherupanathady,Panathady P.O,Rajapuram Via,Kasargod"
+  },
+  {
+    "id": "120",
+    "code": "120",
+    "name": "Hermann Gundert college of Advanced Studies, Thalassery",
+    "clgRef": "Hermann Gundert College of Advanced Studies, Thalassery"
+  },
+  {
+    "id": "412",
+    "code": "412",
+    "name": "Sree Narayana Guru College of Advanced Studies, Thottada",
+    "clgRef": "Sree Narayana Guru College of Advanced Studies, Thottada, Kannur"
+  },
+  {
+    "id": "421",
+    "code": "421",
+    "name": "Tellicherry Institute of Advanced Studies",
+    "clgRef": "Tellicherry Institute of Advanced Studies,Kundoormala, West Ponniam PO,Thalassery"
+  },
+  {
+    "id": "357",
+    "code": "357",
+    "name": "Govt. Arts and Science College, Uduma",
+    "clgRef": "Govt. Arts & Science College, Uduma, Pallaram, Kasaragod"
+  },
+  {
+    "id": "121",
+    "code": "121",
+    "name": "Govt. Model Degree College-RUSA, Thrissilery",
+    "clgRef": "Govt. Model  Degree College-RUSA Thrissilery ,Mananthavady,Wayanad"
+  },
+  {
+    "id": "347",
+    "code": "347",
+    "name": "Co-operative Arts and Science College, Madai",
+    "clgRef": "Co-Operative Arts & Science College, Madai P.O., Pazhayangadi R.S."
+  },
+  {
+    "id": "344",
+    "code": "344",
+    "name": "College of Applied Science, Manjeswaram, Kumbla",
+    "clgRef": "College of Applied Science, Manjeswaram, Kumbala"
+  },
+  {
+    "id": "329",
+    "code": "329",
+    "name": "College of Applied Science (IHRD), Payyannur (Neruvambram)",
+    "clgRef": "College of Applied Science, Neruvambaram, payyanur, Pazhayangadi P.O."
+  },
+  {
+    "id": "392",
+    "code": "392",
+    "name": "Nirmalagiri College of Advanced Studies, Kuthuparamba",
+    "clgRef": "Nirmalagiri College of Advanced Studies, Nirmalagiri , Kuthuparamba"
+  },
+  {
+    "id": "354",
+    "code": "354",
+    "name": "E M S Memorial College of Applied Science, Iritty",
+    "clgRef": "EMS Memorial College of Applied Science, Vallithode, Iritty, Kannur"
+  },
+  {
+    "id": "350",
+    "code": "350",
+    "name": "Deva Matha Arts and Science College, Paisakari",
+    "clgRef": "Deva Matha Arts & Science College, Paisakari P.O., Kannur"
+  },
+  {
+    "id": "367",
+    "code": "367",
+    "name": "Khansa Women's College for Advanced Studies, Kumbla, Kasargod",
+    "clgRef": "Khansa Women's College for Advanced Studies, Milekallu, Kumbla"
+  },
+  {
+    "id": "378",
+    "code": "378",
+    "name": "Mary Matha Arts and Science College, Mananthavady",
+    "clgRef": "Mary Matha Arts & Science College, Vemom P.O., Mananthavady, Waynad"
+  },
+  {
+    "id": "397",
+    "code": "397",
+    "name": "Peoples Co-operative Arts and Science College, Munnad",
+    "clgRef": "People's Co-operative Arts & Science College, Munnad, Chengala"
+  },
+  {
+    "id": "353",
+    "code": "353",
+    "name": "Dr.APJ Abdul Kalam College of Professional Studies ,Ulikkal",
+    "clgRef": "Dr. APJ AbdulKalam College of Professional Studies,Ulikkal,Kannur"
+  },
+  {
+    "id": "380",
+    "code": "380",
+    "name": "MM Knowledge Arts and Science College, Thaliparamba",
+    "clgRef": "MM Knowledge Arts & Science College, Thaliparamba, Kannur"
+  },
+  {
+    "id": "372",
+    "code": "372",
+    "name": "Mahatma Gandhi College, Iritty",
+    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  },
+  {
+    "id": "417",
+    "code": "417",
+    "name": "St. Mary's College, Bela",
+    "clgRef": "St. Mary's College, Bela, Kasargod"
+  },
+  {
+    "id": "334",
+    "code": "334",
+    "name": "AMSTECK Arts and Science College, Kalliassery",
+    "clgRef": "AMSTECK Arts & Science College, Kalliassery, Ancham Peedika P.O."
+  },
+  {
+    "id": "379",
+    "code": "379",
+    "name": "M.E.S. College, Naravoor",
+    "clgRef": "M.E.S.College, Naravoor South, Kuthuparamba P.O., Kannur"
+  },
+  {
+    "id": "388",
+    "code": "388",
+    "name": "Navajyothi College, Cherupuzha",
+    "clgRef": "Navajyothi College, Cherupuzha, Chunda P.O., Kannur"
+  },
+  {
+    "id": "398",
+    "code": "398",
+    "name": "Pilathara Co-op Arts and Science College",
+    "clgRef": "Pilathara Co-op Arts & Science College, Pazhichiyil, Nareekamvalli P.O."
+  },
+  {
+    "id": "426",
+    "code": "426",
+    "name": "WMO Imam Gazzali Arts and Science College, Wayanad",
+    "clgRef": "WMO Imam Gazzali Arts & Science College, Koolivayal, Panamaram"
+  },
+  {
+    "id": "119",
+    "code": "119",
+    "name": "Chinmaya Institute of Technology",
+    "clgRef": "Chinmaya Institute of Technology Chala"
+  },
+  {
+    "id": "340",
+    "code": "340",
+    "name": "Chinmaya Arts and Science College for Women, Chala",
+    "clgRef": "Chinmaya Arts & Science College for Women, Govindagiri, Chala"
+  },
+  {
+    "id": "403",
+    "code": "403",
+    "name": "Sanatana Arts and Science College, Kanhangad",
+    "clgRef": "Sanatana Arts & Science College, Kottappara, Kanhangad,Kasaragod"
+  },
+  {
+    "id": "363",
+    "code": "363",
+    "name": "Gurudev Arts and Science College, Mathil",
+    "clgRef": "Gurudev Arts & Science College, Mathil, Mathil P.O., Payyanur, Kannur"
+  },
+  {
+    "id": "419",
+    "code": "419",
+    "name": "Sunrise College of Advanced Studies, Kuttur, Mathamangalam",
+    "clgRef": "SUNRISE COLLEGE OF ADVANCED STUDIES, KUTTUR, P.O. KUTTOOR,MATHAMANGALAM(VIA), KANNUR,PIN 670306"
+  },
+  {
+    "id": "352",
+    "code": "352",
+    "name": "Dr. Ambedkar Arts and Science College, Periya",
+    "clgRef": "Dr. Ambedkar Arts & Science College, Sreesailam, Periya"
+  },
+  {
+    "id": "390",
+    "code": "390",
+    "name": "NEST Institute of Humanities and Basic Sciences, Karivellur",
+    "clgRef": "NEST Institute of Humanities and Basic Sciences, Karivellur, Kannur"
+  },
+  {
+    "id": "342",
+    "code": "342",
+    "name": "College of Applied Science, Cheemeni",
+    "clgRef": "College of Applied Science, Cheemeni, Cheruvathur"
+  },
+  {
+    "id": "429",
+    "code": "429",
+    "name": "Lourde Institute of Science and Technology",
+    "clgRef": "Lourde Institute of Science and Technology, Taliparamba"
+  },
+  {
+    "id": "349",
+    "code": "349",
+    "name": "De Paul Arts and Science College, Edathotty",
+    "clgRef": "De Paul Arts & Science College, Edathotty, Kakkayangad P.O, Iritty, Kannur."
+  },
+  {
+    "id": "405",
+    "code": "405",
+    "name": "Sharaf Arts and Science College, Padne",
+    "clgRef": "Sharaf Arts & Science College, Padanne, Kasargod"
+  },
+  {
+    "id": "425",
+    "code": "425",
+    "name": "Wings Arts & Science College, Padanna",
+    "clgRef": "Wings Arts & Science College Padanna,Hosdurg,Kasargod"
+  },
+  {
+    "id": "345",
+    "code": "345",
+    "name": "College of Applied Science, Pattuvam",
+    "clgRef": "College of Applied Science,Kayyamthadam,Ariyil P.O,Pattuvam,Taliparamba"
+  },
+  {
+    "id": "399",
+    "code": "399",
+    "name": "P.K.K.M. College of Applied Science ,Mananthavady",
+    "clgRef": "P.K.K.M. College of Applied Science, Mananthavady"
+  },
+  {
+    "id": "413",
+    "code": "413",
+    "name": "Sree Narayana Guru College of Arts and Science, Iritty",
+    "clgRef": "Sree Narayana Guru College of Arts & Science, Iritty, Kannur"
+  },
+  {
+    "id": "343",
+    "code": "343",
+    "name": "College of Applied Science, Koothuparamba",
+    "clgRef": "College of Applied Science, Kuthuparamba P.O., Kannur"
+  },
+  {
+    "id": "331",
+    "code": "331",
+    "name": "College of Applied Science, Pinarayi",
+    "clgRef": "College of Applied Science, Pinarayi, Kannur"
+  },
+  {
+    "id": "376",
+    "code": "376",
+    "name": "Mar Thoma College for the Hearing Impaired, Cherkala",
+    "clgRef": "Marthoma College for the Hearing Impaired, Cherkala, Kasargod"
+  },
+  {
+    "id": "384",
+    "code": "384",
+    "name": "MVR Institute of Life Science & Research Studies",
+    "clgRef": "MVR Institute of Life Science & Research Studies, Parassinikadavu, Kannur"
+  },
+  {
+    "id": "335",
+    "code": "335",
+    "name": "College for Costume & Fashion Designing, under IIHT-Kannur",
+    "clgRef": "College for Costume and Fashion Designing under IIHT, Thottada P O, Kannur"
+  },
+  {
+    "id": "366",
+    "code": "366",
+    "name": "Kerala Institute Of Hospitality Management ,Thalassery",
+    "clgRef": "Kerala Institute of Hospitality Management update the data"
   }
 ];
 
 export const COLLEGE_LOOKUP = {
-  "departmentofanthropologydrjanakiammalcampuspalayad": {
-    "id": "435",
-    "code": "435",
-    "name": "Department of Anthropology",
-    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
+  "119": {
+    "id": "119",
+    "code": "119",
+    "name": "Chinmaya Institute of Technology",
+    "clgRef": "Chinmaya Institute of Technology Chala"
   },
-  "department of anthropology,dr. janaki ammal campus,palayad": {
-    "id": "435",
-    "code": "435",
-    "name": "Department of Anthropology",
-    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
+  "120": {
+    "id": "120",
+    "code": "120",
+    "name": "Hermann Gundert college of Advanced Studies, Thalassery",
+    "clgRef": "Hermann Gundert College of Advanced Studies, Thalassery"
   },
-  "departmentofanthropology": {
-    "id": "435",
-    "code": "435",
-    "name": "Department of Anthropology",
-    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
-  },
-  "department of anthropology": {
-    "id": "435",
-    "code": "435",
-    "name": "Department of Anthropology",
-    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
-  },
-  "435": {
-    "id": "435",
-    "code": "435",
-    "name": "Department of Anthropology",
-    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
-  },
-  "departmentofbehaviouralscienceskannuruniversitymangattuparambacampuskucampuspopin670567": {
-    "id": "432",
-    "code": "432",
-    "name": "School of Behavioural Sciences, Mangattuparamba",
-    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "department of behavioural sciences,kannur university, mangattuparamba campus,k u campus p.o,pin : 670567": {
-    "id": "432",
-    "code": "432",
-    "name": "School of Behavioural Sciences, Mangattuparamba",
-    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "schoolofbehaviouralsciencesmangattuparamba": {
-    "id": "432",
-    "code": "432",
-    "name": "School of Behavioural Sciences, Mangattuparamba",
-    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "school of behavioural sciences, mangattuparamba": {
-    "id": "432",
-    "code": "432",
-    "name": "School of Behavioural Sciences, Mangattuparamba",
-    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "432": {
-    "id": "432",
-    "code": "432",
-    "name": "School of Behavioural Sciences, Mangattuparamba",
-    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "departmentofcommerceandbusinessstudiesdrpkrmcampuskannuruniversitypalathadamponileswaramkasargoddistrictpin671314": {
-    "id": "434",
-    "code": "434",
-    "name": "Department of Commerce and Business Studies",
-    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
-  },
-  "department of commerce and business studies,dr.p.k.r.m.campus, kannur university,palathadam p.o nileswaram,kasargod district,pin:671314": {
-    "id": "434",
-    "code": "434",
-    "name": "Department of Commerce and Business Studies",
-    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
-  },
-  "departmentofcommerceandbusinessstudies": {
-    "id": "434",
-    "code": "434",
-    "name": "Department of Commerce and Business Studies",
-    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
-  },
-  "department of commerce and business studies": {
-    "id": "434",
-    "code": "434",
-    "name": "Department of Commerce and Business Studies",
-    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
-  },
-  "434": {
-    "id": "434",
-    "code": "434",
-    "name": "Department of Commerce and Business Studies",
-    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
-  },
-  "jointlyconductedbydeptofitmathematicsstatisticsmangattuparambacampuskannuruniversitycampuspokannur670567": {
-    "id": "430",
-    "code": "430",
-    "name": "Department of Information Technology, Mangattuparamba",
-    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "jointly conducted by dept of it,mathematics & statistics,mangattuparamba campus, kannur university campus p. o, kannur - 670 567": {
-    "id": "430",
-    "code": "430",
-    "name": "Department of Information Technology, Mangattuparamba",
-    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "departmentofinformationtechnologymangattuparamba": {
-    "id": "430",
-    "code": "430",
-    "name": "Department of Information Technology, Mangattuparamba",
-    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "department of information technology, mangattuparamba": {
-    "id": "430",
-    "code": "430",
-    "name": "Department of Information Technology, Mangattuparamba",
-    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "430": {
-    "id": "430",
-    "code": "430",
-    "name": "Department of Information Technology, Mangattuparamba",
-    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "jointlyconductedbydeptofphysicschemistryswamianandatheerthacampuspayyannurpoedatpin670327": {
-    "id": "433",
-    "code": "433",
-    "name": "Department of Physics, Swami Anandatheertha Campus",
-    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
-  },
-  "jointly conducted by dept of physics & chemistry,swami anandatheertha campus, payyannur p.o. edat,pin. 670 327": {
-    "id": "433",
-    "code": "433",
-    "name": "Department of Physics, Swami Anandatheertha Campus",
-    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
-  },
-  "departmentofphysicsswamianandatheerthacampus": {
-    "id": "433",
-    "code": "433",
-    "name": "Department of Physics, Swami Anandatheertha Campus",
-    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
-  },
-  "department of physics, swami anandatheertha campus": {
-    "id": "433",
-    "code": "433",
-    "name": "Department of Physics, Swami Anandatheertha Campus",
-    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
-  },
-  "433": {
-    "id": "433",
-    "code": "433",
-    "name": "Department of Physics, Swami Anandatheertha Campus",
-    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
-  },
-  "departmentofeconomicskannuruniversitymangattuparambacampuskucampuspopin670567": {
-    "id": "131",
-    "code": "131",
-    "name": "Department of Economics",
-    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "department of economics,kannur university, mangattuparamba campus,k u campus p.o,pin : 670567": {
-    "id": "131",
-    "code": "131",
-    "name": "Department of Economics",
-    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "departmentofeconomics": {
-    "id": "131",
-    "code": "131",
-    "name": "Department of Economics",
-    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "department of economics": {
-    "id": "131",
-    "code": "131",
-    "name": "Department of Economics",
-    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "131": {
-    "id": "131",
-    "code": "131",
-    "name": "Department of Economics",
-    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "departmentofgeographyswamianandatheerthacampuspayyannurpoedatpin670327": {
-    "id": "125",
-    "code": "125",
-    "name": "Department of Geography",
-    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
-  },
-  "department of geography,swami anandatheertha campus, payyannur p.o. edat, pin. 670 327": {
-    "id": "125",
-    "code": "125",
-    "name": "Department of Geography",
-    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
-  },
-  "departmentofgeography": {
-    "id": "125",
-    "code": "125",
-    "name": "Department of Geography",
-    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
-  },
-  "department of geography": {
-    "id": "125",
-    "code": "125",
-    "name": "Department of Geography",
-    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
-  },
-  "125": {
-    "id": "125",
-    "code": "125",
-    "name": "Department of Geography",
-    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
-  },
-  "departmentofmanagementstudiesthavakkaracampusthavakkarapin670002": {
-    "id": "133",
-    "code": "133",
-    "name": "Department of Management Studies",
-    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
-  },
-  "department of management studies,thavakkara campus,thavakkara,pin:670002": {
-    "id": "133",
-    "code": "133",
-    "name": "Department of Management Studies",
-    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
-  },
-  "departmentofmanagementstudies": {
-    "id": "133",
-    "code": "133",
-    "name": "Department of Management Studies",
-    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
-  },
-  "department of management studies": {
-    "id": "133",
-    "code": "133",
-    "name": "Department of Management Studies",
-    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
-  },
-  "133": {
-    "id": "133",
-    "code": "133",
-    "name": "Department of Management Studies",
-    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
-  },
-  "departmentofenvironmentalsciencekannuruniversitymangattuparambacampuskucampuspokannur": {
-    "id": "128",
-    "code": "128",
-    "name": "Department of Environmental Studies",
-    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
-  },
-  "department of environmental science,kannur university, mangattuparamba campus k u campus p.o,kannur,": {
-    "id": "128",
-    "code": "128",
-    "name": "Department of Environmental Studies",
-    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
-  },
-  "departmentofenvironmentalstudies": {
-    "id": "128",
-    "code": "128",
-    "name": "Department of Environmental Studies",
-    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
-  },
-  "department of environmental studies": {
-    "id": "128",
-    "code": "128",
-    "name": "Department of Environmental Studies",
-    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
-  },
-  "128": {
-    "id": "128",
-    "code": "128",
-    "name": "Department of Environmental Studies",
-    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
-  },
-  "departmentofhistorykannuruniversitythalasserycampuspalayadpo": {
-    "id": "124",
-    "code": "124",
-    "name": "Department of History",
-    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
-  },
-  "department of history,kannur university, thalassery campus,palayad p.o": {
-    "id": "124",
-    "code": "124",
-    "name": "Department of History",
-    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
-  },
-  "departmentofhistory": {
-    "id": "124",
-    "code": "124",
-    "name": "Department of History",
-    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
-  },
-  "department of history": {
-    "id": "124",
-    "code": "124",
-    "name": "Department of History",
-    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
+  "121": {
+    "id": "121",
+    "code": "121",
+    "name": "Govt. Model Degree College-RUSA, Thrissilery",
+    "clgRef": "Govt. Model  Degree College-RUSA Thrissilery ,Mananthavady,Wayanad"
   },
   "124": {
     "id": "124",
@@ -4077,107 +4317,11 @@ export const COLLEGE_LOOKUP = {
     "name": "Department of History",
     "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
   },
-  "departmentofenglishdrjanakiammalcampuspalayadthalasserypin670661": {
-    "id": "130",
-    "code": "130",
-    "name": "Department of Studies in English",
-    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
-  },
-  "department of english,dr. janaki ammal campus,palayad,thalassery,pin : 670661": {
-    "id": "130",
-    "code": "130",
-    "name": "Department of Studies in English",
-    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
-  },
-  "departmentofstudiesinenglish": {
-    "id": "130",
-    "code": "130",
-    "name": "Department of Studies in English",
-    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
-  },
-  "department of studies in english": {
-    "id": "130",
-    "code": "130",
-    "name": "Department of Studies in English",
-    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
-  },
-  "130": {
-    "id": "130",
-    "code": "130",
-    "name": "Department of Studies in English",
-    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
-  },
-  "jointlyconductedbystatisticalsciencesandmathematicalsciencesmangattuparambacampuskannuruniversitycampuspokannur670567": {
-    "id": "129",
-    "code": "129",
-    "name": "Department of Mathematical Sciences",
-    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "jointly conducted by statistical sciences and mathematical sciences,mangattuparamba campus,kannur university campus p. o, kannur - 670 567": {
-    "id": "129",
-    "code": "129",
-    "name": "Department of Mathematical Sciences",
-    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "departmentofmathematicalsciences": {
-    "id": "129",
-    "code": "129",
-    "name": "Department of Mathematical Sciences",
-    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "department of mathematical sciences": {
-    "id": "129",
-    "code": "129",
-    "name": "Department of Mathematical Sciences",
-    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "129": {
-    "id": "129",
-    "code": "129",
-    "name": "Department of Mathematical Sciences",
-    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "informationtechnologyeducationcenterpalayaddrjanakiammalcampuspalayadthalasserypin670": {
-    "id": "132",
-    "code": "132",
-    "name": "IT Education Centre",
-    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
-  },
-  "information technology education center palayad,dr. janaki ammal campus,palayad,thalassery,pin : 670": {
-    "id": "132",
-    "code": "132",
-    "name": "IT Education Centre",
-    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
-  },
-  "iteducationcentre": {
-    "id": "132",
-    "code": "132",
-    "name": "IT Education Centre",
-    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
-  },
-  "it education centre": {
-    "id": "132",
-    "code": "132",
-    "name": "IT Education Centre",
-    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
-  },
-  "132": {
-    "id": "132",
-    "code": "132",
-    "name": "IT Education Centre",
-    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
-  },
-  "departmentofmusic": {
-    "id": "127",
-    "code": "127",
-    "name": "Department of Music",
-    "clgRef": "Department of Music"
-  },
-  "department of music": {
-    "id": "127",
-    "code": "127",
-    "name": "Department of Music",
-    "clgRef": "Department of Music"
+  "125": {
+    "id": "125",
+    "code": "125",
+    "name": "Department of Geography",
+    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
   },
   "127": {
     "id": "127",
@@ -4185,89 +4329,131 @@ export const COLLEGE_LOOKUP = {
     "name": "Department of Music",
     "clgRef": "Department of Music"
   },
-  "schoolofphysicaleducationandsportssciences": {
-    "id": "431",
-    "code": "431",
-    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
-    "clgRef": "School of Physical Education and  Sports Sciences"
+  "128": {
+    "id": "128",
+    "code": "128",
+    "name": "Department of Environmental Studies",
+    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
   },
-  "school of physical education and  sports sciences": {
-    "id": "431",
-    "code": "431",
-    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
-    "clgRef": "School of Physical Education and  Sports Sciences"
+  "129": {
+    "id": "129",
+    "code": "129",
+    "name": "Department of Mathematical Sciences",
+    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
   },
-  "schoolofphysicaleducationandsportsciencesmangattuparamba": {
-    "id": "431",
-    "code": "431",
-    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
-    "clgRef": "School of Physical Education and  Sports Sciences"
+  "130": {
+    "id": "130",
+    "code": "130",
+    "name": "Department of Studies in English",
+    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
   },
-  "school of physical education and sport sciences, mangattuparamba": {
-    "id": "431",
-    "code": "431",
-    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
-    "clgRef": "School of Physical Education and  Sports Sciences"
+  "131": {
+    "id": "131",
+    "code": "131",
+    "name": "Department of Economics",
+    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
   },
-  "431": {
-    "id": "431",
-    "code": "431",
-    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
-    "clgRef": "School of Physical Education and  Sports Sciences"
+  "132": {
+    "id": "132",
+    "code": "132",
+    "name": "IT Education Centre",
+    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
   },
-  "313": {
+  "133": {
     "id": "133",
     "code": "133",
     "name": "Department of Management Studies",
     "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
+  },
+  "200": {
+    "id": "200",
+    "code": "200",
+    "name": "Govt. College Mananthavady",
+    "clgRef": "Govt. College Mananthavady, Wayanad"
+  },
+  "201": {
+    "id": "201",
+    "code": "201",
+    "name": "Govt. Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  "205": {
+    "id": "205",
+    "code": "205",
+    "name": "Govt. College Kasaragod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "207": {
+    "id": "207",
+    "code": "207",
+    "name": "K.M.M. Govt. Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women's College, Kannur"
+  },
+  "209": {
+    "id": "209",
+    "code": "209",
+    "name": "Payyannur College, Payyannur",
+    "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
+  },
+  "211": {
+    "id": "211",
+    "code": "211",
+    "name": "Sir Syed College, Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  },
+  "212": {
+    "id": "212",
+    "code": "212",
+    "name": "Sree Narayana College, Kannur",
+    "clgRef": "Sree Narayana College, Kannur"
+  },
+  "214": {
+    "id": "214",
+    "code": "214",
+    "name": "Nirmalagiri College, Kuthuparamba",
+    "clgRef": "Nirmalagiri College, Kuthuparamba, Kannur"
+  },
+  "215": {
+    "id": "215",
+    "code": "215",
+    "name": "Mahatma Gandhi College, Iritty",
+    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  },
+  "216": {
+    "id": "216",
+    "code": "216",
+    "name": "N.A.M. College, Kallikandy",
+    "clgRef": "N.A.M. College, Kallikandy, Thuvakunnu P.O., Kannur"
+  },
+  "241": {
+    "id": "241",
+    "code": "241",
+    "name": "Nehru Arts and Science College, Kanhangad",
+    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  },
+  "251": {
+    "id": "251",
+    "code": "251",
+    "name": "St. Pius X College, Rajapuram",
+    "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
+  },
+  "265": {
+    "id": "265",
+    "code": "265",
+    "name": "SES College, Sreekandapuram",
+    "clgRef": "SES College, Sreekandapuram, Kannur"
+  },
+  "266": {
+    "id": "266",
+    "code": "266",
+    "name": "Wadihuda Institute of Research and Advanced Studies",
+    "clgRef": "Wadihuda Institute of Research and Advanced Studies, Vilayancode"
   },
   "304": {
     "id": "434",
     "code": "434",
     "name": "Department of Commerce and Business Studies",
     "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
-  },
-  "314": {
-    "id": "128",
-    "code": "128",
-    "name": "Department of Environmental Studies",
-    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
-  },
-  "312": {
-    "id": "131",
-    "code": "131",
-    "name": "Department of Economics",
-    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
-  },
-  "315": {
-    "id": "124",
-    "code": "124",
-    "name": "Department of History",
-    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
-  },
-  "316": {
-    "id": "130",
-    "code": "130",
-    "name": "Department of Studies in English",
-    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
-  },
-  "317": {
-    "id": "129",
-    "code": "129",
-    "name": "Department of Mathematical Sciences",
-    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
-  },
-  "318": {
-    "id": "132",
-    "code": "132",
-    "name": "IT Education Centre",
-    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
-  },
-  "309": {
-    "id": "125",
-    "code": "125",
-    "name": "Department of Geography",
-    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
   },
   "305": {
     "id": "432",
@@ -4293,127 +4479,1411 @@ export const COLLEGE_LOOKUP = {
     "name": "Department of Anthropology",
     "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
   },
-  "323": {
+  "328": {
+    "id": "328",
+    "code": "328",
+    "name": "Mahatma Gandhi Arts and Science College, Chendayad",
+    "clgRef": "Mahatma Gandhi Arts & Science College, Chendayad P.O., Panur"
+  },
+  "329": {
+    "id": "329",
+    "code": "329",
+    "name": "College of Applied Science (IHRD), Payyannur (Neruvambram)",
+    "clgRef": "College of Applied Science, Neruvambaram, payyanur, Pazhayangadi P.O."
+  },
+  "330": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  "331": {
+    "id": "331",
+    "code": "331",
+    "name": "College of Applied Science, Pinarayi",
+    "clgRef": "College of Applied Science, Pinarayi, Kannur"
+  },
+  "332": {
+    "id": "332",
+    "code": "332",
+    "name": "E.K. Nayanar Memorial Govt. College, Elerithattu",
+    "clgRef": "E. K. Nayanar Memorial Govt. College, Elerithattu, Nileshwar"
+  },
+  "333": {
+    "id": "333",
+    "code": "333",
+    "name": "Al-Maquar Arabic College, Nadukani",
+    "clgRef": "Al-Maquar Arabic College,Darul Aman, Nadukani,Taliparamba"
+  },
+  "334": {
+    "id": "334",
+    "code": "334",
+    "name": "AMSTECK Arts and Science College, Kalliassery",
+    "clgRef": "AMSTECK Arts & Science College, Kalliassery, Ancham Peedika P.O."
+  },
+  "335": {
+    "id": "335",
+    "code": "335",
+    "name": "College for Costume & Fashion Designing, under IIHT-Kannur",
+    "clgRef": "College for Costume and Fashion Designing under IIHT, Thottada P O, Kannur"
+  },
+  "337": {
+    "id": "337",
+    "code": "337",
+    "name": "BEJA Model College of Arts & Science",
+    "clgRef": "BEJA Model College of Arts & Science ,Sankanamoola,Beja,Nettanige P.O,Mulleria,Kasargod"
+  },
+  "340": {
+    "id": "340",
+    "code": "340",
+    "name": "Chinmaya Arts and Science College for Women, Chala",
+    "clgRef": "Chinmaya Arts & Science College for Women, Govindagiri, Chala"
+  },
+  "341": {
+    "id": "341",
+    "code": "341",
+    "name": "C.K Nair Arts and Management College, Hosdurg",
+    "clgRef": "C.K. Nair Arts & Management College, Padnekat, Kanhangad, Kasaragod"
+  },
+  "342": {
+    "id": "342",
+    "code": "342",
+    "name": "College of Applied Science, Cheemeni",
+    "clgRef": "College of Applied Science, Cheemeni, Cheruvathur"
+  },
+  "343": {
+    "id": "343",
+    "code": "343",
+    "name": "College of Applied Science, Koothuparamba",
+    "clgRef": "College of Applied Science, Kuthuparamba P.O., Kannur"
+  },
+  "344": {
+    "id": "344",
+    "code": "344",
+    "name": "College of Applied Science, Manjeswaram, Kumbla",
+    "clgRef": "College of Applied Science, Manjeswaram, Kumbala"
+  },
+  "345": {
+    "id": "345",
+    "code": "345",
+    "name": "College of Applied Science, Pattuvam",
+    "clgRef": "College of Applied Science,Kayyamthadam,Ariyil P.O,Pattuvam,Taliparamba"
+  },
+  "346": {
+    "id": "346",
+    "code": "346",
+    "name": "Concord Arts and Science College, Muttannur",
+    "clgRef": "Concord Arts & Science College, Muttannur, Kannur"
+  },
+  "347": {
+    "id": "347",
+    "code": "347",
+    "name": "Co-operative Arts and Science College, Madai",
+    "clgRef": "Co-Operative Arts & Science College, Madai P.O., Pazhayangadi R.S."
+  },
+  "348": {
+    "id": "348",
+    "code": "348",
+    "name": "Darul Irshad Arabic College, Paral",
+    "clgRef": "Darul Irshad Arabic College, Paral"
+  },
+  "349": {
+    "id": "349",
+    "code": "349",
+    "name": "De Paul Arts and Science College, Edathotty",
+    "clgRef": "De Paul Arts & Science College, Edathotty, Kakkayangad P.O, Iritty, Kannur."
+  },
+  "350": {
+    "id": "350",
+    "code": "350",
+    "name": "Deva Matha Arts and Science College, Paisakari",
+    "clgRef": "Deva Matha Arts & Science College, Paisakari P.O., Kannur"
+  },
+  "351": {
+    "id": "351",
+    "code": "351",
+    "name": "Don Bosco Arts and Science College, Angadikadavu",
+    "clgRef": "Don Bosco Arts & Science College, Angadikkadavu, Kannur P.O."
+  },
+  "352": {
+    "id": "352",
+    "code": "352",
+    "name": "Dr. Ambedkar Arts and Science College, Periya",
+    "clgRef": "Dr. Ambedkar Arts & Science College, Sreesailam, Periya"
+  },
+  "353": {
+    "id": "353",
+    "code": "353",
+    "name": "Dr.APJ Abdul Kalam College of Professional Studies ,Ulikkal",
+    "clgRef": "Dr. APJ AbdulKalam College of Professional Studies,Ulikkal,Kannur"
+  },
+  "354": {
+    "id": "354",
+    "code": "354",
+    "name": "E M S Memorial College of Applied Science, Iritty",
+    "clgRef": "EMS Memorial College of Applied Science, Vallithode, Iritty, Kannur"
+  },
+  "355": {
+    "id": "355",
+    "code": "355",
+    "name": "Government Arts and Science College, Kinanoor, Karinthalam",
+    "clgRef": "Govt Arts & Science College Kinanoor,Karindalam"
+  },
+  "357": {
+    "id": "357",
+    "code": "357",
+    "name": "Govt. Arts and Science College, Uduma",
+    "clgRef": "Govt. Arts & Science College, Uduma, Pallaram, Kasaragod"
+  },
+  "358": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "359": {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
+  },
+  "360": {
+    "id": "360",
+    "code": "360",
+    "name": "Govt. College, Peringome",
+    "clgRef": "Govt. College Peringome, Peringome P.O., Payyannur, Kannur"
+  },
+  "361": {
+    "id": "361",
+    "code": "361",
+    "name": "Kodiyeri Balakrishnan Memorial Government College Thalassery",
+    "clgRef": "Kodiyeri Balakrishnan Memorial Govt College, Thalassery, Chokli"
+  },
+  "363": {
+    "id": "363",
+    "code": "363",
+    "name": "Gurudev Arts and Science College, Mathil",
+    "clgRef": "Gurudev Arts & Science College, Mathil, Mathil P.O., Payyanur, Kannur"
+  },
+  "366": {
+    "id": "366",
+    "code": "366",
+    "name": "Kerala Institute Of Hospitality Management ,Thalassery",
+    "clgRef": "Kerala Institute of Hospitality Management update the data"
+  },
+  "367": {
+    "id": "367",
+    "code": "367",
+    "name": "Khansa Women's College for Advanced Studies, Kumbla, Kasargod",
+    "clgRef": "Khansa Women's College for Advanced Studies, Milekallu, Kumbla"
+  },
+  "368": {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women's College, Kannur"
+  },
+  "369": {
+    "id": "369",
+    "code": "369",
+    "name": "Kuniya College of Arts & Science, Kuniya, Kasaragod",
+    "clgRef": "Kuniya College of Arts & Science, Kuniya, Periya, Kasaragod"
+  },
+  "370": {
+    "id": "370",
+    "code": "370",
+    "name": "Lasya College of Fine Arts,Pilathara",
+    "clgRef": "Lasya College of Fine Arts"
+  },
+  "372": {
+    "id": "372",
+    "code": "372",
+    "name": "Mahatma Gandhi College, Iritty",
+    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  },
+  "374": {
+    "id": "374",
+    "code": "374",
+    "name": "Malabar Islamic Complex Arts and Science College, Thekkil",
+    "clgRef": "Malabar Islamic Complex-Arts & Science College, Mahinabad, Thekkil"
+  },
+  "375": {
+    "id": "375",
+    "code": "375",
+    "name": "Malik Dinar College of Graduate Studies, Seethangoli",
+    "clgRef": "Malik Dinar College of Graduate Studies, Seethangoli"
+  },
+  "376": {
+    "id": "376",
+    "code": "376",
+    "name": "Mar Thoma College for the Hearing Impaired, Cherkala",
+    "clgRef": "Marthoma College for the Hearing Impaired, Cherkala, Kasargod"
+  },
+  "378": {
+    "id": "378",
+    "code": "378",
+    "name": "Mary Matha Arts and Science College, Mananthavady",
+    "clgRef": "Mary Matha Arts & Science College, Vemom P.O., Mananthavady, Waynad"
+  },
+  "379": {
+    "id": "379",
+    "code": "379",
+    "name": "M.E.S. College, Naravoor",
+    "clgRef": "M.E.S.College, Naravoor South, Kuthuparamba P.O., Kannur"
+  },
+  "380": {
+    "id": "380",
+    "code": "380",
+    "name": "MM Knowledge Arts and Science College, Thaliparamba",
+    "clgRef": "MM Knowledge Arts & Science College, Thaliparamba, Kannur"
+  },
+  "382": {
+    "id": "382",
+    "code": "382",
+    "name": "Morazha Co-op Arts and Science College, Morazha",
+    "clgRef": "Morazha Co-operative Arts & Science College, Morazha P.O., Kannur"
+  },
+  "384": {
+    "id": "384",
+    "code": "384",
+    "name": "MVR Institute of Life Science & Research Studies",
+    "clgRef": "MVR Institute of Life Science & Research Studies, Parassinikadavu, Kannur"
+  },
+  "385": {
+    "id": "385",
+    "code": "385",
+    "name": "Naher Arts and Science College, Kanhirode",
+    "clgRef": "NAHER Arts & Science College, Kanhirode, Kannur"
+  },
+  "386": {
+    "id": "386",
+    "code": "386",
+    "name": "Nalanda College of Arts and Science, Perla, Kasargod",
+    "clgRef": "Nalanda College of Arts & Science, Perla P.O, Kasaragod"
+  },
+  "387": {
+    "id": "387",
+    "code": "387",
+    "name": "N.A.M College, Kallikandy",
+    "clgRef": "N.A.M. College, Kallikandy, Thuvakunnu P.O., Kannur"
+  },
+  "388": {
+    "id": "388",
+    "code": "388",
+    "name": "Navajyothi College, Cherupuzha",
+    "clgRef": "Navajyothi College, Cherupuzha, Chunda P.O., Kannur"
+  },
+  "389": {
+    "id": "389",
+    "code": "389",
+    "name": "Nehru Arts and Science College, Kanhangad",
+    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  },
+  "390": {
+    "id": "390",
+    "code": "390",
+    "name": "NEST Institute of Humanities and Basic Sciences, Karivellur",
+    "clgRef": "NEST Institute of Humanities and Basic Sciences, Karivellur, Kannur"
+  },
+  "392": {
+    "id": "392",
+    "code": "392",
+    "name": "Nirmalagiri College of Advanced Studies, Kuthuparamba",
+    "clgRef": "Nirmalagiri College of Advanced Studies, Nirmalagiri , Kuthuparamba"
+  },
+  "393": {
+    "id": "393",
+    "code": "393",
+    "name": "Nusrathul Islam Arabic College, Kadavathur",
+    "clgRef": "NIA College, Kadavathur, Kannur"
+  },
+  "395": {
+    "id": "395",
+    "code": "395",
+    "name": "Payyannur College, Payyannur",
+    "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
+  },
+  "397": {
+    "id": "397",
+    "code": "397",
+    "name": "Peoples Co-operative Arts and Science College, Munnad",
+    "clgRef": "People's Co-operative Arts & Science College, Munnad, Chengala"
+  },
+  "398": {
+    "id": "398",
+    "code": "398",
+    "name": "Pilathara Co-op Arts and Science College",
+    "clgRef": "Pilathara Co-op Arts & Science College, Pazhichiyil, Nareekamvalli P.O."
+  },
+  "399": {
+    "id": "399",
+    "code": "399",
+    "name": "P.K.K.M. College of Applied Science ,Mananthavady",
+    "clgRef": "P.K.K.M. College of Applied Science, Mananthavady"
+  },
+  "401": {
+    "id": "401",
+    "code": "401",
+    "name": "Sa-Adiya Arabic College, Deli",
+    "clgRef": "Sa-Adiya Arabic College, Deli, P.O. Kalanad, Kasaragod"
+  },
+  "402": {
+    "id": "402",
+    "code": "402",
+    "name": "Sa-A-Diya Arts and Science College, Koliyadukkam",
+    "clgRef": "Sa-A-Diya Arts & Science College, Koliyadukkam, Kalanad"
+  },
+  "403": {
+    "id": "403",
+    "code": "403",
+    "name": "Sanatana Arts and Science College, Kanhangad",
+    "clgRef": "Sanatana Arts & Science College, Kottappara, Kanhangad,Kasaragod"
+  },
+  "404": {
+    "id": "404",
+    "code": "404",
+    "name": "S.E.S College, Sreekandapuram",
+    "clgRef": "SES College, Sreekandapuram, Kannur"
+  },
+  "405": {
+    "id": "405",
+    "code": "405",
+    "name": "Sharaf Arts and Science College, Padne",
+    "clgRef": "Sharaf Arts & Science College, Padanne, Kasargod"
+  },
+  "406": {
+    "id": "406",
+    "code": "406",
+    "name": "SIBGA Institute of Advanced Studies, Irikkur",
+    "clgRef": "Sibga Institute of Advanced Studies,Kalliad P.O.,Irikkur, Kannur"
+  },
+  "407": {
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  },
+  "410": {
+    "id": "410",
+    "code": "410",
+    "name": "Sree Narayana College of Management Studies, Periya",
+    "clgRef": "Sree Narayana College of Management Studies Periya,Haripuram"
+  },
+  "411": {
+    "id": "411",
+    "code": "411",
+    "name": "Sree Narayana College,Thottada",
+    "clgRef": "Sree Narayana College, Kannur"
+  },
+  "412": {
+    "id": "412",
+    "code": "412",
+    "name": "Sree Narayana Guru College of Advanced Studies, Thottada",
+    "clgRef": "Sree Narayana Guru College of Advanced Studies, Thottada, Kannur"
+  },
+  "413": {
+    "id": "413",
+    "code": "413",
+    "name": "Sree Narayana Guru College of Arts and Science, Iritty",
+    "clgRef": "Sree Narayana Guru College of Arts & Science, Iritty, Kannur"
+  },
+  "416": {
+    "id": "416",
+    "code": "416",
+    "name": "St. Mary's Arts & Science College, Cherupanathady",
+    "clgRef": "St.Mary's Arts & Science College,cherupanathady,Panathady P.O,Rajapuram Via,Kasargod"
+  },
+  "417": {
+    "id": "417",
+    "code": "417",
+    "name": "St. Mary's College, Bela",
+    "clgRef": "St. Mary's College, Bela, Kasargod"
+  },
+  "418": {
+    "id": "418",
+    "code": "418",
+    "name": "St. Pius X College, Rajapuram",
+    "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
+  },
+  "419": {
+    "id": "419",
+    "code": "419",
+    "name": "Sunrise College of Advanced Studies, Kuttur, Mathamangalam",
+    "clgRef": "SUNRISE COLLEGE OF ADVANCED STUDIES, KUTTUR, P.O. KUTTOOR,MATHAMANGALAM(VIA), KANNUR,PIN 670306"
+  },
+  "420": {
+    "id": "420",
+    "code": "420",
+    "name": "Taliparamba Arts and Science College, Kanhirangad",
+    "clgRef": "Taliparamba Arts & Science College, Kanhirangad P.O., Taliparamba"
+  },
+  "421": {
+    "id": "421",
+    "code": "421",
+    "name": "Tellicherry Institute of Advanced Studies",
+    "clgRef": "Tellicherry Institute of Advanced Studies,Kundoormala, West Ponniam PO,Thalassery"
+  },
+  "422": {
+    "id": "422",
+    "code": "422",
+    "name": "Thanbeehul Islam Women's College, Naimarmoola",
+    "clgRef": "Thanbeehul Islam Womens College, Kasargod"
+  },
+  "424": {
+    "id": "424",
+    "code": "424",
+    "name": "Wadihuda Institute of Research and Advanced Studies, Vilayancode",
+    "clgRef": "Wadihuda Institute of Research and Advanced Studies, Vilayancode"
+  },
+  "425": {
+    "id": "425",
+    "code": "425",
+    "name": "Wings Arts & Science College, Padanna",
+    "clgRef": "Wings Arts & Science College Padanna,Hosdurg,Kasargod"
+  },
+  "426": {
+    "id": "426",
+    "code": "426",
+    "name": "WMO Imam Gazzali Arts and Science College, Wayanad",
+    "clgRef": "WMO Imam Gazzali Arts & Science College, Koolivayal, Panamaram"
+  },
+  "429": {
+    "id": "429",
+    "code": "429",
+    "name": "Lourde Institute of Science and Technology",
+    "clgRef": "Lourde Institute of Science and Technology, Taliparamba"
+  },
+  "430": {
+    "id": "430",
+    "code": "430",
+    "name": "Department of Information Technology, Mangattuparamba",
+    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "431": {
     "id": "431",
     "code": "431",
     "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
     "clgRef": "School of Physical Education and  Sports Sciences"
   },
-  "200": {
-    "id": "200",
-    "code": "200",
-    "name": "Govt. College Mananthavady",
-    "clgRef": "Govt. College Mananthavady, Wayanad"
+  "432": {
+    "id": "432",
+    "code": "432",
+    "name": "School of Behavioural Sciences, Mangattuparamba",
+    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "433": {
+    "id": "433",
+    "code": "433",
+    "name": "Department of Physics, Swami Anandatheertha Campus",
+    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
+  },
+  "434": {
+    "id": "434",
+    "code": "434",
+    "name": "Department of Commerce and Business Studies",
+    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
+  },
+  "435": {
+    "id": "435",
+    "code": "435",
+    "name": "Department of Anthropology",
+    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
+  },
+  "department of anthropology": {
+    "id": "435",
+    "code": "435",
+    "name": "Department of Anthropology",
+    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
+  },
+  "departmentofanthropology": {
+    "id": "435",
+    "code": "435",
+    "name": "Department of Anthropology",
+    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
+  },
+  "department of anthropology,dr. janaki ammal campus,palayad": {
+    "id": "435",
+    "code": "435",
+    "name": "Department of Anthropology",
+    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
+  },
+  "departmentofanthropologydrjanakiammalcampuspalayad": {
+    "id": "435",
+    "code": "435",
+    "name": "Department of Anthropology",
+    "clgRef": "Department of Anthropology,Dr. Janaki Ammal Campus,Palayad"
+  },
+  "school of behavioural sciences, mangattuparamba": {
+    "id": "432",
+    "code": "432",
+    "name": "School of Behavioural Sciences, Mangattuparamba",
+    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "schoolofbehaviouralsciencesmangattuparamba": {
+    "id": "432",
+    "code": "432",
+    "name": "School of Behavioural Sciences, Mangattuparamba",
+    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "department of behavioural sciences,kannur university, mangattuparamba campus,k u campus p.o,pin : 670567": {
+    "id": "432",
+    "code": "432",
+    "name": "School of Behavioural Sciences, Mangattuparamba",
+    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "departmentofbehaviouralscienceskannuruniversitymangattuparambacampuskucampuspopin670567": {
+    "id": "432",
+    "code": "432",
+    "name": "School of Behavioural Sciences, Mangattuparamba",
+    "clgRef": "Department of Behavioural Sciences,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "department of commerce and business studies": {
+    "id": "434",
+    "code": "434",
+    "name": "Department of Commerce and Business Studies",
+    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
+  },
+  "departmentofcommerceandbusinessstudies": {
+    "id": "434",
+    "code": "434",
+    "name": "Department of Commerce and Business Studies",
+    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
+  },
+  "department of commerce and business studies,dr.p.k.r.m.campus, kannur university,palathadam p.o nileswaram,kasargod district,pin:671314": {
+    "id": "434",
+    "code": "434",
+    "name": "Department of Commerce and Business Studies",
+    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
+  },
+  "departmentofcommerceandbusinessstudiesdrpkrmcampuskannuruniversitypalathadamponileswaramkasargoddistrictpin671314": {
+    "id": "434",
+    "code": "434",
+    "name": "Department of Commerce and Business Studies",
+    "clgRef": "Department of Commerce and Business Studies,DR.P.K.R.M.Campus, Kannur University,Palathadam P.O Nileswaram,Kasargod District,Pin:671314"
+  },
+  "department of information technology, mangattuparamba": {
+    "id": "430",
+    "code": "430",
+    "name": "Department of Information Technology, Mangattuparamba",
+    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "departmentofinformationtechnologymangattuparamba": {
+    "id": "430",
+    "code": "430",
+    "name": "Department of Information Technology, Mangattuparamba",
+    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "jointly conducted by dept of it,mathematics & statistics,mangattuparamba campus, kannur university campus p. o, kannur - 670 567": {
+    "id": "430",
+    "code": "430",
+    "name": "Department of Information Technology, Mangattuparamba",
+    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "jointlyconductedbydeptofitmathematicsstatisticsmangattuparambacampuskannuruniversitycampuspokannur670567": {
+    "id": "430",
+    "code": "430",
+    "name": "Department of Information Technology, Mangattuparamba",
+    "clgRef": "Jointly conducted by Dept of IT,Mathematics & Statistics,Mangattuparamba Campus, Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "department of physics, swami anandatheertha campus": {
+    "id": "433",
+    "code": "433",
+    "name": "Department of Physics, Swami Anandatheertha Campus",
+    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
+  },
+  "departmentofphysicsswamianandatheerthacampus": {
+    "id": "433",
+    "code": "433",
+    "name": "Department of Physics, Swami Anandatheertha Campus",
+    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
+  },
+  "jointly conducted by dept of physics & chemistry,swami anandatheertha campus, payyannur p.o. edat,pin. 670 327": {
+    "id": "433",
+    "code": "433",
+    "name": "Department of Physics, Swami Anandatheertha Campus",
+    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
+  },
+  "jointlyconductedbydeptofphysicschemistryswamianandatheerthacampuspayyannurpoedatpin670327": {
+    "id": "433",
+    "code": "433",
+    "name": "Department of Physics, Swami Anandatheertha Campus",
+    "clgRef": "Jointly conducted by Dept of Physics & Chemistry,Swami Anandatheertha Campus, Payyannur P.O. Edat,Pin. 670 327"
+  },
+  "department of economics": {
+    "id": "131",
+    "code": "131",
+    "name": "Department of Economics",
+    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "departmentofeconomics": {
+    "id": "131",
+    "code": "131",
+    "name": "Department of Economics",
+    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "department of economics,kannur university, mangattuparamba campus,k u campus p.o,pin : 670567": {
+    "id": "131",
+    "code": "131",
+    "name": "Department of Economics",
+    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "departmentofeconomicskannuruniversitymangattuparambacampuskucampuspopin670567": {
+    "id": "131",
+    "code": "131",
+    "name": "Department of Economics",
+    "clgRef": "Department of Economics,Kannur University, Mangattuparamba Campus,K U Campus P.O,Pin : 670567"
+  },
+  "department of geography": {
+    "id": "125",
+    "code": "125",
+    "name": "Department of Geography",
+    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
+  },
+  "departmentofgeography": {
+    "id": "125",
+    "code": "125",
+    "name": "Department of Geography",
+    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
+  },
+  "department of geography,swami anandatheertha campus, payyannur p.o. edat, pin. 670 327": {
+    "id": "125",
+    "code": "125",
+    "name": "Department of Geography",
+    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
+  },
+  "departmentofgeographyswamianandatheerthacampuspayyannurpoedatpin670327": {
+    "id": "125",
+    "code": "125",
+    "name": "Department of Geography",
+    "clgRef": "Department of Geography,Swami Anandatheertha Campus, Payyannur P.O. Edat, Pin. 670 327"
+  },
+  "department of management studies": {
+    "id": "133",
+    "code": "133",
+    "name": "Department of Management Studies",
+    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
+  },
+  "departmentofmanagementstudies": {
+    "id": "133",
+    "code": "133",
+    "name": "Department of Management Studies",
+    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
+  },
+  "department of management studies,thavakkara campus,thavakkara,pin:670002": {
+    "id": "133",
+    "code": "133",
+    "name": "Department of Management Studies",
+    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
+  },
+  "departmentofmanagementstudiesthavakkaracampusthavakkarapin670002": {
+    "id": "133",
+    "code": "133",
+    "name": "Department of Management Studies",
+    "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
+  },
+  "department of environmental studies": {
+    "id": "128",
+    "code": "128",
+    "name": "Department of Environmental Studies",
+    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
+  },
+  "departmentofenvironmentalstudies": {
+    "id": "128",
+    "code": "128",
+    "name": "Department of Environmental Studies",
+    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
+  },
+  "department of environmental science,kannur university, mangattuparamba campus k u campus p.o,kannur,": {
+    "id": "128",
+    "code": "128",
+    "name": "Department of Environmental Studies",
+    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
+  },
+  "departmentofenvironmentalsciencekannuruniversitymangattuparambacampuskucampuspokannur": {
+    "id": "128",
+    "code": "128",
+    "name": "Department of Environmental Studies",
+    "clgRef": "Department of Environmental Science,Kannur University, Mangattuparamba Campus K U Campus P.O,Kannur,"
+  },
+  "department of history": {
+    "id": "124",
+    "code": "124",
+    "name": "Department of History",
+    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
+  },
+  "departmentofhistory": {
+    "id": "124",
+    "code": "124",
+    "name": "Department of History",
+    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
+  },
+  "department of history,kannur university, thalassery campus,palayad p.o": {
+    "id": "124",
+    "code": "124",
+    "name": "Department of History",
+    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
+  },
+  "departmentofhistorykannuruniversitythalasserycampuspalayadpo": {
+    "id": "124",
+    "code": "124",
+    "name": "Department of History",
+    "clgRef": "Department of History,Kannur University, Thalassery Campus,Palayad P.O"
+  },
+  "department of studies in english": {
+    "id": "130",
+    "code": "130",
+    "name": "Department of Studies in English",
+    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
+  },
+  "departmentofstudiesinenglish": {
+    "id": "130",
+    "code": "130",
+    "name": "Department of Studies in English",
+    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
+  },
+  "department of english,dr. janaki ammal campus,palayad,thalassery,pin : 670661": {
+    "id": "130",
+    "code": "130",
+    "name": "Department of Studies in English",
+    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
+  },
+  "departmentofenglishdrjanakiammalcampuspalayadthalasserypin670661": {
+    "id": "130",
+    "code": "130",
+    "name": "Department of Studies in English",
+    "clgRef": "Department of English,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670661"
+  },
+  "department of mathematical sciences": {
+    "id": "129",
+    "code": "129",
+    "name": "Department of Mathematical Sciences",
+    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "departmentofmathematicalsciences": {
+    "id": "129",
+    "code": "129",
+    "name": "Department of Mathematical Sciences",
+    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "jointly conducted by statistical sciences and mathematical sciences,mangattuparamba campus,kannur university campus p. o, kannur - 670 567": {
+    "id": "129",
+    "code": "129",
+    "name": "Department of Mathematical Sciences",
+    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "jointlyconductedbystatisticalsciencesandmathematicalsciencesmangattuparambacampuskannuruniversitycampuspokannur670567": {
+    "id": "129",
+    "code": "129",
+    "name": "Department of Mathematical Sciences",
+    "clgRef": "Jointly Conducted by Statistical Sciences and Mathematical Sciences,Mangattuparamba Campus,Kannur University Campus P. O, Kannur - 670 567"
+  },
+  "it education centre": {
+    "id": "132",
+    "code": "132",
+    "name": "IT Education Centre",
+    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
+  },
+  "iteducationcentre": {
+    "id": "132",
+    "code": "132",
+    "name": "IT Education Centre",
+    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
+  },
+  "information technology education center palayad,dr. janaki ammal campus,palayad,thalassery,pin : 670": {
+    "id": "132",
+    "code": "132",
+    "name": "IT Education Centre",
+    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
+  },
+  "informationtechnologyeducationcenterpalayaddrjanakiammalcampuspalayadthalasserypin670": {
+    "id": "132",
+    "code": "132",
+    "name": "IT Education Centre",
+    "clgRef": "Information Technology Education Center Palayad,Dr. Janaki Ammal Campus,Palayad,Thalassery,Pin : 670"
+  },
+  "department of music": {
+    "id": "127",
+    "code": "127",
+    "name": "Department of Music",
+    "clgRef": "Department of Music"
+  },
+  "departmentofmusic": {
+    "id": "127",
+    "code": "127",
+    "name": "Department of Music",
+    "clgRef": "Department of Music"
+  },
+  "school of physical education and sport sciences, mangattuparamba": {
+    "id": "431",
+    "code": "431",
+    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
+    "clgRef": "School of Physical Education and  Sports Sciences"
+  },
+  "schoolofphysicaleducationandsportsciencesmangattuparamba": {
+    "id": "431",
+    "code": "431",
+    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
+    "clgRef": "School of Physical Education and  Sports Sciences"
+  },
+  "school of physical education and  sports sciences": {
+    "id": "431",
+    "code": "431",
+    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
+    "clgRef": "School of Physical Education and  Sports Sciences"
+  },
+  "schoolofphysicaleducationandsportssciences": {
+    "id": "431",
+    "code": "431",
+    "name": "School of Physical Education and Sport Sciences, Mangattuparamba",
+    "clgRef": "School of Physical Education and  Sports Sciences"
+  },
+  "darul irshad arabic college, paral": {
+    "id": "348",
+    "code": "348",
+    "name": "Darul Irshad Arabic College, Paral",
+    "clgRef": "Darul Irshad Arabic College, Paral"
+  },
+  "darulirshadarabiccollegeparal": {
+    "id": "348",
+    "code": "348",
+    "name": "Darul Irshad Arabic College, Paral",
+    "clgRef": "Darul Irshad Arabic College, Paral"
+  },
+  "govt college, mananthavady": {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
   },
   "govtcollegemananthavady": {
-    "id": "200",
-    "code": "200",
-    "name": "Govt. College Mananthavady",
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
+  },
+  "govt. college mananthavady, wayanad": {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
     "clgRef": "Govt. College Mananthavady, Wayanad"
   },
   "govtcollegemananthavadywayanad": {
-    "id": "200",
-    "code": "200",
-    "name": "Govt. College Mananthavady",
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
     "clgRef": "Govt. College Mananthavady, Wayanad"
   },
-  "201": {
-    "id": "201",
-    "code": "201",
-    "name": "Govt. Brennen College, Thalassery",
+  "nusrathul islam arabic college, kadavathur": {
+    "id": "393",
+    "code": "393",
+    "name": "Nusrathul Islam Arabic College, Kadavathur",
+    "clgRef": "NIA College, Kadavathur, Kannur"
+  },
+  "nusrathulislamarabiccollegekadavathur": {
+    "id": "393",
+    "code": "393",
+    "name": "Nusrathul Islam Arabic College, Kadavathur",
+    "clgRef": "NIA College, Kadavathur, Kannur"
+  },
+  "nia college, kadavathur, kannur": {
+    "id": "393",
+    "code": "393",
+    "name": "Nusrathul Islam Arabic College, Kadavathur",
+    "clgRef": "NIA College, Kadavathur, Kannur"
+  },
+  "niacollegekadavathurkannur": {
+    "id": "393",
+    "code": "393",
+    "name": "Nusrathul Islam Arabic College, Kadavathur",
+    "clgRef": "NIA College, Kadavathur, Kannur"
+  },
+  "al-maquar arabic college, nadukani": {
+    "id": "333",
+    "code": "333",
+    "name": "Al-Maquar Arabic College, Nadukani",
+    "clgRef": "Al-Maquar Arabic College,Darul Aman, Nadukani,Taliparamba"
+  },
+  "almaquararabiccollegenadukani": {
+    "id": "333",
+    "code": "333",
+    "name": "Al-Maquar Arabic College, Nadukani",
+    "clgRef": "Al-Maquar Arabic College,Darul Aman, Nadukani,Taliparamba"
+  },
+  "al-maquar arabic college,darul aman, nadukani,taliparamba": {
+    "id": "333",
+    "code": "333",
+    "name": "Al-Maquar Arabic College, Nadukani",
+    "clgRef": "Al-Maquar Arabic College,Darul Aman, Nadukani,Taliparamba"
+  },
+  "almaquararabiccollegedarulamannadukanitaliparamba": {
+    "id": "333",
+    "code": "333",
+    "name": "Al-Maquar Arabic College, Nadukani",
+    "clgRef": "Al-Maquar Arabic College,Darul Aman, Nadukani,Taliparamba"
+  },
+  "thanbeehul islam women's college, naimarmoola": {
+    "id": "422",
+    "code": "422",
+    "name": "Thanbeehul Islam Women's College, Naimarmoola",
+    "clgRef": "Thanbeehul Islam Womens College, Kasargod"
+  },
+  "thanbeehulislamwomenscollegenaimarmoola": {
+    "id": "422",
+    "code": "422",
+    "name": "Thanbeehul Islam Women's College, Naimarmoola",
+    "clgRef": "Thanbeehul Islam Womens College, Kasargod"
+  },
+  "thanbeehul islam womens college, kasargod": {
+    "id": "422",
+    "code": "422",
+    "name": "Thanbeehul Islam Women's College, Naimarmoola",
+    "clgRef": "Thanbeehul Islam Womens College, Kasargod"
+  },
+  "thanbeehulislamwomenscollegekasargod": {
+    "id": "422",
+    "code": "422",
+    "name": "Thanbeehul Islam Women's College, Naimarmoola",
+    "clgRef": "Thanbeehul Islam Womens College, Kasargod"
+  },
+  "sa-adiya arabic college, deli": {
+    "id": "401",
+    "code": "401",
+    "name": "Sa-Adiya Arabic College, Deli",
+    "clgRef": "Sa-Adiya Arabic College, Deli, P.O. Kalanad, Kasaragod"
+  },
+  "saadiyaarabiccollegedeli": {
+    "id": "401",
+    "code": "401",
+    "name": "Sa-Adiya Arabic College, Deli",
+    "clgRef": "Sa-Adiya Arabic College, Deli, P.O. Kalanad, Kasaragod"
+  },
+  "sa-adiya arabic college, deli, p.o. kalanad, kasaragod": {
+    "id": "401",
+    "code": "401",
+    "name": "Sa-Adiya Arabic College, Deli",
+    "clgRef": "Sa-Adiya Arabic College, Deli, P.O. Kalanad, Kasaragod"
+  },
+  "saadiyaarabiccollegedelipokalanadkasaragod": {
+    "id": "401",
+    "code": "401",
+    "name": "Sa-Adiya Arabic College, Deli",
+    "clgRef": "Sa-Adiya Arabic College, Deli, P.O. Kalanad, Kasaragod"
+  },
+  "kodiyeri balakrishnan memorial government college thalassery": {
+    "id": "361",
+    "code": "361",
+    "name": "Kodiyeri Balakrishnan Memorial Government College Thalassery",
+    "clgRef": "Kodiyeri Balakrishnan Memorial Govt College, Thalassery, Chokli"
+  },
+  "kodiyeribalakrishnanmemorialgovernmentcollegethalassery": {
+    "id": "361",
+    "code": "361",
+    "name": "Kodiyeri Balakrishnan Memorial Government College Thalassery",
+    "clgRef": "Kodiyeri Balakrishnan Memorial Govt College, Thalassery, Chokli"
+  },
+  "kodiyeri balakrishnan memorial govt college, thalassery, chokli": {
+    "id": "361",
+    "code": "361",
+    "name": "Kodiyeri Balakrishnan Memorial Government College Thalassery",
+    "clgRef": "Kodiyeri Balakrishnan Memorial Govt College, Thalassery, Chokli"
+  },
+  "kodiyeribalakrishnanmemorialgovtcollegethalasserychokli": {
+    "id": "361",
+    "code": "361",
+    "name": "Kodiyeri Balakrishnan Memorial Government College Thalassery",
+    "clgRef": "Kodiyeri Balakrishnan Memorial Govt College, Thalassery, Chokli"
+  },
+  "government brennen college, thalassery": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
     "clgRef": "Government Brennen College, Thalassery, Kannur"
   },
-  "govtbrennencollegethalassery": {
-    "id": "201",
-    "code": "201",
-    "name": "Govt. Brennen College, Thalassery",
+  "governmentbrennencollegethalassery": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  "government brennen college, thalassery, kannur": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
     "clgRef": "Government Brennen College, Thalassery, Kannur"
   },
   "governmentbrennencollegethalasserykannur": {
-    "id": "201",
-    "code": "201",
-    "name": "Govt. Brennen College, Thalassery",
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
     "clgRef": "Government Brennen College, Thalassery, Kannur"
   },
-  "205": {
-    "id": "205",
-    "code": "205",
-    "name": "Govt. College Kasaragod",
-    "clgRef": "Govt College Kasargod, Kasargod"
+  "sir syed college,taliparamba": {
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
   },
-  "govtcollegekasaragod": {
-    "id": "205",
-    "code": "205",
-    "name": "Govt. College Kasaragod",
+  "sirsyedcollegetaliparamba": {
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  },
+  "sir syed college, taliparamba, kannur": {
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  },
+  "sirsyedcollegetaliparambakannur": {
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  },
+  "govt college kasargod, kasargod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
     "clgRef": "Govt College Kasargod, Kasargod"
   },
   "govtcollegekasargodkasargod": {
-    "id": "205",
-    "code": "205",
-    "name": "Govt. College Kasaragod",
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
     "clgRef": "Govt College Kasargod, Kasargod"
   },
-  "207": {
-    "id": "207",
-    "code": "207",
-    "name": "K.M.M. Govt. Women's College, Kannur",
+  "kuniya college of arts & science, kuniya, kasaragod": {
+    "id": "369",
+    "code": "369",
+    "name": "Kuniya College of Arts & Science, Kuniya, Kasaragod",
+    "clgRef": "Kuniya College of Arts & Science, Kuniya, Periya, Kasaragod"
+  },
+  "kuniyacollegeofartssciencekuniyakasaragod": {
+    "id": "369",
+    "code": "369",
+    "name": "Kuniya College of Arts & Science, Kuniya, Kasaragod",
+    "clgRef": "Kuniya College of Arts & Science, Kuniya, Periya, Kasaragod"
+  },
+  "kuniya college of arts & science, kuniya, periya, kasaragod": {
+    "id": "369",
+    "code": "369",
+    "name": "Kuniya College of Arts & Science, Kuniya, Kasaragod",
+    "clgRef": "Kuniya College of Arts & Science, Kuniya, Periya, Kasaragod"
+  },
+  "kuniyacollegeofartssciencekuniyaperiyakasaragod": {
+    "id": "369",
+    "code": "369",
+    "name": "Kuniya College of Arts & Science, Kuniya, Kasaragod",
+    "clgRef": "Kuniya College of Arts & Science, Kuniya, Periya, Kasaragod"
+  },
+  "lasya college of fine arts,pilathara": {
+    "id": "370",
+    "code": "370",
+    "name": "Lasya College of Fine Arts,Pilathara",
+    "clgRef": "Lasya College of Fine Arts"
+  },
+  "lasyacollegeoffineartspilathara": {
+    "id": "370",
+    "code": "370",
+    "name": "Lasya College of Fine Arts,Pilathara",
+    "clgRef": "Lasya College of Fine Arts"
+  },
+  "lasya college of fine arts": {
+    "id": "370",
+    "code": "370",
+    "name": "Lasya College of Fine Arts,Pilathara",
+    "clgRef": "Lasya College of Fine Arts"
+  },
+  "lasyacollegeoffinearts": {
+    "id": "370",
+    "code": "370",
+    "name": "Lasya College of Fine Arts,Pilathara",
+    "clgRef": "Lasya College of Fine Arts"
+  },
+  "st. pius x college, rajapuram": {
+    "id": "418",
+    "code": "418",
+    "name": "St. Pius X College, Rajapuram",
+    "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
+  },
+  "stpiusxcollegerajapuram": {
+    "id": "418",
+    "code": "418",
+    "name": "St. Pius X College, Rajapuram",
+    "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
+  },
+  "st. pius x college, rajapuram, kanhangad": {
+    "id": "418",
+    "code": "418",
+    "name": "St. Pius X College, Rajapuram",
+    "clgRef": "St. Pius X College, Rajapuram, Kanhangad"
+  },
+  "stpiusxcollegerajapuramkanhangad": {
+    "id": "418",
+    "code": "418",
+    "name": "St. Pius X College, Rajapuram",
+    "clgRef": "St. Pius X College, Rajapuram, Kanhangad"
+  },
+  "govt. college, mananthavadi,nalloornad p.o, wayanad": {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
+  },
+  "govtcollegemananthavadinalloornadpowayanad": {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
+  },
+  "malabar islamic complex arts and science college, thekkil": {
+    "id": "374",
+    "code": "374",
+    "name": "Malabar Islamic Complex Arts and Science College, Thekkil",
+    "clgRef": "Malabar Islamic Complex-Arts & Science College, Mahinabad, Thekkil"
+  },
+  "malabarislamiccomplexartsandsciencecollegethekkil": {
+    "id": "374",
+    "code": "374",
+    "name": "Malabar Islamic Complex Arts and Science College, Thekkil",
+    "clgRef": "Malabar Islamic Complex-Arts & Science College, Mahinabad, Thekkil"
+  },
+  "malabar islamic complex-arts & science college, mahinabad, thekkil": {
+    "id": "374",
+    "code": "374",
+    "name": "Malabar Islamic Complex Arts and Science College, Thekkil",
+    "clgRef": "Malabar Islamic Complex-Arts & Science College, Mahinabad, Thekkil"
+  },
+  "malabarislamiccomplexartssciencecollegemahinabadthekkil": {
+    "id": "374",
+    "code": "374",
+    "name": "Malabar Islamic Complex Arts and Science College, Thekkil",
+    "clgRef": "Malabar Islamic Complex-Arts & Science College, Mahinabad, Thekkil"
+  },
+  "k.m.m govt women's college, kannur": {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
     "clgRef": "K.M.M. Govt. Women's College, Kannur"
   },
   "kmmgovtwomenscollegekannur": {
-    "id": "207",
-    "code": "207",
-    "name": "K.M.M. Govt. Women's College, Kannur",
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
     "clgRef": "K.M.M. Govt. Women's College, Kannur"
   },
-  "209": {
-    "id": "209",
-    "code": "209",
+  "k.m.m. govt. women’s college,pallikkunnu, kannur": {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women’s College,Pallikkunnu, Kannur"
+  },
+  "kmmgovtwomenscollegepallikkunnukannur": {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women’s College,Pallikkunnu, Kannur"
+  },
+  "k.m.m. govt. women's college, kannur": {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women's College, Kannur"
+  },
+  "payyannur college, payyannur": {
+    "id": "395",
+    "code": "395",
     "name": "Payyannur College, Payyannur",
     "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
   },
   "payyannurcollegepayyannur": {
-    "id": "209",
-    "code": "209",
+    "id": "395",
+    "code": "395",
+    "name": "Payyannur College, Payyannur",
+    "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
+  },
+  "payyannur college, payyannur p, o., edat, kannur": {
+    "id": "395",
+    "code": "395",
     "name": "Payyannur College, Payyannur",
     "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
   },
   "payyannurcollegepayyannurpoedatkannur": {
-    "id": "209",
-    "code": "209",
+    "id": "395",
+    "code": "395",
     "name": "Payyannur College, Payyannur",
     "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
   },
-  "211": {
-    "id": "211",
-    "code": "211",
-    "name": "Sir Syed College, Taliparamba",
-    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  "sree narayana college,thottada": {
+    "id": "411",
+    "code": "411",
+    "name": "Sree Narayana College,Thottada",
+    "clgRef": "Sree Narayana College, Kannur"
   },
-  "sirsyedcollegetaliparamba": {
-    "id": "211",
-    "code": "211",
-    "name": "Sir Syed College, Taliparamba",
-    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  "sreenarayanacollegethottada": {
+    "id": "411",
+    "code": "411",
+    "name": "Sree Narayana College,Thottada",
+    "clgRef": "Sree Narayana College, Kannur"
   },
-  "sirsyedcollegetaliparambakannur": {
-    "id": "211",
-    "code": "211",
-    "name": "Sir Syed College, Taliparamba",
-    "clgRef": "Sir Syed College, Taliparamba, Kannur"
-  },
-  "212": {
-    "id": "212",
-    "code": "212",
-    "name": "Sree Narayana College, Kannur",
+  "sree narayana college, kannur": {
+    "id": "411",
+    "code": "411",
+    "name": "Sree Narayana College,Thottada",
     "clgRef": "Sree Narayana College, Kannur"
   },
   "sreenarayanacollegekannur": {
-    "id": "212",
-    "code": "212",
-    "name": "Sree Narayana College, Kannur",
+    "id": "411",
+    "code": "411",
+    "name": "Sree Narayana College,Thottada",
     "clgRef": "Sree Narayana College, Kannur"
   },
-  "214": {
+  "nalanda college of arts and science, perla, kasargod": {
+    "id": "386",
+    "code": "386",
+    "name": "Nalanda College of Arts and Science, Perla, Kasargod",
+    "clgRef": "Nalanda College of Arts & Science, Perla P.O, Kasaragod"
+  },
+  "nalandacollegeofartsandscienceperlakasargod": {
+    "id": "386",
+    "code": "386",
+    "name": "Nalanda College of Arts and Science, Perla, Kasargod",
+    "clgRef": "Nalanda College of Arts & Science, Perla P.O, Kasaragod"
+  },
+  "nalanda college of arts & science, perla p.o, kasaragod": {
+    "id": "386",
+    "code": "386",
+    "name": "Nalanda College of Arts and Science, Perla, Kasargod",
+    "clgRef": "Nalanda College of Arts & Science, Perla P.O, Kasaragod"
+  },
+  "nalandacollegeofartsscienceperlapokasaragod": {
+    "id": "386",
+    "code": "386",
+    "name": "Nalanda College of Arts and Science, Perla, Kasargod",
+    "clgRef": "Nalanda College of Arts & Science, Perla P.O, Kasaragod"
+  },
+  "nehru arts and science college, kanhangad": {
+    "id": "389",
+    "code": "389",
+    "name": "Nehru Arts and Science College, Kanhangad",
+    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  },
+  "nehruartsandsciencecollegekanhangad": {
+    "id": "389",
+    "code": "389",
+    "name": "Nehru Arts and Science College, Kanhangad",
+    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  },
+  "nehru arts and science college, kanhangad, kasaragod": {
+    "id": "389",
+    "code": "389",
+    "name": "Nehru Arts and Science College, Kanhangad",
+    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  },
+  "nehruartsandsciencecollegekanhangadkasaragod": {
+    "id": "389",
+    "code": "389",
+    "name": "Nehru Arts and Science College, Kanhangad",
+    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  },
+  "taliparamba arts and science college, kanhirangad": {
+    "id": "420",
+    "code": "420",
+    "name": "Taliparamba Arts and Science College, Kanhirangad",
+    "clgRef": "Taliparamba Arts & Science College, Kanhirangad P.O., Taliparamba"
+  },
+  "taliparambaartsandsciencecollegekanhirangad": {
+    "id": "420",
+    "code": "420",
+    "name": "Taliparamba Arts and Science College, Kanhirangad",
+    "clgRef": "Taliparamba Arts & Science College, Kanhirangad P.O., Taliparamba"
+  },
+  "taliparamba arts & science college, kanhirangad p.o., taliparamba": {
+    "id": "420",
+    "code": "420",
+    "name": "Taliparamba Arts and Science College, Kanhirangad",
+    "clgRef": "Taliparamba Arts & Science College, Kanhirangad P.O., Taliparamba"
+  },
+  "taliparambaartssciencecollegekanhirangadpotaliparamba": {
+    "id": "420",
+    "code": "420",
+    "name": "Taliparamba Arts and Science College, Kanhirangad",
+    "clgRef": "Taliparamba Arts & Science College, Kanhirangad P.O., Taliparamba"
+  },
+  "naher arts and science college, kanhirode": {
+    "id": "385",
+    "code": "385",
+    "name": "Naher Arts and Science College, Kanhirode",
+    "clgRef": "NAHER Arts & Science College, Kanhirode, Kannur"
+  },
+  "naherartsandsciencecollegekanhirode": {
+    "id": "385",
+    "code": "385",
+    "name": "Naher Arts and Science College, Kanhirode",
+    "clgRef": "NAHER Arts & Science College, Kanhirode, Kannur"
+  },
+  "naher arts & science college, kanhirode, kannur": {
+    "id": "385",
+    "code": "385",
+    "name": "Naher Arts and Science College, Kanhirode",
+    "clgRef": "NAHER Arts & Science College, Kanhirode, Kannur"
+  },
+  "naherartssciencecollegekanhirodekannur": {
+    "id": "385",
+    "code": "385",
+    "name": "Naher Arts and Science College, Kanhirode",
+    "clgRef": "NAHER Arts & Science College, Kanhirode, Kannur"
+  },
+  "s.e.s college, sreekandapuram": {
+    "id": "404",
+    "code": "404",
+    "name": "S.E.S College, Sreekandapuram",
+    "clgRef": "SES College, Sreekandapuram, Kannur"
+  },
+  "sescollegesreekandapuram": {
+    "id": "404",
+    "code": "404",
+    "name": "S.E.S College, Sreekandapuram",
+    "clgRef": "SES College, Sreekandapuram, Kannur"
+  },
+  "ses college, sreekandapuram, kannur": {
+    "id": "404",
+    "code": "404",
+    "name": "S.E.S College, Sreekandapuram",
+    "clgRef": "SES College, Sreekandapuram, Kannur"
+  },
+  "sescollegesreekandapuramkannur": {
+    "id": "404",
+    "code": "404",
+    "name": "S.E.S College, Sreekandapuram",
+    "clgRef": "SES College, Sreekandapuram, Kannur"
+  },
+  "sree narayana college of management studies, periya": {
+    "id": "410",
+    "code": "410",
+    "name": "Sree Narayana College of Management Studies, Periya",
+    "clgRef": "Sree Narayana College of Management Studies Periya,Haripuram"
+  },
+  "sreenarayanacollegeofmanagementstudiesperiya": {
+    "id": "410",
+    "code": "410",
+    "name": "Sree Narayana College of Management Studies, Periya",
+    "clgRef": "Sree Narayana College of Management Studies Periya,Haripuram"
+  },
+  "sree narayana college of management studies periya,haripuram": {
+    "id": "410",
+    "code": "410",
+    "name": "Sree Narayana College of Management Studies, Periya",
+    "clgRef": "Sree Narayana College of Management Studies Periya,Haripuram"
+  },
+  "sreenarayanacollegeofmanagementstudiesperiyaharipuram": {
+    "id": "410",
+    "code": "410",
+    "name": "Sree Narayana College of Management Studies, Periya",
+    "clgRef": "Sree Narayana College of Management Studies Periya,Haripuram"
+  },
+  "nirmalagiri college, kuthuparamba": {
     "id": "214",
     "code": "214",
     "name": "Nirmalagiri College, Kuthuparamba",
@@ -4425,119 +5895,1403 @@ export const COLLEGE_LOOKUP = {
     "name": "Nirmalagiri College, Kuthuparamba",
     "clgRef": "Nirmalagiri College, Kuthuparamba, Kannur"
   },
+  "nirmalagiri college, kuthuparamba, kannur": {
+    "id": "214",
+    "code": "214",
+    "name": "Nirmalagiri College, Kuthuparamba",
+    "clgRef": "Nirmalagiri College, Kuthuparamba, Kannur"
+  },
   "nirmalagiricollegekuthuparambakannur": {
     "id": "214",
     "code": "214",
     "name": "Nirmalagiri College, Kuthuparamba",
     "clgRef": "Nirmalagiri College, Kuthuparamba, Kannur"
   },
-  "215": {
-    "id": "215",
-    "code": "215",
-    "name": "Mahatma Gandhi College, Iritty",
-    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  "beja model college of arts & science": {
+    "id": "337",
+    "code": "337",
+    "name": "BEJA Model College of Arts & Science",
+    "clgRef": "BEJA Model College of Arts & Science ,Sankanamoola,Beja,Nettanige P.O,Mulleria,Kasargod"
   },
-  "mahatmagandhicollegeiritty": {
-    "id": "215",
-    "code": "215",
-    "name": "Mahatma Gandhi College, Iritty",
-    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  "bejamodelcollegeofartsscience": {
+    "id": "337",
+    "code": "337",
+    "name": "BEJA Model College of Arts & Science",
+    "clgRef": "BEJA Model College of Arts & Science ,Sankanamoola,Beja,Nettanige P.O,Mulleria,Kasargod"
   },
-  "mahatmagandhicollegeirittykeezhurpokannur": {
-    "id": "215",
-    "code": "215",
-    "name": "Mahatma Gandhi College, Iritty",
-    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  "beja model college of arts & science ,sankanamoola,beja,nettanige p.o,mulleria,kasargod": {
+    "id": "337",
+    "code": "337",
+    "name": "BEJA Model College of Arts & Science",
+    "clgRef": "BEJA Model College of Arts & Science ,Sankanamoola,Beja,Nettanige P.O,Mulleria,Kasargod"
   },
-  "216": {
-    "id": "216",
-    "code": "216",
-    "name": "N.A.M. College, Kallikandy",
+  "bejamodelcollegeofartssciencesankanamoolabejanettanigepomulleriakasargod": {
+    "id": "337",
+    "code": "337",
+    "name": "BEJA Model College of Arts & Science",
+    "clgRef": "BEJA Model College of Arts & Science ,Sankanamoola,Beja,Nettanige P.O,Mulleria,Kasargod"
+  },
+  "government arts and science college, kinanoor, karinthalam": {
+    "id": "355",
+    "code": "355",
+    "name": "Government Arts and Science College, Kinanoor, Karinthalam",
+    "clgRef": "Govt Arts & Science College Kinanoor,Karindalam"
+  },
+  "governmentartsandsciencecollegekinanoorkarinthalam": {
+    "id": "355",
+    "code": "355",
+    "name": "Government Arts and Science College, Kinanoor, Karinthalam",
+    "clgRef": "Govt Arts & Science College Kinanoor,Karindalam"
+  },
+  "govt arts & science college kinanoor,karindalam": {
+    "id": "355",
+    "code": "355",
+    "name": "Government Arts and Science College, Kinanoor, Karinthalam",
+    "clgRef": "Govt Arts & Science College Kinanoor,Karindalam"
+  },
+  "govtartssciencecollegekinanoorkarindalam": {
+    "id": "355",
+    "code": "355",
+    "name": "Government Arts and Science College, Kinanoor, Karinthalam",
+    "clgRef": "Govt Arts & Science College Kinanoor,Karindalam"
+  },
+  "e.k. nayanar memorial govt. college, elerithattu": {
+    "id": "332",
+    "code": "332",
+    "name": "E.K. Nayanar Memorial Govt. College, Elerithattu",
+    "clgRef": "E. K. Nayanar Memorial Govt. College, Elerithattu, Nileshwar"
+  },
+  "eknayanarmemorialgovtcollegeelerithattu": {
+    "id": "332",
+    "code": "332",
+    "name": "E.K. Nayanar Memorial Govt. College, Elerithattu",
+    "clgRef": "E. K. Nayanar Memorial Govt. College, Elerithattu, Nileshwar"
+  },
+  "e. k. nayanar memorial govt. college, elerithattu, nileshwar": {
+    "id": "332",
+    "code": "332",
+    "name": "E.K. Nayanar Memorial Govt. College, Elerithattu",
+    "clgRef": "E. K. Nayanar Memorial Govt. College, Elerithattu, Nileshwar"
+  },
+  "eknayanarmemorialgovtcollegeelerithattunileshwar": {
+    "id": "332",
+    "code": "332",
+    "name": "E.K. Nayanar Memorial Govt. College, Elerithattu",
+    "clgRef": "E. K. Nayanar Memorial Govt. College, Elerithattu, Nileshwar"
+  },
+  "mahatma gandhi arts and science college, chendayad": {
+    "id": "328",
+    "code": "328",
+    "name": "Mahatma Gandhi Arts and Science College, Chendayad",
+    "clgRef": "Mahatma Gandhi Arts & Science College, Chendayad P.O., Panur"
+  },
+  "mahatmagandhiartsandsciencecollegechendayad": {
+    "id": "328",
+    "code": "328",
+    "name": "Mahatma Gandhi Arts and Science College, Chendayad",
+    "clgRef": "Mahatma Gandhi Arts & Science College, Chendayad P.O., Panur"
+  },
+  "mahatma gandhi arts & science college, chendayad p.o., panur": {
+    "id": "328",
+    "code": "328",
+    "name": "Mahatma Gandhi Arts and Science College, Chendayad",
+    "clgRef": "Mahatma Gandhi Arts & Science College, Chendayad P.O., Panur"
+  },
+  "mahatmagandhiartssciencecollegechendayadpopanur": {
+    "id": "328",
+    "code": "328",
+    "name": "Mahatma Gandhi Arts and Science College, Chendayad",
+    "clgRef": "Mahatma Gandhi Arts & Science College, Chendayad P.O., Panur"
+  },
+  "sibga institute of advanced studies, irikkur": {
+    "id": "406",
+    "code": "406",
+    "name": "SIBGA Institute of Advanced Studies, Irikkur",
+    "clgRef": "Sibga Institute of Advanced Studies,Kalliad P.O.,Irikkur, Kannur"
+  },
+  "sibgainstituteofadvancedstudiesirikkur": {
+    "id": "406",
+    "code": "406",
+    "name": "SIBGA Institute of Advanced Studies, Irikkur",
+    "clgRef": "Sibga Institute of Advanced Studies,Kalliad P.O.,Irikkur, Kannur"
+  },
+  "sibga institute of advanced studies,kalliad p.o.,irikkur, kannur": {
+    "id": "406",
+    "code": "406",
+    "name": "SIBGA Institute of Advanced Studies, Irikkur",
+    "clgRef": "Sibga Institute of Advanced Studies,Kalliad P.O.,Irikkur, Kannur"
+  },
+  "sibgainstituteofadvancedstudieskalliadpoirikkurkannur": {
+    "id": "406",
+    "code": "406",
+    "name": "SIBGA Institute of Advanced Studies, Irikkur",
+    "clgRef": "Sibga Institute of Advanced Studies,Kalliad P.O.,Irikkur, Kannur"
+  },
+  "n.a.m college, kallikandy": {
+    "id": "387",
+    "code": "387",
+    "name": "N.A.M College, Kallikandy",
     "clgRef": "N.A.M. College, Kallikandy, Thuvakunnu P.O., Kannur"
   },
   "namcollegekallikandy": {
-    "id": "216",
-    "code": "216",
-    "name": "N.A.M. College, Kallikandy",
+    "id": "387",
+    "code": "387",
+    "name": "N.A.M College, Kallikandy",
+    "clgRef": "N.A.M. College, Kallikandy, Thuvakunnu P.O., Kannur"
+  },
+  "n.a.m. college, kallikandy, thuvakunnu p.o., kannur": {
+    "id": "387",
+    "code": "387",
+    "name": "N.A.M College, Kallikandy",
     "clgRef": "N.A.M. College, Kallikandy, Thuvakunnu P.O., Kannur"
   },
   "namcollegekallikandythuvakunnupokannur": {
-    "id": "216",
-    "code": "216",
-    "name": "N.A.M. College, Kallikandy",
+    "id": "387",
+    "code": "387",
+    "name": "N.A.M College, Kallikandy",
     "clgRef": "N.A.M. College, Kallikandy, Thuvakunnu P.O., Kannur"
   },
-  "241": {
-    "id": "241",
-    "code": "241",
-    "name": "Nehru Arts and Science College, Kanhangad",
-    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  "sa-a-diya arts and science college, koliyadukkam": {
+    "id": "402",
+    "code": "402",
+    "name": "Sa-A-Diya Arts and Science College, Koliyadukkam",
+    "clgRef": "Sa-A-Diya Arts & Science College, Koliyadukkam, Kalanad"
   },
-  "nehruartsandsciencecollegekanhangad": {
-    "id": "241",
-    "code": "241",
-    "name": "Nehru Arts and Science College, Kanhangad",
-    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  "saadiyaartsandsciencecollegekoliyadukkam": {
+    "id": "402",
+    "code": "402",
+    "name": "Sa-A-Diya Arts and Science College, Koliyadukkam",
+    "clgRef": "Sa-A-Diya Arts & Science College, Koliyadukkam, Kalanad"
   },
-  "nehruartsandsciencecollegekanhangadkasaragod": {
-    "id": "241",
-    "code": "241",
-    "name": "Nehru Arts and Science College, Kanhangad",
-    "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
+  "sa-a-diya arts & science college, koliyadukkam, kalanad": {
+    "id": "402",
+    "code": "402",
+    "name": "Sa-A-Diya Arts and Science College, Koliyadukkam",
+    "clgRef": "Sa-A-Diya Arts & Science College, Koliyadukkam, Kalanad"
   },
-  "251": {
-    "id": "251",
-    "code": "251",
-    "name": "St. Pius X College, Rajapuram",
-    "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
+  "saadiyaartssciencecollegekoliyadukkamkalanad": {
+    "id": "402",
+    "code": "402",
+    "name": "Sa-A-Diya Arts and Science College, Koliyadukkam",
+    "clgRef": "Sa-A-Diya Arts & Science College, Koliyadukkam, Kalanad"
   },
-  "stpiusxcollegerajapuram": {
-    "id": "251",
-    "code": "251",
+  "c.k nair arts and management college, hosdurg": {
+    "id": "341",
+    "code": "341",
+    "name": "C.K Nair Arts and Management College, Hosdurg",
+    "clgRef": "C.K. Nair Arts & Management College, Padnekat, Kanhangad, Kasaragod"
+  },
+  "cknairartsandmanagementcollegehosdurg": {
+    "id": "341",
+    "code": "341",
+    "name": "C.K Nair Arts and Management College, Hosdurg",
+    "clgRef": "C.K. Nair Arts & Management College, Padnekat, Kanhangad, Kasaragod"
+  },
+  "c.k. nair arts & management college, padnekat, kanhangad, kasaragod": {
+    "id": "341",
+    "code": "341",
+    "name": "C.K Nair Arts and Management College, Hosdurg",
+    "clgRef": "C.K. Nair Arts & Management College, Padnekat, Kanhangad, Kasaragod"
+  },
+  "cknairartsmanagementcollegepadnekatkanhangadkasaragod": {
+    "id": "341",
+    "code": "341",
+    "name": "C.K Nair Arts and Management College, Hosdurg",
+    "clgRef": "C.K. Nair Arts & Management College, Padnekat, Kanhangad, Kasaragod"
+  },
+  "malik dinar college of graduate studies, seethangoli": {
+    "id": "375",
+    "code": "375",
+    "name": "Malik Dinar College of Graduate Studies, Seethangoli",
+    "clgRef": "Malik Dinar College of Graduate Studies, Seethangoli"
+  },
+  "malikdinarcollegeofgraduatestudiesseethangoli": {
+    "id": "375",
+    "code": "375",
+    "name": "Malik Dinar College of Graduate Studies, Seethangoli",
+    "clgRef": "Malik Dinar College of Graduate Studies, Seethangoli"
+  },
+  "concord arts and science college, muttannur": {
+    "id": "346",
+    "code": "346",
+    "name": "Concord Arts and Science College, Muttannur",
+    "clgRef": "Concord Arts & Science College, Muttannur, Kannur"
+  },
+  "concordartsandsciencecollegemuttannur": {
+    "id": "346",
+    "code": "346",
+    "name": "Concord Arts and Science College, Muttannur",
+    "clgRef": "Concord Arts & Science College, Muttannur, Kannur"
+  },
+  "concord arts & science college, muttannur, kannur": {
+    "id": "346",
+    "code": "346",
+    "name": "Concord Arts and Science College, Muttannur",
+    "clgRef": "Concord Arts & Science College, Muttannur, Kannur"
+  },
+  "concordartssciencecollegemuttannurkannur": {
+    "id": "346",
+    "code": "346",
+    "name": "Concord Arts and Science College, Muttannur",
+    "clgRef": "Concord Arts & Science College, Muttannur, Kannur"
+  },
+  "don bosco arts and science college, angadikadavu": {
+    "id": "351",
+    "code": "351",
+    "name": "Don Bosco Arts and Science College, Angadikadavu",
+    "clgRef": "Don Bosco Arts & Science College, Angadikkadavu, Kannur P.O."
+  },
+  "donboscoartsandsciencecollegeangadikadavu": {
+    "id": "351",
+    "code": "351",
+    "name": "Don Bosco Arts and Science College, Angadikadavu",
+    "clgRef": "Don Bosco Arts & Science College, Angadikkadavu, Kannur P.O."
+  },
+  "don bosco arts & science college, angadikkadavu, kannur p.o.": {
+    "id": "351",
+    "code": "351",
+    "name": "Don Bosco Arts and Science College, Angadikadavu",
+    "clgRef": "Don Bosco Arts & Science College, Angadikkadavu, Kannur P.O."
+  },
+  "donboscoartssciencecollegeangadikkadavukannurpo": {
+    "id": "351",
+    "code": "351",
+    "name": "Don Bosco Arts and Science College, Angadikadavu",
+    "clgRef": "Don Bosco Arts & Science College, Angadikkadavu, Kannur P.O."
+  },
+  "st. pius x college, rajapuram, kasaragod": {
+    "id": "418",
+    "code": "418",
     "name": "St. Pius X College, Rajapuram",
     "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
   },
   "stpiusxcollegerajapuramkasaragod": {
-    "id": "251",
-    "code": "251",
+    "id": "418",
+    "code": "418",
     "name": "St. Pius X College, Rajapuram",
     "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
   },
-  "265": {
-    "id": "265",
-    "code": "265",
-    "name": "SES College, Sreekandapuram",
-    "clgRef": "SES College, Sreekandapuram, Kannur"
+  "morazha co-op arts and science college, morazha": {
+    "id": "382",
+    "code": "382",
+    "name": "Morazha Co-op Arts and Science College, Morazha",
+    "clgRef": "Morazha Co-operative Arts & Science College, Morazha P.O., Kannur"
   },
-  "sescollegesreekandapuram": {
-    "id": "265",
-    "code": "265",
-    "name": "SES College, Sreekandapuram",
-    "clgRef": "SES College, Sreekandapuram, Kannur"
+  "morazhacoopartsandsciencecollegemorazha": {
+    "id": "382",
+    "code": "382",
+    "name": "Morazha Co-op Arts and Science College, Morazha",
+    "clgRef": "Morazha Co-operative Arts & Science College, Morazha P.O., Kannur"
   },
-  "sescollegesreekandapuramkannur": {
-    "id": "265",
-    "code": "265",
-    "name": "SES College, Sreekandapuram",
-    "clgRef": "SES College, Sreekandapuram, Kannur"
+  "morazha co-operative arts & science college, morazha p.o., kannur": {
+    "id": "382",
+    "code": "382",
+    "name": "Morazha Co-op Arts and Science College, Morazha",
+    "clgRef": "Morazha Co-operative Arts & Science College, Morazha P.O., Kannur"
   },
-  "266": {
-    "id": "266",
-    "code": "266",
-    "name": "Wadihuda Institute of Research and Advanced Studies",
-    "clgRef": "Wadihuda Institute of Research and Advanced Studies, Vilayancode"
+  "morazhacooperativeartssciencecollegemorazhapokannur": {
+    "id": "382",
+    "code": "382",
+    "name": "Morazha Co-op Arts and Science College, Morazha",
+    "clgRef": "Morazha Co-operative Arts & Science College, Morazha P.O., Kannur"
   },
-  "wadihudainstituteofresearchandadvancedstudies": {
-    "id": "266",
-    "code": "266",
-    "name": "Wadihuda Institute of Research and Advanced Studies",
+  "wadihuda institute of research and advanced studies, vilayancode": {
+    "id": "424",
+    "code": "424",
+    "name": "Wadihuda Institute of Research and Advanced Studies, Vilayancode",
     "clgRef": "Wadihuda Institute of Research and Advanced Studies, Vilayancode"
   },
   "wadihudainstituteofresearchandadvancedstudiesvilayancode": {
-    "id": "266",
-    "code": "266",
-    "name": "Wadihuda Institute of Research and Advanced Studies",
+    "id": "424",
+    "code": "424",
+    "name": "Wadihuda Institute of Research and Advanced Studies, Vilayancode",
     "clgRef": "Wadihuda Institute of Research and Advanced Studies, Vilayancode"
+  },
+  "govt. college, peringome": {
+    "id": "360",
+    "code": "360",
+    "name": "Govt. College, Peringome",
+    "clgRef": "Govt. College Peringome, Peringome P.O., Payyannur, Kannur"
+  },
+  "govtcollegeperingome": {
+    "id": "360",
+    "code": "360",
+    "name": "Govt. College, Peringome",
+    "clgRef": "Govt. College Peringome, Peringome P.O., Payyannur, Kannur"
+  },
+  "govt. college peringome, peringome p.o., payyannur, kannur": {
+    "id": "360",
+    "code": "360",
+    "name": "Govt. College, Peringome",
+    "clgRef": "Govt. College Peringome, Peringome P.O., Payyannur, Kannur"
+  },
+  "govtcollegeperingomeperingomepopayyannurkannur": {
+    "id": "360",
+    "code": "360",
+    "name": "Govt. College, Peringome",
+    "clgRef": "Govt. College Peringome, Peringome P.O., Payyannur, Kannur"
+  },
+  "st. mary's arts & science college, cherupanathady": {
+    "id": "416",
+    "code": "416",
+    "name": "St. Mary's Arts & Science College, Cherupanathady",
+    "clgRef": "St.Mary's Arts & Science College,cherupanathady,Panathady P.O,Rajapuram Via,Kasargod"
+  },
+  "stmarysartssciencecollegecherupanathady": {
+    "id": "416",
+    "code": "416",
+    "name": "St. Mary's Arts & Science College, Cherupanathady",
+    "clgRef": "St.Mary's Arts & Science College,cherupanathady,Panathady P.O,Rajapuram Via,Kasargod"
+  },
+  "st.mary's arts & science college,cherupanathady,panathady p.o,rajapuram via,kasargod": {
+    "id": "416",
+    "code": "416",
+    "name": "St. Mary's Arts & Science College, Cherupanathady",
+    "clgRef": "St.Mary's Arts & Science College,cherupanathady,Panathady P.O,Rajapuram Via,Kasargod"
+  },
+  "stmarysartssciencecollegecherupanathadypanathadyporajapuramviakasargod": {
+    "id": "416",
+    "code": "416",
+    "name": "St. Mary's Arts & Science College, Cherupanathady",
+    "clgRef": "St.Mary's Arts & Science College,cherupanathady,Panathady P.O,Rajapuram Via,Kasargod"
+  },
+  "hermann gundert college of advanced studies, thalassery": {
+    "id": "120",
+    "code": "120",
+    "name": "Hermann Gundert college of Advanced Studies, Thalassery",
+    "clgRef": "Hermann Gundert College of Advanced Studies, Thalassery"
+  },
+  "hermanngundertcollegeofadvancedstudiesthalassery": {
+    "id": "120",
+    "code": "120",
+    "name": "Hermann Gundert college of Advanced Studies, Thalassery",
+    "clgRef": "Hermann Gundert College of Advanced Studies, Thalassery"
+  },
+  "sree narayana guru college of advanced studies, thottada": {
+    "id": "412",
+    "code": "412",
+    "name": "Sree Narayana Guru College of Advanced Studies, Thottada",
+    "clgRef": "Sree Narayana Guru College of Advanced Studies, Thottada, Kannur"
+  },
+  "sreenarayanagurucollegeofadvancedstudiesthottada": {
+    "id": "412",
+    "code": "412",
+    "name": "Sree Narayana Guru College of Advanced Studies, Thottada",
+    "clgRef": "Sree Narayana Guru College of Advanced Studies, Thottada, Kannur"
+  },
+  "sree narayana guru college of advanced studies, thottada, kannur": {
+    "id": "412",
+    "code": "412",
+    "name": "Sree Narayana Guru College of Advanced Studies, Thottada",
+    "clgRef": "Sree Narayana Guru College of Advanced Studies, Thottada, Kannur"
+  },
+  "sreenarayanagurucollegeofadvancedstudiesthottadakannur": {
+    "id": "412",
+    "code": "412",
+    "name": "Sree Narayana Guru College of Advanced Studies, Thottada",
+    "clgRef": "Sree Narayana Guru College of Advanced Studies, Thottada, Kannur"
+  },
+  "tellicherry institute of advanced studies": {
+    "id": "421",
+    "code": "421",
+    "name": "Tellicherry Institute of Advanced Studies",
+    "clgRef": "Tellicherry Institute of Advanced Studies,Kundoormala, West Ponniam PO,Thalassery"
+  },
+  "tellicherryinstituteofadvancedstudies": {
+    "id": "421",
+    "code": "421",
+    "name": "Tellicherry Institute of Advanced Studies",
+    "clgRef": "Tellicherry Institute of Advanced Studies,Kundoormala, West Ponniam PO,Thalassery"
+  },
+  "tellicherry institute of advanced studies,kundoormala, west ponniam po,thalassery": {
+    "id": "421",
+    "code": "421",
+    "name": "Tellicherry Institute of Advanced Studies",
+    "clgRef": "Tellicherry Institute of Advanced Studies,Kundoormala, West Ponniam PO,Thalassery"
+  },
+  "tellicherryinstituteofadvancedstudieskundoormalawestponniampothalassery": {
+    "id": "421",
+    "code": "421",
+    "name": "Tellicherry Institute of Advanced Studies",
+    "clgRef": "Tellicherry Institute of Advanced Studies,Kundoormala, West Ponniam PO,Thalassery"
+  },
+  "govt. arts and science college, uduma": {
+    "id": "357",
+    "code": "357",
+    "name": "Govt. Arts and Science College, Uduma",
+    "clgRef": "Govt. Arts & Science College, Uduma, Pallaram, Kasaragod"
+  },
+  "govtartsandsciencecollegeuduma": {
+    "id": "357",
+    "code": "357",
+    "name": "Govt. Arts and Science College, Uduma",
+    "clgRef": "Govt. Arts & Science College, Uduma, Pallaram, Kasaragod"
+  },
+  "govt. arts & science college, uduma, pallaram, kasaragod": {
+    "id": "357",
+    "code": "357",
+    "name": "Govt. Arts and Science College, Uduma",
+    "clgRef": "Govt. Arts & Science College, Uduma, Pallaram, Kasaragod"
+  },
+  "govtartssciencecollegeudumapallaramkasaragod": {
+    "id": "357",
+    "code": "357",
+    "name": "Govt. Arts and Science College, Uduma",
+    "clgRef": "Govt. Arts & Science College, Uduma, Pallaram, Kasaragod"
+  },
+  "govt. model degree college-rusa, thrissilery": {
+    "id": "121",
+    "code": "121",
+    "name": "Govt. Model Degree College-RUSA, Thrissilery",
+    "clgRef": "Govt. Model  Degree College-RUSA Thrissilery ,Mananthavady,Wayanad"
+  },
+  "govtmodeldegreecollegerusathrissilery": {
+    "id": "121",
+    "code": "121",
+    "name": "Govt. Model Degree College-RUSA, Thrissilery",
+    "clgRef": "Govt. Model  Degree College-RUSA Thrissilery ,Mananthavady,Wayanad"
+  },
+  "govt. model  degree college-rusa thrissilery ,mananthavady,wayanad": {
+    "id": "121",
+    "code": "121",
+    "name": "Govt. Model Degree College-RUSA, Thrissilery",
+    "clgRef": "Govt. Model  Degree College-RUSA Thrissilery ,Mananthavady,Wayanad"
+  },
+  "govtmodeldegreecollegerusathrissilerymananthavadywayanad": {
+    "id": "121",
+    "code": "121",
+    "name": "Govt. Model Degree College-RUSA, Thrissilery",
+    "clgRef": "Govt. Model  Degree College-RUSA Thrissilery ,Mananthavady,Wayanad"
+  },
+  "co-operative arts and science college, madai": {
+    "id": "347",
+    "code": "347",
+    "name": "Co-operative Arts and Science College, Madai",
+    "clgRef": "Co-Operative Arts & Science College, Madai P.O., Pazhayangadi R.S."
+  },
+  "cooperativeartsandsciencecollegemadai": {
+    "id": "347",
+    "code": "347",
+    "name": "Co-operative Arts and Science College, Madai",
+    "clgRef": "Co-Operative Arts & Science College, Madai P.O., Pazhayangadi R.S."
+  },
+  "co-operative arts & science college, madai p.o., pazhayangadi r.s.": {
+    "id": "347",
+    "code": "347",
+    "name": "Co-operative Arts and Science College, Madai",
+    "clgRef": "Co-Operative Arts & Science College, Madai P.O., Pazhayangadi R.S."
+  },
+  "cooperativeartssciencecollegemadaipopazhayangadirs": {
+    "id": "347",
+    "code": "347",
+    "name": "Co-operative Arts and Science College, Madai",
+    "clgRef": "Co-Operative Arts & Science College, Madai P.O., Pazhayangadi R.S."
+  },
+  "college of applied science, manjeswaram, kumbla": {
+    "id": "344",
+    "code": "344",
+    "name": "College of Applied Science, Manjeswaram, Kumbla",
+    "clgRef": "College of Applied Science, Manjeswaram, Kumbala"
+  },
+  "collegeofappliedsciencemanjeswaramkumbla": {
+    "id": "344",
+    "code": "344",
+    "name": "College of Applied Science, Manjeswaram, Kumbla",
+    "clgRef": "College of Applied Science, Manjeswaram, Kumbala"
+  },
+  "college of applied science, manjeswaram, kumbala": {
+    "id": "344",
+    "code": "344",
+    "name": "College of Applied Science, Manjeswaram, Kumbla",
+    "clgRef": "College of Applied Science, Manjeswaram, Kumbala"
+  },
+  "collegeofappliedsciencemanjeswaramkumbala": {
+    "id": "344",
+    "code": "344",
+    "name": "College of Applied Science, Manjeswaram, Kumbla",
+    "clgRef": "College of Applied Science, Manjeswaram, Kumbala"
+  },
+  "college of applied science (ihrd), payyannur (neruvambram)": {
+    "id": "329",
+    "code": "329",
+    "name": "College of Applied Science (IHRD), Payyannur (Neruvambram)",
+    "clgRef": "College of Applied Science, Neruvambaram, payyanur, Pazhayangadi P.O."
+  },
+  "collegeofappliedscienceihrdpayyannurneruvambram": {
+    "id": "329",
+    "code": "329",
+    "name": "College of Applied Science (IHRD), Payyannur (Neruvambram)",
+    "clgRef": "College of Applied Science, Neruvambaram, payyanur, Pazhayangadi P.O."
+  },
+  "college of applied science, neruvambaram, payyanur, pazhayangadi p.o.": {
+    "id": "329",
+    "code": "329",
+    "name": "College of Applied Science (IHRD), Payyannur (Neruvambram)",
+    "clgRef": "College of Applied Science, Neruvambaram, payyanur, Pazhayangadi P.O."
+  },
+  "collegeofappliedscienceneruvambarampayyanurpazhayangadipo": {
+    "id": "329",
+    "code": "329",
+    "name": "College of Applied Science (IHRD), Payyannur (Neruvambram)",
+    "clgRef": "College of Applied Science, Neruvambaram, payyanur, Pazhayangadi P.O."
+  },
+  "nirmalagiri college of advanced studies, kuthuparamba": {
+    "id": "392",
+    "code": "392",
+    "name": "Nirmalagiri College of Advanced Studies, Kuthuparamba",
+    "clgRef": "Nirmalagiri College of Advanced Studies, Nirmalagiri , Kuthuparamba"
+  },
+  "nirmalagiricollegeofadvancedstudieskuthuparamba": {
+    "id": "392",
+    "code": "392",
+    "name": "Nirmalagiri College of Advanced Studies, Kuthuparamba",
+    "clgRef": "Nirmalagiri College of Advanced Studies, Nirmalagiri , Kuthuparamba"
+  },
+  "nirmalagiri college of advanced studies, nirmalagiri , kuthuparamba": {
+    "id": "392",
+    "code": "392",
+    "name": "Nirmalagiri College of Advanced Studies, Kuthuparamba",
+    "clgRef": "Nirmalagiri College of Advanced Studies, Nirmalagiri , Kuthuparamba"
+  },
+  "nirmalagiricollegeofadvancedstudiesnirmalagirikuthuparamba": {
+    "id": "392",
+    "code": "392",
+    "name": "Nirmalagiri College of Advanced Studies, Kuthuparamba",
+    "clgRef": "Nirmalagiri College of Advanced Studies, Nirmalagiri , Kuthuparamba"
+  },
+  "e m s memorial college of applied science, iritty": {
+    "id": "354",
+    "code": "354",
+    "name": "E M S Memorial College of Applied Science, Iritty",
+    "clgRef": "EMS Memorial College of Applied Science, Vallithode, Iritty, Kannur"
+  },
+  "emsmemorialcollegeofappliedscienceiritty": {
+    "id": "354",
+    "code": "354",
+    "name": "E M S Memorial College of Applied Science, Iritty",
+    "clgRef": "EMS Memorial College of Applied Science, Vallithode, Iritty, Kannur"
+  },
+  "ems memorial college of applied science, vallithode, iritty, kannur": {
+    "id": "354",
+    "code": "354",
+    "name": "E M S Memorial College of Applied Science, Iritty",
+    "clgRef": "EMS Memorial College of Applied Science, Vallithode, Iritty, Kannur"
+  },
+  "emsmemorialcollegeofappliedsciencevallithodeirittykannur": {
+    "id": "354",
+    "code": "354",
+    "name": "E M S Memorial College of Applied Science, Iritty",
+    "clgRef": "EMS Memorial College of Applied Science, Vallithode, Iritty, Kannur"
+  },
+  "deva matha arts and science college, paisakari": {
+    "id": "350",
+    "code": "350",
+    "name": "Deva Matha Arts and Science College, Paisakari",
+    "clgRef": "Deva Matha Arts & Science College, Paisakari P.O., Kannur"
+  },
+  "devamathaartsandsciencecollegepaisakari": {
+    "id": "350",
+    "code": "350",
+    "name": "Deva Matha Arts and Science College, Paisakari",
+    "clgRef": "Deva Matha Arts & Science College, Paisakari P.O., Kannur"
+  },
+  "deva matha arts & science college, paisakari p.o., kannur": {
+    "id": "350",
+    "code": "350",
+    "name": "Deva Matha Arts and Science College, Paisakari",
+    "clgRef": "Deva Matha Arts & Science College, Paisakari P.O., Kannur"
+  },
+  "devamathaartssciencecollegepaisakaripokannur": {
+    "id": "350",
+    "code": "350",
+    "name": "Deva Matha Arts and Science College, Paisakari",
+    "clgRef": "Deva Matha Arts & Science College, Paisakari P.O., Kannur"
+  },
+  "khansa women's college for advanced studies, kumbla, kasargod": {
+    "id": "367",
+    "code": "367",
+    "name": "Khansa Women's College for Advanced Studies, Kumbla, Kasargod",
+    "clgRef": "Khansa Women's College for Advanced Studies, Milekallu, Kumbla"
+  },
+  "khansawomenscollegeforadvancedstudieskumblakasargod": {
+    "id": "367",
+    "code": "367",
+    "name": "Khansa Women's College for Advanced Studies, Kumbla, Kasargod",
+    "clgRef": "Khansa Women's College for Advanced Studies, Milekallu, Kumbla"
+  },
+  "khansa women's college for advanced studies, milekallu, kumbla": {
+    "id": "367",
+    "code": "367",
+    "name": "Khansa Women's College for Advanced Studies, Kumbla, Kasargod",
+    "clgRef": "Khansa Women's College for Advanced Studies, Milekallu, Kumbla"
+  },
+  "khansawomenscollegeforadvancedstudiesmilekallukumbla": {
+    "id": "367",
+    "code": "367",
+    "name": "Khansa Women's College for Advanced Studies, Kumbla, Kasargod",
+    "clgRef": "Khansa Women's College for Advanced Studies, Milekallu, Kumbla"
+  },
+  "mary matha arts and science college, mananthavady": {
+    "id": "378",
+    "code": "378",
+    "name": "Mary Matha Arts and Science College, Mananthavady",
+    "clgRef": "Mary Matha Arts & Science College, Vemom P.O., Mananthavady, Waynad"
+  },
+  "marymathaartsandsciencecollegemananthavady": {
+    "id": "378",
+    "code": "378",
+    "name": "Mary Matha Arts and Science College, Mananthavady",
+    "clgRef": "Mary Matha Arts & Science College, Vemom P.O., Mananthavady, Waynad"
+  },
+  "mary matha arts & science college, vemom p.o., mananthavady, waynad": {
+    "id": "378",
+    "code": "378",
+    "name": "Mary Matha Arts and Science College, Mananthavady",
+    "clgRef": "Mary Matha Arts & Science College, Vemom P.O., Mananthavady, Waynad"
+  },
+  "marymathaartssciencecollegevemompomananthavadywaynad": {
+    "id": "378",
+    "code": "378",
+    "name": "Mary Matha Arts and Science College, Mananthavady",
+    "clgRef": "Mary Matha Arts & Science College, Vemom P.O., Mananthavady, Waynad"
+  },
+  "peoples co-operative arts and science college, munnad": {
+    "id": "397",
+    "code": "397",
+    "name": "Peoples Co-operative Arts and Science College, Munnad",
+    "clgRef": "People's Co-operative Arts & Science College, Munnad, Chengala"
+  },
+  "peoplescooperativeartsandsciencecollegemunnad": {
+    "id": "397",
+    "code": "397",
+    "name": "Peoples Co-operative Arts and Science College, Munnad",
+    "clgRef": "People's Co-operative Arts & Science College, Munnad, Chengala"
+  },
+  "people's co-operative arts & science college, munnad, chengala": {
+    "id": "397",
+    "code": "397",
+    "name": "Peoples Co-operative Arts and Science College, Munnad",
+    "clgRef": "People's Co-operative Arts & Science College, Munnad, Chengala"
+  },
+  "peoplescooperativeartssciencecollegemunnadchengala": {
+    "id": "397",
+    "code": "397",
+    "name": "Peoples Co-operative Arts and Science College, Munnad",
+    "clgRef": "People's Co-operative Arts & Science College, Munnad, Chengala"
+  },
+  "dr.apj abdul kalam college of professional studies ,ulikkal": {
+    "id": "353",
+    "code": "353",
+    "name": "Dr.APJ Abdul Kalam College of Professional Studies ,Ulikkal",
+    "clgRef": "Dr. APJ AbdulKalam College of Professional Studies,Ulikkal,Kannur"
+  },
+  "drapjabdulkalamcollegeofprofessionalstudiesulikkal": {
+    "id": "353",
+    "code": "353",
+    "name": "Dr.APJ Abdul Kalam College of Professional Studies ,Ulikkal",
+    "clgRef": "Dr. APJ AbdulKalam College of Professional Studies,Ulikkal,Kannur"
+  },
+  "dr. apj abdulkalam college of professional studies,ulikkal,kannur": {
+    "id": "353",
+    "code": "353",
+    "name": "Dr.APJ Abdul Kalam College of Professional Studies ,Ulikkal",
+    "clgRef": "Dr. APJ AbdulKalam College of Professional Studies,Ulikkal,Kannur"
+  },
+  "drapjabdulkalamcollegeofprofessionalstudiesulikkalkannur": {
+    "id": "353",
+    "code": "353",
+    "name": "Dr.APJ Abdul Kalam College of Professional Studies ,Ulikkal",
+    "clgRef": "Dr. APJ AbdulKalam College of Professional Studies,Ulikkal,Kannur"
+  },
+  "mm knowledge arts and science college, thaliparamba": {
+    "id": "380",
+    "code": "380",
+    "name": "MM Knowledge Arts and Science College, Thaliparamba",
+    "clgRef": "MM Knowledge Arts & Science College, Thaliparamba, Kannur"
+  },
+  "mmknowledgeartsandsciencecollegethaliparamba": {
+    "id": "380",
+    "code": "380",
+    "name": "MM Knowledge Arts and Science College, Thaliparamba",
+    "clgRef": "MM Knowledge Arts & Science College, Thaliparamba, Kannur"
+  },
+  "mm knowledge arts & science college, thaliparamba, kannur": {
+    "id": "380",
+    "code": "380",
+    "name": "MM Knowledge Arts and Science College, Thaliparamba",
+    "clgRef": "MM Knowledge Arts & Science College, Thaliparamba, Kannur"
+  },
+  "mmknowledgeartssciencecollegethaliparambakannur": {
+    "id": "380",
+    "code": "380",
+    "name": "MM Knowledge Arts and Science College, Thaliparamba",
+    "clgRef": "MM Knowledge Arts & Science College, Thaliparamba, Kannur"
+  },
+  "mahatma gandhi college, iritty": {
+    "id": "372",
+    "code": "372",
+    "name": "Mahatma Gandhi College, Iritty",
+    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  },
+  "mahatmagandhicollegeiritty": {
+    "id": "372",
+    "code": "372",
+    "name": "Mahatma Gandhi College, Iritty",
+    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  },
+  "mahatma gandhi college, iritty, keezhur p.o., kannur": {
+    "id": "372",
+    "code": "372",
+    "name": "Mahatma Gandhi College, Iritty",
+    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  },
+  "mahatmagandhicollegeirittykeezhurpokannur": {
+    "id": "372",
+    "code": "372",
+    "name": "Mahatma Gandhi College, Iritty",
+    "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
+  },
+  "st. mary's college, bela": {
+    "id": "417",
+    "code": "417",
+    "name": "St. Mary's College, Bela",
+    "clgRef": "St. Mary's College, Bela, Kasargod"
+  },
+  "stmaryscollegebela": {
+    "id": "417",
+    "code": "417",
+    "name": "St. Mary's College, Bela",
+    "clgRef": "St. Mary's College, Bela, Kasargod"
+  },
+  "st. mary's college, bela, kasargod": {
+    "id": "417",
+    "code": "417",
+    "name": "St. Mary's College, Bela",
+    "clgRef": "St. Mary's College, Bela, Kasargod"
+  },
+  "stmaryscollegebelakasargod": {
+    "id": "417",
+    "code": "417",
+    "name": "St. Mary's College, Bela",
+    "clgRef": "St. Mary's College, Bela, Kasargod"
+  },
+  "amsteck arts and science college, kalliassery": {
+    "id": "334",
+    "code": "334",
+    "name": "AMSTECK Arts and Science College, Kalliassery",
+    "clgRef": "AMSTECK Arts & Science College, Kalliassery, Ancham Peedika P.O."
+  },
+  "amsteckartsandsciencecollegekalliassery": {
+    "id": "334",
+    "code": "334",
+    "name": "AMSTECK Arts and Science College, Kalliassery",
+    "clgRef": "AMSTECK Arts & Science College, Kalliassery, Ancham Peedika P.O."
+  },
+  "amsteck arts & science college, kalliassery, ancham peedika p.o.": {
+    "id": "334",
+    "code": "334",
+    "name": "AMSTECK Arts and Science College, Kalliassery",
+    "clgRef": "AMSTECK Arts & Science College, Kalliassery, Ancham Peedika P.O."
+  },
+  "amsteckartssciencecollegekalliasseryanchampeedikapo": {
+    "id": "334",
+    "code": "334",
+    "name": "AMSTECK Arts and Science College, Kalliassery",
+    "clgRef": "AMSTECK Arts & Science College, Kalliassery, Ancham Peedika P.O."
+  },
+  "m.e.s. college, naravoor": {
+    "id": "379",
+    "code": "379",
+    "name": "M.E.S. College, Naravoor",
+    "clgRef": "M.E.S.College, Naravoor South, Kuthuparamba P.O., Kannur"
+  },
+  "mescollegenaravoor": {
+    "id": "379",
+    "code": "379",
+    "name": "M.E.S. College, Naravoor",
+    "clgRef": "M.E.S.College, Naravoor South, Kuthuparamba P.O., Kannur"
+  },
+  "m.e.s.college, naravoor south, kuthuparamba p.o., kannur": {
+    "id": "379",
+    "code": "379",
+    "name": "M.E.S. College, Naravoor",
+    "clgRef": "M.E.S.College, Naravoor South, Kuthuparamba P.O., Kannur"
+  },
+  "mescollegenaravoorsouthkuthuparambapokannur": {
+    "id": "379",
+    "code": "379",
+    "name": "M.E.S. College, Naravoor",
+    "clgRef": "M.E.S.College, Naravoor South, Kuthuparamba P.O., Kannur"
+  },
+  "navajyothi college, cherupuzha": {
+    "id": "388",
+    "code": "388",
+    "name": "Navajyothi College, Cherupuzha",
+    "clgRef": "Navajyothi College, Cherupuzha, Chunda P.O., Kannur"
+  },
+  "navajyothicollegecherupuzha": {
+    "id": "388",
+    "code": "388",
+    "name": "Navajyothi College, Cherupuzha",
+    "clgRef": "Navajyothi College, Cherupuzha, Chunda P.O., Kannur"
+  },
+  "navajyothi college, cherupuzha, chunda p.o., kannur": {
+    "id": "388",
+    "code": "388",
+    "name": "Navajyothi College, Cherupuzha",
+    "clgRef": "Navajyothi College, Cherupuzha, Chunda P.O., Kannur"
+  },
+  "navajyothicollegecherupuzhachundapokannur": {
+    "id": "388",
+    "code": "388",
+    "name": "Navajyothi College, Cherupuzha",
+    "clgRef": "Navajyothi College, Cherupuzha, Chunda P.O., Kannur"
+  },
+  "pilathara co-op arts and science college": {
+    "id": "398",
+    "code": "398",
+    "name": "Pilathara Co-op Arts and Science College",
+    "clgRef": "Pilathara Co-op Arts & Science College, Pazhichiyil, Nareekamvalli P.O."
+  },
+  "pilatharacoopartsandsciencecollege": {
+    "id": "398",
+    "code": "398",
+    "name": "Pilathara Co-op Arts and Science College",
+    "clgRef": "Pilathara Co-op Arts & Science College, Pazhichiyil, Nareekamvalli P.O."
+  },
+  "pilathara co-op arts & science college, pazhichiyil, nareekamvalli p.o.": {
+    "id": "398",
+    "code": "398",
+    "name": "Pilathara Co-op Arts and Science College",
+    "clgRef": "Pilathara Co-op Arts & Science College, Pazhichiyil, Nareekamvalli P.O."
+  },
+  "pilatharacoopartssciencecollegepazhichiyilnareekamvallipo": {
+    "id": "398",
+    "code": "398",
+    "name": "Pilathara Co-op Arts and Science College",
+    "clgRef": "Pilathara Co-op Arts & Science College, Pazhichiyil, Nareekamvalli P.O."
+  },
+  "wmo imam gazzali arts and science college, wayanad": {
+    "id": "426",
+    "code": "426",
+    "name": "WMO Imam Gazzali Arts and Science College, Wayanad",
+    "clgRef": "WMO Imam Gazzali Arts & Science College, Koolivayal, Panamaram"
+  },
+  "wmoimamgazzaliartsandsciencecollegewayanad": {
+    "id": "426",
+    "code": "426",
+    "name": "WMO Imam Gazzali Arts and Science College, Wayanad",
+    "clgRef": "WMO Imam Gazzali Arts & Science College, Koolivayal, Panamaram"
+  },
+  "wmo imam gazzali arts & science college, koolivayal, panamaram": {
+    "id": "426",
+    "code": "426",
+    "name": "WMO Imam Gazzali Arts and Science College, Wayanad",
+    "clgRef": "WMO Imam Gazzali Arts & Science College, Koolivayal, Panamaram"
+  },
+  "wmoimamgazzaliartssciencecollegekoolivayalpanamaram": {
+    "id": "426",
+    "code": "426",
+    "name": "WMO Imam Gazzali Arts and Science College, Wayanad",
+    "clgRef": "WMO Imam Gazzali Arts & Science College, Koolivayal, Panamaram"
+  },
+  "chinmaya institute of technology": {
+    "id": "119",
+    "code": "119",
+    "name": "Chinmaya Institute of Technology",
+    "clgRef": "Chinmaya Institute of Technology Chala"
+  },
+  "chinmayainstituteoftechnology": {
+    "id": "119",
+    "code": "119",
+    "name": "Chinmaya Institute of Technology",
+    "clgRef": "Chinmaya Institute of Technology Chala"
+  },
+  "chinmaya institute of technology chala": {
+    "id": "119",
+    "code": "119",
+    "name": "Chinmaya Institute of Technology",
+    "clgRef": "Chinmaya Institute of Technology Chala"
+  },
+  "chinmayainstituteoftechnologychala": {
+    "id": "119",
+    "code": "119",
+    "name": "Chinmaya Institute of Technology",
+    "clgRef": "Chinmaya Institute of Technology Chala"
+  },
+  "chinmaya arts and science college for women, chala": {
+    "id": "340",
+    "code": "340",
+    "name": "Chinmaya Arts and Science College for Women, Chala",
+    "clgRef": "Chinmaya Arts & Science College for Women, Govindagiri, Chala"
+  },
+  "chinmayaartsandsciencecollegeforwomenchala": {
+    "id": "340",
+    "code": "340",
+    "name": "Chinmaya Arts and Science College for Women, Chala",
+    "clgRef": "Chinmaya Arts & Science College for Women, Govindagiri, Chala"
+  },
+  "chinmaya arts & science college for women, govindagiri, chala": {
+    "id": "340",
+    "code": "340",
+    "name": "Chinmaya Arts and Science College for Women, Chala",
+    "clgRef": "Chinmaya Arts & Science College for Women, Govindagiri, Chala"
+  },
+  "chinmayaartssciencecollegeforwomengovindagirichala": {
+    "id": "340",
+    "code": "340",
+    "name": "Chinmaya Arts and Science College for Women, Chala",
+    "clgRef": "Chinmaya Arts & Science College for Women, Govindagiri, Chala"
+  },
+  "sanatana arts and science college, kanhangad": {
+    "id": "403",
+    "code": "403",
+    "name": "Sanatana Arts and Science College, Kanhangad",
+    "clgRef": "Sanatana Arts & Science College, Kottappara, Kanhangad,Kasaragod"
+  },
+  "sanatanaartsandsciencecollegekanhangad": {
+    "id": "403",
+    "code": "403",
+    "name": "Sanatana Arts and Science College, Kanhangad",
+    "clgRef": "Sanatana Arts & Science College, Kottappara, Kanhangad,Kasaragod"
+  },
+  "sanatana arts & science college, kottappara, kanhangad,kasaragod": {
+    "id": "403",
+    "code": "403",
+    "name": "Sanatana Arts and Science College, Kanhangad",
+    "clgRef": "Sanatana Arts & Science College, Kottappara, Kanhangad,Kasaragod"
+  },
+  "sanatanaartssciencecollegekottapparakanhangadkasaragod": {
+    "id": "403",
+    "code": "403",
+    "name": "Sanatana Arts and Science College, Kanhangad",
+    "clgRef": "Sanatana Arts & Science College, Kottappara, Kanhangad,Kasaragod"
+  },
+  "gurudev arts and science college, mathil": {
+    "id": "363",
+    "code": "363",
+    "name": "Gurudev Arts and Science College, Mathil",
+    "clgRef": "Gurudev Arts & Science College, Mathil, Mathil P.O., Payyanur, Kannur"
+  },
+  "gurudevartsandsciencecollegemathil": {
+    "id": "363",
+    "code": "363",
+    "name": "Gurudev Arts and Science College, Mathil",
+    "clgRef": "Gurudev Arts & Science College, Mathil, Mathil P.O., Payyanur, Kannur"
+  },
+  "gurudev arts & science college, mathil, mathil p.o., payyanur, kannur": {
+    "id": "363",
+    "code": "363",
+    "name": "Gurudev Arts and Science College, Mathil",
+    "clgRef": "Gurudev Arts & Science College, Mathil, Mathil P.O., Payyanur, Kannur"
+  },
+  "gurudevartssciencecollegemathilmathilpopayyanurkannur": {
+    "id": "363",
+    "code": "363",
+    "name": "Gurudev Arts and Science College, Mathil",
+    "clgRef": "Gurudev Arts & Science College, Mathil, Mathil P.O., Payyanur, Kannur"
+  },
+  "sunrise college of advanced studies, kuttur, mathamangalam": {
+    "id": "419",
+    "code": "419",
+    "name": "Sunrise College of Advanced Studies, Kuttur, Mathamangalam",
+    "clgRef": "SUNRISE COLLEGE OF ADVANCED STUDIES, KUTTUR, P.O. KUTTOOR,MATHAMANGALAM(VIA), KANNUR,PIN 670306"
+  },
+  "sunrisecollegeofadvancedstudieskutturmathamangalam": {
+    "id": "419",
+    "code": "419",
+    "name": "Sunrise College of Advanced Studies, Kuttur, Mathamangalam",
+    "clgRef": "SUNRISE COLLEGE OF ADVANCED STUDIES, KUTTUR, P.O. KUTTOOR,MATHAMANGALAM(VIA), KANNUR,PIN 670306"
+  },
+  "sunrise college of advanced studies, kuttur, p.o. kuttoor,mathamangalam(via), kannur,pin 670306": {
+    "id": "419",
+    "code": "419",
+    "name": "Sunrise College of Advanced Studies, Kuttur, Mathamangalam",
+    "clgRef": "SUNRISE COLLEGE OF ADVANCED STUDIES, KUTTUR, P.O. KUTTOOR,MATHAMANGALAM(VIA), KANNUR,PIN 670306"
+  },
+  "sunrisecollegeofadvancedstudieskutturpokuttoormathamangalamviakannurpin670306": {
+    "id": "419",
+    "code": "419",
+    "name": "Sunrise College of Advanced Studies, Kuttur, Mathamangalam",
+    "clgRef": "SUNRISE COLLEGE OF ADVANCED STUDIES, KUTTUR, P.O. KUTTOOR,MATHAMANGALAM(VIA), KANNUR,PIN 670306"
+  },
+  "dr. ambedkar arts and science college, periya": {
+    "id": "352",
+    "code": "352",
+    "name": "Dr. Ambedkar Arts and Science College, Periya",
+    "clgRef": "Dr. Ambedkar Arts & Science College, Sreesailam, Periya"
+  },
+  "drambedkarartsandsciencecollegeperiya": {
+    "id": "352",
+    "code": "352",
+    "name": "Dr. Ambedkar Arts and Science College, Periya",
+    "clgRef": "Dr. Ambedkar Arts & Science College, Sreesailam, Periya"
+  },
+  "dr. ambedkar arts & science college, sreesailam, periya": {
+    "id": "352",
+    "code": "352",
+    "name": "Dr. Ambedkar Arts and Science College, Periya",
+    "clgRef": "Dr. Ambedkar Arts & Science College, Sreesailam, Periya"
+  },
+  "drambedkarartssciencecollegesreesailamperiya": {
+    "id": "352",
+    "code": "352",
+    "name": "Dr. Ambedkar Arts and Science College, Periya",
+    "clgRef": "Dr. Ambedkar Arts & Science College, Sreesailam, Periya"
+  },
+  "nest institute of humanities and basic sciences, karivellur": {
+    "id": "390",
+    "code": "390",
+    "name": "NEST Institute of Humanities and Basic Sciences, Karivellur",
+    "clgRef": "NEST Institute of Humanities and Basic Sciences, Karivellur, Kannur"
+  },
+  "nestinstituteofhumanitiesandbasicscienceskarivellur": {
+    "id": "390",
+    "code": "390",
+    "name": "NEST Institute of Humanities and Basic Sciences, Karivellur",
+    "clgRef": "NEST Institute of Humanities and Basic Sciences, Karivellur, Kannur"
+  },
+  "nest institute of humanities and basic sciences, karivellur, kannur": {
+    "id": "390",
+    "code": "390",
+    "name": "NEST Institute of Humanities and Basic Sciences, Karivellur",
+    "clgRef": "NEST Institute of Humanities and Basic Sciences, Karivellur, Kannur"
+  },
+  "nestinstituteofhumanitiesandbasicscienceskarivellurkannur": {
+    "id": "390",
+    "code": "390",
+    "name": "NEST Institute of Humanities and Basic Sciences, Karivellur",
+    "clgRef": "NEST Institute of Humanities and Basic Sciences, Karivellur, Kannur"
+  },
+  "college of applied science, cheemeni": {
+    "id": "342",
+    "code": "342",
+    "name": "College of Applied Science, Cheemeni",
+    "clgRef": "College of Applied Science, Cheemeni, Cheruvathur"
+  },
+  "collegeofappliedsciencecheemeni": {
+    "id": "342",
+    "code": "342",
+    "name": "College of Applied Science, Cheemeni",
+    "clgRef": "College of Applied Science, Cheemeni, Cheruvathur"
+  },
+  "college of applied science, cheemeni, cheruvathur": {
+    "id": "342",
+    "code": "342",
+    "name": "College of Applied Science, Cheemeni",
+    "clgRef": "College of Applied Science, Cheemeni, Cheruvathur"
+  },
+  "collegeofappliedsciencecheemenicheruvathur": {
+    "id": "342",
+    "code": "342",
+    "name": "College of Applied Science, Cheemeni",
+    "clgRef": "College of Applied Science, Cheemeni, Cheruvathur"
+  },
+  "lourde institute of science and technology": {
+    "id": "429",
+    "code": "429",
+    "name": "Lourde Institute of Science and Technology",
+    "clgRef": "Lourde Institute of Science and Technology, Taliparamba"
+  },
+  "lourdeinstituteofscienceandtechnology": {
+    "id": "429",
+    "code": "429",
+    "name": "Lourde Institute of Science and Technology",
+    "clgRef": "Lourde Institute of Science and Technology, Taliparamba"
+  },
+  "lourde institute of science and technology, taliparamba": {
+    "id": "429",
+    "code": "429",
+    "name": "Lourde Institute of Science and Technology",
+    "clgRef": "Lourde Institute of Science and Technology, Taliparamba"
+  },
+  "lourdeinstituteofscienceandtechnologytaliparamba": {
+    "id": "429",
+    "code": "429",
+    "name": "Lourde Institute of Science and Technology",
+    "clgRef": "Lourde Institute of Science and Technology, Taliparamba"
+  },
+  "de paul arts and science college, edathotty": {
+    "id": "349",
+    "code": "349",
+    "name": "De Paul Arts and Science College, Edathotty",
+    "clgRef": "De Paul Arts & Science College, Edathotty, Kakkayangad P.O, Iritty, Kannur."
+  },
+  "depaulartsandsciencecollegeedathotty": {
+    "id": "349",
+    "code": "349",
+    "name": "De Paul Arts and Science College, Edathotty",
+    "clgRef": "De Paul Arts & Science College, Edathotty, Kakkayangad P.O, Iritty, Kannur."
+  },
+  "de paul arts & science college, edathotty, kakkayangad p.o, iritty, kannur.": {
+    "id": "349",
+    "code": "349",
+    "name": "De Paul Arts and Science College, Edathotty",
+    "clgRef": "De Paul Arts & Science College, Edathotty, Kakkayangad P.O, Iritty, Kannur."
+  },
+  "depaulartssciencecollegeedathottykakkayangadpoirittykannur": {
+    "id": "349",
+    "code": "349",
+    "name": "De Paul Arts and Science College, Edathotty",
+    "clgRef": "De Paul Arts & Science College, Edathotty, Kakkayangad P.O, Iritty, Kannur."
+  },
+  "sharaf arts and science college, padne": {
+    "id": "405",
+    "code": "405",
+    "name": "Sharaf Arts and Science College, Padne",
+    "clgRef": "Sharaf Arts & Science College, Padanne, Kasargod"
+  },
+  "sharafartsandsciencecollegepadne": {
+    "id": "405",
+    "code": "405",
+    "name": "Sharaf Arts and Science College, Padne",
+    "clgRef": "Sharaf Arts & Science College, Padanne, Kasargod"
+  },
+  "sharaf arts & science college, padanne, kasargod": {
+    "id": "405",
+    "code": "405",
+    "name": "Sharaf Arts and Science College, Padne",
+    "clgRef": "Sharaf Arts & Science College, Padanne, Kasargod"
+  },
+  "sharafartssciencecollegepadannekasargod": {
+    "id": "405",
+    "code": "405",
+    "name": "Sharaf Arts and Science College, Padne",
+    "clgRef": "Sharaf Arts & Science College, Padanne, Kasargod"
+  },
+  "wings arts & science college, padanna": {
+    "id": "425",
+    "code": "425",
+    "name": "Wings Arts & Science College, Padanna",
+    "clgRef": "Wings Arts & Science College Padanna,Hosdurg,Kasargod"
+  },
+  "wingsartssciencecollegepadanna": {
+    "id": "425",
+    "code": "425",
+    "name": "Wings Arts & Science College, Padanna",
+    "clgRef": "Wings Arts & Science College Padanna,Hosdurg,Kasargod"
+  },
+  "wings arts & science college padanna,hosdurg,kasargod": {
+    "id": "425",
+    "code": "425",
+    "name": "Wings Arts & Science College, Padanna",
+    "clgRef": "Wings Arts & Science College Padanna,Hosdurg,Kasargod"
+  },
+  "wingsartssciencecollegepadannahosdurgkasargod": {
+    "id": "425",
+    "code": "425",
+    "name": "Wings Arts & Science College, Padanna",
+    "clgRef": "Wings Arts & Science College Padanna,Hosdurg,Kasargod"
+  },
+  "college of applied science, pattuvam": {
+    "id": "345",
+    "code": "345",
+    "name": "College of Applied Science, Pattuvam",
+    "clgRef": "College of Applied Science,Kayyamthadam,Ariyil P.O,Pattuvam,Taliparamba"
+  },
+  "collegeofappliedsciencepattuvam": {
+    "id": "345",
+    "code": "345",
+    "name": "College of Applied Science, Pattuvam",
+    "clgRef": "College of Applied Science,Kayyamthadam,Ariyil P.O,Pattuvam,Taliparamba"
+  },
+  "college of applied science,kayyamthadam,ariyil p.o,pattuvam,taliparamba": {
+    "id": "345",
+    "code": "345",
+    "name": "College of Applied Science, Pattuvam",
+    "clgRef": "College of Applied Science,Kayyamthadam,Ariyil P.O,Pattuvam,Taliparamba"
+  },
+  "collegeofappliedsciencekayyamthadamariyilpopattuvamtaliparamba": {
+    "id": "345",
+    "code": "345",
+    "name": "College of Applied Science, Pattuvam",
+    "clgRef": "College of Applied Science,Kayyamthadam,Ariyil P.O,Pattuvam,Taliparamba"
+  },
+  "p.k.k.m. college of applied science ,mananthavady": {
+    "id": "399",
+    "code": "399",
+    "name": "P.K.K.M. College of Applied Science ,Mananthavady",
+    "clgRef": "P.K.K.M. College of Applied Science, Mananthavady"
+  },
+  "pkkmcollegeofappliedsciencemananthavady": {
+    "id": "399",
+    "code": "399",
+    "name": "P.K.K.M. College of Applied Science ,Mananthavady",
+    "clgRef": "P.K.K.M. College of Applied Science, Mananthavady"
+  },
+  "p.k.k.m. college of applied science, mananthavady": {
+    "id": "399",
+    "code": "399",
+    "name": "P.K.K.M. College of Applied Science ,Mananthavady",
+    "clgRef": "P.K.K.M. College of Applied Science, Mananthavady"
+  },
+  "sree narayana guru college of arts and science, iritty": {
+    "id": "413",
+    "code": "413",
+    "name": "Sree Narayana Guru College of Arts and Science, Iritty",
+    "clgRef": "Sree Narayana Guru College of Arts & Science, Iritty, Kannur"
+  },
+  "sreenarayanagurucollegeofartsandscienceiritty": {
+    "id": "413",
+    "code": "413",
+    "name": "Sree Narayana Guru College of Arts and Science, Iritty",
+    "clgRef": "Sree Narayana Guru College of Arts & Science, Iritty, Kannur"
+  },
+  "sree narayana guru college of arts & science, iritty, kannur": {
+    "id": "413",
+    "code": "413",
+    "name": "Sree Narayana Guru College of Arts and Science, Iritty",
+    "clgRef": "Sree Narayana Guru College of Arts & Science, Iritty, Kannur"
+  },
+  "sreenarayanagurucollegeofartsscienceirittykannur": {
+    "id": "413",
+    "code": "413",
+    "name": "Sree Narayana Guru College of Arts and Science, Iritty",
+    "clgRef": "Sree Narayana Guru College of Arts & Science, Iritty, Kannur"
+  },
+  "college of applied science, koothuparamba": {
+    "id": "343",
+    "code": "343",
+    "name": "College of Applied Science, Koothuparamba",
+    "clgRef": "College of Applied Science, Kuthuparamba P.O., Kannur"
+  },
+  "collegeofappliedsciencekoothuparamba": {
+    "id": "343",
+    "code": "343",
+    "name": "College of Applied Science, Koothuparamba",
+    "clgRef": "College of Applied Science, Kuthuparamba P.O., Kannur"
+  },
+  "college of applied science, kuthuparamba p.o., kannur": {
+    "id": "343",
+    "code": "343",
+    "name": "College of Applied Science, Koothuparamba",
+    "clgRef": "College of Applied Science, Kuthuparamba P.O., Kannur"
+  },
+  "collegeofappliedsciencekuthuparambapokannur": {
+    "id": "343",
+    "code": "343",
+    "name": "College of Applied Science, Koothuparamba",
+    "clgRef": "College of Applied Science, Kuthuparamba P.O., Kannur"
+  },
+  "college of applied science, pinarayi": {
+    "id": "331",
+    "code": "331",
+    "name": "College of Applied Science, Pinarayi",
+    "clgRef": "College of Applied Science, Pinarayi, Kannur"
+  },
+  "collegeofappliedsciencepinarayi": {
+    "id": "331",
+    "code": "331",
+    "name": "College of Applied Science, Pinarayi",
+    "clgRef": "College of Applied Science, Pinarayi, Kannur"
+  },
+  "college of applied science, pinarayi, kannur": {
+    "id": "331",
+    "code": "331",
+    "name": "College of Applied Science, Pinarayi",
+    "clgRef": "College of Applied Science, Pinarayi, Kannur"
+  },
+  "collegeofappliedsciencepinarayikannur": {
+    "id": "331",
+    "code": "331",
+    "name": "College of Applied Science, Pinarayi",
+    "clgRef": "College of Applied Science, Pinarayi, Kannur"
+  },
+  "mar thoma college for the hearing impaired, cherkala": {
+    "id": "376",
+    "code": "376",
+    "name": "Mar Thoma College for the Hearing Impaired, Cherkala",
+    "clgRef": "Marthoma College for the Hearing Impaired, Cherkala, Kasargod"
+  },
+  "marthomacollegeforthehearingimpairedcherkala": {
+    "id": "376",
+    "code": "376",
+    "name": "Mar Thoma College for the Hearing Impaired, Cherkala",
+    "clgRef": "Marthoma College for the Hearing Impaired, Cherkala, Kasargod"
+  },
+  "marthoma college for the hearing impaired, cherkala, kasargod": {
+    "id": "376",
+    "code": "376",
+    "name": "Mar Thoma College for the Hearing Impaired, Cherkala",
+    "clgRef": "Marthoma College for the Hearing Impaired, Cherkala, Kasargod"
+  },
+  "marthomacollegeforthehearingimpairedcherkalakasargod": {
+    "id": "376",
+    "code": "376",
+    "name": "Mar Thoma College for the Hearing Impaired, Cherkala",
+    "clgRef": "Marthoma College for the Hearing Impaired, Cherkala, Kasargod"
+  },
+  "mvr institute of life science & research studies": {
+    "id": "384",
+    "code": "384",
+    "name": "MVR Institute of Life Science & Research Studies",
+    "clgRef": "MVR Institute of Life Science & Research Studies, Parassinikadavu, Kannur"
+  },
+  "mvrinstituteoflifescienceresearchstudies": {
+    "id": "384",
+    "code": "384",
+    "name": "MVR Institute of Life Science & Research Studies",
+    "clgRef": "MVR Institute of Life Science & Research Studies, Parassinikadavu, Kannur"
+  },
+  "mvr institute of life science & research studies, parassinikadavu, kannur": {
+    "id": "384",
+    "code": "384",
+    "name": "MVR Institute of Life Science & Research Studies",
+    "clgRef": "MVR Institute of Life Science & Research Studies, Parassinikadavu, Kannur"
+  },
+  "mvrinstituteoflifescienceresearchstudiesparassinikadavukannur": {
+    "id": "384",
+    "code": "384",
+    "name": "MVR Institute of Life Science & Research Studies",
+    "clgRef": "MVR Institute of Life Science & Research Studies, Parassinikadavu, Kannur"
+  },
+  "college for costume & fashion designing, under iiht-kannur": {
+    "id": "335",
+    "code": "335",
+    "name": "College for Costume & Fashion Designing, under IIHT-Kannur",
+    "clgRef": "College for Costume and Fashion Designing under IIHT, Thottada P O, Kannur"
+  },
+  "collegeforcostumefashiondesigningunderiihtkannur": {
+    "id": "335",
+    "code": "335",
+    "name": "College for Costume & Fashion Designing, under IIHT-Kannur",
+    "clgRef": "College for Costume and Fashion Designing under IIHT, Thottada P O, Kannur"
+  },
+  "college for costume and fashion designing under iiht, thottada p o, kannur": {
+    "id": "335",
+    "code": "335",
+    "name": "College for Costume & Fashion Designing, under IIHT-Kannur",
+    "clgRef": "College for Costume and Fashion Designing under IIHT, Thottada P O, Kannur"
+  },
+  "collegeforcostumeandfashiondesigningunderiihtthottadapokannur": {
+    "id": "335",
+    "code": "335",
+    "name": "College for Costume & Fashion Designing, under IIHT-Kannur",
+    "clgRef": "College for Costume and Fashion Designing under IIHT, Thottada P O, Kannur"
+  },
+  "kerala institute of hospitality management ,thalassery": {
+    "id": "366",
+    "code": "366",
+    "name": "Kerala Institute Of Hospitality Management ,Thalassery",
+    "clgRef": "Kerala Institute of Hospitality Management update the data"
+  },
+  "keralainstituteofhospitalitymanagementthalassery": {
+    "id": "366",
+    "code": "366",
+    "name": "Kerala Institute Of Hospitality Management ,Thalassery",
+    "clgRef": "Kerala Institute of Hospitality Management update the data"
+  },
+  "kerala institute of hospitality management update the data": {
+    "id": "366",
+    "code": "366",
+    "name": "Kerala Institute Of Hospitality Management ,Thalassery",
+    "clgRef": "Kerala Institute of Hospitality Management update the data"
+  },
+  "keralainstituteofhospitalitymanagementupdatethedata": {
+    "id": "366",
+    "code": "366",
+    "name": "Kerala Institute Of Hospitality Management ,Thalassery",
+    "clgRef": "Kerala Institute of Hospitality Management update the data"
   }
 };
 
@@ -5454,9 +8208,26 @@ export function loadSavedLookups() {
       mergedProgram = [...DEFAULT_LOOKUP_DATA.program, ...customPrograms];
     }
 
+    // Merge colleges: Always ensure all official colleges from DEFAULT_LOOKUP_DATA.college are present
+    let mergedCollege = DEFAULT_LOOKUP_DATA.college;
+    if (Array.isArray(parsed.college) && parsed.college.length > 0) {
+      const defaultById = new Map(DEFAULT_LOOKUP_DATA.college.map(c => [String(c.id || "").trim(), c]));
+      const defaultByCode = new Map(DEFAULT_LOOKUP_DATA.college.map(c => [String(c.code || "").trim(), c]));
+      const defaultByName = new Map(DEFAULT_LOOKUP_DATA.college.map(c => [normalizeLookupKey(c.name), c]));
+
+      const customColleges = parsed.college.filter(c => {
+        const id = String(c.id || "").trim();
+        const code = String(c.code || "").trim();
+        const n = normalizeLookupKey(c.name);
+        return (!id || !defaultById.has(id)) && (!code || !defaultByCode.has(code)) && (!n || !defaultByName.has(n));
+      });
+
+      mergedCollege = [...DEFAULT_LOOKUP_DATA.college, ...customColleges];
+    }
+
     const result = {
       program: mergedProgram,
-      college: Array.isArray(parsed.college) && parsed.college.length > 0 ? parsed.college : DEFAULT_LOOKUP_DATA.college,
+      college: mergedCollege,
       category: Array.isArray(parsed.category) && parsed.category.length > 0 ? parsed.category : DEFAULT_LOOKUP_DATA.category,
       caste: Array.isArray(parsed.caste) && parsed.caste.length > 0 ? parsed.caste : DEFAULT_LOOKUP_DATA.caste,
       religion: Array.isArray(parsed.religion) && parsed.religion.length > 0 ? parsed.religion : DEFAULT_LOOKUP_DATA.religion,
@@ -5466,8 +8237,12 @@ export function loadSavedLookups() {
       stream: Array.isArray(parsed.stream) && parsed.stream.length > 0 ? parsed.stream : DEFAULT_LOOKUP_DATA.stream
     };
 
-    // If legacy storage or outdated programme list (< 90), migrate in-place immediately
-    if (isLegacy || (Array.isArray(parsed.program) && parsed.program.length < DEFAULT_LOOKUP_DATA.program.length)) {
+    // If legacy storage or outdated programme list (< 90) or outdated college list (< 101), migrate in-place immediately
+    if (
+      isLegacy ||
+      (Array.isArray(parsed.program) && parsed.program.length < DEFAULT_LOOKUP_DATA.program.length) ||
+      (Array.isArray(parsed.college) && parsed.college.length < DEFAULT_LOOKUP_DATA.college.length)
+    ) {
       saveLookupsToStorage(result);
     }
 
