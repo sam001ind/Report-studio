@@ -4366,45 +4366,45 @@ export const COLLEGE_LOOKUP = {
     "clgRef": "Department of Management Studies,Thavakkara Campus,Thavakkara,pin:670002"
   },
   "200": {
-    "id": "200",
-    "code": "200",
-    "name": "Govt. College Mananthavady",
-    "clgRef": "Govt. College Mananthavady, Wayanad"
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
   },
   "201": {
-    "id": "201",
-    "code": "201",
-    "name": "Govt. Brennen College, Thalassery",
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
     "clgRef": "Government Brennen College, Thalassery, Kannur"
   },
   "205": {
-    "id": "205",
-    "code": "205",
-    "name": "Govt. College Kasaragod",
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
     "clgRef": "Govt College Kasargod, Kasargod"
   },
   "207": {
-    "id": "207",
-    "code": "207",
-    "name": "K.M.M. Govt. Women's College, Kannur",
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
     "clgRef": "K.M.M. Govt. Women's College, Kannur"
   },
   "209": {
-    "id": "209",
-    "code": "209",
+    "id": "395",
+    "code": "395",
     "name": "Payyannur College, Payyannur",
     "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
   },
   "211": {
-    "id": "211",
-    "code": "211",
-    "name": "Sir Syed College, Taliparamba",
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
     "clgRef": "Sir Syed College, Taliparamba, Kannur"
   },
   "212": {
-    "id": "212",
-    "code": "212",
-    "name": "Sree Narayana College, Kannur",
+    "id": "411",
+    "code": "411",
+    "name": "Sree Narayana College,Thottada",
     "clgRef": "Sree Narayana College, Kannur"
   },
   "214": {
@@ -4414,39 +4414,39 @@ export const COLLEGE_LOOKUP = {
     "clgRef": "Nirmalagiri College, Kuthuparamba, Kannur"
   },
   "215": {
-    "id": "215",
-    "code": "215",
+    "id": "372",
+    "code": "372",
     "name": "Mahatma Gandhi College, Iritty",
     "clgRef": "Mahatma Gandhi College, Iritty, Keezhur P.O., Kannur"
   },
   "216": {
-    "id": "216",
-    "code": "216",
-    "name": "N.A.M. College, Kallikandy",
+    "id": "387",
+    "code": "387",
+    "name": "N.A.M College, Kallikandy",
     "clgRef": "N.A.M. College, Kallikandy, Thuvakunnu P.O., Kannur"
   },
   "241": {
-    "id": "241",
-    "code": "241",
+    "id": "389",
+    "code": "389",
     "name": "Nehru Arts and Science College, Kanhangad",
     "clgRef": "Nehru Arts and Science College, Kanhangad, Kasaragod"
   },
   "251": {
-    "id": "251",
-    "code": "251",
+    "id": "418",
+    "code": "418",
     "name": "St. Pius X College, Rajapuram",
     "clgRef": "St. Pius X College, Rajapuram, Kasaragod"
   },
   "265": {
-    "id": "265",
-    "code": "265",
-    "name": "SES College, Sreekandapuram",
+    "id": "404",
+    "code": "404",
+    "name": "S.E.S College, Sreekandapuram",
     "clgRef": "SES College, Sreekandapuram, Kannur"
   },
   "266": {
-    "id": "266",
-    "code": "266",
-    "name": "Wadihuda Institute of Research and Advanced Studies",
+    "id": "424",
+    "code": "424",
+    "name": "Wadihuda Institute of Research and Advanced Studies, Vilayancode",
     "clgRef": "Wadihuda Institute of Research and Advanced Studies, Vilayancode"
   },
   "304": {
@@ -5365,13 +5365,13 @@ export const COLLEGE_LOOKUP = {
     "id": "359",
     "code": "359",
     "name": "Govt College, Mananthavady",
-    "clgRef": "Govt. College Mananthavady, Wayanad"
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
   },
   "govtcollegemananthavadywayanad": {
     "id": "359",
     "code": "359",
     "name": "Govt College, Mananthavady",
-    "clgRef": "Govt. College Mananthavady, Wayanad"
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
   },
   "nusrathul islam arabic college, kadavathur": {
     "id": "393",
@@ -7292,6 +7292,156 @@ export const COLLEGE_LOOKUP = {
     "code": "366",
     "name": "Kerala Institute Of Hospitality Management ,Thalassery",
     "clgRef": "Kerala Institute of Hospitality Management update the data"
+  },
+  "govtcollegekasaragod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "govt college kasaragod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "govt. college kasaragod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "govtcollegekasargod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "govt college kasargod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "govt. college kasargod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "govt. college kasaragod, kasaragod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "govtcollegekasaragodkasaragod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "government college kasaragod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "governmentcollegekasaragod": {
+    "id": "358",
+    "code": "358",
+    "name": "Govt College Kasargod, Kasargod",
+    "clgRef": "Govt College Kasargod, Kasargod"
+  },
+  "govt college mananthavady": {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
+  },
+  "govt. college mananthavady": {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
+  },
+  "govt college mananthavady wayanad": {
+    "id": "359",
+    "code": "359",
+    "name": "Govt College, Mananthavady",
+    "clgRef": "Govt. College, Mananthavadi,Nalloornad P.O, Wayanad"
+  },
+  "govtbrennencollege": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  "govtbrennencollegethalassery": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  "govt. brennen college, thalassery": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  "governmentbrennencollege": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  "government brennen college": {
+    "id": "330",
+    "code": "330",
+    "name": "Government Brennen College, Thalassery",
+    "clgRef": "Government Brennen College, Thalassery, Kannur"
+  },
+  "kmmgovtwomenscollege": {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women's College, Kannur"
+  },
+  "k.m.m. govt women's college": {
+    "id": "368",
+    "code": "368",
+    "name": "K.M.M Govt Women's College, Kannur",
+    "clgRef": "K.M.M. Govt. Women's College, Kannur"
+  },
+  "payyannurcollege": {
+    "id": "395",
+    "code": "395",
+    "name": "Payyannur College, Payyannur",
+    "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
+  },
+  "payyannur college": {
+    "id": "395",
+    "code": "395",
+    "name": "Payyannur College, Payyannur",
+    "clgRef": "Payyannur College, Payyannur P, O., Edat, Kannur"
+  },
+  "sir syed college, taliparamba": {
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  },
+  "sirsyedcollege": {
+    "id": "407",
+    "code": "407",
+    "name": "Sir Syed College,Taliparamba",
+    "clgRef": "Sir Syed College, Taliparamba, Kannur"
+  },
+  "nirmalagiricollege": {
+    "id": "214",
+    "code": "214",
+    "name": "Nirmalagiri College, Kuthuparamba",
+    "clgRef": "Nirmalagiri College, Kuthuparamba, Kannur"
   }
 };
 
@@ -8161,6 +8311,12 @@ export function buildLookupMaps(lookupData) {
       if (id) {
         maps.collegeById[id] = entry;
       }
+    }
+
+    // Also populate legacy code and spelling aliases from COLLEGE_LOOKUP into maps
+    for (const [aliasKey, aliasEntry] of Object.entries(COLLEGE_LOOKUP)) {
+      if (!maps.collegeByName[aliasKey]) maps.collegeByName[aliasKey] = aliasEntry;
+      if (!maps.collegeByCode[aliasKey]) maps.collegeByCode[aliasKey] = aliasEntry;
     }
   }
 

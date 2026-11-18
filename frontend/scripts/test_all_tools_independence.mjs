@@ -1094,8 +1094,18 @@ test('Transforms studentmaster_fyugp 43 database dump columns into the exact 44 
   assert.equal(casteId, '16'); // Bhandari is 16 in Kannur IDs
   assert.equal(relLookup.id, '1'); // Hindu is 1
   assert.equal(progMatch.code, 'UCAKANGS25');
-  assert.equal(clgLookup.name, 'Govt. College Mananthavady');
-  assert.equal(clgLookup.code, '200');
+  assert.equal(clgLookup.name, 'Govt College, Mananthavady');
+  assert.equal(clgLookup.code, '359');
+
+  // Verify Option 1: Legacy code 205 (Govt. College Kasaragod) auto-maps to official master 358
+  const kasargodLookup = COLLEGE_LOOKUP['205'];
+  assert.ok(kasargodLookup, 'Legacy code 205 must resolve');
+  assert.equal(kasargodLookup.code, '358');
+  assert.equal(kasargodLookup.name, 'Govt College Kasargod, Kasargod');
+
+  const kasargodByName = COLLEGE_LOOKUP[normalizeLookupKey('Govt. College Kasaragod')];
+  assert.ok(kasargodByName, 'Name Govt. College Kasaragod must resolve to 358');
+  assert.equal(kasargodByName.code, '358');
 });
 
 test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master output columns with Kannur lookups', async () => {
