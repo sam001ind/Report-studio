@@ -484,10 +484,467 @@ export const KANNUR_PROGRAMMES = [
     "code": "PFMCAGS25",
     "workflowId": "158",
     "name": "Five Year Integrated Programe in Master of Computer Application(with Credits)-Regular-FYIMP-2025-Computer Application-FYIMP Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Kannada",
+    "code": "UCAKANGS25",
+    "workflowId": "82",
+    "name": "Bachelor of Arts in Kannada(with Credits)-Regular-FYUGP-2025-Kannada-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCom Co-operation",
+    "code": "UCCCCOGS25",
+    "workflowId": "96",
+    "name": "Bachelor of Commerce(Co-operation)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BTTM",
+    "code": "UCBTTMGS25",
+    "workflowId": "131",
+    "name": "Bachelor of Travel and Tourism management(with Credits)-Regular-FYUGP-2025-Travel and Tourism Management-BTTM Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Arabic",
+    "code": "UCAARBGS25",
+    "workflowId": "72",
+    "name": "Bachelor of Arts in Arabic(with Credits)-Regular-FYUGP-2025-Arabic-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Economics",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA English",
+    "code": "UCAENGGS25",
+    "workflowId": "77",
+    "name": "Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA History",
+    "code": "UCAHISGS25",
+    "workflowId": "81",
+    "name": "Bachelor of Arts in History(with Credits)-Regular-FYUGP-2025-History-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Chemistry",
+    "code": "UCSCHEGS25",
+    "workflowId": "133",
+    "name": "Bachelor of  Science  in Chemistry(with Credits)-Regular-FYUGP-2025-Chemistry-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Computer Science",
+    "code": "UCSCSCGS25",
+    "workflowId": "110",
+    "name": "Bachelor of Science in Computer Science (with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Geology",
+    "code": "UCSGELGS25",
+    "workflowId": "118",
+    "name": "Bachelor of Science in Geology(with Credits)-Regular-FYUGP-2025-Geology-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Mathematics",
+    "code": "UCSMATGS25",
+    "workflowId": "122",
+    "name": "Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2025-Mathematics-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Physics",
+    "code": "UCSPHYGS25",
+    "workflowId": "134",
+    "name": "Bachelor of  Science in Physics(with Credits)-Regular-FYUGP-2025-Physics-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Zoology",
+    "code": "UCSZLYGS25",
+    "workflowId": "129",
+    "name": "Bachelor of Science in Zoology(with Credits)-Regular-FYUGP-2025-Zoology-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Functional English",
+    "code": "UCAFENGS25",
+    "workflowId": "78",
+    "name": "Bachelor of Arts in Functional English(with Credits)-Regular-FYUGP-2025-Functional English-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Malayalam",
+    "code": "UCAMALGS25",
+    "workflowId": "83",
+    "name": "Bachelor of Arts in Malayalam(with Credits)-Regular-FYUGP-2025-Malayalam-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Economics(Mathematical Economics))",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Hindi",
+    "code": "UCAHINGS25",
+    "workflowId": "80",
+    "name": "Bachelor of Arts in Hindi(with Credits)-Regular-FYUGP-2025-Hindi-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Urdu and Islamic History",
+    "code": "UCAURDISHGS25",
+    "workflowId": "89",
+    "name": "Bachelor of Arts in Urdu and Islamic History(with Credits)-Regular-FYUGP-2025-Urdu and Islamic History-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Political Science",
+    "code": "UCAPOSGS25",
+    "workflowId": "85",
+    "name": "Bachelor of Arts in Political Science(with Credits)-Regular-FYUGP-2025-Political Science-BA SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Sanskrit",
+    "code": "UCASANGS25",
+    "workflowId": "86",
+    "name": "Bachelor of Arts in Sanskrit(with Credits)-Regular-FYUGP-2025-Sanskrit-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Statistics",
+    "code": "UCSSTAGS25",
+    "workflowId": "128",
+    "name": "Bachelor of Science in Statistics(with Credits)-Regular-FYUGP-2025-Statistics-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BBA Business Administration",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Computational Mathematics",
+    "code": "UCSCLMGS25",
+    "workflowId": "109",
+    "name": "Bachelor of Science in Computational Mathematics(with Credits)-Regular-FYUGP-2025-Computational Mathematics-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Arabic and Islamic History",
+    "code": "UCAARBISHGS25",
+    "workflowId": "71",
+    "name": "Bachelor of Arts in Arabic and Islamic History(with Credits)-Regular-FYUGP-2025-Arabic and Islamic History-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCA Computer Applications",
+    "code": "UCSBCAGS25",
+    "workflowId": "104",
+    "name": "Bachelor of Computer Application(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Development Economics",
+    "code": "UCADECGS25",
+    "workflowId": "75",
+    "name": "Bachelor of Arts in Development Economics(with Credits)-Regular-FYUGP-2025-Development Economics-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Life Sciences(Zoology) & Computational Biology",
+    "code": "UCSZCBGS25",
+    "workflowId": "121",
+    "name": "Bachelor of Science in Life Sciences (Zoology ) & Computational Biology(with Credits)-Regular-FYUGP-2025-Life Sciences(Zoology) & Computational Biology-BSC Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Botany",
+    "code": "UCSBOTGS25",
+    "workflowId": "108",
+    "name": "Bachelor of Science in Botany(with Credits)-Regular-FYUGP-2025-Botany-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCom Finance",
+    "code": "UCCCFNGS25",
+    "workflowId": "100",
+    "name": "Bachelor of Commerce(Finance)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Microbiology",
+    "code": "UCSMBGGS25",
+    "workflowId": "123",
+    "name": "Bachelor of Science in Microbiology(with Credits)-Regular-FYUGP-2025-Microbiology-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Polymer Chemistry",
+    "code": "UCSPLCGS25",
+    "workflowId": "125",
+    "name": "Bachelor of Science in Polymer Chemistry(with Credits)-Regular-FYUGP-2025-Polymer Chemistry-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BBA Business Administration(Un-Aided)",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCom with Computer Application",
+    "code": "UCCCOMCAGS25",
+    "workflowId": "97",
+    "name": "Bachelor of Commerce(Computer Application)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Social Sciences - Economics",
+    "code": "UCASSEGS25",
+    "workflowId": "88",
+    "name": "Bachelor of Arts in Social Science-Economics(with Credits)-Regular-FYUGP-2025-Social Science-Economics-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BBA TTM",
+    "code": "UCCAAMGS25",
+    "workflowId": "94",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA-TTM-BBA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Biotechnology",
+    "code": "UCSBITGS25",
+    "workflowId": "107",
+    "name": "Bachelor of Science in Biotechnology(with Credits)-Regular-FYUGP-2025-Biotechnology-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Psychology",
+    "code": "UCSPSYGS25",
+    "workflowId": "127",
+    "name": "Bachelor of Science in Psychology(with Credits)-Regular-FYUGP-2025-Psychology-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Geography",
+    "code": "UCSGEGGS25",
+    "workflowId": "116",
+    "name": "Bachelor of Science in Geography(with Credits)-Regular-FYUGP-2025-Geography-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSW Bachelor of Social Work",
+    "code": "UCBBSWGS25",
+    "workflowId": "130",
+    "name": "Bachelor of Social Work(with Credits)-Regular-FYUGP-2025-BSW-BSW Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BBA Aviation and Hospitality",
+    "code": "UCCAVHGS25",
+    "workflowId": "91",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation & Hospitality-BBA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCom Logistics",
+    "code": "UCCCLGGS25",
+    "workflowId": "101",
+    "name": "Bachelor of Commerce(Logistics)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BBA Hospital Administration",
+    "code": "UCCAAMGS25",
+    "workflowId": "93",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Hospital Administration-BBA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Bio Chemistry",
+    "code": "UCSBICGS25",
+    "workflowId": "106",
+    "name": "Bachelor of Science in Biochemistry(with Credits)-Regular-FYUGP-2025-Biochemistry-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Food Technology",
+    "code": "UCSFTYGS25",
+    "workflowId": "114",
+    "name": "Bachelor of Science in Food Technology(with Credits)-Regular-FYUGP-2025-Food Technology-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc  Artificial Intelligence and Machine Learning",
+    "code": "UCSAIMLGS25",
+    "workflowId": "105",
+    "name": "Bachelor of Science in Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Cyber Security",
+    "code": "UCSCSCYS25",
+    "workflowId": "164",
+    "name": "Bachelor of Science in Cyber Security(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Data Analytics",
+    "code": "UCSDATAGS25",
+    "workflowId": "165",
+    "name": "Bachelor of Science in Data Analytics(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSC Mathematics for Machine Learning & Data Science",
+    "code": "UCCMMDGS26",
+    "workflowId": "507",
+    "name": "Bachelor of Science in Mathematics for Machine Learning and Data Science(with Credits)-Regular-FYUGP-2026-Mathematics-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BBA Logistics",
+    "code": "UCCBLOGS25",
+    "workflowId": "90",
+    "name": "Bachelor of Business Administration - Logistics(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Electronics",
+    "code": "UCSELEGS25",
+    "workflowId": "113",
+    "name": "Bachelor of Science in Electronics(with Credits)-Regular-FYUGP-2025-Electronics-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Afzal-Ul-Ulama",
+    "code": "UCAAFUGS25",
+    "workflowId": "70",
+    "name": "Bachelor of Arts in Afzal-Ul-Ulama(with Credits)-Regular-FYUGP-2025-Afzal-Ul-Ulama-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Costume and Fashion Designing",
+    "code": "UCSCFDGS25",
+    "workflowId": "112",
+    "name": "Bachelor of Science in Costume and Fashion Designing(with Credits)-Regular-FYUGP-2025-Costume and Fashion Designing-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc.Hotel Management and Catering Science",
+    "code": "UCSHMCGS25",
+    "workflowId": "119",
+    "name": "Bachelor of Science in Hotel Management and Catering Science(with Credits)-Regular-FYUGP-2025-Hotel Management and Catering Science-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BBA Aviation & Airport Management",
+    "code": "UCCAAMGS25",
+    "workflowId": "92",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation and Airport Management-BBA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Geoinformatics and Remote Sensing",
+    "code": "UCSGRSGS25",
+    "workflowId": "117",
+    "name": "Bachelor of Science in Geoinformatics and Remote Sensing(with Credits)-Regular-FYUGP-2025-Geoinformatics and Remote Sensing-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP Bcom Finance with Forensic Accounting",
+    "code": "UCCCFFAGS25",
+    "workflowId": "99",
+    "name": "Bachelor of Commerce(Finance With Forensic Accounting)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Philosophy",
+    "code": "UCAPHLGS25",
+    "workflowId": "84",
+    "name": "Bachelor of Arts in Philosophy(with Credits)-Regular-FYUGP-2025-Philosophy-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Plant Science",
+    "code": "UCSPLSGS25",
+    "workflowId": "124",
+    "name": "Bachelor of Science in Plant Science(with Credits)-Regular-FYUGP-2025-Plant Science-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Functional Hindi",
+    "code": "UCAFHIGS25",
+    "workflowId": "79",
+    "name": "Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Forestry",
+    "code": "UCSFORGS25",
+    "workflowId": "115",
+    "name": "Bachelor of Science in Forestry(with Credits)-Regular-FYUGP-2025-Forestry-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BMMC Bachelor of Multimedia & Communication",
+    "code": "UCBJMCGS25",
+    "workflowId": "132",
+    "name": "Bachelor of  Journalism with Multimedia and Communication (with Credits)-Regular-FYUGP-2025-BJMC-BJMC Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP Bcom Data Analytics",
+    "code": "UCCCOMDAGS25",
+    "workflowId": "98",
+    "name": "Bachelor of Commerce(Data Analytics )(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCom Marketing",
+    "code": "UCCCMKGS25",
+    "workflowId": "102",
+    "name": "Bachelor of Commerce(Marketing)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Social Sciences",
+    "code": "UCASSHGS25",
+    "workflowId": "87",
+    "name": "Bachelor of Arts in Social Science - History(with Credits)-Regular-FYUGP-2025-Social Science - History-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Psychology and Neurosciences",
+    "code": "UCSPNSGS25",
+    "workflowId": "126",
+    "name": "Bachelor of Science in Psychology and Neurosciences(with Credits)-Regular-FYUGP-2025-Psychology and Neurosciences-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Interior Designing and Furnishing",
+    "code": "UCSIDFGS25",
+    "workflowId": "120",
+    "name": "Bachelor of Science in Interior Designing & Furnishing(with Credits)-Regular-FYUGP-2025-Interior Designing & Furnishing-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSC Nutrition & Dietetics",
+    "code": "UCSBNDGS26",
+    "workflowId": "508",
+    "name": "Bachelor of Science in Nutrition and Dietetics(with Credits)-Regular-FYUGP-2026-Nutrition and Dietetics-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCA Artificial Intelligence",
+    "code": "UCSBCAAIGS25",
+    "workflowId": "103",
+    "name": "Bachelor of Computer Application Artificial Intelligence(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc.Computer Science with AI & Machine learning",
+    "code": "UCSCSAIGS25",
+    "workflowId": "111",
+    "name": "Bachelor of Science in Computer Science with Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Computer Science with Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCA Data Science",
+    "code": "UCCBDSGS26",
+    "workflowId": "504",
+    "name": "Bachelor of Computer Application Data Science(with Credits)-Regular-FYUGP-2026-Computer Application-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Data Science and Logistics",
+    "code": "UCCDSLGS26",
+    "workflowId": "505",
+    "name": "Bachelor of Science Data Science & Logistics(with Credits)-Regular-FYUGP-2026-Data Science & Logistics-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BSc Data Science",
+    "code": "UCCDASGS26",
+    "workflowId": "506",
+    "name": "Bachelor of Science in Data Science(with Credits)-Regular-FYUGP-2026-Data Science-BSc Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Bharathanatyam",
+    "code": "UCABHAGS25",
+    "workflowId": "73",
+    "name": "Bachelor of  Arts in Bharatanatyam(with Credits)-Regular-FYUGP-2025-Bharatanatyam-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BA Music(Karnatic)",
+    "code": "UCACNMS25",
+    "workflowId": "74",
+    "name": "Bachelor of  Arts in Carnatic Music(with Credits)-Regular-FYUGP-2025-Carnatic Music-BA Year I SEMESTER I"
+  },
+  {
+    "pgmName": "FYUGP BCom with Computer Application - Special",
+    "code": "UCCCMCASPGS25",
+    "workflowId": "135",
+    "name": "Bachelor of Commerce(Computer Application) - Special Batch(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
   }
 ];
 
 export const PROGRAM_LOOKUP = {
+  "fyugpbcombusinessanalytics": {
+    "code": "UCCCOMDAGS25",
+    "workflowId": "98",
+    "pgmName": "FYUGP BCom Business Analytics",
+    "name": "Bachelor of Commerce(Data Analytics )(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+
   "fiveyearintegratedmastersprogrammeinclinicalpsychology": {
     "pgmName": "Five Year Integrated Masters Programme in  Clinical Psychology",
     "code": "PFPSYGS25",
@@ -507,6 +964,12 @@ export const PROGRAM_LOOKUP = {
     "name": "Five Year Integrated Masters Programme in Clinical Psychology(with Credits)-Regular-FYIMP-2025-Clinical Psychology-FYIMP Year I SEMESTER I"
   },
   "five year integrated masters programme in clinical psychology(with credits)-regular-fyimp-2025-clinical psychology-fyimp year i semester i": {
+    "pgmName": "Five Year Integrated Masters Programme in  Clinical Psychology",
+    "code": "PFPSYGS25",
+    "workflowId": "151",
+    "name": "Five Year Integrated Masters Programme in Clinical Psychology(with Credits)-Regular-FYIMP-2025-Clinical Psychology-FYIMP Year I SEMESTER I"
+  },
+  "pfpsygs25": {
     "pgmName": "Five Year Integrated Masters Programme in  Clinical Psychology",
     "code": "PFPSYGS25",
     "workflowId": "151",
@@ -536,6 +999,12 @@ export const PROGRAM_LOOKUP = {
     "workflowId": "148",
     "name": "Five Year Integrated Masters Programme in Commerce(with Credits)-Regular-FYIMP-2025-Commerce-FYIMP Year I SEMESTER I"
   },
+  "pfcomgs25": {
+    "pgmName": "Five Year Integrated Masters Programme in Commerce",
+    "code": "PFCOMGS25",
+    "workflowId": "148",
+    "name": "Five Year Integrated Masters Programme in Commerce(with Credits)-Regular-FYIMP-2025-Commerce-FYIMP Year I SEMESTER I"
+  },
   "fiveyearintegratedmastersprogrammeincomputationalscience": {
     "pgmName": "Five Year Integrated Masters Programme in Computational science",
     "code": "PFCLSGS25",
@@ -555,6 +1024,12 @@ export const PROGRAM_LOOKUP = {
     "name": "Five Year Integrated Masters Programme in Computational science(with Credits)-Regular-FYIMP-2025-Computational Sciences-FYIMP Year I SEMESTER I"
   },
   "five year integrated masters programme in computational science(with credits)-regular-fyimp-2025-computational sciences-fyimp year i semester i": {
+    "pgmName": "Five Year Integrated Masters Programme in Computational science",
+    "code": "PFCLSGS25",
+    "workflowId": "149",
+    "name": "Five Year Integrated Masters Programme in Computational science(with Credits)-Regular-FYIMP-2025-Computational Sciences-FYIMP Year I SEMESTER I"
+  },
+  "pfclsgs25": {
     "pgmName": "Five Year Integrated Masters Programme in Computational science",
     "code": "PFCLSGS25",
     "workflowId": "149",
@@ -584,6 +1059,12 @@ export const PROGRAM_LOOKUP = {
     "workflowId": "152",
     "name": "Five Year Integrated Masters Programme in Geography(with Credits)-Regular-FYIMP-2025-Geography-FYIMP Year I SEMESTER I"
   },
+  "pfgeogs25": {
+    "pgmName": "Five Year Integrated Masters Programme in  Geography",
+    "code": "PFGEOGS25",
+    "workflowId": "152",
+    "name": "Five Year Integrated Masters Programme in Geography(with Credits)-Regular-FYIMP-2025-Geography-FYIMP Year I SEMESTER I"
+  },
   "fiveyearintegratedmastersprogrammeinmusic": {
     "pgmName": "Five Year Integrated Masters Programme in Music",
     "code": "PFMUSGA25",
@@ -603,6 +1084,12 @@ export const PROGRAM_LOOKUP = {
     "name": "Five Year Integrated Masters Programme in Music(with Credits)-Regular-FYIMP-2025-Music-FYIMP Year I SEMESTER I"
   },
   "five year integrated masters programme in music(with credits)-regular-fyimp-2025-music-fyimp year i semester i": {
+    "pgmName": "Five Year Integrated Masters Programme in Music",
+    "code": "PFMUSGA25",
+    "workflowId": "153",
+    "name": "Five Year Integrated Masters Programme in Music(with Credits)-Regular-FYIMP-2025-Music-FYIMP Year I SEMESTER I"
+  },
+  "pfmusga25": {
     "pgmName": "Five Year Integrated Masters Programme in Music",
     "code": "PFMUSGA25",
     "workflowId": "153",
@@ -632,6 +1119,12 @@ export const PROGRAM_LOOKUP = {
     "workflowId": "150",
     "name": "Five Year Integrated Masters Programme in Physical Education and Sports (IMPES)(with Credits)-Regular-FYIMP-2025-Physical Education and Sports-FYIMP Year I SEMESTER I"
   },
+  "pfpesgs25": {
+    "pgmName": "Five Year Integrated Masters Programme in Physical Education and Sports",
+    "code": "PFPESGS25",
+    "workflowId": "150",
+    "name": "Five Year Integrated Masters Programme in Physical Education and Sports (IMPES)(with Credits)-Regular-FYIMP-2025-Physical Education and Sports-FYIMP Year I SEMESTER I"
+  },
   "fiveyearintegratedmastersprogrammeinbusinessadministration": {
     "pgmName": "Five Year Integrated Masters Programme in  Business Administration",
     "code": "PFMBAGA25",
@@ -651,6 +1144,12 @@ export const PROGRAM_LOOKUP = {
     "name": "Five Year Integrated Masters Programme in Business Administration(with Credits)-Regular-FYIMP-2025-Business Administration-FYIMP Year I SEMESTER I"
   },
   "five year integrated masters programme in business administration(with credits)-regular-fyimp-2025-business administration-fyimp year i semester i": {
+    "pgmName": "Five Year Integrated Masters Programme in  Business Administration",
+    "code": "PFMBAGA25",
+    "workflowId": "162",
+    "name": "Five Year Integrated Masters Programme in Business Administration(with Credits)-Regular-FYIMP-2025-Business Administration-FYIMP Year I SEMESTER I"
+  },
+  "pfmbaga25": {
     "pgmName": "Five Year Integrated Masters Programme in  Business Administration",
     "code": "PFMBAGA25",
     "workflowId": "162",
@@ -680,6 +1179,12 @@ export const PROGRAM_LOOKUP = {
     "workflowId": "154",
     "name": "Five Year Integrated Masters Programme in Anthropological sciences(with Credits)-Regular-FYIMP-2025-Anthropological Sciences-FYIMP Year I SEMESTER I"
   },
+  "pfantgs25": {
+    "pgmName": "Five Year Integrated Masters Programme in Anthropological sciences",
+    "code": "PFANTGS25",
+    "workflowId": "154",
+    "name": "Five Year Integrated Masters Programme in Anthropological sciences(with Credits)-Regular-FYIMP-2025-Anthropological Sciences-FYIMP Year I SEMESTER I"
+  },
   "fiveyearintegratedmastersprogrammeinenglishstudies": {
     "pgmName": "Five Year Integrated Masters Programme in English Studies",
     "code": "PFENGGA25",
@@ -699,6 +1204,12 @@ export const PROGRAM_LOOKUP = {
     "name": "Five Year Integrated Masters Programme in English Studies(with Credits)-Regular-FYIMP-2025-English Studies-FYIMP Year I SEMESTER I"
   },
   "five year integrated masters programme in english studies(with credits)-regular-fyimp-2025-english studies-fyimp year i semester i": {
+    "pgmName": "Five Year Integrated Masters Programme in English Studies",
+    "code": "PFENGGA25",
+    "workflowId": "155",
+    "name": "Five Year Integrated Masters Programme in English Studies(with Credits)-Regular-FYIMP-2025-English Studies-FYIMP Year I SEMESTER I"
+  },
+  "pfengga25": {
     "pgmName": "Five Year Integrated Masters Programme in English Studies",
     "code": "PFENGGA25",
     "workflowId": "155",
@@ -728,6 +1239,12 @@ export const PROGRAM_LOOKUP = {
     "workflowId": "156",
     "name": "Five Year Integrated Masters Programme in Envirnmental Sciences(with Credits)-Regular-FYIMP-2025-Environmental Science-FYIMP Year I SEMESTER I"
   },
+  "pfevsgs25": {
+    "pgmName": "Five Year Integrated Masters Programme in Envirnmental Sciences",
+    "code": "PFEVSGS25",
+    "workflowId": "156",
+    "name": "Five Year Integrated Masters Programme in Envirnmental Sciences(with Credits)-Regular-FYIMP-2025-Environmental Science-FYIMP Year I SEMESTER I"
+  },
   "fiveyearintegratedmastersprogrammeinhistoricalstudies": {
     "pgmName": "Five Year Integrated Masters Programme in Historical Studies",
     "code": "PFHISGS25",
@@ -752,6 +1269,12 @@ export const PROGRAM_LOOKUP = {
     "workflowId": "160",
     "name": "Five Year Integrated Masters Programme in Historical Studies(with Credits)-Regular-FYIMP-2025-Historical Studies-FYIMP Year I SEMESTER I"
   },
+  "pfhisgs25": {
+    "pgmName": "Five Year Integrated Masters Programme in Historical Studies",
+    "code": "PFHISGS25",
+    "workflowId": "160",
+    "name": "Five Year Integrated Masters Programme in Historical Studies(with Credits)-Regular-FYIMP-2025-Historical Studies-FYIMP Year I SEMESTER I"
+  },
   "fiveyearintegratedmastersprogrammeinmathematicalsciences": {
     "pgmName": "Five Year Integrated Masters Programme in Mathematical Sciences",
     "code": "PFMATGS25",
@@ -759,6 +1282,12 @@ export const PROGRAM_LOOKUP = {
     "name": "Five Year Integrated Masters Programme in Historical Studies(with Credits)-Regular-FYIMP-2025-Historical Studies-FYIMP Year I SEMESTER I"
   },
   "five year integrated masters programme in mathematical sciences": {
+    "pgmName": "Five Year Integrated Masters Programme in Mathematical Sciences",
+    "code": "PFMATGS25",
+    "workflowId": "160",
+    "name": "Five Year Integrated Masters Programme in Historical Studies(with Credits)-Regular-FYIMP-2025-Historical Studies-FYIMP Year I SEMESTER I"
+  },
+  "pfmatgs25": {
     "pgmName": "Five Year Integrated Masters Programme in Mathematical Sciences",
     "code": "PFMATGS25",
     "workflowId": "160",
@@ -788,6 +1317,12 @@ export const PROGRAM_LOOKUP = {
     "workflowId": "159",
     "name": "Five Year Integrated Masters Programme in Physical Science(with Credits)-Regular-FYIMP-2025-Physical Science-FYIMP Year I SEMESTER I"
   },
+  "pfplsgs25": {
+    "pgmName": "Five Year Integrated Masters Programme in Physical Science",
+    "code": "PFPLSGS25",
+    "workflowId": "159",
+    "name": "Five Year Integrated Masters Programme in Physical Science(with Credits)-Regular-FYIMP-2025-Physical Science-FYIMP Year I SEMESTER I"
+  },
   "fiveyearintegratedmastersprogrammeinsocialsciencewithspecializationineconomics": {
     "pgmName": "Five Year Integrated Masters Programme in Social Science with Specialization  in Economics",
     "code": "PFSSEGS25",
@@ -807,6 +1342,12 @@ export const PROGRAM_LOOKUP = {
     "name": "Five Year Integrated Masters Programme in Social Science with Specialization  in Economics(with Credits)-Regular-FYIMP-2025-Economics-FYIMP Year I SEMESTER I"
   },
   "five year integrated masters programme in social science with specialization  in economics(with credits)-regular-fyimp-2025-economics-fyimp year i semester i": {
+    "pgmName": "Five Year Integrated Masters Programme in Social Science with Specialization  in Economics",
+    "code": "PFSSEGS25",
+    "workflowId": "161",
+    "name": "Five Year Integrated Masters Programme in Social Science with Specialization  in Economics(with Credits)-Regular-FYIMP-2025-Economics-FYIMP Year I SEMESTER I"
+  },
+  "pfssegs25": {
     "pgmName": "Five Year Integrated Masters Programme in Social Science with Specialization  in Economics",
     "code": "PFSSEGS25",
     "workflowId": "161",
@@ -836,6 +1377,2208 @@ export const PROGRAM_LOOKUP = {
     "workflowId": "158",
     "name": "Five Year Integrated Programe in Master of Computer Application(with Credits)-Regular-FYIMP-2025-Computer Application-FYIMP Year I SEMESTER I"
   },
+  "pfmcags25": {
+    "pgmName": "Five Year Integrated Programe in Master of Computer Application",
+    "code": "PFMCAGS25",
+    "workflowId": "158",
+    "name": "Five Year Integrated Programe in Master of Computer Application(with Credits)-Regular-FYIMP-2025-Computer Application-FYIMP Year I SEMESTER I"
+  },
+  "fyugpbakannada": {
+    "pgmName": "FYUGP BA Kannada",
+    "code": "UCAKANGS25",
+    "workflowId": "82",
+    "name": "Bachelor of Arts in Kannada(with Credits)-Regular-FYUGP-2025-Kannada-BA Year I SEMESTER I"
+  },
+  "fyugp ba kannada": {
+    "pgmName": "FYUGP BA Kannada",
+    "code": "UCAKANGS25",
+    "workflowId": "82",
+    "name": "Bachelor of Arts in Kannada(with Credits)-Regular-FYUGP-2025-Kannada-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinkannadawithcreditsregularfyugp2025kannadabayearisemesteri": {
+    "pgmName": "FYUGP BA Kannada",
+    "code": "UCAKANGS25",
+    "workflowId": "82",
+    "name": "Bachelor of Arts in Kannada(with Credits)-Regular-FYUGP-2025-Kannada-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in kannada(with credits)-regular-fyugp-2025-kannada-ba year i semester i": {
+    "pgmName": "FYUGP BA Kannada",
+    "code": "UCAKANGS25",
+    "workflowId": "82",
+    "name": "Bachelor of Arts in Kannada(with Credits)-Regular-FYUGP-2025-Kannada-BA Year I SEMESTER I"
+  },
+  "ucakangs25": {
+    "pgmName": "FYUGP BA Kannada",
+    "code": "UCAKANGS25",
+    "workflowId": "82",
+    "name": "Bachelor of Arts in Kannada(with Credits)-Regular-FYUGP-2025-Kannada-BA Year I SEMESTER I"
+  },
+  "fyugpbcomcooperation": {
+    "pgmName": "FYUGP BCom Co-operation",
+    "code": "UCCCCOGS25",
+    "workflowId": "96",
+    "name": "Bachelor of Commerce(Co-operation)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugp bcom co-operation": {
+    "pgmName": "FYUGP BCom Co-operation",
+    "code": "UCCCCOGS25",
+    "workflowId": "96",
+    "name": "Bachelor of Commerce(Co-operation)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelorofcommercecooperationwithcreditsregularfyugp2025commercebcomyearisemesteri": {
+    "pgmName": "FYUGP BCom Co-operation",
+    "code": "UCCCCOGS25",
+    "workflowId": "96",
+    "name": "Bachelor of Commerce(Co-operation)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelor of commerce(co-operation)(with credits)-regular-fyugp-2025-commerce-bcom year i semester i": {
+    "pgmName": "FYUGP BCom Co-operation",
+    "code": "UCCCCOGS25",
+    "workflowId": "96",
+    "name": "Bachelor of Commerce(Co-operation)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "uccccogs25": {
+    "pgmName": "FYUGP BCom Co-operation",
+    "code": "UCCCCOGS25",
+    "workflowId": "96",
+    "name": "Bachelor of Commerce(Co-operation)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugpbttm": {
+    "pgmName": "FYUGP BTTM",
+    "code": "UCBTTMGS25",
+    "workflowId": "131",
+    "name": "Bachelor of Travel and Tourism management(with Credits)-Regular-FYUGP-2025-Travel and Tourism Management-BTTM Year I SEMESTER I"
+  },
+  "fyugp bttm": {
+    "pgmName": "FYUGP BTTM",
+    "code": "UCBTTMGS25",
+    "workflowId": "131",
+    "name": "Bachelor of Travel and Tourism management(with Credits)-Regular-FYUGP-2025-Travel and Tourism Management-BTTM Year I SEMESTER I"
+  },
+  "bacheloroftravelandtourismmanagementwithcreditsregularfyugp2025travelandtourismmanagementbttmyearisemesteri": {
+    "pgmName": "FYUGP BTTM",
+    "code": "UCBTTMGS25",
+    "workflowId": "131",
+    "name": "Bachelor of Travel and Tourism management(with Credits)-Regular-FYUGP-2025-Travel and Tourism Management-BTTM Year I SEMESTER I"
+  },
+  "bachelor of travel and tourism management(with credits)-regular-fyugp-2025-travel and tourism management-bttm year i semester i": {
+    "pgmName": "FYUGP BTTM",
+    "code": "UCBTTMGS25",
+    "workflowId": "131",
+    "name": "Bachelor of Travel and Tourism management(with Credits)-Regular-FYUGP-2025-Travel and Tourism Management-BTTM Year I SEMESTER I"
+  },
+  "ucbttmgs25": {
+    "pgmName": "FYUGP BTTM",
+    "code": "UCBTTMGS25",
+    "workflowId": "131",
+    "name": "Bachelor of Travel and Tourism management(with Credits)-Regular-FYUGP-2025-Travel and Tourism Management-BTTM Year I SEMESTER I"
+  },
+  "fyugpbaarabic": {
+    "pgmName": "FYUGP BA Arabic",
+    "code": "UCAARBGS25",
+    "workflowId": "72",
+    "name": "Bachelor of Arts in Arabic(with Credits)-Regular-FYUGP-2025-Arabic-BA Year I SEMESTER I"
+  },
+  "fyugp ba arabic": {
+    "pgmName": "FYUGP BA Arabic",
+    "code": "UCAARBGS25",
+    "workflowId": "72",
+    "name": "Bachelor of Arts in Arabic(with Credits)-Regular-FYUGP-2025-Arabic-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinarabicwithcreditsregularfyugp2025arabicbayearisemesteri": {
+    "pgmName": "FYUGP BA Arabic",
+    "code": "UCAARBGS25",
+    "workflowId": "72",
+    "name": "Bachelor of Arts in Arabic(with Credits)-Regular-FYUGP-2025-Arabic-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in arabic(with credits)-regular-fyugp-2025-arabic-ba year i semester i": {
+    "pgmName": "FYUGP BA Arabic",
+    "code": "UCAARBGS25",
+    "workflowId": "72",
+    "name": "Bachelor of Arts in Arabic(with Credits)-Regular-FYUGP-2025-Arabic-BA Year I SEMESTER I"
+  },
+  "ucaarbgs25": {
+    "pgmName": "FYUGP BA Arabic",
+    "code": "UCAARBGS25",
+    "workflowId": "72",
+    "name": "Bachelor of Arts in Arabic(with Credits)-Regular-FYUGP-2025-Arabic-BA Year I SEMESTER I"
+  },
+  "fyugpbaeconomics": {
+    "pgmName": "FYUGP BA Economics",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  "fyugp ba economics": {
+    "pgmName": "FYUGP BA Economics",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  "bachelorofartsineconomicswithcreditsregularfyugp2025economicsbayearisemesteri": {
+    "pgmName": "FYUGP BA Economics(Mathematical Economics))",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in economics(with credits)-regular-fyugp-2025-economics-ba year i semester i": {
+    "pgmName": "FYUGP BA Economics(Mathematical Economics))",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  "ucaecogs25": {
+    "pgmName": "FYUGP BA Economics(Mathematical Economics))",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  "fyugpbaenglish": {
+    "pgmName": "FYUGP BA English",
+    "code": "UCAENGGS25",
+    "workflowId": "77",
+    "name": "Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year I SEMESTER I"
+  },
+  "fyugp ba english": {
+    "pgmName": "FYUGP BA English",
+    "code": "UCAENGGS25",
+    "workflowId": "77",
+    "name": "Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinenglishwithcreditsregularfyugp2025englishbayearisemesteri": {
+    "pgmName": "FYUGP BA English",
+    "code": "UCAENGGS25",
+    "workflowId": "77",
+    "name": "Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in english(with credits)-regular-fyugp-2025-english-ba year i semester i": {
+    "pgmName": "FYUGP BA English",
+    "code": "UCAENGGS25",
+    "workflowId": "77",
+    "name": "Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year I SEMESTER I"
+  },
+  "ucaenggs25": {
+    "pgmName": "FYUGP BA English",
+    "code": "UCAENGGS25",
+    "workflowId": "77",
+    "name": "Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year I SEMESTER I"
+  },
+  "fyugpbahistory": {
+    "pgmName": "FYUGP BA History",
+    "code": "UCAHISGS25",
+    "workflowId": "81",
+    "name": "Bachelor of Arts in History(with Credits)-Regular-FYUGP-2025-History-BA Year I SEMESTER I"
+  },
+  "fyugp ba history": {
+    "pgmName": "FYUGP BA History",
+    "code": "UCAHISGS25",
+    "workflowId": "81",
+    "name": "Bachelor of Arts in History(with Credits)-Regular-FYUGP-2025-History-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinhistorywithcreditsregularfyugp2025historybayearisemesteri": {
+    "pgmName": "FYUGP BA History",
+    "code": "UCAHISGS25",
+    "workflowId": "81",
+    "name": "Bachelor of Arts in History(with Credits)-Regular-FYUGP-2025-History-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in history(with credits)-regular-fyugp-2025-history-ba year i semester i": {
+    "pgmName": "FYUGP BA History",
+    "code": "UCAHISGS25",
+    "workflowId": "81",
+    "name": "Bachelor of Arts in History(with Credits)-Regular-FYUGP-2025-History-BA Year I SEMESTER I"
+  },
+  "ucahisgs25": {
+    "pgmName": "FYUGP BA History",
+    "code": "UCAHISGS25",
+    "workflowId": "81",
+    "name": "Bachelor of Arts in History(with Credits)-Regular-FYUGP-2025-History-BA Year I SEMESTER I"
+  },
+  "fyugpbscchemistry": {
+    "pgmName": "FYUGP BSc Chemistry",
+    "code": "UCSCHEGS25",
+    "workflowId": "133",
+    "name": "Bachelor of  Science  in Chemistry(with Credits)-Regular-FYUGP-2025-Chemistry-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc chemistry": {
+    "pgmName": "FYUGP BSc Chemistry",
+    "code": "UCSCHEGS25",
+    "workflowId": "133",
+    "name": "Bachelor of  Science  in Chemistry(with Credits)-Regular-FYUGP-2025-Chemistry-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinchemistrywithcreditsregularfyugp2025chemistrybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Chemistry",
+    "code": "UCSCHEGS25",
+    "workflowId": "133",
+    "name": "Bachelor of  Science  in Chemistry(with Credits)-Regular-FYUGP-2025-Chemistry-BSc Year I SEMESTER I"
+  },
+  "bachelor of  science  in chemistry(with credits)-regular-fyugp-2025-chemistry-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Chemistry",
+    "code": "UCSCHEGS25",
+    "workflowId": "133",
+    "name": "Bachelor of  Science  in Chemistry(with Credits)-Regular-FYUGP-2025-Chemistry-BSc Year I SEMESTER I"
+  },
+  "ucschegs25": {
+    "pgmName": "FYUGP BSc Chemistry",
+    "code": "UCSCHEGS25",
+    "workflowId": "133",
+    "name": "Bachelor of  Science  in Chemistry(with Credits)-Regular-FYUGP-2025-Chemistry-BSc Year I SEMESTER I"
+  },
+  "fyugpbsccomputerscience": {
+    "pgmName": "FYUGP BSc Computer Science",
+    "code": "UCSCSCGS25",
+    "workflowId": "110",
+    "name": "Bachelor of Science in Computer Science (with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc computer science": {
+    "pgmName": "FYUGP BSc Computer Science",
+    "code": "UCSCSCGS25",
+    "workflowId": "110",
+    "name": "Bachelor of Science in Computer Science (with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceincomputersciencewithcreditsregularfyugp2025computersciencebscyearisemesteri": {
+    "pgmName": "FYUGP BSc Computer Science",
+    "code": "UCSCSCGS25",
+    "workflowId": "110",
+    "name": "Bachelor of Science in Computer Science (with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in computer science (with credits)-regular-fyugp-2025-computer science-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Computer Science",
+    "code": "UCSCSCGS25",
+    "workflowId": "110",
+    "name": "Bachelor of Science in Computer Science (with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "ucscscgs25": {
+    "pgmName": "FYUGP BSc Computer Science",
+    "code": "UCSCSCGS25",
+    "workflowId": "110",
+    "name": "Bachelor of Science in Computer Science (with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "fyugpbscgeology": {
+    "pgmName": "FYUGP BSc Geology",
+    "code": "UCSGELGS25",
+    "workflowId": "118",
+    "name": "Bachelor of Science in Geology(with Credits)-Regular-FYUGP-2025-Geology-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc geology": {
+    "pgmName": "FYUGP BSc Geology",
+    "code": "UCSGELGS25",
+    "workflowId": "118",
+    "name": "Bachelor of Science in Geology(with Credits)-Regular-FYUGP-2025-Geology-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceingeologywithcreditsregularfyugp2025geologybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Geology",
+    "code": "UCSGELGS25",
+    "workflowId": "118",
+    "name": "Bachelor of Science in Geology(with Credits)-Regular-FYUGP-2025-Geology-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in geology(with credits)-regular-fyugp-2025-geology-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Geology",
+    "code": "UCSGELGS25",
+    "workflowId": "118",
+    "name": "Bachelor of Science in Geology(with Credits)-Regular-FYUGP-2025-Geology-BSc Year I SEMESTER I"
+  },
+  "ucsgelgs25": {
+    "pgmName": "FYUGP BSc Geology",
+    "code": "UCSGELGS25",
+    "workflowId": "118",
+    "name": "Bachelor of Science in Geology(with Credits)-Regular-FYUGP-2025-Geology-BSc Year I SEMESTER I"
+  },
+  "fyugpbscmathematics": {
+    "pgmName": "FYUGP BSc Mathematics",
+    "code": "UCSMATGS25",
+    "workflowId": "122",
+    "name": "Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2025-Mathematics-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc mathematics": {
+    "pgmName": "FYUGP BSc Mathematics",
+    "code": "UCSMATGS25",
+    "workflowId": "122",
+    "name": "Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2025-Mathematics-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinmathematicswithcreditsregularfyugp2025mathematicsbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Mathematics",
+    "code": "UCSMATGS25",
+    "workflowId": "122",
+    "name": "Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2025-Mathematics-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in mathematics(with credits)-regular-fyugp-2025-mathematics-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Mathematics",
+    "code": "UCSMATGS25",
+    "workflowId": "122",
+    "name": "Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2025-Mathematics-BSc Year I SEMESTER I"
+  },
+  "ucsmatgs25": {
+    "pgmName": "FYUGP BSc Mathematics",
+    "code": "UCSMATGS25",
+    "workflowId": "122",
+    "name": "Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2025-Mathematics-BSc Year I SEMESTER I"
+  },
+  "fyugpbscphysics": {
+    "pgmName": "FYUGP BSc Physics",
+    "code": "UCSPHYGS25",
+    "workflowId": "134",
+    "name": "Bachelor of  Science in Physics(with Credits)-Regular-FYUGP-2025-Physics-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc physics": {
+    "pgmName": "FYUGP BSc Physics",
+    "code": "UCSPHYGS25",
+    "workflowId": "134",
+    "name": "Bachelor of  Science in Physics(with Credits)-Regular-FYUGP-2025-Physics-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinphysicswithcreditsregularfyugp2025physicsbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Physics",
+    "code": "UCSPHYGS25",
+    "workflowId": "134",
+    "name": "Bachelor of  Science in Physics(with Credits)-Regular-FYUGP-2025-Physics-BSc Year I SEMESTER I"
+  },
+  "bachelor of  science in physics(with credits)-regular-fyugp-2025-physics-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Physics",
+    "code": "UCSPHYGS25",
+    "workflowId": "134",
+    "name": "Bachelor of  Science in Physics(with Credits)-Regular-FYUGP-2025-Physics-BSc Year I SEMESTER I"
+  },
+  "ucsphygs25": {
+    "pgmName": "FYUGP BSc Physics",
+    "code": "UCSPHYGS25",
+    "workflowId": "134",
+    "name": "Bachelor of  Science in Physics(with Credits)-Regular-FYUGP-2025-Physics-BSc Year I SEMESTER I"
+  },
+  "fyugpbsczoology": {
+    "pgmName": "FYUGP BSc Zoology",
+    "code": "UCSZLYGS25",
+    "workflowId": "129",
+    "name": "Bachelor of Science in Zoology(with Credits)-Regular-FYUGP-2025-Zoology-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc zoology": {
+    "pgmName": "FYUGP BSc Zoology",
+    "code": "UCSZLYGS25",
+    "workflowId": "129",
+    "name": "Bachelor of Science in Zoology(with Credits)-Regular-FYUGP-2025-Zoology-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinzoologywithcreditsregularfyugp2025zoologybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Zoology",
+    "code": "UCSZLYGS25",
+    "workflowId": "129",
+    "name": "Bachelor of Science in Zoology(with Credits)-Regular-FYUGP-2025-Zoology-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in zoology(with credits)-regular-fyugp-2025-zoology-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Zoology",
+    "code": "UCSZLYGS25",
+    "workflowId": "129",
+    "name": "Bachelor of Science in Zoology(with Credits)-Regular-FYUGP-2025-Zoology-BSc Year I SEMESTER I"
+  },
+  "ucszlygs25": {
+    "pgmName": "FYUGP BSc Zoology",
+    "code": "UCSZLYGS25",
+    "workflowId": "129",
+    "name": "Bachelor of Science in Zoology(with Credits)-Regular-FYUGP-2025-Zoology-BSc Year I SEMESTER I"
+  },
+  "fyugpbafunctionalenglish": {
+    "pgmName": "FYUGP BA Functional English",
+    "code": "UCAFENGS25",
+    "workflowId": "78",
+    "name": "Bachelor of Arts in Functional English(with Credits)-Regular-FYUGP-2025-Functional English-BA Year I SEMESTER I"
+  },
+  "fyugp ba functional english": {
+    "pgmName": "FYUGP BA Functional English",
+    "code": "UCAFENGS25",
+    "workflowId": "78",
+    "name": "Bachelor of Arts in Functional English(with Credits)-Regular-FYUGP-2025-Functional English-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinfunctionalenglishwithcreditsregularfyugp2025functionalenglishbayearisemesteri": {
+    "pgmName": "FYUGP BA Functional English",
+    "code": "UCAFENGS25",
+    "workflowId": "78",
+    "name": "Bachelor of Arts in Functional English(with Credits)-Regular-FYUGP-2025-Functional English-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in functional english(with credits)-regular-fyugp-2025-functional english-ba year i semester i": {
+    "pgmName": "FYUGP BA Functional English",
+    "code": "UCAFENGS25",
+    "workflowId": "78",
+    "name": "Bachelor of Arts in Functional English(with Credits)-Regular-FYUGP-2025-Functional English-BA Year I SEMESTER I"
+  },
+  "ucafengs25": {
+    "pgmName": "FYUGP BA Functional English",
+    "code": "UCAFENGS25",
+    "workflowId": "78",
+    "name": "Bachelor of Arts in Functional English(with Credits)-Regular-FYUGP-2025-Functional English-BA Year I SEMESTER I"
+  },
+  "fyugpbamalayalam": {
+    "pgmName": "FYUGP BA Malayalam",
+    "code": "UCAMALGS25",
+    "workflowId": "83",
+    "name": "Bachelor of Arts in Malayalam(with Credits)-Regular-FYUGP-2025-Malayalam-BA Year I SEMESTER I"
+  },
+  "fyugp ba malayalam": {
+    "pgmName": "FYUGP BA Malayalam",
+    "code": "UCAMALGS25",
+    "workflowId": "83",
+    "name": "Bachelor of Arts in Malayalam(with Credits)-Regular-FYUGP-2025-Malayalam-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinmalayalamwithcreditsregularfyugp2025malayalambayearisemesteri": {
+    "pgmName": "FYUGP BA Malayalam",
+    "code": "UCAMALGS25",
+    "workflowId": "83",
+    "name": "Bachelor of Arts in Malayalam(with Credits)-Regular-FYUGP-2025-Malayalam-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in malayalam(with credits)-regular-fyugp-2025-malayalam-ba year i semester i": {
+    "pgmName": "FYUGP BA Malayalam",
+    "code": "UCAMALGS25",
+    "workflowId": "83",
+    "name": "Bachelor of Arts in Malayalam(with Credits)-Regular-FYUGP-2025-Malayalam-BA Year I SEMESTER I"
+  },
+  "ucamalgs25": {
+    "pgmName": "FYUGP BA Malayalam",
+    "code": "UCAMALGS25",
+    "workflowId": "83",
+    "name": "Bachelor of Arts in Malayalam(with Credits)-Regular-FYUGP-2025-Malayalam-BA Year I SEMESTER I"
+  },
+  "fyugpbaeconomicsmathematicaleconomics": {
+    "pgmName": "FYUGP BA Economics(Mathematical Economics))",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  "fyugp ba economics(mathematical economics))": {
+    "pgmName": "FYUGP BA Economics(Mathematical Economics))",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
+  },
+  "fyugpbahindi": {
+    "pgmName": "FYUGP BA Hindi",
+    "code": "UCAHINGS25",
+    "workflowId": "80",
+    "name": "Bachelor of Arts in Hindi(with Credits)-Regular-FYUGP-2025-Hindi-BA Year I SEMESTER I"
+  },
+  "fyugp ba hindi": {
+    "pgmName": "FYUGP BA Hindi",
+    "code": "UCAHINGS25",
+    "workflowId": "80",
+    "name": "Bachelor of Arts in Hindi(with Credits)-Regular-FYUGP-2025-Hindi-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinhindiwithcreditsregularfyugp2025hindibayearisemesteri": {
+    "pgmName": "FYUGP BA Hindi",
+    "code": "UCAHINGS25",
+    "workflowId": "80",
+    "name": "Bachelor of Arts in Hindi(with Credits)-Regular-FYUGP-2025-Hindi-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in hindi(with credits)-regular-fyugp-2025-hindi-ba year i semester i": {
+    "pgmName": "FYUGP BA Hindi",
+    "code": "UCAHINGS25",
+    "workflowId": "80",
+    "name": "Bachelor of Arts in Hindi(with Credits)-Regular-FYUGP-2025-Hindi-BA Year I SEMESTER I"
+  },
+  "ucahings25": {
+    "pgmName": "FYUGP BA Hindi",
+    "code": "UCAHINGS25",
+    "workflowId": "80",
+    "name": "Bachelor of Arts in Hindi(with Credits)-Regular-FYUGP-2025-Hindi-BA Year I SEMESTER I"
+  },
+  "fyugpbaurduandislamichistory": {
+    "pgmName": "FYUGP BA Urdu and Islamic History",
+    "code": "UCAURDISHGS25",
+    "workflowId": "89",
+    "name": "Bachelor of Arts in Urdu and Islamic History(with Credits)-Regular-FYUGP-2025-Urdu and Islamic History-BA Year I SEMESTER I"
+  },
+  "fyugp ba urdu and islamic history": {
+    "pgmName": "FYUGP BA Urdu and Islamic History",
+    "code": "UCAURDISHGS25",
+    "workflowId": "89",
+    "name": "Bachelor of Arts in Urdu and Islamic History(with Credits)-Regular-FYUGP-2025-Urdu and Islamic History-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinurduandislamichistorywithcreditsregularfyugp2025urduandislamichistorybayearisemesteri": {
+    "pgmName": "FYUGP BA Urdu and Islamic History",
+    "code": "UCAURDISHGS25",
+    "workflowId": "89",
+    "name": "Bachelor of Arts in Urdu and Islamic History(with Credits)-Regular-FYUGP-2025-Urdu and Islamic History-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in urdu and islamic history(with credits)-regular-fyugp-2025-urdu and islamic history-ba year i semester i": {
+    "pgmName": "FYUGP BA Urdu and Islamic History",
+    "code": "UCAURDISHGS25",
+    "workflowId": "89",
+    "name": "Bachelor of Arts in Urdu and Islamic History(with Credits)-Regular-FYUGP-2025-Urdu and Islamic History-BA Year I SEMESTER I"
+  },
+  "ucaurdishgs25": {
+    "pgmName": "FYUGP BA Urdu and Islamic History",
+    "code": "UCAURDISHGS25",
+    "workflowId": "89",
+    "name": "Bachelor of Arts in Urdu and Islamic History(with Credits)-Regular-FYUGP-2025-Urdu and Islamic History-BA Year I SEMESTER I"
+  },
+  "fyugpbapoliticalscience": {
+    "pgmName": "FYUGP BA Political Science",
+    "code": "UCAPOSGS25",
+    "workflowId": "85",
+    "name": "Bachelor of Arts in Political Science(with Credits)-Regular-FYUGP-2025-Political Science-BA SEMESTER I"
+  },
+  "fyugp ba political science": {
+    "pgmName": "FYUGP BA Political Science",
+    "code": "UCAPOSGS25",
+    "workflowId": "85",
+    "name": "Bachelor of Arts in Political Science(with Credits)-Regular-FYUGP-2025-Political Science-BA SEMESTER I"
+  },
+  "bachelorofartsinpoliticalsciencewithcreditsregularfyugp2025politicalsciencebasemesteri": {
+    "pgmName": "FYUGP BA Political Science",
+    "code": "UCAPOSGS25",
+    "workflowId": "85",
+    "name": "Bachelor of Arts in Political Science(with Credits)-Regular-FYUGP-2025-Political Science-BA SEMESTER I"
+  },
+  "bachelor of arts in political science(with credits)-regular-fyugp-2025-political science-ba semester i": {
+    "pgmName": "FYUGP BA Political Science",
+    "code": "UCAPOSGS25",
+    "workflowId": "85",
+    "name": "Bachelor of Arts in Political Science(with Credits)-Regular-FYUGP-2025-Political Science-BA SEMESTER I"
+  },
+  "ucaposgs25": {
+    "pgmName": "FYUGP BA Political Science",
+    "code": "UCAPOSGS25",
+    "workflowId": "85",
+    "name": "Bachelor of Arts in Political Science(with Credits)-Regular-FYUGP-2025-Political Science-BA SEMESTER I"
+  },
+  "fyugpbasanskrit": {
+    "pgmName": "FYUGP BA Sanskrit",
+    "code": "UCASANGS25",
+    "workflowId": "86",
+    "name": "Bachelor of Arts in Sanskrit(with Credits)-Regular-FYUGP-2025-Sanskrit-BA Year I SEMESTER I"
+  },
+  "fyugp ba sanskrit": {
+    "pgmName": "FYUGP BA Sanskrit",
+    "code": "UCASANGS25",
+    "workflowId": "86",
+    "name": "Bachelor of Arts in Sanskrit(with Credits)-Regular-FYUGP-2025-Sanskrit-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinsanskritwithcreditsregularfyugp2025sanskritbayearisemesteri": {
+    "pgmName": "FYUGP BA Sanskrit",
+    "code": "UCASANGS25",
+    "workflowId": "86",
+    "name": "Bachelor of Arts in Sanskrit(with Credits)-Regular-FYUGP-2025-Sanskrit-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in sanskrit(with credits)-regular-fyugp-2025-sanskrit-ba year i semester i": {
+    "pgmName": "FYUGP BA Sanskrit",
+    "code": "UCASANGS25",
+    "workflowId": "86",
+    "name": "Bachelor of Arts in Sanskrit(with Credits)-Regular-FYUGP-2025-Sanskrit-BA Year I SEMESTER I"
+  },
+  "ucasangs25": {
+    "pgmName": "FYUGP BA Sanskrit",
+    "code": "UCASANGS25",
+    "workflowId": "86",
+    "name": "Bachelor of Arts in Sanskrit(with Credits)-Regular-FYUGP-2025-Sanskrit-BA Year I SEMESTER I"
+  },
+  "fyugpbscstatistics": {
+    "pgmName": "FYUGP BSc Statistics",
+    "code": "UCSSTAGS25",
+    "workflowId": "128",
+    "name": "Bachelor of Science in Statistics(with Credits)-Regular-FYUGP-2025-Statistics-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc statistics": {
+    "pgmName": "FYUGP BSc Statistics",
+    "code": "UCSSTAGS25",
+    "workflowId": "128",
+    "name": "Bachelor of Science in Statistics(with Credits)-Regular-FYUGP-2025-Statistics-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinstatisticswithcreditsregularfyugp2025statisticsbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Statistics",
+    "code": "UCSSTAGS25",
+    "workflowId": "128",
+    "name": "Bachelor of Science in Statistics(with Credits)-Regular-FYUGP-2025-Statistics-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in statistics(with credits)-regular-fyugp-2025-statistics-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Statistics",
+    "code": "UCSSTAGS25",
+    "workflowId": "128",
+    "name": "Bachelor of Science in Statistics(with Credits)-Regular-FYUGP-2025-Statistics-BSc Year I SEMESTER I"
+  },
+  "ucsstags25": {
+    "pgmName": "FYUGP BSc Statistics",
+    "code": "UCSSTAGS25",
+    "workflowId": "128",
+    "name": "Bachelor of Science in Statistics(with Credits)-Regular-FYUGP-2025-Statistics-BSc Year I SEMESTER I"
+  },
+  "fyugpbbabusinessadministration": {
+    "pgmName": "FYUGP BBA Business Administration",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "fyugp bba business administration": {
+    "pgmName": "FYUGP BBA Business Administration",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "bachelorofbusinessadministrationwithcreditsregularfyugp2025businessadministrationbbayearisemesteri": {
+    "pgmName": "FYUGP BBA Business Administration(Un-Aided)",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "bachelor of business administration(with credits)-regular-fyugp-2025-business administration-bba year i semester i": {
+    "pgmName": "FYUGP BBA Business Administration(Un-Aided)",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "uccaamgs25": {
+    "pgmName": "FYUGP BBA Aviation & Airport Management",
+    "code": "UCCAAMGS25",
+    "workflowId": "92",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation and Airport Management-BBA Year I SEMESTER I"
+  },
+  "fyugpbsccomputationalmathematics": {
+    "pgmName": "FYUGP BSc Computational Mathematics",
+    "code": "UCSCLMGS25",
+    "workflowId": "109",
+    "name": "Bachelor of Science in Computational Mathematics(with Credits)-Regular-FYUGP-2025-Computational Mathematics-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc computational mathematics": {
+    "pgmName": "FYUGP BSc Computational Mathematics",
+    "code": "UCSCLMGS25",
+    "workflowId": "109",
+    "name": "Bachelor of Science in Computational Mathematics(with Credits)-Regular-FYUGP-2025-Computational Mathematics-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceincomputationalmathematicswithcreditsregularfyugp2025computationalmathematicsbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Computational Mathematics",
+    "code": "UCSCLMGS25",
+    "workflowId": "109",
+    "name": "Bachelor of Science in Computational Mathematics(with Credits)-Regular-FYUGP-2025-Computational Mathematics-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in computational mathematics(with credits)-regular-fyugp-2025-computational mathematics-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Computational Mathematics",
+    "code": "UCSCLMGS25",
+    "workflowId": "109",
+    "name": "Bachelor of Science in Computational Mathematics(with Credits)-Regular-FYUGP-2025-Computational Mathematics-BSc Year I SEMESTER I"
+  },
+  "ucsclmgs25": {
+    "pgmName": "FYUGP BSc Computational Mathematics",
+    "code": "UCSCLMGS25",
+    "workflowId": "109",
+    "name": "Bachelor of Science in Computational Mathematics(with Credits)-Regular-FYUGP-2025-Computational Mathematics-BSc Year I SEMESTER I"
+  },
+  "fyugpbaarabicandislamichistory": {
+    "pgmName": "FYUGP BA Arabic and Islamic History",
+    "code": "UCAARBISHGS25",
+    "workflowId": "71",
+    "name": "Bachelor of Arts in Arabic and Islamic History(with Credits)-Regular-FYUGP-2025-Arabic and Islamic History-BA Year I SEMESTER I"
+  },
+  "fyugp ba arabic and islamic history": {
+    "pgmName": "FYUGP BA Arabic and Islamic History",
+    "code": "UCAARBISHGS25",
+    "workflowId": "71",
+    "name": "Bachelor of Arts in Arabic and Islamic History(with Credits)-Regular-FYUGP-2025-Arabic and Islamic History-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinarabicandislamichistorywithcreditsregularfyugp2025arabicandislamichistorybayearisemesteri": {
+    "pgmName": "FYUGP BA Arabic and Islamic History",
+    "code": "UCAARBISHGS25",
+    "workflowId": "71",
+    "name": "Bachelor of Arts in Arabic and Islamic History(with Credits)-Regular-FYUGP-2025-Arabic and Islamic History-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in arabic and islamic history(with credits)-regular-fyugp-2025-arabic and islamic history-ba year i semester i": {
+    "pgmName": "FYUGP BA Arabic and Islamic History",
+    "code": "UCAARBISHGS25",
+    "workflowId": "71",
+    "name": "Bachelor of Arts in Arabic and Islamic History(with Credits)-Regular-FYUGP-2025-Arabic and Islamic History-BA Year I SEMESTER I"
+  },
+  "ucaarbishgs25": {
+    "pgmName": "FYUGP BA Arabic and Islamic History",
+    "code": "UCAARBISHGS25",
+    "workflowId": "71",
+    "name": "Bachelor of Arts in Arabic and Islamic History(with Credits)-Regular-FYUGP-2025-Arabic and Islamic History-BA Year I SEMESTER I"
+  },
+  "fyugpbcacomputerapplications": {
+    "pgmName": "FYUGP BCA Computer Applications",
+    "code": "UCSBCAGS25",
+    "workflowId": "104",
+    "name": "Bachelor of Computer Application(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "fyugp bca computer applications": {
+    "pgmName": "FYUGP BCA Computer Applications",
+    "code": "UCSBCAGS25",
+    "workflowId": "104",
+    "name": "Bachelor of Computer Application(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "bachelorofcomputerapplicationwithcreditsregularfyugp2025computerapplicationbcayearisemesteri": {
+    "pgmName": "FYUGP BCA Computer Applications",
+    "code": "UCSBCAGS25",
+    "workflowId": "104",
+    "name": "Bachelor of Computer Application(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "bachelor of computer application(with credits)-regular-fyugp-2025-computer application-bca year i semester i": {
+    "pgmName": "FYUGP BCA Computer Applications",
+    "code": "UCSBCAGS25",
+    "workflowId": "104",
+    "name": "Bachelor of Computer Application(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "ucsbcags25": {
+    "pgmName": "FYUGP BCA Computer Applications",
+    "code": "UCSBCAGS25",
+    "workflowId": "104",
+    "name": "Bachelor of Computer Application(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "fyugpbadevelopmenteconomics": {
+    "pgmName": "FYUGP BA Development Economics",
+    "code": "UCADECGS25",
+    "workflowId": "75",
+    "name": "Bachelor of Arts in Development Economics(with Credits)-Regular-FYUGP-2025-Development Economics-BA Year I SEMESTER I"
+  },
+  "fyugp ba development economics": {
+    "pgmName": "FYUGP BA Development Economics",
+    "code": "UCADECGS25",
+    "workflowId": "75",
+    "name": "Bachelor of Arts in Development Economics(with Credits)-Regular-FYUGP-2025-Development Economics-BA Year I SEMESTER I"
+  },
+  "bachelorofartsindevelopmenteconomicswithcreditsregularfyugp2025developmenteconomicsbayearisemesteri": {
+    "pgmName": "FYUGP BA Development Economics",
+    "code": "UCADECGS25",
+    "workflowId": "75",
+    "name": "Bachelor of Arts in Development Economics(with Credits)-Regular-FYUGP-2025-Development Economics-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in development economics(with credits)-regular-fyugp-2025-development economics-ba year i semester i": {
+    "pgmName": "FYUGP BA Development Economics",
+    "code": "UCADECGS25",
+    "workflowId": "75",
+    "name": "Bachelor of Arts in Development Economics(with Credits)-Regular-FYUGP-2025-Development Economics-BA Year I SEMESTER I"
+  },
+  "ucadecgs25": {
+    "pgmName": "FYUGP BA Development Economics",
+    "code": "UCADECGS25",
+    "workflowId": "75",
+    "name": "Bachelor of Arts in Development Economics(with Credits)-Regular-FYUGP-2025-Development Economics-BA Year I SEMESTER I"
+  },
+  "fyugpbsclifescienceszoologycomputationalbiology": {
+    "pgmName": "FYUGP BSc Life Sciences(Zoology) & Computational Biology",
+    "code": "UCSZCBGS25",
+    "workflowId": "121",
+    "name": "Bachelor of Science in Life Sciences (Zoology ) & Computational Biology(with Credits)-Regular-FYUGP-2025-Life Sciences(Zoology) & Computational Biology-BSC Year I SEMESTER I"
+  },
+  "fyugp bsc life sciences(zoology) & computational biology": {
+    "pgmName": "FYUGP BSc Life Sciences(Zoology) & Computational Biology",
+    "code": "UCSZCBGS25",
+    "workflowId": "121",
+    "name": "Bachelor of Science in Life Sciences (Zoology ) & Computational Biology(with Credits)-Regular-FYUGP-2025-Life Sciences(Zoology) & Computational Biology-BSC Year I SEMESTER I"
+  },
+  "bachelorofscienceinlifescienceszoologycomputationalbiologywithcreditsregularfyugp2025lifescienceszoologycomputationalbiologybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Life Sciences(Zoology) & Computational Biology",
+    "code": "UCSZCBGS25",
+    "workflowId": "121",
+    "name": "Bachelor of Science in Life Sciences (Zoology ) & Computational Biology(with Credits)-Regular-FYUGP-2025-Life Sciences(Zoology) & Computational Biology-BSC Year I SEMESTER I"
+  },
+  "bachelor of science in life sciences (zoology ) & computational biology(with credits)-regular-fyugp-2025-life sciences(zoology) & computational biology-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Life Sciences(Zoology) & Computational Biology",
+    "code": "UCSZCBGS25",
+    "workflowId": "121",
+    "name": "Bachelor of Science in Life Sciences (Zoology ) & Computational Biology(with Credits)-Regular-FYUGP-2025-Life Sciences(Zoology) & Computational Biology-BSC Year I SEMESTER I"
+  },
+  "ucszcbgs25": {
+    "pgmName": "FYUGP BSc Life Sciences(Zoology) & Computational Biology",
+    "code": "UCSZCBGS25",
+    "workflowId": "121",
+    "name": "Bachelor of Science in Life Sciences (Zoology ) & Computational Biology(with Credits)-Regular-FYUGP-2025-Life Sciences(Zoology) & Computational Biology-BSC Year I SEMESTER I"
+  },
+  "fyugpbscbotany": {
+    "pgmName": "FYUGP BSc Botany",
+    "code": "UCSBOTGS25",
+    "workflowId": "108",
+    "name": "Bachelor of Science in Botany(with Credits)-Regular-FYUGP-2025-Botany-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc botany": {
+    "pgmName": "FYUGP BSc Botany",
+    "code": "UCSBOTGS25",
+    "workflowId": "108",
+    "name": "Bachelor of Science in Botany(with Credits)-Regular-FYUGP-2025-Botany-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinbotanywithcreditsregularfyugp2025botanybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Botany",
+    "code": "UCSBOTGS25",
+    "workflowId": "108",
+    "name": "Bachelor of Science in Botany(with Credits)-Regular-FYUGP-2025-Botany-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in botany(with credits)-regular-fyugp-2025-botany-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Botany",
+    "code": "UCSBOTGS25",
+    "workflowId": "108",
+    "name": "Bachelor of Science in Botany(with Credits)-Regular-FYUGP-2025-Botany-BSc Year I SEMESTER I"
+  },
+  "ucsbotgs25": {
+    "pgmName": "FYUGP BSc Botany",
+    "code": "UCSBOTGS25",
+    "workflowId": "108",
+    "name": "Bachelor of Science in Botany(with Credits)-Regular-FYUGP-2025-Botany-BSc Year I SEMESTER I"
+  },
+  "fyugpbcomfinance": {
+    "pgmName": "FYUGP BCom Finance",
+    "code": "UCCCFNGS25",
+    "workflowId": "100",
+    "name": "Bachelor of Commerce(Finance)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugp bcom finance": {
+    "pgmName": "FYUGP BCom Finance",
+    "code": "UCCCFNGS25",
+    "workflowId": "100",
+    "name": "Bachelor of Commerce(Finance)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelorofcommercefinancewithcreditsregularfyugp2025commercebcomyearisemesteri": {
+    "pgmName": "FYUGP BCom Finance",
+    "code": "UCCCFNGS25",
+    "workflowId": "100",
+    "name": "Bachelor of Commerce(Finance)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelor of commerce(finance)(with credits)-regular-fyugp-2025-commerce-bcom year i semester i": {
+    "pgmName": "FYUGP BCom Finance",
+    "code": "UCCCFNGS25",
+    "workflowId": "100",
+    "name": "Bachelor of Commerce(Finance)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "ucccfngs25": {
+    "pgmName": "FYUGP BCom Finance",
+    "code": "UCCCFNGS25",
+    "workflowId": "100",
+    "name": "Bachelor of Commerce(Finance)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugpbscmicrobiology": {
+    "pgmName": "FYUGP BSc Microbiology",
+    "code": "UCSMBGGS25",
+    "workflowId": "123",
+    "name": "Bachelor of Science in Microbiology(with Credits)-Regular-FYUGP-2025-Microbiology-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc microbiology": {
+    "pgmName": "FYUGP BSc Microbiology",
+    "code": "UCSMBGGS25",
+    "workflowId": "123",
+    "name": "Bachelor of Science in Microbiology(with Credits)-Regular-FYUGP-2025-Microbiology-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinmicrobiologywithcreditsregularfyugp2025microbiologybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Microbiology",
+    "code": "UCSMBGGS25",
+    "workflowId": "123",
+    "name": "Bachelor of Science in Microbiology(with Credits)-Regular-FYUGP-2025-Microbiology-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in microbiology(with credits)-regular-fyugp-2025-microbiology-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Microbiology",
+    "code": "UCSMBGGS25",
+    "workflowId": "123",
+    "name": "Bachelor of Science in Microbiology(with Credits)-Regular-FYUGP-2025-Microbiology-BSc Year I SEMESTER I"
+  },
+  "ucsmbggs25": {
+    "pgmName": "FYUGP BSc Microbiology",
+    "code": "UCSMBGGS25",
+    "workflowId": "123",
+    "name": "Bachelor of Science in Microbiology(with Credits)-Regular-FYUGP-2025-Microbiology-BSc Year I SEMESTER I"
+  },
+  "fyugpbscpolymerchemistry": {
+    "pgmName": "FYUGP BSc Polymer Chemistry",
+    "code": "UCSPLCGS25",
+    "workflowId": "125",
+    "name": "Bachelor of Science in Polymer Chemistry(with Credits)-Regular-FYUGP-2025-Polymer Chemistry-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc polymer chemistry": {
+    "pgmName": "FYUGP BSc Polymer Chemistry",
+    "code": "UCSPLCGS25",
+    "workflowId": "125",
+    "name": "Bachelor of Science in Polymer Chemistry(with Credits)-Regular-FYUGP-2025-Polymer Chemistry-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinpolymerchemistrywithcreditsregularfyugp2025polymerchemistrybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Polymer Chemistry",
+    "code": "UCSPLCGS25",
+    "workflowId": "125",
+    "name": "Bachelor of Science in Polymer Chemistry(with Credits)-Regular-FYUGP-2025-Polymer Chemistry-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in polymer chemistry(with credits)-regular-fyugp-2025-polymer chemistry-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Polymer Chemistry",
+    "code": "UCSPLCGS25",
+    "workflowId": "125",
+    "name": "Bachelor of Science in Polymer Chemistry(with Credits)-Regular-FYUGP-2025-Polymer Chemistry-BSc Year I SEMESTER I"
+  },
+  "ucsplcgs25": {
+    "pgmName": "FYUGP BSc Polymer Chemistry",
+    "code": "UCSPLCGS25",
+    "workflowId": "125",
+    "name": "Bachelor of Science in Polymer Chemistry(with Credits)-Regular-FYUGP-2025-Polymer Chemistry-BSc Year I SEMESTER I"
+  },
+  "fyugpbbabusinessadministrationunaided": {
+    "pgmName": "FYUGP BBA Business Administration(Un-Aided)",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "fyugp bba business administration(un-aided)": {
+    "pgmName": "FYUGP BBA Business Administration(Un-Aided)",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "fyugpbcomwithcomputerapplication": {
+    "pgmName": "FYUGP BCom with Computer Application",
+    "code": "UCCCOMCAGS25",
+    "workflowId": "97",
+    "name": "Bachelor of Commerce(Computer Application)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugp bcom with computer application": {
+    "pgmName": "FYUGP BCom with Computer Application",
+    "code": "UCCCOMCAGS25",
+    "workflowId": "97",
+    "name": "Bachelor of Commerce(Computer Application)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelorofcommercecomputerapplicationwithcreditsregularfyugp2025commercebcomyearisemesteri": {
+    "pgmName": "FYUGP BCom with Computer Application",
+    "code": "UCCCOMCAGS25",
+    "workflowId": "97",
+    "name": "Bachelor of Commerce(Computer Application)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelor of commerce(computer application)(with credits)-regular-fyugp-2025-commerce-bcom year i semester i": {
+    "pgmName": "FYUGP BCom with Computer Application",
+    "code": "UCCCOMCAGS25",
+    "workflowId": "97",
+    "name": "Bachelor of Commerce(Computer Application)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "ucccomcags25": {
+    "pgmName": "FYUGP BCom with Computer Application",
+    "code": "UCCCOMCAGS25",
+    "workflowId": "97",
+    "name": "Bachelor of Commerce(Computer Application)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugpbasocialscienceseconomics": {
+    "pgmName": "FYUGP BA Social Sciences - Economics",
+    "code": "UCASSEGS25",
+    "workflowId": "88",
+    "name": "Bachelor of Arts in Social Science-Economics(with Credits)-Regular-FYUGP-2025-Social Science-Economics-BA Year I SEMESTER I"
+  },
+  "fyugp ba social sciences - economics": {
+    "pgmName": "FYUGP BA Social Sciences - Economics",
+    "code": "UCASSEGS25",
+    "workflowId": "88",
+    "name": "Bachelor of Arts in Social Science-Economics(with Credits)-Regular-FYUGP-2025-Social Science-Economics-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinsocialscienceeconomicswithcreditsregularfyugp2025socialscienceeconomicsbayearisemesteri": {
+    "pgmName": "FYUGP BA Social Sciences - Economics",
+    "code": "UCASSEGS25",
+    "workflowId": "88",
+    "name": "Bachelor of Arts in Social Science-Economics(with Credits)-Regular-FYUGP-2025-Social Science-Economics-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in social science-economics(with credits)-regular-fyugp-2025-social science-economics-ba year i semester i": {
+    "pgmName": "FYUGP BA Social Sciences - Economics",
+    "code": "UCASSEGS25",
+    "workflowId": "88",
+    "name": "Bachelor of Arts in Social Science-Economics(with Credits)-Regular-FYUGP-2025-Social Science-Economics-BA Year I SEMESTER I"
+  },
+  "ucassegs25": {
+    "pgmName": "FYUGP BA Social Sciences - Economics",
+    "code": "UCASSEGS25",
+    "workflowId": "88",
+    "name": "Bachelor of Arts in Social Science-Economics(with Credits)-Regular-FYUGP-2025-Social Science-Economics-BA Year I SEMESTER I"
+  },
+  "fyugpbbattm": {
+    "pgmName": "FYUGP BBA TTM",
+    "code": "UCCAAMGS25",
+    "workflowId": "94",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA-TTM-BBA Year I SEMESTER I"
+  },
+  "fyugp bba ttm": {
+    "pgmName": "FYUGP BBA TTM",
+    "code": "UCCAAMGS25",
+    "workflowId": "94",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA-TTM-BBA Year I SEMESTER I"
+  },
+  "bachelorofbusinessadministrationwithcreditsregularfyugp2025bbattmbbayearisemesteri": {
+    "pgmName": "FYUGP BBA TTM",
+    "code": "UCCAAMGS25",
+    "workflowId": "94",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA-TTM-BBA Year I SEMESTER I"
+  },
+  "bachelor of business administration(with credits)-regular-fyugp-2025-bba-ttm-bba year i semester i": {
+    "pgmName": "FYUGP BBA TTM",
+    "code": "UCCAAMGS25",
+    "workflowId": "94",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA-TTM-BBA Year I SEMESTER I"
+  },
+  "fyugpbscbiotechnology": {
+    "pgmName": "FYUGP BSc Biotechnology",
+    "code": "UCSBITGS25",
+    "workflowId": "107",
+    "name": "Bachelor of Science in Biotechnology(with Credits)-Regular-FYUGP-2025-Biotechnology-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc biotechnology": {
+    "pgmName": "FYUGP BSc Biotechnology",
+    "code": "UCSBITGS25",
+    "workflowId": "107",
+    "name": "Bachelor of Science in Biotechnology(with Credits)-Regular-FYUGP-2025-Biotechnology-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinbiotechnologywithcreditsregularfyugp2025biotechnologybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Biotechnology",
+    "code": "UCSBITGS25",
+    "workflowId": "107",
+    "name": "Bachelor of Science in Biotechnology(with Credits)-Regular-FYUGP-2025-Biotechnology-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in biotechnology(with credits)-regular-fyugp-2025-biotechnology-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Biotechnology",
+    "code": "UCSBITGS25",
+    "workflowId": "107",
+    "name": "Bachelor of Science in Biotechnology(with Credits)-Regular-FYUGP-2025-Biotechnology-BSc Year I SEMESTER I"
+  },
+  "ucsbitgs25": {
+    "pgmName": "FYUGP BSc Biotechnology",
+    "code": "UCSBITGS25",
+    "workflowId": "107",
+    "name": "Bachelor of Science in Biotechnology(with Credits)-Regular-FYUGP-2025-Biotechnology-BSc Year I SEMESTER I"
+  },
+  "fyugpbscpsychology": {
+    "pgmName": "FYUGP BSc Psychology",
+    "code": "UCSPSYGS25",
+    "workflowId": "127",
+    "name": "Bachelor of Science in Psychology(with Credits)-Regular-FYUGP-2025-Psychology-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc psychology": {
+    "pgmName": "FYUGP BSc Psychology",
+    "code": "UCSPSYGS25",
+    "workflowId": "127",
+    "name": "Bachelor of Science in Psychology(with Credits)-Regular-FYUGP-2025-Psychology-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinpsychologywithcreditsregularfyugp2025psychologybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Psychology",
+    "code": "UCSPSYGS25",
+    "workflowId": "127",
+    "name": "Bachelor of Science in Psychology(with Credits)-Regular-FYUGP-2025-Psychology-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in psychology(with credits)-regular-fyugp-2025-psychology-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Psychology",
+    "code": "UCSPSYGS25",
+    "workflowId": "127",
+    "name": "Bachelor of Science in Psychology(with Credits)-Regular-FYUGP-2025-Psychology-BSc Year I SEMESTER I"
+  },
+  "ucspsygs25": {
+    "pgmName": "FYUGP BSc Psychology",
+    "code": "UCSPSYGS25",
+    "workflowId": "127",
+    "name": "Bachelor of Science in Psychology(with Credits)-Regular-FYUGP-2025-Psychology-BSc Year I SEMESTER I"
+  },
+  "fyugpbscgeography": {
+    "pgmName": "FYUGP BSc Geography",
+    "code": "UCSGEGGS25",
+    "workflowId": "116",
+    "name": "Bachelor of Science in Geography(with Credits)-Regular-FYUGP-2025-Geography-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc geography": {
+    "pgmName": "FYUGP BSc Geography",
+    "code": "UCSGEGGS25",
+    "workflowId": "116",
+    "name": "Bachelor of Science in Geography(with Credits)-Regular-FYUGP-2025-Geography-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceingeographywithcreditsregularfyugp2025geographybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Geography",
+    "code": "UCSGEGGS25",
+    "workflowId": "116",
+    "name": "Bachelor of Science in Geography(with Credits)-Regular-FYUGP-2025-Geography-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in geography(with credits)-regular-fyugp-2025-geography-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Geography",
+    "code": "UCSGEGGS25",
+    "workflowId": "116",
+    "name": "Bachelor of Science in Geography(with Credits)-Regular-FYUGP-2025-Geography-BSc Year I SEMESTER I"
+  },
+  "ucsgeggs25": {
+    "pgmName": "FYUGP BSc Geography",
+    "code": "UCSGEGGS25",
+    "workflowId": "116",
+    "name": "Bachelor of Science in Geography(with Credits)-Regular-FYUGP-2025-Geography-BSc Year I SEMESTER I"
+  },
+  "fyugpbswbachelorofsocialwork": {
+    "pgmName": "FYUGP BSW Bachelor of Social Work",
+    "code": "UCBBSWGS25",
+    "workflowId": "130",
+    "name": "Bachelor of Social Work(with Credits)-Regular-FYUGP-2025-BSW-BSW Year I SEMESTER I"
+  },
+  "fyugp bsw bachelor of social work": {
+    "pgmName": "FYUGP BSW Bachelor of Social Work",
+    "code": "UCBBSWGS25",
+    "workflowId": "130",
+    "name": "Bachelor of Social Work(with Credits)-Regular-FYUGP-2025-BSW-BSW Year I SEMESTER I"
+  },
+  "bachelorofsocialworkwithcreditsregularfyugp2025bswbswyearisemesteri": {
+    "pgmName": "FYUGP BSW Bachelor of Social Work",
+    "code": "UCBBSWGS25",
+    "workflowId": "130",
+    "name": "Bachelor of Social Work(with Credits)-Regular-FYUGP-2025-BSW-BSW Year I SEMESTER I"
+  },
+  "bachelor of social work(with credits)-regular-fyugp-2025-bsw-bsw year i semester i": {
+    "pgmName": "FYUGP BSW Bachelor of Social Work",
+    "code": "UCBBSWGS25",
+    "workflowId": "130",
+    "name": "Bachelor of Social Work(with Credits)-Regular-FYUGP-2025-BSW-BSW Year I SEMESTER I"
+  },
+  "ucbbswgs25": {
+    "pgmName": "FYUGP BSW Bachelor of Social Work",
+    "code": "UCBBSWGS25",
+    "workflowId": "130",
+    "name": "Bachelor of Social Work(with Credits)-Regular-FYUGP-2025-BSW-BSW Year I SEMESTER I"
+  },
+  "fyugpbbaaviationandhospitality": {
+    "pgmName": "FYUGP BBA Aviation and Hospitality",
+    "code": "UCCAVHGS25",
+    "workflowId": "91",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation & Hospitality-BBA Year I SEMESTER I"
+  },
+  "fyugp bba aviation and hospitality": {
+    "pgmName": "FYUGP BBA Aviation and Hospitality",
+    "code": "UCCAVHGS25",
+    "workflowId": "91",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation & Hospitality-BBA Year I SEMESTER I"
+  },
+  "bachelorofbusinessadministrationwithcreditsregularfyugp2025bbaaviationhospitalitybbayearisemesteri": {
+    "pgmName": "FYUGP BBA Aviation and Hospitality",
+    "code": "UCCAVHGS25",
+    "workflowId": "91",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation & Hospitality-BBA Year I SEMESTER I"
+  },
+  "bachelor of business administration(with credits)-regular-fyugp-2025-bba aviation & hospitality-bba year i semester i": {
+    "pgmName": "FYUGP BBA Aviation and Hospitality",
+    "code": "UCCAVHGS25",
+    "workflowId": "91",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation & Hospitality-BBA Year I SEMESTER I"
+  },
+  "uccavhgs25": {
+    "pgmName": "FYUGP BBA Aviation and Hospitality",
+    "code": "UCCAVHGS25",
+    "workflowId": "91",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation & Hospitality-BBA Year I SEMESTER I"
+  },
+  "fyugpbcomlogistics": {
+    "pgmName": "FYUGP BCom Logistics",
+    "code": "UCCCLGGS25",
+    "workflowId": "101",
+    "name": "Bachelor of Commerce(Logistics)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugp bcom logistics": {
+    "pgmName": "FYUGP BCom Logistics",
+    "code": "UCCCLGGS25",
+    "workflowId": "101",
+    "name": "Bachelor of Commerce(Logistics)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelorofcommercelogisticswithcreditsregularfyugp2025commercebcomyearisemesteri": {
+    "pgmName": "FYUGP BCom Logistics",
+    "code": "UCCCLGGS25",
+    "workflowId": "101",
+    "name": "Bachelor of Commerce(Logistics)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelor of commerce(logistics)(with credits)-regular-fyugp-2025-commerce-bcom year i semester i": {
+    "pgmName": "FYUGP BCom Logistics",
+    "code": "UCCCLGGS25",
+    "workflowId": "101",
+    "name": "Bachelor of Commerce(Logistics)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "uccclggs25": {
+    "pgmName": "FYUGP BCom Logistics",
+    "code": "UCCCLGGS25",
+    "workflowId": "101",
+    "name": "Bachelor of Commerce(Logistics)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugpbbahospitaladministration": {
+    "pgmName": "FYUGP BBA Hospital Administration",
+    "code": "UCCAAMGS25",
+    "workflowId": "93",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Hospital Administration-BBA Year I SEMESTER I"
+  },
+  "fyugp bba hospital administration": {
+    "pgmName": "FYUGP BBA Hospital Administration",
+    "code": "UCCAAMGS25",
+    "workflowId": "93",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Hospital Administration-BBA Year I SEMESTER I"
+  },
+  "bachelorofbusinessadministrationwithcreditsregularfyugp2025bbahospitaladministrationbbayearisemesteri": {
+    "pgmName": "FYUGP BBA Hospital Administration",
+    "code": "UCCAAMGS25",
+    "workflowId": "93",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Hospital Administration-BBA Year I SEMESTER I"
+  },
+  "bachelor of business administration(with credits)-regular-fyugp-2025-bba hospital administration-bba year i semester i": {
+    "pgmName": "FYUGP BBA Hospital Administration",
+    "code": "UCCAAMGS25",
+    "workflowId": "93",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Hospital Administration-BBA Year I SEMESTER I"
+  },
+  "fyugpbscbiochemistry": {
+    "pgmName": "FYUGP BSc Bio Chemistry",
+    "code": "UCSBICGS25",
+    "workflowId": "106",
+    "name": "Bachelor of Science in Biochemistry(with Credits)-Regular-FYUGP-2025-Biochemistry-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc bio chemistry": {
+    "pgmName": "FYUGP BSc Bio Chemistry",
+    "code": "UCSBICGS25",
+    "workflowId": "106",
+    "name": "Bachelor of Science in Biochemistry(with Credits)-Regular-FYUGP-2025-Biochemistry-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinbiochemistrywithcreditsregularfyugp2025biochemistrybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Bio Chemistry",
+    "code": "UCSBICGS25",
+    "workflowId": "106",
+    "name": "Bachelor of Science in Biochemistry(with Credits)-Regular-FYUGP-2025-Biochemistry-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in biochemistry(with credits)-regular-fyugp-2025-biochemistry-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Bio Chemistry",
+    "code": "UCSBICGS25",
+    "workflowId": "106",
+    "name": "Bachelor of Science in Biochemistry(with Credits)-Regular-FYUGP-2025-Biochemistry-BSc Year I SEMESTER I"
+  },
+  "ucsbicgs25": {
+    "pgmName": "FYUGP BSc Bio Chemistry",
+    "code": "UCSBICGS25",
+    "workflowId": "106",
+    "name": "Bachelor of Science in Biochemistry(with Credits)-Regular-FYUGP-2025-Biochemistry-BSc Year I SEMESTER I"
+  },
+  "fyugpbscfoodtechnology": {
+    "pgmName": "FYUGP BSc Food Technology",
+    "code": "UCSFTYGS25",
+    "workflowId": "114",
+    "name": "Bachelor of Science in Food Technology(with Credits)-Regular-FYUGP-2025-Food Technology-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc food technology": {
+    "pgmName": "FYUGP BSc Food Technology",
+    "code": "UCSFTYGS25",
+    "workflowId": "114",
+    "name": "Bachelor of Science in Food Technology(with Credits)-Regular-FYUGP-2025-Food Technology-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinfoodtechnologywithcreditsregularfyugp2025foodtechnologybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Food Technology",
+    "code": "UCSFTYGS25",
+    "workflowId": "114",
+    "name": "Bachelor of Science in Food Technology(with Credits)-Regular-FYUGP-2025-Food Technology-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in food technology(with credits)-regular-fyugp-2025-food technology-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Food Technology",
+    "code": "UCSFTYGS25",
+    "workflowId": "114",
+    "name": "Bachelor of Science in Food Technology(with Credits)-Regular-FYUGP-2025-Food Technology-BSc Year I SEMESTER I"
+  },
+  "ucsftygs25": {
+    "pgmName": "FYUGP BSc Food Technology",
+    "code": "UCSFTYGS25",
+    "workflowId": "114",
+    "name": "Bachelor of Science in Food Technology(with Credits)-Regular-FYUGP-2025-Food Technology-BSc Year I SEMESTER I"
+  },
+  "fyugpbscartificialintelligenceandmachinelearning": {
+    "pgmName": "FYUGP BSc  Artificial Intelligence and Machine Learning",
+    "code": "UCSAIMLGS25",
+    "workflowId": "105",
+    "name": "Bachelor of Science in Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc  artificial intelligence and machine learning": {
+    "pgmName": "FYUGP BSc  Artificial Intelligence and Machine Learning",
+    "code": "UCSAIMLGS25",
+    "workflowId": "105",
+    "name": "Bachelor of Science in Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinartificialintelligenceandmachinelearningwithcreditsregularfyugp2025artificialintelligenceandmachinelearningbscyearisemesteri": {
+    "pgmName": "FYUGP BSc  Artificial Intelligence and Machine Learning",
+    "code": "UCSAIMLGS25",
+    "workflowId": "105",
+    "name": "Bachelor of Science in Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in artificial intelligence and machine learning(with credits)-regular-fyugp-2025-artificial intelligence and machine learning-bsc year i semester i": {
+    "pgmName": "FYUGP BSc  Artificial Intelligence and Machine Learning",
+    "code": "UCSAIMLGS25",
+    "workflowId": "105",
+    "name": "Bachelor of Science in Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "ucsaimlgs25": {
+    "pgmName": "FYUGP BSc  Artificial Intelligence and Machine Learning",
+    "code": "UCSAIMLGS25",
+    "workflowId": "105",
+    "name": "Bachelor of Science in Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "fyugpbsccybersecurity": {
+    "pgmName": "FYUGP BSc Cyber Security",
+    "code": "UCSCSCYS25",
+    "workflowId": "164",
+    "name": "Bachelor of Science in Cyber Security(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc cyber security": {
+    "pgmName": "FYUGP BSc Cyber Security",
+    "code": "UCSCSCYS25",
+    "workflowId": "164",
+    "name": "Bachelor of Science in Cyber Security(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceincybersecuritywithcreditsregularfyugp2025computersciencebscyearisemesteri": {
+    "pgmName": "FYUGP BSc Cyber Security",
+    "code": "UCSCSCYS25",
+    "workflowId": "164",
+    "name": "Bachelor of Science in Cyber Security(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in cyber security(with credits)-regular-fyugp-2025-computer science-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Cyber Security",
+    "code": "UCSCSCYS25",
+    "workflowId": "164",
+    "name": "Bachelor of Science in Cyber Security(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "ucscscys25": {
+    "pgmName": "FYUGP BSc Cyber Security",
+    "code": "UCSCSCYS25",
+    "workflowId": "164",
+    "name": "Bachelor of Science in Cyber Security(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "fyugpbscdataanalytics": {
+    "pgmName": "FYUGP BSc Data Analytics",
+    "code": "UCSDATAGS25",
+    "workflowId": "165",
+    "name": "Bachelor of Science in Data Analytics(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc data analytics": {
+    "pgmName": "FYUGP BSc Data Analytics",
+    "code": "UCSDATAGS25",
+    "workflowId": "165",
+    "name": "Bachelor of Science in Data Analytics(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceindataanalyticswithcreditsregularfyugp2025computersciencebscyearisemesteri": {
+    "pgmName": "FYUGP BSc Data Analytics",
+    "code": "UCSDATAGS25",
+    "workflowId": "165",
+    "name": "Bachelor of Science in Data Analytics(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in data analytics(with credits)-regular-fyugp-2025-computer science-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Data Analytics",
+    "code": "UCSDATAGS25",
+    "workflowId": "165",
+    "name": "Bachelor of Science in Data Analytics(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "ucsdatags25": {
+    "pgmName": "FYUGP BSc Data Analytics",
+    "code": "UCSDATAGS25",
+    "workflowId": "165",
+    "name": "Bachelor of Science in Data Analytics(with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
+  },
+  "fyugpbscmathematicsformachinelearningdatascience": {
+    "pgmName": "FYUGP BSC Mathematics for Machine Learning & Data Science",
+    "code": "UCCMMDGS26",
+    "workflowId": "507",
+    "name": "Bachelor of Science in Mathematics for Machine Learning and Data Science(with Credits)-Regular-FYUGP-2026-Mathematics-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc mathematics for machine learning & data science": {
+    "pgmName": "FYUGP BSC Mathematics for Machine Learning & Data Science",
+    "code": "UCCMMDGS26",
+    "workflowId": "507",
+    "name": "Bachelor of Science in Mathematics for Machine Learning and Data Science(with Credits)-Regular-FYUGP-2026-Mathematics-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinmathematicsformachinelearninganddatasciencewithcreditsregularfyugp2026mathematicsbscyearisemesteri": {
+    "pgmName": "FYUGP BSC Mathematics for Machine Learning & Data Science",
+    "code": "UCCMMDGS26",
+    "workflowId": "507",
+    "name": "Bachelor of Science in Mathematics for Machine Learning and Data Science(with Credits)-Regular-FYUGP-2026-Mathematics-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in mathematics for machine learning and data science(with credits)-regular-fyugp-2026-mathematics-bsc year i semester i": {
+    "pgmName": "FYUGP BSC Mathematics for Machine Learning & Data Science",
+    "code": "UCCMMDGS26",
+    "workflowId": "507",
+    "name": "Bachelor of Science in Mathematics for Machine Learning and Data Science(with Credits)-Regular-FYUGP-2026-Mathematics-BSc Year I SEMESTER I"
+  },
+  "uccmmdgs26": {
+    "pgmName": "FYUGP BSC Mathematics for Machine Learning & Data Science",
+    "code": "UCCMMDGS26",
+    "workflowId": "507",
+    "name": "Bachelor of Science in Mathematics for Machine Learning and Data Science(with Credits)-Regular-FYUGP-2026-Mathematics-BSc Year I SEMESTER I"
+  },
+  "fyugpbbalogistics": {
+    "pgmName": "FYUGP BBA Logistics",
+    "code": "UCCBLOGS25",
+    "workflowId": "90",
+    "name": "Bachelor of Business Administration - Logistics(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "fyugp bba logistics": {
+    "pgmName": "FYUGP BBA Logistics",
+    "code": "UCCBLOGS25",
+    "workflowId": "90",
+    "name": "Bachelor of Business Administration - Logistics(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "bachelorofbusinessadministrationlogisticswithcreditsregularfyugp2025businessadministrationbbayearisemesteri": {
+    "pgmName": "FYUGP BBA Logistics",
+    "code": "UCCBLOGS25",
+    "workflowId": "90",
+    "name": "Bachelor of Business Administration - Logistics(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "bachelor of business administration - logistics(with credits)-regular-fyugp-2025-business administration-bba year i semester i": {
+    "pgmName": "FYUGP BBA Logistics",
+    "code": "UCCBLOGS25",
+    "workflowId": "90",
+    "name": "Bachelor of Business Administration - Logistics(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "uccblogs25": {
+    "pgmName": "FYUGP BBA Logistics",
+    "code": "UCCBLOGS25",
+    "workflowId": "90",
+    "name": "Bachelor of Business Administration - Logistics(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
+  },
+  "fyugpbscelectronics": {
+    "pgmName": "FYUGP BSc Electronics",
+    "code": "UCSELEGS25",
+    "workflowId": "113",
+    "name": "Bachelor of Science in Electronics(with Credits)-Regular-FYUGP-2025-Electronics-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc electronics": {
+    "pgmName": "FYUGP BSc Electronics",
+    "code": "UCSELEGS25",
+    "workflowId": "113",
+    "name": "Bachelor of Science in Electronics(with Credits)-Regular-FYUGP-2025-Electronics-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinelectronicswithcreditsregularfyugp2025electronicsbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Electronics",
+    "code": "UCSELEGS25",
+    "workflowId": "113",
+    "name": "Bachelor of Science in Electronics(with Credits)-Regular-FYUGP-2025-Electronics-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in electronics(with credits)-regular-fyugp-2025-electronics-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Electronics",
+    "code": "UCSELEGS25",
+    "workflowId": "113",
+    "name": "Bachelor of Science in Electronics(with Credits)-Regular-FYUGP-2025-Electronics-BSc Year I SEMESTER I"
+  },
+  "ucselegs25": {
+    "pgmName": "FYUGP BSc Electronics",
+    "code": "UCSELEGS25",
+    "workflowId": "113",
+    "name": "Bachelor of Science in Electronics(with Credits)-Regular-FYUGP-2025-Electronics-BSc Year I SEMESTER I"
+  },
+  "fyugpbaafzalululama": {
+    "pgmName": "FYUGP BA Afzal-Ul-Ulama",
+    "code": "UCAAFUGS25",
+    "workflowId": "70",
+    "name": "Bachelor of Arts in Afzal-Ul-Ulama(with Credits)-Regular-FYUGP-2025-Afzal-Ul-Ulama-BA Year I SEMESTER I"
+  },
+  "fyugp ba afzal-ul-ulama": {
+    "pgmName": "FYUGP BA Afzal-Ul-Ulama",
+    "code": "UCAAFUGS25",
+    "workflowId": "70",
+    "name": "Bachelor of Arts in Afzal-Ul-Ulama(with Credits)-Regular-FYUGP-2025-Afzal-Ul-Ulama-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinafzalululamawithcreditsregularfyugp2025afzalululamabayearisemesteri": {
+    "pgmName": "FYUGP BA Afzal-Ul-Ulama",
+    "code": "UCAAFUGS25",
+    "workflowId": "70",
+    "name": "Bachelor of Arts in Afzal-Ul-Ulama(with Credits)-Regular-FYUGP-2025-Afzal-Ul-Ulama-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in afzal-ul-ulama(with credits)-regular-fyugp-2025-afzal-ul-ulama-ba year i semester i": {
+    "pgmName": "FYUGP BA Afzal-Ul-Ulama",
+    "code": "UCAAFUGS25",
+    "workflowId": "70",
+    "name": "Bachelor of Arts in Afzal-Ul-Ulama(with Credits)-Regular-FYUGP-2025-Afzal-Ul-Ulama-BA Year I SEMESTER I"
+  },
+  "ucaafugs25": {
+    "pgmName": "FYUGP BA Afzal-Ul-Ulama",
+    "code": "UCAAFUGS25",
+    "workflowId": "70",
+    "name": "Bachelor of Arts in Afzal-Ul-Ulama(with Credits)-Regular-FYUGP-2025-Afzal-Ul-Ulama-BA Year I SEMESTER I"
+  },
+  "fyugpbsccostumeandfashiondesigning": {
+    "pgmName": "FYUGP BSc Costume and Fashion Designing",
+    "code": "UCSCFDGS25",
+    "workflowId": "112",
+    "name": "Bachelor of Science in Costume and Fashion Designing(with Credits)-Regular-FYUGP-2025-Costume and Fashion Designing-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc costume and fashion designing": {
+    "pgmName": "FYUGP BSc Costume and Fashion Designing",
+    "code": "UCSCFDGS25",
+    "workflowId": "112",
+    "name": "Bachelor of Science in Costume and Fashion Designing(with Credits)-Regular-FYUGP-2025-Costume and Fashion Designing-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceincostumeandfashiondesigningwithcreditsregularfyugp2025costumeandfashiondesigningbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Costume and Fashion Designing",
+    "code": "UCSCFDGS25",
+    "workflowId": "112",
+    "name": "Bachelor of Science in Costume and Fashion Designing(with Credits)-Regular-FYUGP-2025-Costume and Fashion Designing-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in costume and fashion designing(with credits)-regular-fyugp-2025-costume and fashion designing-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Costume and Fashion Designing",
+    "code": "UCSCFDGS25",
+    "workflowId": "112",
+    "name": "Bachelor of Science in Costume and Fashion Designing(with Credits)-Regular-FYUGP-2025-Costume and Fashion Designing-BSc Year I SEMESTER I"
+  },
+  "ucscfdgs25": {
+    "pgmName": "FYUGP BSc Costume and Fashion Designing",
+    "code": "UCSCFDGS25",
+    "workflowId": "112",
+    "name": "Bachelor of Science in Costume and Fashion Designing(with Credits)-Regular-FYUGP-2025-Costume and Fashion Designing-BSc Year I SEMESTER I"
+  },
+  "fyugpbschotelmanagementandcateringscience": {
+    "pgmName": "FYUGP BSc.Hotel Management and Catering Science",
+    "code": "UCSHMCGS25",
+    "workflowId": "119",
+    "name": "Bachelor of Science in Hotel Management and Catering Science(with Credits)-Regular-FYUGP-2025-Hotel Management and Catering Science-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc.hotel management and catering science": {
+    "pgmName": "FYUGP BSc.Hotel Management and Catering Science",
+    "code": "UCSHMCGS25",
+    "workflowId": "119",
+    "name": "Bachelor of Science in Hotel Management and Catering Science(with Credits)-Regular-FYUGP-2025-Hotel Management and Catering Science-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinhotelmanagementandcateringsciencewithcreditsregularfyugp2025hotelmanagementandcateringsciencebscyearisemesteri": {
+    "pgmName": "FYUGP BSc.Hotel Management and Catering Science",
+    "code": "UCSHMCGS25",
+    "workflowId": "119",
+    "name": "Bachelor of Science in Hotel Management and Catering Science(with Credits)-Regular-FYUGP-2025-Hotel Management and Catering Science-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in hotel management and catering science(with credits)-regular-fyugp-2025-hotel management and catering science-bsc year i semester i": {
+    "pgmName": "FYUGP BSc.Hotel Management and Catering Science",
+    "code": "UCSHMCGS25",
+    "workflowId": "119",
+    "name": "Bachelor of Science in Hotel Management and Catering Science(with Credits)-Regular-FYUGP-2025-Hotel Management and Catering Science-BSc Year I SEMESTER I"
+  },
+  "ucshmcgs25": {
+    "pgmName": "FYUGP BSc.Hotel Management and Catering Science",
+    "code": "UCSHMCGS25",
+    "workflowId": "119",
+    "name": "Bachelor of Science in Hotel Management and Catering Science(with Credits)-Regular-FYUGP-2025-Hotel Management and Catering Science-BSc Year I SEMESTER I"
+  },
+  "fyugpbbaaviationairportmanagement": {
+    "pgmName": "FYUGP BBA Aviation & Airport Management",
+    "code": "UCCAAMGS25",
+    "workflowId": "92",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation and Airport Management-BBA Year I SEMESTER I"
+  },
+  "fyugp bba aviation & airport management": {
+    "pgmName": "FYUGP BBA Aviation & Airport Management",
+    "code": "UCCAAMGS25",
+    "workflowId": "92",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation and Airport Management-BBA Year I SEMESTER I"
+  },
+  "bachelorofbusinessadministrationwithcreditsregularfyugp2025bbaaviationandairportmanagementbbayearisemesteri": {
+    "pgmName": "FYUGP BBA Aviation & Airport Management",
+    "code": "UCCAAMGS25",
+    "workflowId": "92",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation and Airport Management-BBA Year I SEMESTER I"
+  },
+  "bachelor of business administration(with credits)-regular-fyugp-2025-bba aviation and airport management-bba year i semester i": {
+    "pgmName": "FYUGP BBA Aviation & Airport Management",
+    "code": "UCCAAMGS25",
+    "workflowId": "92",
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-BBA Aviation and Airport Management-BBA Year I SEMESTER I"
+  },
+  "fyugpbscgeoinformaticsandremotesensing": {
+    "pgmName": "FYUGP BSc Geoinformatics and Remote Sensing",
+    "code": "UCSGRSGS25",
+    "workflowId": "117",
+    "name": "Bachelor of Science in Geoinformatics and Remote Sensing(with Credits)-Regular-FYUGP-2025-Geoinformatics and Remote Sensing-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc geoinformatics and remote sensing": {
+    "pgmName": "FYUGP BSc Geoinformatics and Remote Sensing",
+    "code": "UCSGRSGS25",
+    "workflowId": "117",
+    "name": "Bachelor of Science in Geoinformatics and Remote Sensing(with Credits)-Regular-FYUGP-2025-Geoinformatics and Remote Sensing-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceingeoinformaticsandremotesensingwithcreditsregularfyugp2025geoinformaticsandremotesensingbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Geoinformatics and Remote Sensing",
+    "code": "UCSGRSGS25",
+    "workflowId": "117",
+    "name": "Bachelor of Science in Geoinformatics and Remote Sensing(with Credits)-Regular-FYUGP-2025-Geoinformatics and Remote Sensing-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in geoinformatics and remote sensing(with credits)-regular-fyugp-2025-geoinformatics and remote sensing-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Geoinformatics and Remote Sensing",
+    "code": "UCSGRSGS25",
+    "workflowId": "117",
+    "name": "Bachelor of Science in Geoinformatics and Remote Sensing(with Credits)-Regular-FYUGP-2025-Geoinformatics and Remote Sensing-BSc Year I SEMESTER I"
+  },
+  "ucsgrsgs25": {
+    "pgmName": "FYUGP BSc Geoinformatics and Remote Sensing",
+    "code": "UCSGRSGS25",
+    "workflowId": "117",
+    "name": "Bachelor of Science in Geoinformatics and Remote Sensing(with Credits)-Regular-FYUGP-2025-Geoinformatics and Remote Sensing-BSc Year I SEMESTER I"
+  },
+  "fyugpbcomfinancewithforensicaccounting": {
+    "pgmName": "FYUGP Bcom Finance with Forensic Accounting",
+    "code": "UCCCFFAGS25",
+    "workflowId": "99",
+    "name": "Bachelor of Commerce(Finance With Forensic Accounting)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugp bcom finance with forensic accounting": {
+    "pgmName": "FYUGP Bcom Finance with Forensic Accounting",
+    "code": "UCCCFFAGS25",
+    "workflowId": "99",
+    "name": "Bachelor of Commerce(Finance With Forensic Accounting)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelorofcommercefinancewithforensicaccountingwithcreditsregularfyugp2025commercebcomyearisemesteri": {
+    "pgmName": "FYUGP Bcom Finance with Forensic Accounting",
+    "code": "UCCCFFAGS25",
+    "workflowId": "99",
+    "name": "Bachelor of Commerce(Finance With Forensic Accounting)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelor of commerce(finance with forensic accounting)(with credits)-regular-fyugp-2025-commerce-bcom year i semester i": {
+    "pgmName": "FYUGP Bcom Finance with Forensic Accounting",
+    "code": "UCCCFFAGS25",
+    "workflowId": "99",
+    "name": "Bachelor of Commerce(Finance With Forensic Accounting)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "ucccffags25": {
+    "pgmName": "FYUGP Bcom Finance with Forensic Accounting",
+    "code": "UCCCFFAGS25",
+    "workflowId": "99",
+    "name": "Bachelor of Commerce(Finance With Forensic Accounting)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugpbaphilosophy": {
+    "pgmName": "FYUGP BA Philosophy",
+    "code": "UCAPHLGS25",
+    "workflowId": "84",
+    "name": "Bachelor of Arts in Philosophy(with Credits)-Regular-FYUGP-2025-Philosophy-BA Year I SEMESTER I"
+  },
+  "fyugp ba philosophy": {
+    "pgmName": "FYUGP BA Philosophy",
+    "code": "UCAPHLGS25",
+    "workflowId": "84",
+    "name": "Bachelor of Arts in Philosophy(with Credits)-Regular-FYUGP-2025-Philosophy-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinphilosophywithcreditsregularfyugp2025philosophybayearisemesteri": {
+    "pgmName": "FYUGP BA Philosophy",
+    "code": "UCAPHLGS25",
+    "workflowId": "84",
+    "name": "Bachelor of Arts in Philosophy(with Credits)-Regular-FYUGP-2025-Philosophy-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in philosophy(with credits)-regular-fyugp-2025-philosophy-ba year i semester i": {
+    "pgmName": "FYUGP BA Philosophy",
+    "code": "UCAPHLGS25",
+    "workflowId": "84",
+    "name": "Bachelor of Arts in Philosophy(with Credits)-Regular-FYUGP-2025-Philosophy-BA Year I SEMESTER I"
+  },
+  "ucaphlgs25": {
+    "pgmName": "FYUGP BA Philosophy",
+    "code": "UCAPHLGS25",
+    "workflowId": "84",
+    "name": "Bachelor of Arts in Philosophy(with Credits)-Regular-FYUGP-2025-Philosophy-BA Year I SEMESTER I"
+  },
+  "fyugpbscplantscience": {
+    "pgmName": "FYUGP BSc Plant Science",
+    "code": "UCSPLSGS25",
+    "workflowId": "124",
+    "name": "Bachelor of Science in Plant Science(with Credits)-Regular-FYUGP-2025-Plant Science-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc plant science": {
+    "pgmName": "FYUGP BSc Plant Science",
+    "code": "UCSPLSGS25",
+    "workflowId": "124",
+    "name": "Bachelor of Science in Plant Science(with Credits)-Regular-FYUGP-2025-Plant Science-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinplantsciencewithcreditsregularfyugp2025plantsciencebscyearisemesteri": {
+    "pgmName": "FYUGP BSc Plant Science",
+    "code": "UCSPLSGS25",
+    "workflowId": "124",
+    "name": "Bachelor of Science in Plant Science(with Credits)-Regular-FYUGP-2025-Plant Science-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in plant science(with credits)-regular-fyugp-2025-plant science-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Plant Science",
+    "code": "UCSPLSGS25",
+    "workflowId": "124",
+    "name": "Bachelor of Science in Plant Science(with Credits)-Regular-FYUGP-2025-Plant Science-BSc Year I SEMESTER I"
+  },
+  "ucsplsgs25": {
+    "pgmName": "FYUGP BSc Plant Science",
+    "code": "UCSPLSGS25",
+    "workflowId": "124",
+    "name": "Bachelor of Science in Plant Science(with Credits)-Regular-FYUGP-2025-Plant Science-BSc Year I SEMESTER I"
+  },
+  "fyugpbafunctionalhindi": {
+    "pgmName": "FYUGP BA Functional Hindi",
+    "code": "UCAFHIGS25",
+    "workflowId": "79",
+    "name": "Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year I SEMESTER I"
+  },
+  "fyugp ba functional hindi": {
+    "pgmName": "FYUGP BA Functional Hindi",
+    "code": "UCAFHIGS25",
+    "workflowId": "79",
+    "name": "Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinfunctionalhindiwithcreditsregularfyugp2025functionalhindibayearisemesteri": {
+    "pgmName": "FYUGP BA Functional Hindi",
+    "code": "UCAFHIGS25",
+    "workflowId": "79",
+    "name": "Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in functional hindi(with credits)-regular-fyugp-2025-functional hindi-ba year i semester i": {
+    "pgmName": "FYUGP BA Functional Hindi",
+    "code": "UCAFHIGS25",
+    "workflowId": "79",
+    "name": "Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year I SEMESTER I"
+  },
+  "ucafhigs25": {
+    "pgmName": "FYUGP BA Functional Hindi",
+    "code": "UCAFHIGS25",
+    "workflowId": "79",
+    "name": "Bachelor of Arts in Functional Hindi(with Credits)-Regular-FYUGP-2025-Functional Hindi-BA Year I SEMESTER I"
+  },
+  "fyugpbscforestry": {
+    "pgmName": "FYUGP BSc Forestry",
+    "code": "UCSFORGS25",
+    "workflowId": "115",
+    "name": "Bachelor of Science in Forestry(with Credits)-Regular-FYUGP-2025-Forestry-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc forestry": {
+    "pgmName": "FYUGP BSc Forestry",
+    "code": "UCSFORGS25",
+    "workflowId": "115",
+    "name": "Bachelor of Science in Forestry(with Credits)-Regular-FYUGP-2025-Forestry-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinforestrywithcreditsregularfyugp2025forestrybscyearisemesteri": {
+    "pgmName": "FYUGP BSc Forestry",
+    "code": "UCSFORGS25",
+    "workflowId": "115",
+    "name": "Bachelor of Science in Forestry(with Credits)-Regular-FYUGP-2025-Forestry-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in forestry(with credits)-regular-fyugp-2025-forestry-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Forestry",
+    "code": "UCSFORGS25",
+    "workflowId": "115",
+    "name": "Bachelor of Science in Forestry(with Credits)-Regular-FYUGP-2025-Forestry-BSc Year I SEMESTER I"
+  },
+  "ucsforgs25": {
+    "pgmName": "FYUGP BSc Forestry",
+    "code": "UCSFORGS25",
+    "workflowId": "115",
+    "name": "Bachelor of Science in Forestry(with Credits)-Regular-FYUGP-2025-Forestry-BSc Year I SEMESTER I"
+  },
+  "fyugpbmmcbachelorofmultimediacommunication": {
+    "pgmName": "FYUGP BMMC Bachelor of Multimedia & Communication",
+    "code": "UCBJMCGS25",
+    "workflowId": "132",
+    "name": "Bachelor of  Journalism with Multimedia and Communication (with Credits)-Regular-FYUGP-2025-BJMC-BJMC Year I SEMESTER I"
+  },
+  "fyugp bmmc bachelor of multimedia & communication": {
+    "pgmName": "FYUGP BMMC Bachelor of Multimedia & Communication",
+    "code": "UCBJMCGS25",
+    "workflowId": "132",
+    "name": "Bachelor of  Journalism with Multimedia and Communication (with Credits)-Regular-FYUGP-2025-BJMC-BJMC Year I SEMESTER I"
+  },
+  "bachelorofjournalismwithmultimediaandcommunicationwithcreditsregularfyugp2025bjmcbjmcyearisemesteri": {
+    "pgmName": "FYUGP BMMC Bachelor of Multimedia & Communication",
+    "code": "UCBJMCGS25",
+    "workflowId": "132",
+    "name": "Bachelor of  Journalism with Multimedia and Communication (with Credits)-Regular-FYUGP-2025-BJMC-BJMC Year I SEMESTER I"
+  },
+  "bachelor of  journalism with multimedia and communication (with credits)-regular-fyugp-2025-bjmc-bjmc year i semester i": {
+    "pgmName": "FYUGP BMMC Bachelor of Multimedia & Communication",
+    "code": "UCBJMCGS25",
+    "workflowId": "132",
+    "name": "Bachelor of  Journalism with Multimedia and Communication (with Credits)-Regular-FYUGP-2025-BJMC-BJMC Year I SEMESTER I"
+  },
+  "ucbjmcgs25": {
+    "pgmName": "FYUGP BMMC Bachelor of Multimedia & Communication",
+    "code": "UCBJMCGS25",
+    "workflowId": "132",
+    "name": "Bachelor of  Journalism with Multimedia and Communication (with Credits)-Regular-FYUGP-2025-BJMC-BJMC Year I SEMESTER I"
+  },
+  "fyugpbcomdataanalytics": {
+    "pgmName": "FYUGP Bcom Data Analytics",
+    "code": "UCCCOMDAGS25",
+    "workflowId": "98",
+    "name": "Bachelor of Commerce(Data Analytics )(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugp bcom data analytics": {
+    "pgmName": "FYUGP Bcom Data Analytics",
+    "code": "UCCCOMDAGS25",
+    "workflowId": "98",
+    "name": "Bachelor of Commerce(Data Analytics )(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelorofcommercedataanalyticswithcreditsregularfyugp2025commercebcomyearisemesteri": {
+    "pgmName": "FYUGP Bcom Data Analytics",
+    "code": "UCCCOMDAGS25",
+    "workflowId": "98",
+    "name": "Bachelor of Commerce(Data Analytics )(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelor of commerce(data analytics )(with credits)-regular-fyugp-2025-commerce-bcom year i semester i": {
+    "pgmName": "FYUGP Bcom Data Analytics",
+    "code": "UCCCOMDAGS25",
+    "workflowId": "98",
+    "name": "Bachelor of Commerce(Data Analytics )(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "ucccomdags25": {
+    "pgmName": "FYUGP Bcom Data Analytics",
+    "code": "UCCCOMDAGS25",
+    "workflowId": "98",
+    "name": "Bachelor of Commerce(Data Analytics )(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugpbcommarketing": {
+    "pgmName": "FYUGP BCom Marketing",
+    "code": "UCCCMKGS25",
+    "workflowId": "102",
+    "name": "Bachelor of Commerce(Marketing)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugp bcom marketing": {
+    "pgmName": "FYUGP BCom Marketing",
+    "code": "UCCCMKGS25",
+    "workflowId": "102",
+    "name": "Bachelor of Commerce(Marketing)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelorofcommercemarketingwithcreditsregularfyugp2025commercebcomyearisemesteri": {
+    "pgmName": "FYUGP BCom Marketing",
+    "code": "UCCCMKGS25",
+    "workflowId": "102",
+    "name": "Bachelor of Commerce(Marketing)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelor of commerce(marketing)(with credits)-regular-fyugp-2025-commerce-bcom year i semester i": {
+    "pgmName": "FYUGP BCom Marketing",
+    "code": "UCCCMKGS25",
+    "workflowId": "102",
+    "name": "Bachelor of Commerce(Marketing)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "ucccmkgs25": {
+    "pgmName": "FYUGP BCom Marketing",
+    "code": "UCCCMKGS25",
+    "workflowId": "102",
+    "name": "Bachelor of Commerce(Marketing)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugpbasocialsciences": {
+    "pgmName": "FYUGP BA Social Sciences",
+    "code": "UCASSHGS25",
+    "workflowId": "87",
+    "name": "Bachelor of Arts in Social Science - History(with Credits)-Regular-FYUGP-2025-Social Science - History-BA Year I SEMESTER I"
+  },
+  "fyugp ba social sciences": {
+    "pgmName": "FYUGP BA Social Sciences",
+    "code": "UCASSHGS25",
+    "workflowId": "87",
+    "name": "Bachelor of Arts in Social Science - History(with Credits)-Regular-FYUGP-2025-Social Science - History-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinsocialsciencehistorywithcreditsregularfyugp2025socialsciencehistorybayearisemesteri": {
+    "pgmName": "FYUGP BA Social Sciences",
+    "code": "UCASSHGS25",
+    "workflowId": "87",
+    "name": "Bachelor of Arts in Social Science - History(with Credits)-Regular-FYUGP-2025-Social Science - History-BA Year I SEMESTER I"
+  },
+  "bachelor of arts in social science - history(with credits)-regular-fyugp-2025-social science - history-ba year i semester i": {
+    "pgmName": "FYUGP BA Social Sciences",
+    "code": "UCASSHGS25",
+    "workflowId": "87",
+    "name": "Bachelor of Arts in Social Science - History(with Credits)-Regular-FYUGP-2025-Social Science - History-BA Year I SEMESTER I"
+  },
+  "ucasshgs25": {
+    "pgmName": "FYUGP BA Social Sciences",
+    "code": "UCASSHGS25",
+    "workflowId": "87",
+    "name": "Bachelor of Arts in Social Science - History(with Credits)-Regular-FYUGP-2025-Social Science - History-BA Year I SEMESTER I"
+  },
+  "fyugpbscpsychologyandneurosciences": {
+    "pgmName": "FYUGP BSc Psychology and Neurosciences",
+    "code": "UCSPNSGS25",
+    "workflowId": "126",
+    "name": "Bachelor of Science in Psychology and Neurosciences(with Credits)-Regular-FYUGP-2025-Psychology and Neurosciences-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc psychology and neurosciences": {
+    "pgmName": "FYUGP BSc Psychology and Neurosciences",
+    "code": "UCSPNSGS25",
+    "workflowId": "126",
+    "name": "Bachelor of Science in Psychology and Neurosciences(with Credits)-Regular-FYUGP-2025-Psychology and Neurosciences-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinpsychologyandneuroscienceswithcreditsregularfyugp2025psychologyandneurosciencesbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Psychology and Neurosciences",
+    "code": "UCSPNSGS25",
+    "workflowId": "126",
+    "name": "Bachelor of Science in Psychology and Neurosciences(with Credits)-Regular-FYUGP-2025-Psychology and Neurosciences-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in psychology and neurosciences(with credits)-regular-fyugp-2025-psychology and neurosciences-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Psychology and Neurosciences",
+    "code": "UCSPNSGS25",
+    "workflowId": "126",
+    "name": "Bachelor of Science in Psychology and Neurosciences(with Credits)-Regular-FYUGP-2025-Psychology and Neurosciences-BSc Year I SEMESTER I"
+  },
+  "ucspnsgs25": {
+    "pgmName": "FYUGP BSc Psychology and Neurosciences",
+    "code": "UCSPNSGS25",
+    "workflowId": "126",
+    "name": "Bachelor of Science in Psychology and Neurosciences(with Credits)-Regular-FYUGP-2025-Psychology and Neurosciences-BSc Year I SEMESTER I"
+  },
+  "fyugpbscinteriordesigningandfurnishing": {
+    "pgmName": "FYUGP BSc Interior Designing and Furnishing",
+    "code": "UCSIDFGS25",
+    "workflowId": "120",
+    "name": "Bachelor of Science in Interior Designing & Furnishing(with Credits)-Regular-FYUGP-2025-Interior Designing & Furnishing-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc interior designing and furnishing": {
+    "pgmName": "FYUGP BSc Interior Designing and Furnishing",
+    "code": "UCSIDFGS25",
+    "workflowId": "120",
+    "name": "Bachelor of Science in Interior Designing & Furnishing(with Credits)-Regular-FYUGP-2025-Interior Designing & Furnishing-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceininteriordesigningfurnishingwithcreditsregularfyugp2025interiordesigningfurnishingbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Interior Designing and Furnishing",
+    "code": "UCSIDFGS25",
+    "workflowId": "120",
+    "name": "Bachelor of Science in Interior Designing & Furnishing(with Credits)-Regular-FYUGP-2025-Interior Designing & Furnishing-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in interior designing & furnishing(with credits)-regular-fyugp-2025-interior designing & furnishing-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Interior Designing and Furnishing",
+    "code": "UCSIDFGS25",
+    "workflowId": "120",
+    "name": "Bachelor of Science in Interior Designing & Furnishing(with Credits)-Regular-FYUGP-2025-Interior Designing & Furnishing-BSc Year I SEMESTER I"
+  },
+  "ucsidfgs25": {
+    "pgmName": "FYUGP BSc Interior Designing and Furnishing",
+    "code": "UCSIDFGS25",
+    "workflowId": "120",
+    "name": "Bachelor of Science in Interior Designing & Furnishing(with Credits)-Regular-FYUGP-2025-Interior Designing & Furnishing-BSc Year I SEMESTER I"
+  },
+  "fyugpbscnutritiondietetics": {
+    "pgmName": "FYUGP BSC Nutrition & Dietetics",
+    "code": "UCSBNDGS26",
+    "workflowId": "508",
+    "name": "Bachelor of Science in Nutrition and Dietetics(with Credits)-Regular-FYUGP-2026-Nutrition and Dietetics-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc nutrition & dietetics": {
+    "pgmName": "FYUGP BSC Nutrition & Dietetics",
+    "code": "UCSBNDGS26",
+    "workflowId": "508",
+    "name": "Bachelor of Science in Nutrition and Dietetics(with Credits)-Regular-FYUGP-2026-Nutrition and Dietetics-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceinnutritionanddieteticswithcreditsregularfyugp2026nutritionanddieteticsbscyearisemesteri": {
+    "pgmName": "FYUGP BSC Nutrition & Dietetics",
+    "code": "UCSBNDGS26",
+    "workflowId": "508",
+    "name": "Bachelor of Science in Nutrition and Dietetics(with Credits)-Regular-FYUGP-2026-Nutrition and Dietetics-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in nutrition and dietetics(with credits)-regular-fyugp-2026-nutrition and dietetics-bsc year i semester i": {
+    "pgmName": "FYUGP BSC Nutrition & Dietetics",
+    "code": "UCSBNDGS26",
+    "workflowId": "508",
+    "name": "Bachelor of Science in Nutrition and Dietetics(with Credits)-Regular-FYUGP-2026-Nutrition and Dietetics-BSc Year I SEMESTER I"
+  },
+  "ucsbndgs26": {
+    "pgmName": "FYUGP BSC Nutrition & Dietetics",
+    "code": "UCSBNDGS26",
+    "workflowId": "508",
+    "name": "Bachelor of Science in Nutrition and Dietetics(with Credits)-Regular-FYUGP-2026-Nutrition and Dietetics-BSc Year I SEMESTER I"
+  },
+  "fyugpbcaartificialintelligence": {
+    "pgmName": "FYUGP BCA Artificial Intelligence",
+    "code": "UCSBCAAIGS25",
+    "workflowId": "103",
+    "name": "Bachelor of Computer Application Artificial Intelligence(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "fyugp bca artificial intelligence": {
+    "pgmName": "FYUGP BCA Artificial Intelligence",
+    "code": "UCSBCAAIGS25",
+    "workflowId": "103",
+    "name": "Bachelor of Computer Application Artificial Intelligence(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "bachelorofcomputerapplicationartificialintelligencewithcreditsregularfyugp2025computerapplicationbcayearisemesteri": {
+    "pgmName": "FYUGP BCA Artificial Intelligence",
+    "code": "UCSBCAAIGS25",
+    "workflowId": "103",
+    "name": "Bachelor of Computer Application Artificial Intelligence(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "bachelor of computer application artificial intelligence(with credits)-regular-fyugp-2025-computer application-bca year i semester i": {
+    "pgmName": "FYUGP BCA Artificial Intelligence",
+    "code": "UCSBCAAIGS25",
+    "workflowId": "103",
+    "name": "Bachelor of Computer Application Artificial Intelligence(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "ucsbcaaigs25": {
+    "pgmName": "FYUGP BCA Artificial Intelligence",
+    "code": "UCSBCAAIGS25",
+    "workflowId": "103",
+    "name": "Bachelor of Computer Application Artificial Intelligence(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
+  },
+  "fyugpbsccomputersciencewithaimachinelearning": {
+    "pgmName": "FYUGP BSc.Computer Science with AI & Machine learning",
+    "code": "UCSCSAIGS25",
+    "workflowId": "111",
+    "name": "Bachelor of Science in Computer Science with Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Computer Science with Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc.computer science with ai & machine learning": {
+    "pgmName": "FYUGP BSc.Computer Science with AI & Machine learning",
+    "code": "UCSCSAIGS25",
+    "workflowId": "111",
+    "name": "Bachelor of Science in Computer Science with Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Computer Science with Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceincomputersciencewithartificialintelligenceandmachinelearningwithcreditsregularfyugp2025computersciencewithartificialintelligenceandmachinelearningbscyearisemesteri": {
+    "pgmName": "FYUGP BSc.Computer Science with AI & Machine learning",
+    "code": "UCSCSAIGS25",
+    "workflowId": "111",
+    "name": "Bachelor of Science in Computer Science with Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Computer Science with Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in computer science with artificial intelligence and machine learning(with credits)-regular-fyugp-2025-computer science with artificial intelligence and machine learning-bsc year i semester i": {
+    "pgmName": "FYUGP BSc.Computer Science with AI & Machine learning",
+    "code": "UCSCSAIGS25",
+    "workflowId": "111",
+    "name": "Bachelor of Science in Computer Science with Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Computer Science with Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "ucscsaigs25": {
+    "pgmName": "FYUGP BSc.Computer Science with AI & Machine learning",
+    "code": "UCSCSAIGS25",
+    "workflowId": "111",
+    "name": "Bachelor of Science in Computer Science with Artificial Intelligence and Machine Learning(with Credits)-Regular-FYUGP-2025-Computer Science with Artificial Intelligence and Machine Learning-BSc Year I SEMESTER I"
+  },
+  "fyugpbcadatascience": {
+    "pgmName": "FYUGP BCA Data Science",
+    "code": "UCCBDSGS26",
+    "workflowId": "504",
+    "name": "Bachelor of Computer Application Data Science(with Credits)-Regular-FYUGP-2026-Computer Application-BSc Year I SEMESTER I"
+  },
+  "fyugp bca data science": {
+    "pgmName": "FYUGP BCA Data Science",
+    "code": "UCCBDSGS26",
+    "workflowId": "504",
+    "name": "Bachelor of Computer Application Data Science(with Credits)-Regular-FYUGP-2026-Computer Application-BSc Year I SEMESTER I"
+  },
+  "bachelorofcomputerapplicationdatasciencewithcreditsregularfyugp2026computerapplicationbscyearisemesteri": {
+    "pgmName": "FYUGP BCA Data Science",
+    "code": "UCCBDSGS26",
+    "workflowId": "504",
+    "name": "Bachelor of Computer Application Data Science(with Credits)-Regular-FYUGP-2026-Computer Application-BSc Year I SEMESTER I"
+  },
+  "bachelor of computer application data science(with credits)-regular-fyugp-2026-computer application-bsc year i semester i": {
+    "pgmName": "FYUGP BCA Data Science",
+    "code": "UCCBDSGS26",
+    "workflowId": "504",
+    "name": "Bachelor of Computer Application Data Science(with Credits)-Regular-FYUGP-2026-Computer Application-BSc Year I SEMESTER I"
+  },
+  "uccbdsgs26": {
+    "pgmName": "FYUGP BCA Data Science",
+    "code": "UCCBDSGS26",
+    "workflowId": "504",
+    "name": "Bachelor of Computer Application Data Science(with Credits)-Regular-FYUGP-2026-Computer Application-BSc Year I SEMESTER I"
+  },
+  "fyugpbscdatascienceandlogistics": {
+    "pgmName": "FYUGP BSc Data Science and Logistics",
+    "code": "UCCDSLGS26",
+    "workflowId": "505",
+    "name": "Bachelor of Science Data Science & Logistics(with Credits)-Regular-FYUGP-2026-Data Science & Logistics-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc data science and logistics": {
+    "pgmName": "FYUGP BSc Data Science and Logistics",
+    "code": "UCCDSLGS26",
+    "workflowId": "505",
+    "name": "Bachelor of Science Data Science & Logistics(with Credits)-Regular-FYUGP-2026-Data Science & Logistics-BSc Year I SEMESTER I"
+  },
+  "bachelorofsciencedatasciencelogisticswithcreditsregularfyugp2026datasciencelogisticsbscyearisemesteri": {
+    "pgmName": "FYUGP BSc Data Science and Logistics",
+    "code": "UCCDSLGS26",
+    "workflowId": "505",
+    "name": "Bachelor of Science Data Science & Logistics(with Credits)-Regular-FYUGP-2026-Data Science & Logistics-BSc Year I SEMESTER I"
+  },
+  "bachelor of science data science & logistics(with credits)-regular-fyugp-2026-data science & logistics-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Data Science and Logistics",
+    "code": "UCCDSLGS26",
+    "workflowId": "505",
+    "name": "Bachelor of Science Data Science & Logistics(with Credits)-Regular-FYUGP-2026-Data Science & Logistics-BSc Year I SEMESTER I"
+  },
+  "uccdslgs26": {
+    "pgmName": "FYUGP BSc Data Science and Logistics",
+    "code": "UCCDSLGS26",
+    "workflowId": "505",
+    "name": "Bachelor of Science Data Science & Logistics(with Credits)-Regular-FYUGP-2026-Data Science & Logistics-BSc Year I SEMESTER I"
+  },
+  "fyugpbscdatascience": {
+    "pgmName": "FYUGP BSc Data Science",
+    "code": "UCCDASGS26",
+    "workflowId": "506",
+    "name": "Bachelor of Science in Data Science(with Credits)-Regular-FYUGP-2026-Data Science-BSc Year I SEMESTER I"
+  },
+  "fyugp bsc data science": {
+    "pgmName": "FYUGP BSc Data Science",
+    "code": "UCCDASGS26",
+    "workflowId": "506",
+    "name": "Bachelor of Science in Data Science(with Credits)-Regular-FYUGP-2026-Data Science-BSc Year I SEMESTER I"
+  },
+  "bachelorofscienceindatasciencewithcreditsregularfyugp2026datasciencebscyearisemesteri": {
+    "pgmName": "FYUGP BSc Data Science",
+    "code": "UCCDASGS26",
+    "workflowId": "506",
+    "name": "Bachelor of Science in Data Science(with Credits)-Regular-FYUGP-2026-Data Science-BSc Year I SEMESTER I"
+  },
+  "bachelor of science in data science(with credits)-regular-fyugp-2026-data science-bsc year i semester i": {
+    "pgmName": "FYUGP BSc Data Science",
+    "code": "UCCDASGS26",
+    "workflowId": "506",
+    "name": "Bachelor of Science in Data Science(with Credits)-Regular-FYUGP-2026-Data Science-BSc Year I SEMESTER I"
+  },
+  "uccdasgs26": {
+    "pgmName": "FYUGP BSc Data Science",
+    "code": "UCCDASGS26",
+    "workflowId": "506",
+    "name": "Bachelor of Science in Data Science(with Credits)-Regular-FYUGP-2026-Data Science-BSc Year I SEMESTER I"
+  },
+  "fyugpbabharathanatyam": {
+    "pgmName": "FYUGP BA Bharathanatyam",
+    "code": "UCABHAGS25",
+    "workflowId": "73",
+    "name": "Bachelor of  Arts in Bharatanatyam(with Credits)-Regular-FYUGP-2025-Bharatanatyam-BA Year I SEMESTER I"
+  },
+  "fyugp ba bharathanatyam": {
+    "pgmName": "FYUGP BA Bharathanatyam",
+    "code": "UCABHAGS25",
+    "workflowId": "73",
+    "name": "Bachelor of  Arts in Bharatanatyam(with Credits)-Regular-FYUGP-2025-Bharatanatyam-BA Year I SEMESTER I"
+  },
+  "bachelorofartsinbharatanatyamwithcreditsregularfyugp2025bharatanatyambayearisemesteri": {
+    "pgmName": "FYUGP BA Bharathanatyam",
+    "code": "UCABHAGS25",
+    "workflowId": "73",
+    "name": "Bachelor of  Arts in Bharatanatyam(with Credits)-Regular-FYUGP-2025-Bharatanatyam-BA Year I SEMESTER I"
+  },
+  "bachelor of  arts in bharatanatyam(with credits)-regular-fyugp-2025-bharatanatyam-ba year i semester i": {
+    "pgmName": "FYUGP BA Bharathanatyam",
+    "code": "UCABHAGS25",
+    "workflowId": "73",
+    "name": "Bachelor of  Arts in Bharatanatyam(with Credits)-Regular-FYUGP-2025-Bharatanatyam-BA Year I SEMESTER I"
+  },
+  "ucabhags25": {
+    "pgmName": "FYUGP BA Bharathanatyam",
+    "code": "UCABHAGS25",
+    "workflowId": "73",
+    "name": "Bachelor of  Arts in Bharatanatyam(with Credits)-Regular-FYUGP-2025-Bharatanatyam-BA Year I SEMESTER I"
+  },
+  "fyugpbamusickarnatic": {
+    "pgmName": "FYUGP BA Music(Karnatic)",
+    "code": "UCACNMS25",
+    "workflowId": "74",
+    "name": "Bachelor of  Arts in Carnatic Music(with Credits)-Regular-FYUGP-2025-Carnatic Music-BA Year I SEMESTER I"
+  },
+  "fyugp ba music(karnatic)": {
+    "pgmName": "FYUGP BA Music(Karnatic)",
+    "code": "UCACNMS25",
+    "workflowId": "74",
+    "name": "Bachelor of  Arts in Carnatic Music(with Credits)-Regular-FYUGP-2025-Carnatic Music-BA Year I SEMESTER I"
+  },
+  "bachelorofartsincarnaticmusicwithcreditsregularfyugp2025carnaticmusicbayearisemesteri": {
+    "pgmName": "FYUGP BA Music(Karnatic)",
+    "code": "UCACNMS25",
+    "workflowId": "74",
+    "name": "Bachelor of  Arts in Carnatic Music(with Credits)-Regular-FYUGP-2025-Carnatic Music-BA Year I SEMESTER I"
+  },
+  "bachelor of  arts in carnatic music(with credits)-regular-fyugp-2025-carnatic music-ba year i semester i": {
+    "pgmName": "FYUGP BA Music(Karnatic)",
+    "code": "UCACNMS25",
+    "workflowId": "74",
+    "name": "Bachelor of  Arts in Carnatic Music(with Credits)-Regular-FYUGP-2025-Carnatic Music-BA Year I SEMESTER I"
+  },
+  "ucacnms25": {
+    "pgmName": "FYUGP BA Music(Karnatic)",
+    "code": "UCACNMS25",
+    "workflowId": "74",
+    "name": "Bachelor of  Arts in Carnatic Music(with Credits)-Regular-FYUGP-2025-Carnatic Music-BA Year I SEMESTER I"
+  },
+  "fyugpbcomwithcomputerapplicationspecial": {
+    "pgmName": "FYUGP BCom with Computer Application - Special",
+    "code": "UCCCMCASPGS25",
+    "workflowId": "135",
+    "name": "Bachelor of Commerce(Computer Application) - Special Batch(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "fyugp bcom with computer application - special": {
+    "pgmName": "FYUGP BCom with Computer Application - Special",
+    "code": "UCCCMCASPGS25",
+    "workflowId": "135",
+    "name": "Bachelor of Commerce(Computer Application) - Special Batch(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelorofcommercecomputerapplicationspecialbatchwithcreditsregularfyugp2025commercebcomyearisemesteri": {
+    "pgmName": "FYUGP BCom with Computer Application - Special",
+    "code": "UCCCMCASPGS25",
+    "workflowId": "135",
+    "name": "Bachelor of Commerce(Computer Application) - Special Batch(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "bachelor of commerce(computer application) - special batch(with credits)-regular-fyugp-2025-commerce-bcom year i semester i": {
+    "pgmName": "FYUGP BCom with Computer Application - Special",
+    "code": "UCCCMCASPGS25",
+    "workflowId": "135",
+    "name": "Bachelor of Commerce(Computer Application) - Special Batch(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
+  "ucccmcaspgs25": {
+    "pgmName": "FYUGP BCom with Computer Application - Special",
+    "code": "UCCCMCASPGS25",
+    "workflowId": "135",
+    "name": "Bachelor of Commerce(Computer Application) - Special Batch(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
+  },
   "bbr": {
     "code": "PFMBAGA25",
     "workflowId": "162",
@@ -843,100 +3586,100 @@ export const PROGRAM_LOOKUP = {
     "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2024-Business Administration"
   },
   "bba": {
-    "code": "UCCAVHGS25",
-    "workflowId": "96",
+    "code": "UCCAAMGS25",
+    "workflowId": "95",
     "pgmName": "Bachelor of Business Administration",
-    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2024-Business Administration"
+    "name": "Bachelor of Business Administration(with Credits)-Regular-FYUGP-2025-Business Administration-BBA Year I SEMESTER I"
   },
   "aeg": {
     "code": "UCAENGGS25",
-    "workflowId": "81",
+    "workflowId": "77",
     "pgmName": "Bachelor of Arts in English",
-    "name": "Bachelor of Arts in English(with Credits)-Regular-FYUGP-2024-English"
+    "name": "Bachelor of Arts in English(with Credits)-Regular-FYUGP-2025-English-BA Year I SEMESTER I"
   },
   "aec": {
-    "code": "UCAECONS25",
-    "workflowId": "81",
+    "code": "UCAECOGS25",
+    "workflowId": "76",
     "pgmName": "Bachelor of Arts in Economics",
-    "name": "Bachelor of Arts in Social Science-Economics(with Credits)-Regular-FYUGP-2024-Social Science-Economics"
+    "name": "Bachelor of Arts in Economics(with Credits)-Regular-FYUGP-2025-Economics-BA Year I SEMESTER I"
   },
   "bca": {
-    "code": "CAP_BCA(HONOURS)",
-    "workflowId": "122",
+    "code": "UCSBCAGS25",
+    "workflowId": "104",
     "pgmName": "Bachelor of Computer Application",
-    "name": "Bachelor of Computer Application(with Credits)-Regular-FYUGP-2024-Computer Application"
+    "name": "Bachelor of Computer Application(with Credits)-Regular-FYUGP-2025-Computer Application-BCA Year I SEMESTER I"
   },
   "ahi": {
     "code": "UCAHISGS25",
     "workflowId": "81",
     "pgmName": "Bachelor of Arts in History",
-    "name": "Bachelor of Arts in History(with Credits)-Regular-FYUGP-2024-History"
+    "name": "Bachelor of Arts in History(with Credits)-Regular-FYUGP-2025-History-BA Year I SEMESTER I"
   },
   "ttm": {
-    "code": "UCTTMGS25",
-    "workflowId": "96",
-    "pgmName": "Bachelor of Tourism and Travel Management",
-    "name": "Bachelor of Tourism and Travel Management(with Credits)-Regular-FYUGP-2024-TTM"
+    "code": "UCBTTMGS25",
+    "workflowId": "131",
+    "pgmName": "Bachelor of Travel and Tourism management",
+    "name": "Bachelor of Travel and Tourism management(with Credits)-Regular-FYUGP-2025-Travel and Tourism Management-BTTM Year I SEMESTER I"
   },
   "ama": {
     "code": "UCAMALGS25",
-    "workflowId": "81",
+    "workflowId": "83",
     "pgmName": "Bachelor of Arts in Malayalam",
-    "name": "Bachelor of Arts in Malayalam(with Credits)-Regular-FYUGP-2024-Malayalam"
+    "name": "Bachelor of Arts in Malayalam(with Credits)-Regular-FYUGP-2025-Malayalam-BA Year I SEMESTER I"
   },
   "ccs": {
-    "code": "CSC_BSC(HONOURS)",
-    "workflowId": "122",
+    "code": "UCSCSCGS25",
+    "workflowId": "110",
     "pgmName": "Bachelor of Science in Computer Science",
-    "name": "Bachelor of Science in Computer Science(with Credits)-Regular-FYUGP-2024-Computer Science"
+    "name": "Bachelor of Science in Computer Science (with Credits)-Regular-FYUGP-2025-Computer Science-BSc Year I SEMESTER I"
   },
   "cps": {
-    "code": "UCAPOLGS25",
-    "workflowId": "81",
+    "code": "UCAPOSGS25",
+    "workflowId": "85",
     "pgmName": "Bachelor of Arts in Political Science",
-    "name": "Bachelor of Arts in Political Science(with Credits)-Regular-FYUGP-2024-Political Science"
+    "name": "Bachelor of Arts in Political Science(with Credits)-Regular-FYUGP-2025-Political Science-BA SEMESTER I"
   },
   "cms": {
-    "code": "UCAMATHS25",
-    "workflowId": "105",
+    "code": "UCSMATGS25",
+    "workflowId": "122",
     "pgmName": "Bachelor of Science in Mathematics",
-    "name": "Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2024-Mathematics"
+    "name": "Bachelor of Science in Mathematics(with Credits)-Regular-FYUGP-2025-Mathematics-BSc Year I SEMESTER I"
   },
   "cph": {
-    "code": "PHY_BSC(HONOURS)",
-    "workflowId": "105",
+    "code": "UCSPHYGS25",
+    "workflowId": "134",
     "pgmName": "Bachelor of Science in Physics",
-    "name": "Bachelor of Science in Physics(with Credits)-Regular-FYUGP-2024-Physics"
+    "name": "Bachelor of  Science in Physics(with Credits)-Regular-FYUGP-2025-Physics-BSc Year I SEMESTER I"
   },
   "czo": {
-    "code": "ZOO_BSC(HONOURS)",
-    "workflowId": "105",
+    "code": "UCSZLYGS25",
+    "workflowId": "129",
     "pgmName": "Bachelor of Science in Zoology",
-    "name": "Bachelor of Science in Zoology(with Credits)-Regular-FYUGP-2024-Zoology"
+    "name": "Bachelor of Science in Zoology(with Credits)-Regular-FYUGP-2025-Zoology-BSc Year I SEMESTER I"
   },
   "cch": {
-    "code": "CHE_BSC(HONOURS)",
-    "workflowId": "105",
+    "code": "UCSCHEGS25",
+    "workflowId": "133",
     "pgmName": "Bachelor of Science in Chemistry",
-    "name": "Bachelor of Science in Chemistry(with Credits)-Regular-FYUGP-2024-Chemistry"
+    "name": "Bachelor of  Science  in Chemistry(with Credits)-Regular-FYUGP-2025-Chemistry-BSc Year I SEMESTER I"
   },
   "cbo": {
-    "code": "BOT_BSC(HONOURS)",
-    "workflowId": "105",
+    "code": "UCSBOTGS25",
+    "workflowId": "108",
     "pgmName": "Bachelor of Science in Botany",
-    "name": "Bachelor of Science in Botany(with Credits)-Regular-FYUGP-2024-Botany"
+    "name": "Bachelor of Science in Botany(with Credits)-Regular-FYUGP-2025-Botany-BSc Year I SEMESTER I"
   },
   "akn": {
-    "code": "KAN_BA(HONOURS)",
-    "workflowId": "81",
+    "code": "UCAKANGS25",
+    "workflowId": "82",
     "pgmName": "Bachelor of Arts in Kannada",
-    "name": "Bachelor of Arts in Kannada(with Credits)-Regular-FYUGP-2024-Kannada"
+    "name": "Bachelor of Arts in Kannada(with Credits)-Regular-FYUGP-2025-Kannada-BA Year I SEMESTER I"
   },
   "bcom": {
-    "code": "COM_BCOM(HONOURS)",
+    "code": "UCCCCOGS25",
     "workflowId": "96",
     "pgmName": "Bachelor of Commerce",
-    "name": "Bachelor of Commerce(with Credits)-Regular-FYUGP-2024-Commerce"
+    "name": "Bachelor of Commerce(Co-operation)(with Credits)-Regular-FYUGP-2025-Commerce-BCom Year I SEMESTER I"
   }
 };
 

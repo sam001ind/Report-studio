@@ -1092,7 +1092,7 @@ test('Transforms studentmaster_fyugp 43 database dump columns into the exact 44 
   assert.equal(catLookup.id, '10');
   assert.equal(casteId, '16'); // Bhandari is 16 in Kannur IDs
   assert.equal(relLookup.id, '1'); // Hindu is 1
-  assert.equal(progMatch.code, 'KAN_BA(HONOURS)');
+  assert.equal(progMatch.code, 'UCAKANGS25');
   assert.equal(clgLookup.name, 'Govt. College Mananthavady');
   assert.equal(clgLookup.code, '200');
 });
