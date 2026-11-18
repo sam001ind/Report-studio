@@ -649,7 +649,7 @@ export default function AdmissionImportPage() {
                      KANNUR_PROGRAMMES.find(p => p.code === rawProgCodeCandidate) || null;
     }
 
-    const pgmName = (programMatch ? programMatch.pgmName : '') || getVal('pgmname', 'pgm_name') || rawProgram || 'Five Year Integrated Masters Programme in  Business Administration';
+    const pgmName = rawProgram || getVal('pgmname', 'pgm_name') || (programMatch ? programMatch.pgmName : '') || 'Five Year Integrated Masters Programme in  Business Administration';
     const programName = (programMatch ? programMatch.name : '') || rawProgram || 'Five Year Integrated Masters Programme in Business Administration(with Credits)-Regular-FYIMP-2025-Business Administration-FYIMP Year I SEMESTER I';
 
     // Col 24 workFlowId: strictly use the WORKFLOWID looked up against the Program Name
@@ -1128,7 +1128,7 @@ export default function AdmissionImportPage() {
             updated.ProgramCode = matched.code;
             updated.PROGRAMCODE = matched.code;
           }
-          if (matched.pgmName) updated['PGM Name'] = matched.pgmName;
+          if (matched.pgmName && colKey !== 'PGM Name' && !updated['PGM Name']) updated['PGM Name'] = matched.pgmName;
           if (matched.name) updated['Program Name'] = matched.name;
         }
       } else if (colKey === 'ProgramCode' || colKey === 'PROGRAMCODE') {
@@ -1139,7 +1139,7 @@ export default function AdmissionImportPage() {
             updated.workFlowId = wfNum;
             updated.WORKFLOWID = wfNum;
           }
-          if (matched.pgmName) updated['PGM Name'] = matched.pgmName;
+          if (!updated['PGM Name'] && matched.pgmName) updated['PGM Name'] = matched.pgmName;
           if (matched.name) updated['Program Name'] = matched.name;
         }
       } else if (colKey === 'workFlowId' || colKey === 'WORKFLOWID') {
@@ -1149,7 +1149,7 @@ export default function AdmissionImportPage() {
             updated.ProgramCode = matched.code;
             updated.PROGRAMCODE = matched.code;
           }
-          if (matched.pgmName) updated['PGM Name'] = matched.pgmName;
+          if (!updated['PGM Name'] && matched.pgmName) updated['PGM Name'] = matched.pgmName;
           if (matched.name) updated['Program Name'] = matched.name;
         }
       }

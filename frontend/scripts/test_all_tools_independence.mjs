@@ -1196,6 +1196,11 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
   let cg = String(sourceRow.CGPA || sourceRow.Percentage).trim();
   assert.equal(cg, '86.9167');
 
+  // Verify Col 23 PGM Name keeps the Program Name as it is in the source file
+  const rawProgramName = sourceRow['Program Name'];
+  const pgmName = rawProgramName || (progLookup ? progLookup.pgmName : '') || '';
+  assert.equal(pgmName, 'Five Year Integrated Masters Programme in  Business Administration', 'Col 23 PGM Name must keep the Program Name as it is in the source file');
+
   // Verify Col 24 workFlowId and Col 26 ProgramCode are strictly resolved from the Program Name lookup
   const lookedUpWorkflowId = (progLookup && progLookup.workflowId && progLookup.workflowId !== 'NA') ? progLookup.workflowId : '';
   const resolvedWorkflowId = lookedUpWorkflowId || (sourceRow.workFlowId !== 'NA' ? sourceRow.workFlowId : '') || '162';
