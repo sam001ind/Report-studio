@@ -745,8 +745,8 @@ export default function AdmissionImportPage() {
     const seatNumber = rawSeat || certificateNumber;
 
     // 42. Passing Year (Column 42 with blank header '')
-    const rawResultDate = getVal('resultdate', 'passeddate', 'admit_date');
-    let passingYear = getVal('qcyear', 'passingyear', 'admyear');
+    const rawResultDate = cleanEscapeArtifacts(getVal('resultdate', 'passeddate', 'admit_date'));
+    let passingYear = cleanEscapeArtifacts(getVal('qcyear', 'passingyear', 'admyear'));
     let resultDate = '';
 
     // Result Date in format YYYY-MM-DD
@@ -764,7 +764,11 @@ export default function AdmissionImportPage() {
         passingYear = '2026';
       }
     }
-    if (!resultDate) resultDate = `${passingYear}-05-31`;
+    if (!resultDate || !/^\d{4}-\d{2}-\d{2}$/.test(resultDate)) {
+      resultDate = `${passingYear}-05-31`;
+    }
+
+    const formattedResultDate = formatDobYYMMDD(resultDate);
 
     // 44. ResultStatus
     const resultStatus = getVal('resultstatus', 'status', 'result') || 'Passed';
@@ -826,9 +830,9 @@ export default function AdmissionImportPage() {
       CGPA: toNumOrVal(cgpa),
       SeatNumber: toNumOrVal(seatNumber),
       '': passingYear,
-      'Result Date ': resultDate,
-      'Result Date': resultDate,
-      ResultDate: resultDate,
+      'Result Date ': formattedResultDate,
+      'Result Date': formattedResultDate,
+      ResultDate: formattedResultDate,
       ResultStatus: resultStatus,
       _warnings: warnings
     };
@@ -1227,7 +1231,7 @@ export default function AdmissionImportPage() {
             }
             return val;
           }
-          if (col === 'dob') {
+          if (col === 'dob' || col === 'Result Date ' || col === 'Result Date') {
             return formatDobYYMMDD(val) || val;
           }
           return val;
@@ -1272,8 +1276,9 @@ export default function AdmissionImportPage() {
             const rawVal = normalizedRows[rIdx][col];
             const parsedYMD = parseDobYMD(rawVal);
             const serial = dateToExcelSerial(parsedYMD);
+            const formattedYYMMDD = formatDobYYMMDD(rawVal);
             if (serial) {
-              ws[cellAddr] = { t: 'n', v: serial, z: 'yyyy-mm-dd', w: parsedYMD };
+              ws[cellAddr] = { t: 'n', v: serial, z: 'yy-mm-dd', w: formattedYYMMDD };
             }
           }
         } else if (col === 'Date of Birth (DD/MM/YY)') {

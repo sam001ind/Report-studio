@@ -3,7 +3,19 @@
 export const cleanEscapeArtifacts = (val) => {
   if (val === null || val === undefined) return '';
   const str = String(val).trim();
-  if (str === '\\N' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined' || str.toLowerCase() === 'nan') {
+  const lower = str.toLowerCase();
+  if (
+    str === '\\N' ||
+    lower === 'null' ||
+    lower === 'undefined' ||
+    lower === 'nan' ||
+    lower === 'na' ||
+    lower === 'n/a' ||
+    lower === 'none' ||
+    lower === 'nil' ||
+    lower === '-' ||
+    lower === '--'
+  ) {
     return '';
   }
   return str;
@@ -113,19 +125,19 @@ export const parseDobYMD = (val) => {
     }
   }
 
-  // 5. YY-MM-DD with hyphens (e.g. "02-01-17", "09-03-17", "08-12-22", or DD-MM-YY "17-01-02", "16-01-02")
+  // 5. YY-MM-DD with hyphens (e.g. "02-01-17", "09-03-17", "08-12-22", "26-05-31", or DD-MM-YY "17-01-02", "16-01-02")
   const yyHyphen = clean.match(/^(\d{2})-(\d{1,2})-(\d{1,2})$/);
   if (yyHyphen) {
     const first = parseInt(yyHyphen[1], 10);
     const second = parseInt(yyHyphen[2], 10);
     const third = parseInt(yyHyphen[3], 10);
     if (second <= 12) {
-      if (first > 12) {
+      if (first > 12 && third <= 12) {
         // First is definitely Day (e.g. 17-01-02 -> Day 17, Month 01, Year 2002)
         const year = third > 50 ? 1900 + third : 2000 + third;
         return `${year}-${String(second).padStart(2, '0')}-${String(first).padStart(2, '0')}`;
       } else {
-        // Default to YY-MM-DD (e.g. 02-01-17 -> Year 2002, Month 01, Day 17; 09-03-17 -> Year 2009, Month 03, Day 17; 08-12-22 -> Year 2008, Month 12, Day 22)
+        // Default to YY-MM-DD (e.g. 02-01-17 -> Year 2002, Month 01, Day 17; 26-05-31 -> Year 2026, Month 05, Day 31)
         const year = first > 50 ? 1900 + first : 2000 + first;
         return `${year}-${String(second).padStart(2, '0')}-${String(third).padStart(2, '0')}`;
       }
@@ -176,7 +188,11 @@ export const parseDobYMD = (val) => {
     return `${y}-${m}-${day}`;
   }
 
-  return clean.split('T')[0].split(' ')[0];
+  const trimmed = clean.split('T')[0].split(' ')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return '';
 };
 
 // Converts YYYY-MM-DD or YY-MM-DD date strictly to Excel integer day serial (no time fraction)

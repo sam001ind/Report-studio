@@ -937,8 +937,15 @@ test('Admission Import & Transformation Engine: End-to-end preservation of dates
   assert.equal(cleanEscapeArtifacts('\\N'), '');
   assert.equal(cleanEscapeArtifacts('null'), '');
   assert.equal(cleanEscapeArtifacts('undefined'), '');
+  assert.equal(cleanEscapeArtifacts('NA'), '');
+  assert.equal(cleanEscapeArtifacts('na'), '');
+  assert.equal(cleanEscapeArtifacts('N/A'), '');
+  assert.equal(cleanEscapeArtifacts('None'), '');
+  assert.equal(cleanEscapeArtifacts('-'), '');
   assert.equal(cleanEscapeArtifacts('2002-01-17'), '2002-01-17');
   assert.equal(cleanEscapeArtifacts('2009-03-17'), '2009-03-17');
+  assert.equal(parseDobYMD('NA'), '');
+  assert.equal(parseDobYMD('26-05-31'), '2026-05-31');
 });
 
 test('Multi-sheet workbook: skips blank/instruction sheet 0 and selects candidate sheet 1', () => {
@@ -1277,7 +1284,7 @@ test('Transforms 38-column kreap26vfyfyimp2026 source file into exact 44 master 
       const rawVal = testTransformedRow[col];
       const dObj = parseToDate(rawVal);
       if (dObj) {
-        ws[cellAddr] = { t: 'd', v: dObj, z: 'yyyy-mm-dd' };
+        ws[cellAddr] = { t: 'd', v: dObj, z: 'yy-mm-dd' };
       }
     }
   });
